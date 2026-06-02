@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>qurix · Browser Data Tools</title>
+<meta name="description" content="A suite of local-first, browser-only data tools by qurix Technology. No data leaves your browser — everything runs on DuckDB-WASM.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* === qurix design tokens (corporate identity) === */
+:root {
+  --qrx-blue:#156B8E; --qrx-blue-dark:#0E4D67; --qrx-blue-light:#2A8AB0;
+  --qrx-green:#2EC4A2; --qrx-green-dark:#1FA888; --qrx-green-light:#4DD8B8;
+  --qrx-gradient:linear-gradient(135deg, var(--qrx-blue) 0%, var(--qrx-green) 100%);
+  --qrx-primary:var(--qrx-blue); --qrx-accent:var(--qrx-green);
+
+  --qrx-bg:#FFFFFF; --qrx-bg-subtle:#F4F7F9; --qrx-bg-muted:#E8EEF2;
+  --qrx-surface:#FFFFFF;
+  --qrx-text:#0E2530; --qrx-text-muted:#5A6B75; --qrx-text-subtle:#8A9AA3;
+  --qrx-border:#DBE3E8; --qrx-border-strong:#BCC8D0;
+
+  --qrx-font-sans:"Quicksand","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --qrx-font-mono:"JetBrains Mono",ui-monospace,"SF Mono",Consolas,monospace;
+
+  --qrx-radius:8px; --qrx-radius-lg:16px;
+  --qrx-shadow:0 4px 12px rgba(14,37,48,0.10);
+  --qrx-shadow-lg:0 18px 44px rgba(14,37,48,0.16);
+  --qrx-transition:200ms ease;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --qrx-bg:#0A1F2B; --qrx-bg-subtle:#122B38; --qrx-bg-muted:#1E3A47;
+    --qrx-surface:#122B38;
+    --qrx-text:#EAF2F5; --qrx-text-muted:#9DB1BC; --qrx-text-subtle:#6E8590;
+    --qrx-border:#1E3A47; --qrx-border-strong:#2C4D5C;
+    --qrx-shadow:0 4px 12px rgba(0,0,0,0.5);
+    --qrx-shadow-lg:0 18px 44px rgba(0,0,0,0.6);
+    --qrx-primary:var(--qrx-blue-light);
+  }
+}
+
+*,*::before,*::after { box-sizing:border-box; }
+body {
+  margin:0; font-family:var(--qrx-font-sans); line-height:1.6;
+  color:var(--qrx-text); background:var(--qrx-bg);
+  -webkit-font-smoothing:antialiased; min-height:100vh;
+  display:flex; flex-direction:column;
+  /* subtle atmospheric backdrop */
+  background-image:
+    radial-gradient(60rem 40rem at 85% -10%, rgba(46,196,162,0.10), transparent 60%),
+    radial-gradient(50rem 36rem at -10% 10%, rgba(21,107,142,0.10), transparent 55%);
+  background-attachment:fixed;
+}
+a { color:var(--qrx-primary); text-decoration:none; }
+code {
+  font-family:var(--qrx-font-mono); font-size:0.85em;
+  background:var(--qrx-bg-muted); padding:0.1em 0.4em; border-radius:4px;
+}
+
+/* === Header === */
+.qrx-header {
+  display:flex; align-items:center; gap:0.75rem;
+  padding:1.1rem clamp(1.25rem,5vw,3rem);
+  border-bottom:1px solid var(--qrx-border);
+  background:color-mix(in srgb, var(--qrx-bg) 80%, transparent);
+  backdrop-filter:saturate(140%) blur(8px);
+  position:sticky; top:0; z-index:10;
+}
+.qrx-logo { width:38px; height:38px; flex-shrink:0; }
+.qrx-wordmark { font-weight:700; font-size:1.35rem; letter-spacing:-0.01em; }
+.qrx-tag {
+  margin-left:auto; font-size:0.8rem; color:var(--qrx-text-muted);
+  font-family:var(--qrx-font-mono); display:inline-flex; align-items:center; gap:0.45rem;
+}
+.qrx-dot { width:8px; height:8px; border-radius:50%; background:var(--qrx-green); box-shadow:0 0 0 4px rgba(46,196,162,0.18); }
+
+/* === Hero === */
+main { flex:1; width:100%; max-width:1080px; margin:0 auto; padding:clamp(2.5rem,7vw,5rem) clamp(1.25rem,5vw,3rem) 3rem; }
+.qrx-hero { max-width:46rem; }
+.qrx-eyebrow {
+  font-family:var(--qrx-font-mono); font-size:0.78rem; letter-spacing:0.18em;
+  text-transform:uppercase; color:var(--qrx-accent); font-weight:500;
+}
+.qrx-hero h1 {
+  font-size:clamp(2.2rem,6vw,3.6rem); line-height:1.08; font-weight:700;
+  letter-spacing:-0.02em; margin:0.6rem 0 0;
+}
+.qrx-hero h1 .grad {
+  background:var(--qrx-gradient); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.qrx-hero p { font-size:1.12rem; color:var(--qrx-text-muted); margin:1.1rem 0 0; max-width:38rem; }
+.qrx-pills { display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:1.6rem; }
+.qrx-pill {
+  font-size:0.8rem; font-weight:500; padding:0.35rem 0.8rem; border-radius:999px;
+  background:var(--qrx-bg-subtle); border:1px solid var(--qrx-border); color:var(--qrx-text-muted);
+}
+
+/* === App grid === */
+.qrx-grid {
+  display:grid; gap:1.5rem; margin-top:clamp(2.5rem,6vw,3.5rem);
+  grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+}
+.qrx-card {
+  position:relative; display:flex; flex-direction:column;
+  background:var(--qrx-surface); border:1px solid var(--qrx-border);
+  border-radius:var(--qrx-radius-lg); padding:1.8rem; overflow:hidden;
+  box-shadow:var(--qrx-shadow); transition:transform var(--qrx-transition), box-shadow var(--qrx-transition), border-color var(--qrx-transition);
+}
+.qrx-card::before {
+  content:""; position:absolute; inset:0 0 auto 0; height:4px; background:var(--qrx-gradient);
+  transform:scaleX(0); transform-origin:left; transition:transform 280ms ease;
+}
+.qrx-card:hover { transform:translateY(-6px); box-shadow:var(--qrx-shadow-lg); border-color:var(--qrx-border-strong); }
+.qrx-card:hover::before { transform:scaleX(1); }
+.qrx-card-icon {
+  width:48px; height:48px; border-radius:12px; display:grid; place-items:center;
+  background:linear-gradient(135deg, rgba(21,107,142,0.14), rgba(46,196,162,0.14));
+  color:var(--qrx-primary); margin-bottom:1.1rem;
+}
+.qrx-card-icon svg { width:26px; height:26px; }
+.qrx-card h2 { font-size:1.3rem; margin:0 0 0.5rem; font-weight:600; letter-spacing:-0.01em; }
+.qrx-card p { color:var(--qrx-text-muted); font-size:0.95rem; margin:0 0 1.3rem; flex:1; }
+.qrx-card-meta {
+  display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:1.4rem;
+}
+.qrx-tagchip {
+  font-family:var(--qrx-font-mono); font-size:0.72rem; color:var(--qrx-text-subtle);
+  background:var(--qrx-bg-subtle); border:1px solid var(--qrx-border); padding:0.2rem 0.55rem; border-radius:6px;
+}
+.qrx-launch {
+  display:inline-flex; align-items:center; gap:0.5rem; align-self:flex-start;
+  font-weight:600; font-size:0.92rem; padding:0.6rem 1.1rem; border-radius:var(--qrx-radius);
+  background:var(--qrx-gradient); color:#fff; transition:gap var(--qrx-transition), filter var(--qrx-transition);
+}
+.qrx-card:hover .qrx-launch { gap:0.8rem; filter:brightness(1.05); }
+.qrx-launch svg { width:16px; height:16px; }
+
+/* === Footer === */
+footer {
+  border-top:1px solid var(--qrx-border); padding:1.6rem clamp(1.25rem,5vw,3rem);
+  color:var(--qrx-text-subtle); font-size:0.85rem;
+  display:flex; flex-wrap:wrap; gap:0.5rem 1.2rem; align-items:center; justify-content:space-between;
+}
+footer .qrx-priv { display:inline-flex; align-items:center; gap:0.45rem; }
+footer svg { width:15px; height:15px; }
+</style>
+</head>
+<body>
+
+<header class="qrx-header">
+  <svg class="qrx-logo" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="qurix Technology">
+    <defs>
+      <linearGradient id="qrxRing" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#156B8E"/>
+        <stop offset="100%" stop-color="#2EC4A2"/>
+      </linearGradient>
+    </defs>
+    <circle cx="34" cy="34" r="29" fill="none" stroke="url(#qrxRing)" stroke-width="6"/>
+    <line x1="33" y1="38" x2="62" y2="66" stroke="#2EC4A2" stroke-width="8" stroke-linecap="butt"/>
+  </svg>
+  <span class="qrx-wordmark">qurix</span>
+  <span class="qrx-tag"><span class="qrx-dot"></span>Browser Data Tools</span>
+</header>
+
+<main>
+  <section class="qrx-hero">
+    <span class="qrx-eyebrow">Local-first · No backend</span>
+    <h1>Data tools that run <span class="grad">entirely in your browser</span>.</h1>
+    <p>
+      A small suite of single-file web apps for inspecting and reshaping tabular data.
+      Powered by DuckDB-WASM — your files are read locally and never uploaded anywhere.
+    </p>
+    <div class="qrx-pills">
+      <span class="qrx-pill">DuckDB-WASM</span>
+      <span class="qrx-pill">No installation</span>
+      <span class="qrx-pill">Privacy by design</span>
+      <span class="qrx-pill">Open in any modern browser</span>
+    </div>
+  </section>
+
+  <section class="qrx-grid">
+
+    <!-- Parquet Profiler -->
+    <article class="qrx-card">
+      <div class="qrx-card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>
+        </svg>
+      </div>
+      <h2>Parquet Profiler</h2>
+      <p>
+        Structural and statistical analysis of Parquet files. Reads metadata straight from the
+        footer and profiles columns, row groups and compression — referencing files by byte range,
+        so even several large files stay memory-friendly.
+      </p>
+      <div class="qrx-card-meta">
+        <span class="qrx-tagchip">.parquet</span>
+        <span class="qrx-tagchip">metadata</span>
+        <span class="qrx-tagchip">column stats</span>
+      </div>
+      <a class="qrx-launch" href="parquet-profiler.html">
+        Launch app
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </article>
+
+    <!-- Table Format Converter -->
+    <article class="qrx-card">
+      <div class="qrx-card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h13l-3-3M20 17H7l3 3"/>
+        </svg>
+      </div>
+      <h2>Table Format Converter</h2>
+      <p>
+        Read CSV, Parquet, JSON, NDJSON or Excel, inspect the schema, fine-tune the parsing
+        heuristic with a live preview, and export to a different format. Sample-first, so the
+        first preview appears in ~100 ms even on multi-GB files.
+      </p>
+      <div class="qrx-card-meta">
+        <span class="qrx-tagchip">CSV ⇄ Parquet</span>
+        <span class="qrx-tagchip">JSON</span>
+        <span class="qrx-tagchip">Excel</span>
+      </div>
+      <a class="qrx-launch" href="table-format-converter.html">
+        Launch app
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </article>
+
+  </section>
+</main>
+
+<footer>
+  <span>© <span id="yr"></span> qurix Technology GmbH</span>
+  <span class="qrx-priv">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    All processing happens locally in your browser.
+  </span>
+</footer>
+
+<script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
+</body>
+</html>
