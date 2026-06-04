@@ -1115,6 +1115,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // === App state hooks ===
   window.qurixApp = window.qurixApp || {};
 
+  // Capture the pristine app region BEFORE any data is rendered into it, so a
+  // blank export can be restored to this clean state. (Runs synchronously at
+  // parse time, before DOMContentLoaded / any user interaction.)
+  const pristineApp = document.getElementById('qrx-app');
+  const pristineAppHTML = pristineApp ? pristineApp.innerHTML : null;
+
   function hydrate() {
     const el = document.getElementById('qrx-app-state');
     if (!el || !window.qurixApp.hydrateState) return;
@@ -1186,6 +1192,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const clone = document.documentElement.cloneNode(true);
     const oldState = clone.querySelector('#qrx-app-state');
     if (oldState) oldState.remove();
+    // Restore the pristine app region — clears any data rendered into the DOM
+    // (preview grid, schema, stats, export options, etc.) so the blank export
+    // really is blank.
+    const cApp = clone.querySelector('#qrx-app');
+    if (cApp && pristineAppHTML !== null) cApp.innerHTML = pristineAppHTML;
     download(clone);
   });
 
