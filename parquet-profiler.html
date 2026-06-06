@@ -1172,6 +1172,16 @@ body.pp-fullscreen .pp-sql-result {
   border-radius: var(--qrx-radius-sm); white-space: pre-wrap; overflow-x: auto;
 }
 
+/* Static-snapshot mode ("Export with data" reopened without the source file):
+   the data frozen in the DOM stays browsable, but live controls inside the tab
+   panels are disabled. Tab switching and the re-load controls stay active. */
+#qrx-app.pp-snapshot .pp-tab-panel button,
+#qrx-app.pp-snapshot .pp-tab-panel input,
+#qrx-app.pp-snapshot .pp-tab-panel select,
+#qrx-app.pp-snapshot .pp-tab-panel textarea {
+  pointer-events: none; opacity: 0.55;
+}
+
 /* Responsive tweaks */
 @media (max-width: 720px) {
   .pp-cols-table { font-size: 0.8125rem; }
@@ -1833,6 +1843,7 @@ body.pp-fullscreen .pp-sql-result {
       lastRunCount: null,   // last result row count, used by the tab-count badge
     },
     activeTab: 'cols',      // 'cols' | 'preview' | 'pivot' | 'sql'
+    snapshotMode: false,    // true when viewing a "with data" export (no live file/DuckDB)
   };
 
   // -------------------------------------------------------------------------
@@ -2123,6 +2134,7 @@ body.pp-fullscreen .pp-sql-result {
   async function addFiles(fileList) {
     const incoming = Array.from(fileList || []).filter(Boolean);
     if (!incoming.length) return;
+    exitSnapshotMode();  // a real file replaces the static snapshot view
     clearError();
     showLoading('Dateien werden registriert \u2026');
     try {
@@ -2807,6 +2819,7 @@ body.pp-fullscreen .pp-sql-result {
   }
 
   function toggleColsSort(fieldId) {
+    if (state.snapshotMode) return;  // re-render would wipe the frozen snapshot table
     const t = state.colsTable;
     if (t.sortKey !== fieldId) {
       t.sortKey = fieldId;
@@ -2976,6 +2989,7 @@ body.pp-fullscreen .pp-sql-result {
   // Expansion / detail row
   // -------------------------------------------------------------------------
   async function toggleColumn(colName) {
+    if (state.snapshotMode) return;  // column stats need a live DuckDB connection
     const table = document.getElementById('pp-colsTable');
     if (!table) return;
     const row = table.querySelector(`tr.pp-cols-row[data-col="${CSS.escape(colName)}"]`);
@@ -4078,6 +4092,7 @@ body.pp-fullscreen .pp-sql-result {
   }
 
   async function applyFiltersAndRefresh() {
+    if (state.snapshotMode) return;  // filtering needs a live DuckDB connection
     try {
       // Recompute filtered row count
       const r = await runQuery(`SELECT COUNT(*)::BIGINT AS c FROM ${PARQUET_SQL}${buildWhereClause()}`);
@@ -4192,6 +4207,7 @@ body.pp-fullscreen .pp-sql-result {
   });
 
   async function refreshPreview() {
+    if (state.snapshotMode) return;  // no live data behind a static snapshot
     if (!state.columns.length) return;
     const lim = state.previewLimit || 100;
     const total = state.rowCountFiltered || 0;
@@ -4807,6 +4823,7 @@ body.pp-fullscreen .pp-sql-result {
   }
 
   async function runPivot() {
+    if (state.snapshotMode) { setPivotStatus('Originaldatei erneut ablegen, um zu rechnen.'); return; }
     setPivotStatus('');
     pivotResult.innerHTML = '';
     const v = validatePivotConfig();
@@ -5379,6 +5396,7 @@ body.pp-fullscreen .pp-sql-result {
   if (sqlRunBtn) sqlRunBtn.addEventListener('click', runSqlQuery);
 
   async function runSqlQuery() {
+    if (state.snapshotMode) { setSqlStatus('Originaldatei erneut ablegen, um Abfragen auszuführen.'); return; }
     const sql = (sqlEditor.value || '').trim();
     if (!sql) {
       setSqlStatus('Bitte SQL eingeben.', 'warning');
@@ -5637,8 +5655,21 @@ body.pp-fullscreen .pp-sql-result {
       activeTab: state.activeTab,
     };
   };
+  function exitSnapshotMode() {
+    if (!state.snapshotMode) return;
+    state.snapshotMode = false;
+    const appEl = document.getElementById('qrx-app');
+    if (appEl) appEl.classList.remove('pp-snapshot');
+    // The informational note in errorBox is cleared by clearError() in addFiles.
+  }
+
   window.qurixApp.hydrateState = (s) => {
     if (!s) return;
+    // A snapshot has data frozen in the cloned DOM but no live file/DuckDB:
+    // mark snapshot mode so live actions are blocked and the frozen view stays.
+    state.snapshotMode = true;
+    const appEl = document.getElementById('qrx-app');
+    if (appEl) appEl.classList.add('pp-snapshot');
     const fileList = Array.isArray(s.files) && s.files.length
       ? s.files
       : (s.fileMeta ? [{ name: s.fileMeta.name, size: s.fileMeta.size, alias: null }] : []);
@@ -5653,10 +5684,12 @@ body.pp-fullscreen .pp-sql-result {
       note.style.background = 'rgba(232,163,23,0.08)';
       note.style.borderColor = 'var(--qrx-warning)';
       note.innerHTML = `
-        <strong style="color:var(--qrx-warning)">Snapshot wiederhergestellt</strong>
+        <strong style="color:var(--qrx-warning)">Statischer Snapshot</strong>
         <p style="margin:.25rem 0 0;">
-          Konfiguration f&uuml;r ${fileList.length === 1 ? 'die folgende Datei' : 'die folgenden Dateien'}
-          wurde geladen. Bitte dieselbe(n) Datei(en) erneut ausw&auml;hlen, um die Ansicht zu rekonstruieren:
+          Die angezeigten Daten sind ein eingefrorenes Abbild vom Export-Zeitpunkt.
+          Live-Funktionen (Filter, Spaltenstatistik, Pivot, SQL, Sortierung) sind deaktiviert.
+          Bitte ${fileList.length === 1 ? 'die folgende Datei' : 'die folgenden Dateien'}
+          erneut ablegen, um die Ansicht voll funktionsf&auml;hig zu rekonstruieren:
         </p>
         <ul style="margin:.25rem 0 0; padding-left:1.25rem;">${items}</ul>
       `;

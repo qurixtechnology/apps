@@ -189,6 +189,18 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .dropzone .dz-title { font-size: 1.125rem; font-weight: 600; color: var(--qrx-text); }
 .dropzone .dz-sub { font-size: 0.875rem; color: var(--qrx-text-muted); }
 
+/* Static-snapshot banner ("Export with data" reopened without the source file) */
+.snapshot-banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--qrx-s-2) var(--qrx-s-3);
+  margin-bottom: var(--qrx-s-4); padding: var(--qrx-s-3) var(--qrx-s-4);
+  border: 1px solid var(--qrx-warning); border-radius: var(--qrx-radius);
+  background: rgba(232,163,23,0.10); font-size: 0.875rem;
+}
+.snapshot-banner strong { color: var(--qrx-warning); }
+/* Neutralise live controls that need the source file; preview stays browsable */
+.workspace.is-snapshot .heuristic-panel,
+.workspace.is-snapshot .export-section { pointer-events: none; opacity: 0.55; }
+
 /* The HTML [hidden] attribute must beat any author-set display value. */
 [hidden] { display: none !important; }
 
@@ -1290,6 +1302,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     csvFullColumnNames: null, // full column names from unprojected CSV read
     duckdbAlias: null,    // ATTACH alias for DuckDB source files
     duckdbTables: [],     // [{schema, name, qualified}] from attached DB
+    snapshotMode: false,  // true when viewing a "with data" export (no live file)
+    snapshotMeta: null,   // {fileName, fileSize} of the captured snapshot
   };
   // Active heuristic = detected merged with user overrides
   function eff() { return Object.assign({}, state.detected, state.user); }
@@ -1492,6 +1506,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
   // ---------------------------------------------------------------- File handling
   async function loadFile(file) {
+    exitSnapshotMode();  // leave static-snapshot view when a real file arrives
     state.file = file;
     state.fileSize = file.size;
     state.user = {};
@@ -1559,6 +1574,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
 
   function resetFile() {
+    exitSnapshotMode();
     if (state.duckdbAlias && conn) {
       // Best-effort detach; fire-and-forget since resetFile is sync
       try { conn.query(`DETACH ${sqlIdent(state.duckdbAlias)}`); } catch (_) {}
@@ -2495,6 +2511,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
   // ---------------------------------------------------------------- Preview & schema
   async function refreshPreview() {
+    if (state.snapshotMode) return;  // no live file behind a static snapshot
     try {
       setStatus('Loading preview…');
       if (state.format === 'csv') await previewCSV();
@@ -3482,6 +3499,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   targetFormat.addEventListener('change', renderExportOptions);
 
   exportBtn.addEventListener('click', async () => {
+    if (state.snapshotMode) return;  // export needs the live source file
     const fmt = targetFormat.value;
     exportBtn.disabled = true;
     exportProgress.textContent = 'Reading source…';
@@ -3835,6 +3853,109 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     if (f) loadFile(f);
   });
   resetFileBtn.addEventListener('click', resetFile);
+
+  // ---------------------------------------------------------------- Snapshot ("Export with data")
+  // The source file is a live browser handle and cannot be embedded, so a
+  // snapshot captures the configuration plus the visible preview sample as a
+  // static, read-only view. Live actions (re-parse / convert / export) are
+  // disabled until the user re-drops the original file.
+  window.qurixApp = window.qurixApp || {};
+  // Preview rows may hold BigInt (int64) or Arrow nested objects, which JSON
+  // cannot serialize directly — coerce to JSON-safe primitives. BigInt → string
+  // (no precision loss); Date stays (JSON emits ISO); anything exotic → String.
+  function jsonSafeValue(v) {
+    if (typeof v === 'bigint') return v.toString();
+    if (v === null || v === undefined || v instanceof Date) return v;
+    if (Array.isArray(v)) return v.map(jsonSafeValue);
+    if (typeof v === 'object') {
+      try {
+        const o = {};
+        for (const k in v) o[k] = jsonSafeValue(v[k]);
+        return o;
+      } catch (_) { return String(v); }
+    }
+    return v;
+  }
+  window.qurixApp.serializeState = () => {
+    if (!state.schema.length && !state.previewRows.length) return null;
+    let rows;
+    try { rows = state.previewRows.map(r => jsonSafeValue(r)); }
+    catch (_) { rows = []; }
+    return {
+      v: 1,
+      fileName: (state.file && state.file.name) || (state.snapshotMeta && state.snapshotMeta.fileName) || 'data',
+      fileSize: state.fileSize || 0,
+      format: state.format,
+      detected: state.detected,
+      user: state.user,
+      schema: state.schema,
+      previewRows: rows,
+      rowCountEstimate: state.rowCountEstimate,
+      targetFormat: targetFormat.value,
+      exFilter: ($('ex_filter') && $('ex_filter').value) || '',
+    };
+  };
+  window.qurixApp.hydrateState = (s) => {
+    if (!s || (!Array.isArray(s.schema) && !Array.isArray(s.previewRows))) return;
+    enterSnapshotMode(s);
+  };
+
+  function enterSnapshotMode(s) {
+    state.snapshotMode = true;
+    state.snapshotMeta = { fileName: s.fileName || 'data', fileSize: s.fileSize || 0 };
+    state.file = null;
+    state.fileSize = s.fileSize || 0;
+    state.format = s.format || null;
+    state.detected = s.detected || {};
+    state.user = s.user || {};
+    state.schema = Array.isArray(s.schema) ? s.schema : [];
+    state.previewRows = Array.isArray(s.previewRows) ? s.previewRows : [];
+    state.rowCountEstimate = s.rowCountEstimate || null;
+
+    // Reveal the workspace exactly like loadFile, but without any DuckDB work.
+    dropzone.hidden = true;
+    fileInfo.hidden = false;
+    const fmt = state.format || '';
+    fileIcon.textContent = ({ parquet:'PRQ', xlsx:'XLS', ndjson:'NDJ', duckdb:'DDB', json:'JSN' })[fmt] || 'CSV';
+    fileName.textContent = state.snapshotMeta.fileName;
+    fileMeta.textContent = (fmt ? fmt.toUpperCase() + ' · ' : '') + fmtBytes(state.fileSize);
+    workspace.hidden = false;
+
+    if (s.targetFormat) targetFormat.value = s.targetFormat;
+    renderHeuristicPanel();
+    renderExportOptions();
+    const exf = $('ex_filter'); if (exf && s.exFilter) exf.value = s.exFilter;
+    renderPreviewStats();
+    renderPreviewGrid();
+
+    workspace.classList.add('is-snapshot');
+    exportBtn.disabled = true;
+    showSnapshotBanner();
+  }
+
+  function exitSnapshotMode() {
+    if (!state.snapshotMode) { const b0 = $('snapshotBanner'); if (b0) b0.remove(); return; }
+    state.snapshotMode = false;
+    state.snapshotMeta = null;
+    workspace.classList.remove('is-snapshot');
+    exportBtn.disabled = false;
+    const b = $('snapshotBanner'); if (b) b.remove();
+  }
+
+  function showSnapshotBanner() {
+    if ($('snapshotBanner')) return;
+    const b = document.createElement('div');
+    b.id = 'snapshotBanner';
+    b.className = 'snapshot-banner';
+    b.innerHTML =
+      '<span><strong>Static snapshot.</strong> Showing the preview captured for '
+      + '<code>' + escapeHtml(state.snapshotMeta.fileName) + '</code>. '
+      + 'Re-parsing, conversion and export are disabled.</span>'
+      + '<button type="button" class="qrx-btn" id="snapshotReloadBtn">Load the original file</button>';
+    const shell = document.querySelector('.app-shell');
+    shell.insertBefore(b, shell.firstChild);
+    $('snapshotReloadBtn').addEventListener('click', () => { resetFile(); filePicker.click(); });
+  }
 
   renderExportOptions();
 })();
