@@ -20,13 +20,22 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
+/* Flag-emoji webfont — Chrome on Windows has no country-flag glyphs in the
+   system emoji font (Firefox and mobile ship their own), so flags otherwise
+   show as bare letter pairs. This Twemoji subset is scoped via unicode-range
+   to flag code points only, so all other text and emoji are untouched. */
+@font-face{
+  font-family:'Twemoji Country Flags';
+  unicode-range:U+1F1E6-1F1FF, U+1F3F4, U+E0020-E007F;
+  src:url('https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1.8/dist/TwemojiCountryFlags.woff2') format('woff2');
+}
 body{
   background:
     radial-gradient(1200px 600px at 80% -10%, rgba(82,168,232,.10), transparent 60%),
     radial-gradient(1000px 500px at -10% 0%, rgba(243,197,74,.08), transparent 55%),
     linear-gradient(180deg,var(--bg),var(--bg2) 60%,var(--bg));
   color:var(--ink);
-  font-family:'Manrope',system-ui,sans-serif;
+  font-family:'Twemoji Country Flags','Manrope',system-ui,sans-serif;
   min-height:100vh; line-height:1.5; -webkit-font-smoothing:antialiased;
 }
 .wrap{max-width:1240px;margin:0 auto;padding:0 18px 80px}
@@ -707,6 +716,17 @@ button.ko-team:hover{border-color:var(--line2);background:var(--panel2)}
   select{min-width:0;width:100%}
   .field{flex:1}
   .day-h{top:56px}
+}
+
+/* Mobile: keep the tab menu to a single, horizontally scrollable row instead
+   of wrapping onto several lines (which ate up ~half the screen as a sticky bar). */
+@media(max-width:640px){
+  .tabs{flex-wrap:nowrap;overflow-x:auto;padding:10px 0 8px;
+        scrollbar-width:none;-webkit-overflow-scrolling:touch;
+        -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent);
+                mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent)}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;font-size:13px;padding:8px 13px;gap:6px}
 }
 
 /* ============================================================
