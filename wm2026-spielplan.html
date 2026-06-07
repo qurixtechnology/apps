@@ -2937,9 +2937,17 @@ async function cloudCreateRound(){
   if(!CLOUD_ON()) return;
   if(!myTip.name){ alert("Bitte zuerst oben deinen Namen eingeben."); return; }
   const sb = await cloudAuth();
-  const code = randomCode();
-  const { error } = await sb.from("rounds").insert({ code, name:"WM 2026 Tipprunde" });
-  if(error) throw new Error(error.message);
+  let code = null, lastErr = null;
+  for(let i=0;i<6;i++){
+    const c = randomCode();
+    const { error } = await sb.from("rounds").insert({ code:c, name:"WM 2026 Tipprunde" });
+    if(!error){ code = c; break; }
+    lastErr = error;
+    // 23505 = unique_violation (Code bereits vergeben) → neuen Code versuchen.
+    const dup = error.code === "23505" || /duplicate|unique/i.test(error.message||"");
+    if(!dup) throw new Error(error.message);
+  }
+  if(!code) throw new Error("Konnte keinen freien Runden-Code erzeugen. Bitte erneut versuchen." + (lastErr&&lastErr.message?" ("+lastErr.message+")":""));
   await cloudSetRound(code);
 }
 async function cloudJoinRound(code){
