@@ -89,6 +89,14 @@ body{
 .hist-foot{color:var(--mut2);font-size:12px;margin-top:14px}
 @media(max-width:640px){ .hist-table th:nth-child(3),.hist-table td:nth-child(3){display:none} }
 
+/* ---------- Cloud-Tippspiel ---------- */
+.cloud-block .cloud-hint{color:var(--mut);font-size:13px;margin:4px 0 10px}
+.cloud-code{font-family:'Anton',sans-serif;letter-spacing:1px;color:var(--gold);font-size:18px}
+.cloud-pill{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;vertical-align:middle;margin-left:6px;background:var(--panel2);color:var(--mut)}
+.cloud-pill.on{background:rgba(52,200,120,.16);color:var(--green)}
+.cloud-join{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cloud-join .tip-name{max-width:240px}
+
 /* ---------- Scenario planner ---------- */
 .planner{margin-top:16px;border:1px solid var(--line);border-radius:var(--r);
   background:linear-gradient(180deg,var(--panel),var(--bg2));box-shadow:var(--shadow);overflow:hidden}
@@ -2164,7 +2172,7 @@ const TEAMS=Object.values(GROUPS).flat();
 let myTip={name:"",g:{},b:[null,null,null,null]};
 try{const s=localStorage.getItem("wm2026_mytip"); if(s)myTip=JSON.parse(s);}catch(e){}
 if(!myTip.b)myTip.b=[null,null,null,null];
-function saveMyTip(){try{localStorage.setItem("wm2026_mytip",JSON.stringify(myTip));}catch(e){}}
+function saveMyTip(){try{localStorage.setItem("wm2026_mytip",JSON.stringify(myTip));}catch(e){} if(typeof cloudPushMyTip==="function")cloudPushMyTip();}
 let tipPlayers=[];
 try{const s=localStorage.getItem("wm2026_tips"); if(s)tipPlayers=JSON.parse(s);}catch(e){}
 function saveTipPlayers(){try{localStorage.setItem("wm2026_tips",JSON.stringify(tipPlayers));}catch(e){}}
@@ -2882,6 +2890,114 @@ function scorePlayer(p){
 function teamOptions(sel){
   return '<option value="">— wählen —</option>'+TEAMS.slice().sort((a,b)=>a.localeCompare(b,"de")).map(t=>`<option value="${t}"${t===sel?" selected":""}>${t}</option>`).join("");
 }
+/* ===================== Cloud-Tippspiel (Supabase, optional) =====================
+   Trage die Projekt-URL und den OEFFENTLICHEN anon-Key deines kostenlosen
+   Supabase-Projekts ein, um Tipprunden online zu teilen. Bleiben beide leer,
+   funktioniert das Tippspiel rein lokal (Code-Austausch) wie bisher.
+   NIE den geheimen service_role-Key hier eintragen. */
+const SUPABASE_URL = "https://sxsxbosroharlvitcopf.supabase.co";        // z.B. "https://abcdxyz.supabase.co"
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN4c3hib3Nyb2hhcmx2aXRjb3BmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MTc3MzMsImV4cCI6MjA5NjM5MzczM30.xthyyzxc70yaL1IRKsrBQxpsvzjt6g-TQxOoR7nKiqQ";   // oeffentlicher "anon"-Key
+const CLOUD_ON = () => !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+let cloudRound = null;
+try { cloudRound = localStorage.getItem("wm2026_round") || null; } catch(_){}
+let cloudPollTimer = null, cloudPushTimer = null, cloudBusy = false;
+
+function sbHeaders(extra){ return Object.assign({
+  "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY,
+  "Content-Type": "application/json"
+}, extra||{}); }
+async function sb(path, opts){
+  const r = await fetch(SUPABASE_URL.replace(/\/$/,"")+"/rest/v1/"+path, opts);
+  if(!r.ok){ const t = await r.text().catch(()=> ""); throw new Error("Cloud "+r.status+": "+t.slice(0,160)); }
+  const ct = r.headers.get("content-type")||"";
+  return ct.includes("application/json") ? r.json() : null;
+}
+function randomCode(){ const a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s=""; for(let i=0;i<5;i++)s+=a[Math.floor(Math.random()*a.length)]; return "WM-"+s; }
+function cloudTipFilled(){ return !!(myTip.name && (Object.keys(myTip.g).length || (myTip.b||[]).some(Boolean))); }
+
+async function cloudCreateRound(){
+  if(!CLOUD_ON()) return;
+  if(!myTip.name){ alert("Bitte zuerst oben deinen Namen eingeben."); return; }
+  const code = randomCode();
+  await sb("rounds", {method:"POST", headers:sbHeaders({Prefer:"return=minimal"}),
+    body:JSON.stringify({code, name:"WM 2026 Tipprunde"})});
+  await cloudSetRound(code);
+}
+async function cloudJoinRound(code){
+  if(!CLOUD_ON()) return;
+  code = (code||"").trim().toUpperCase();
+  if(!code){ alert("Bitte einen Runden-Code eingeben."); return; }
+  if(!myTip.name){ alert("Bitte zuerst oben deinen Namen eingeben."); return; }
+  const rows = await sb("rounds?select=code&code=eq."+encodeURIComponent(code), {headers:sbHeaders()});
+  if(!rows || !rows.length){ alert("Runde nicht gefunden: "+code); return; }
+  await cloudSetRound(code);
+}
+async function cloudSetRound(code){
+  cloudRound = code; try{ localStorage.setItem("wm2026_round", code); }catch(_){}
+  if(cloudTipFilled()) { try{ await cloudPushNow(); }catch(e){ console.warn(e); } }
+  await cloudPullTips();
+  cloudStartPolling();
+  renderTippspiel();
+}
+function cloudLeaveRound(){
+  cloudRound = null; try{ localStorage.removeItem("wm2026_round"); }catch(_){}
+  cloudStopPolling(); renderTippspiel();
+}
+async function cloudPushNow(){
+  if(!CLOUD_ON() || !cloudRound || !myTip.name) return;
+  await sb("tips", {method:"POST", headers:sbHeaders({Prefer:"resolution=merge-duplicates,return=minimal"}),
+    body:JSON.stringify({round_code:cloudRound, player:myTip.name, tip:myTip, updated_at:new Date().toISOString()})});
+}
+function cloudPushMyTip(){
+  if(!CLOUD_ON() || !cloudRound || !myTip.name) return;
+  clearTimeout(cloudPushTimer);
+  cloudPushTimer = setTimeout(()=>{ cloudPushNow().catch(e=>console.warn("cloud push", e)); }, 1200);
+}
+async function cloudPullTips(){
+  if(!CLOUD_ON() || !cloudRound || cloudBusy) return;
+  cloudBusy = true;
+  try{
+    const rows = await sb("tips?select=player,tip&round_code=eq."+encodeURIComponent(cloudRound), {headers:sbHeaders()});
+    const mine = (myTip.name||"").toLowerCase();
+    const others = []; let own = null;
+    (rows||[]).forEach(r=>{ const t = r.tip||{}; t.name = t.name || r.player;
+      if((r.player||"").toLowerCase() === mine) own = t; else others.push(t); });
+    tipPlayers = others; saveTipPlayers();
+    // Adopt own cloud tip only when local is still empty (e.g. a second device).
+    if(own && !cloudTipFilled()){ myTip = own; saveMyTip(); }
+    renderTipRoster(); renderTipBoard();
+  } finally { cloudBusy = false; }
+}
+function cloudStartPolling(){
+  cloudStopPolling();
+  if(!CLOUD_ON() || !cloudRound) return;
+  cloudPollTimer = setInterval(()=>{ if(document.visibilityState==="visible") cloudPullTips().catch(()=>{}); }, 15000);
+}
+function cloudStopPolling(){ if(cloudPollTimer){ clearInterval(cloudPollTimer); cloudPollTimer=null; } }
+
+function cloudBlockHtml(){
+  if(!CLOUD_ON()){
+    return `<div class="tip-block cloud-block"><h3>☁️ Cloud-Runde</h3>
+      <p class="cloud-hint">Cloud-Tippspiel ist nicht konfiguriert. Trage <code>SUPABASE_URL</code> und <code>SUPABASE_ANON_KEY</code> oben im Script ein, um Tipprunden online zu teilen. Bis dahin läuft alles lokal (Code-Austausch unten).</p></div>`;
+  }
+  if(cloudRound){
+    return `<div class="tip-block cloud-block"><h3>☁️ Cloud-Runde <span class="cloud-pill on">verbunden</span></h3>
+      <p class="cloud-hint">Runden-Code: <b class="cloud-code">${cloudRound}</b> — teile ihn mit Mitspielern. Dein Tipp wird automatisch gespeichert; die Rangliste aktualisiert sich alle 15&nbsp;s (oder per Klick).</p>
+      <div class="tip-actions">
+        <button class="mini-btn" id="cloudCopyCode">📋 Code kopieren</button>
+        <button class="mini-btn" id="cloudRefresh">🔄 Jetzt aktualisieren</button>
+        <button class="mini-btn warn" id="cloudLeave">Runde verlassen</button>
+      </div></div>`;
+  }
+  return `<div class="tip-block cloud-block"><h3>☁️ Cloud-Runde</h3>
+    <p class="cloud-hint">Erstelle eine Tipprunde oder tritt mit einem Code bei (zuerst oben deinen Namen eingeben).</p>
+    <div class="cloud-join">
+      <input id="cloudCode" class="tip-name" maxlength="12" placeholder="Runden-Code, z. B. WM-7F3K">
+      <button class="sim-btn" id="cloudJoin">Beitreten</button>
+      <button class="sim-btn alt" id="cloudCreate">Neue Runde erstellen</button>
+    </div></div>`;
+}
+
 function renderTippspiel(){
   const main=document.getElementById("tipMain"); if(!main)return;
   let pred="";
@@ -2899,6 +3015,7 @@ function renderTippspiel(){
   const b=myTip.b||[null,null,null,null];
   main.innerHTML=`
     <div class="tip-scheme"><b>Wertung je Spiel:</b> exakt 4 · richtige Tordifferenz 3 · richtige Tendenz 2 · sonst 0. &nbsp;<b>Bonus:</b> Weltmeister +20 · je richtiger Finalist +8 · je richtiger Halbfinalist +4.</div>
+    ${cloudBlockHtml()}
     <div class="tip-block">
       <h3>① Mein Tipp</h3>
       <div class="tip-namerow"><label>Name</label><input id="tipName" class="tip-name" maxlength="40" placeholder="Dein Name" value="${(myTip.name||"").replace(/"/g,"&quot;")}"></div>
@@ -2958,6 +3075,12 @@ function renderTippspiel(){
       saveTipPlayers(); ta.value=""; renderTippspiel();
     }catch(e){ alert("Code konnte nicht gelesen werden. Bitte vollständig kopieren."); }
   });
+  // Cloud-Runde
+  const cCreate=main.querySelector("#cloudCreate"); if(cCreate)cCreate.addEventListener("click",()=>cloudCreateRound().catch(e=>alert(e.message)));
+  const cJoin=main.querySelector("#cloudJoin"); if(cJoin)cJoin.addEventListener("click",()=>cloudJoinRound(main.querySelector("#cloudCode").value).catch(e=>alert(e.message)));
+  const cLeave=main.querySelector("#cloudLeave"); if(cLeave)cLeave.addEventListener("click",()=>{ if(confirm("Cloud-Runde verlassen? Dein Tipp bleibt lokal erhalten."))cloudLeaveRound(); });
+  const cRef=main.querySelector("#cloudRefresh"); if(cRef)cRef.addEventListener("click",()=>cloudPullTips().catch(e=>alert(e.message)));
+  const cCopy=main.querySelector("#cloudCopyCode"); if(cCopy)cCopy.addEventListener("click",()=>{ try{navigator.clipboard.writeText(cloudRound);}catch(_){} });
   renderTipRoster(); renderTipBoard();
 }
 function renderTipRoster(){
@@ -3165,7 +3288,7 @@ function exportTeamIcs(team){ if(!team)return;
   const list=MATCHES.filter(m=>{ if(m.type==="group")return m.home===team||m.away===team; const p=koParts(m.no); return p.a===team||p.b===team; });
   downloadFile(`wm2026-${team.replace(/[^a-z0-9]/gi,"_")}.ics`,buildICS(list,"WM 2026 — "+team),"text/calendar;charset=utf-8");
 }
-const BK_KEYS=["wm2026scores","wm2026picks","wm2026koscores","wm2026_mytip","wm2026_tips","wm2026fav","wm2026tz"];
+const BK_KEYS=["wm2026scores","wm2026picks","wm2026koscores","wm2026_mytip","wm2026_tips","wm2026fav","wm2026tz","wm2026_round"];
 function dataBlockHTML(){
   return `<div class="mt-block data-block"><h3>Daten &amp; Sicherung</h3>
     <p class="db-note">Sichert alle lokal gespeicherten Daten (Ergebnisse, K.-o.-Tipps, dein Tippspiel inkl. Mitspieler, Lieblingsteam, Zeitzone) als Datei — etwa zum Übertragen auf ein anderes Gerät.</p>
@@ -3594,6 +3717,9 @@ document.getElementById("devClear").addEventListener("click",()=>{
 });
 
 renderAll();
+
+// Wenn beim Laden bereits eine Cloud-Runde gespeichert ist: Tipps holen + Polling starten.
+if(CLOUD_ON() && cloudRound){ cloudStartPolling(); cloudPullTips().catch(()=>{}); }
 
 /* === qurix snapshot hooks ===
    All app state lives in localStorage (BK_KEYS). "Export with data" serialises
