@@ -880,8 +880,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <h2>Table Format Converter</h2>
     <p>
       A browser-only tool to read structured tabular data (CSV, Parquet, JSON, NDJSON,
-      Excel), inspect its structure, adjust the parsing heuristic, and export it to a
-      different format. <strong>Your data never leaves the browser</strong> — all
+      Excel, DuckDB, SQLite), inspect its structure, adjust the parsing heuristic, and
+      export it to a different format. <strong>Your data never leaves the browser</strong> — all
       processing happens locally with DuckDB-WASM and SheetJS.
     </p>
 
@@ -933,6 +933,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       <li><strong>DuckDB (.duckdb / .ddb / .db)</strong> — attached read-only;
           pick which table to read from. Schema and types come straight from
           the file. Can also be produced as an export target.</li>
+      <li><strong>SQLite (.sqlite / .sqlite3 / .db)</strong> — attached read-only
+          via DuckDB's SQLite scanner; pick which table to read from, then convert
+          it to any supported export format. (<code>.db</code> is auto-detected as
+          SQLite or DuckDB from the file's magic bytes.)</li>
     </ul>
 
     <h3>Notes &amp; limitations (v1)</h3>
@@ -958,9 +962,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
          aria-label="Drop a file here or click to pick one">
       <p class="dz-title">Drop a file here, or click to pick one</p>
-      <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · up to ~1 GB</p>
+      <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · DuckDB · SQLite · up to ~1 GB</p>
       <input type="file" id="filePicker" hidden
-             accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.duckdb,.ddb,.db">
+             accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.duckdb,.ddb,.db,.sqlite,.sqlite3">
     </div>
 
     <!-- File info bar (after load) -->
@@ -1301,7 +1305,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     csvSampleText: null,  // raw sample text (BOM-stripped) for CSV picker
     csvFullColumnNames: null, // full column names from unprojected CSV read
     duckdbAlias: null,    // ATTACH alias for DuckDB source files
-    duckdbTables: [],     // [{schema, name, qualified}] from attached DB
+    duckdbTables: [],     // [{schema, name, qualified}] from attached DB (also reused for SQLite)
+    sqliteDb: null,       // sql.js Database instance for SQLite sources
+    sqliteCsvName: null,  // VFS name of the table materialised as CSV for export
     snapshotMode: false,  // true when viewing a "with data" export (no live file)
     snapshotMeta: null,   // {fileName, fileSize} of the captured snapshot
   };
@@ -1481,7 +1487,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     if (ext === 'xlsx' || ext === 'xls')   return 'xlsx';
     if (ext === 'ndjson' || ext === 'jsonl') return 'ndjson';
     if (ext === 'tsv') return 'csv';
-    if (ext === 'duckdb' || ext === 'ddb' || ext === 'db') return 'duckdb';
+    if (ext === 'sqlite' || ext === 'sqlite3') return 'sqlite';
+    if (ext === 'duckdb' || ext === 'ddb') return 'duckdb';
+    // '.db' is ambiguous (SQLite vs DuckDB) — decided by magic bytes below.
     if (ext === 'json') {
       const text = (await readSlice(file, 0, 4096)).replace(/^\uFEFF/, '');
       const trimmed = text.trimStart();
@@ -1498,9 +1506,15 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const buf = await readSliceAB(file, 0, 16);
     if (buf[0] === 0x50 && buf[1] === 0x41 && buf[2] === 0x52 && buf[3] === 0x31) return 'parquet';
     if (buf[0] === 0x50 && buf[1] === 0x4B) return 'xlsx';
+    // SQLite files start with "SQLite format 3\0"
+    if (buf.length >= 6 &&
+        buf[0] === 0x53 && buf[1] === 0x51 && buf[2] === 0x4C &&
+        buf[3] === 0x69 && buf[4] === 0x74 && buf[5] === 0x65) return 'sqlite';
     // DuckDB v0.10+ files have "DUCK" at offset 8
     if (buf.length >= 12 &&
         buf[8] === 0x44 && buf[9] === 0x55 && buf[10] === 0x43 && buf[11] === 0x4B) return 'duckdb';
+    // Ambiguous '.db' that matched neither signature → assume DuckDB (prior behaviour)
+    if (ext === 'db') return 'duckdb';
     return 'csv';
   }
 
@@ -1528,6 +1542,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     }
     state.duckdbAlias = null;
     state.duckdbTables = [];
+    // Release any previously-opened SQLite database + its materialised CSV.
+    if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
+    state.sqliteDb = null;
+    if (state.sqliteCsvName && db) { try { await db.dropFile(state.sqliteCsvName); } catch (_) {} }
+    state.sqliteCsvName = null;
 
     try {
       setStatus('Detecting format…');
@@ -1541,13 +1560,17 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
                              fmt === 'xlsx' ? 'XLS' :
                              fmt === 'ndjson' ? 'NDJ' :
                              fmt === 'duckdb' ? 'DDB' :
+                             fmt === 'sqlite' ? 'SQL' :
                              fmt === 'json' ? 'JSN' : 'CSV';
       fileName.textContent = file.name;
       fileMeta.textContent = `${fmt.toUpperCase()} · ${fmtBytes(file.size)}`;
 
-      // Excel doesn't need DuckDB for the read path
+      // Excel and SQLite are read by their own JS engines (SheetJS / sql.js),
+      // not DuckDB's range reader. DuckDB is only spun up later, at export time.
       if (fmt === 'xlsx') {
         await loadExcel(file);
+      } else if (fmt === 'sqlite') {
+        await loadSqlite(file);
       } else {
         await initDuckDB();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -1582,7 +1605,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     if (db) {
       if (state.duckFile)        { try { db.dropFile(state.duckFile); }        catch (_) {} }
       if (state.duckPreviewFile) { try { db.dropFile(state.duckPreviewFile); } catch (_) {} }
+      if (state.sqliteCsvName)   { try { db.dropFile(state.sqliteCsvName); }   catch (_) {} }
     }
+    if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
+    state.sqliteDb = null;
+    state.sqliteCsvName = null;
     state.file = null;
     state.format = null;
     state.duckFile = null;
@@ -1769,9 +1796,100 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       name:   String(r.table_name),
       qualified: `${sqlIdent(alias)}.${sqlIdent(String(r.table_schema))}.${sqlIdent(String(r.table_name))}`,
     }));
-    if (!state.duckdbTables.length) throw new Error('No tables found in this DuckDB file.');
+    if (!state.duckdbTables.length) throw new Error('No tables found in this database file.');
     // Default to first user table; user can pick another via the heuristic panel.
     state.detected = { table: state.duckdbTables[0].qualified };
+  }
+
+  // ---------------------------------------------------------------- SQLite detection (sql.js)
+  // DuckDB-Wasm's sqlite extension can't reliably open files from its virtual
+  // filesystem (duckdb-wasm issues #1213 / #1972), so SQLite is read with sql.js
+  // instead. Preview runs directly against sql.js; export materialises the chosen
+  // table to an in-memory CSV that DuckDB then converts (same trick as Excel).
+  let sqlJsPromise = null;
+  function loadSqlJs() {
+    if (sqlJsPromise) return sqlJsPromise;
+    const BASE = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/';
+    sqlJsPromise = new Promise((resolve, reject) => {
+      if (window.initSqlJs) return resolve(window.initSqlJs);
+      const s = document.createElement('script');
+      s.src = BASE + 'sql-wasm.js';
+      s.crossOrigin = 'anonymous';
+      s.onload = () => resolve(window.initSqlJs);
+      s.onerror = () => reject(new Error('Could not load sql.js from CDN (needs internet).'));
+      document.head.appendChild(s);
+    }).then(initSqlJs => initSqlJs({ locateFile: f => BASE + f }));
+    return sqlJsPromise;
+  }
+
+  function sqliteTypeClass(declType) {
+    const t = String(declType || '').toUpperCase();
+    if (/INT/.test(t))                 return { label: t || 'INTEGER', cls: 't-number' };
+    if (/REAL|FLOA|DOUB|NUM|DEC/.test(t)) return { label: t || 'DOUBLE', cls: 't-number' };
+    if (/DATE|TIME/.test(t))           return { label: t || 'TIMESTAMP', cls: 't-date' };
+    if (/BOOL/.test(t))                return { label: t || 'BOOLEAN', cls: 't-bool' };
+    if (/BLOB/.test(t))                return { label: t || 'BLOB', cls: 't-string' };
+    return { label: t || 'TEXT', cls: 't-string' };
+  }
+
+  async function loadSqlite(file) {
+    setStatus('Loading SQLite engine…');
+    const SQL = await loadSqlJs();
+    const buf = await readAll(file);
+    state.sqliteDb = new SQL.Database(new Uint8Array(buf));
+    setStatus('Reading tables…');
+    const res = state.sqliteDb.exec(
+      "SELECT name FROM sqlite_master WHERE type IN ('table','view') " +
+      "AND name NOT LIKE 'sqlite_%' ORDER BY name");
+    const names = res.length ? res[0].values.map(r => String(r[0])) : [];
+    if (!names.length) throw new Error('No tables found in this SQLite database.');
+    // Reuse the DuckDB table-picker UI; for SQLite "qualified" is the quoted name.
+    state.duckdbTables = names.map(n => ({ schema: 'main', name: n, qualified: sqlIdent(n) }));
+    state.detected = { table: state.duckdbTables[0].qualified };
+  }
+
+  async function previewSqlite() {
+    const tbl = eff().table;
+    if (!tbl || !state.sqliteDb) { state.schema = []; state.previewRows = []; state.rowCountEstimate = null; return; }
+    // Schema from PRAGMA (reliable even for empty tables / views).
+    let cols = [];
+    try {
+      const info = state.sqliteDb.exec(`PRAGMA table_info(${tbl})`);
+      if (info.length) cols = info[0].values.map(r => ({ name: String(r[1]), declType: String(r[2] || '') }));
+    } catch (_) {}
+    state.schema = cols.map(c => { const m = sqliteTypeClass(c.declType); return { name: c.name, type: m.label, typeClass: m.cls }; });
+    // Preview rows (first 10).
+    const r = state.sqliteDb.exec(`SELECT * FROM ${tbl} LIMIT 10`);
+    if (r.length) {
+      const columns = r[0].columns;
+      if (!state.schema.length) state.schema = columns.map(name => ({ name, type: 'TEXT', typeClass: 't-string' }));
+      state.previewRows = r[0].values.map(row => {
+        const o = {}; columns.forEach((c, i) => { o[c] = row[i]; }); return o;
+      });
+    } else {
+      state.previewRows = [];
+    }
+    try {
+      const c = state.sqliteDb.exec(`SELECT count(*) AS c FROM ${tbl}`);
+      state.rowCountEstimate = { value: Number(c[0].values[0][0]), exact: true };
+    } catch (_) { state.rowCountEstimate = null; }
+  }
+
+  // Read the selected SQLite table fully via sql.js and register it with DuckDB
+  // as an in-memory CSV, so the standard SQL export path can convert it.
+  async function materializeSqlite() {
+    if (!db) { exportProgress.textContent = 'Loading DuckDB engine…'; await initDuckDB(); }
+    const tbl = eff().table;
+    exportProgress.textContent = 'Reading SQLite table…';
+    const r = state.sqliteDb.exec(`SELECT * FROM ${tbl}`);
+    const header   = r.length ? r[0].columns : [];
+    const dataRows = r.length ? r[0].values  : [];
+    const lines = [header.map(csvEscape).join(',')];
+    for (const row of dataRows) lines.push(header.map((_, i) => csvEscape(row[i])).join(','));
+    if (state.sqliteCsvName) { try { await db.dropFile(state.sqliteCsvName); } catch (_) {} }
+    const name = `sqlite_export_${Date.now()}.csv`;
+    await db.registerFileBuffer(name, new TextEncoder().encode(lines.join('\n')));
+    state.sqliteCsvName = name;
   }
 
   // ---------------------------------------------------------------- JSON / NDJSON detection
@@ -1944,7 +2062,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         Parquet self-describes its schema and types. No parsing options needed.
       </p>`;
     }
-    else if (state.format === 'duckdb') {
+    else if (state.format === 'duckdb' || state.format === 'sqlite') {
       const opts = state.duckdbTables.map(t =>
         `<option value="${escapeAttr(t.qualified)}" ${t.qualified === e.table ? 'selected' : ''}>${escapeHtml(t.schema)}.${escapeHtml(t.name)}</option>`
       ).join('');
@@ -2069,7 +2187,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       // tag chips for nulls
       mountChipsInput($('h_nulls'), eff().nulls, list => { setUser('nulls', list); rerenderBadges(); onChange(); });
     }
-    else if (state.format === 'duckdb') {
+    else if (state.format === 'duckdb' || state.format === 'sqlite') {
       $('h_table').addEventListener('change', e => {
         setUser('table', e.target.value);
         // Switching tables completely changes the column space — reset
@@ -2519,6 +2637,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       else if (state.format === 'json' || state.format === 'ndjson') await previewJSON();
       else if (state.format === 'xlsx') await previewExcel();
       else if (state.format === 'duckdb') await previewDuckdb();
+      else if (state.format === 'sqlite') await previewSqlite();
       pruneColumnEdits();
       renderPreviewStats();
       renderPreviewGrid();
@@ -2629,6 +2748,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       // Selected qualified table (alias.schema.name); already SQL-safe (we
       // built it from sqlIdent in detectDuckDB).
       sql = `SELECT * FROM ${e.table}`;
+    } else if (state.format === 'sqlite') {
+      // SQLite is read via sql.js and materialised to an in-memory CSV that
+      // DuckDB queries (see materializeSqlite, called before export).
+      sql = `SELECT * FROM read_csv('${sqlEscape(state.sqliteCsvName)}', delim=',', quote='"', header=true, auto_detect=true)`;
     }
     if (!sql) return null;
 
@@ -3507,7 +3630,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     try {
       // Excel source must be funneled through DuckDB for non-xlsx targets,
       // OR handled directly with SheetJS for xlsx target.
-      if (state.format === 'xlsx' && fmt === 'xlsx') {
+      if (state.format === 'sqlite') {
+        // Materialise the chosen table to a CSV DuckDB can read, then export
+        // through the normal SQL path (gives filter / rename / exclude for free).
+        await materializeSqlite();
+        if (fmt === 'xlsx') await exportSqlToExcel();
+        else await exportSqlToFile(fmt);
+      } else if (state.format === 'xlsx' && fmt === 'xlsx') {
         await exportExcelToExcel();
       } else if (state.format === 'xlsx') {
         await exportExcelToOther(fmt);
