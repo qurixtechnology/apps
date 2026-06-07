@@ -96,6 +96,9 @@ body{
 .cloud-pill.on{background:rgba(52,200,120,.16);color:var(--green)}
 .cloud-join{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .cloud-join .tip-name{max-width:240px}
+.cloud-status{font-size:12px;font-weight:700;align-self:center;margin-left:2px}
+.cloud-status.ok{color:var(--green)}
+.cloud-status.warn{color:var(--red)}
 
 /* ---------- Scenario planner ---------- */
 .planner{margin-top:16px;border:1px solid var(--line);border-radius:var(--r);
@@ -2902,15 +2905,30 @@ let cloudRound = null;
 try { cloudRound = localStorage.getItem("wm2026_round") || null; } catch(_){}
 let cloudPollTimer = null, cloudPushTimer = null, cloudBusy = false;
 
-function sbHeaders(extra){ return Object.assign({
-  "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer "+SUPABASE_ANON_KEY,
-  "Content-Type": "application/json"
-}, extra||{}); }
-async function sb(path, opts){
-  const r = await fetch(SUPABASE_URL.replace(/\/$/,"")+"/rest/v1/"+path, opts);
-  if(!r.ok){ const t = await r.text().catch(()=> ""); throw new Error("Cloud "+r.status+": "+t.slice(0,160)); }
-  const ct = r.headers.get("content-type")||"";
-  return ct.includes("application/json") ? r.json() : null;
+let sbClient = null, sbUid = null;
+async function cloudClient(){
+  if(sbClient) return sbClient;
+  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.45.4");
+  sbClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth:{ persistSession:true, autoRefreshToken:true, storageKey:"wm2026_sb_auth" }
+  });
+  return sbClient;
+}
+// Anonyme Identität sicherstellen (nötig für Schreibzugriffe; Lesen geht auch ohne).
+async function cloudAuth(){
+  const sb = await cloudClient();
+  let { data:{ session } } = await sb.auth.getSession();
+  if(!session){
+    const { data, error } = await sb.auth.signInAnonymously();
+    if(error) throw new Error("Anonyme Anmeldung fehlgeschlagen (in Supabase 'Anonymous sign-ins' aktivieren): "+error.message);
+    session = data.session;
+  }
+  sbUid = session && session.user ? session.user.id : null;
+  return sb;
+}
+function cloudSetStatus(msg, kind){
+  const el = document.getElementById("cloudStatus"); if(!el) return;
+  el.textContent = msg || ""; el.className = "cloud-status" + (kind ? " "+kind : "");
 }
 function randomCode(){ const a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s=""; for(let i=0;i<5;i++)s+=a[Math.floor(Math.random()*a.length)]; return "WM-"+s; }
 function cloudTipFilled(){ return !!(myTip.name && (Object.keys(myTip.g).length || (myTip.b||[]).some(Boolean))); }
@@ -2918,9 +2936,10 @@ function cloudTipFilled(){ return !!(myTip.name && (Object.keys(myTip.g).length 
 async function cloudCreateRound(){
   if(!CLOUD_ON()) return;
   if(!myTip.name){ alert("Bitte zuerst oben deinen Namen eingeben."); return; }
+  const sb = await cloudAuth();
   const code = randomCode();
-  await sb("rounds", {method:"POST", headers:sbHeaders({Prefer:"return=minimal"}),
-    body:JSON.stringify({code, name:"WM 2026 Tipprunde"})});
+  const { error } = await sb.from("rounds").insert({ code, name:"WM 2026 Tipprunde" });
+  if(error) throw new Error(error.message);
   await cloudSetRound(code);
 }
 async function cloudJoinRound(code){
@@ -2928,8 +2947,14 @@ async function cloudJoinRound(code){
   code = (code||"").trim().toUpperCase();
   if(!code){ alert("Bitte einen Runden-Code eingeben."); return; }
   if(!myTip.name){ alert("Bitte zuerst oben deinen Namen eingeben."); return; }
-  const rows = await sb("rounds?select=code&code=eq."+encodeURIComponent(code), {headers:sbHeaders()});
-  if(!rows || !rows.length){ alert("Runde nicht gefunden: "+code); return; }
+  const sb = await cloudAuth();
+  const { data: rounds, error } = await sb.from("rounds").select("code").eq("code", code).limit(1);
+  if(error) throw new Error(error.message);
+  if(!rounds || !rounds.length){ alert("Runde nicht gefunden: "+code); return; }
+  // Namens-Kollision prüfen: gehört der Name in dieser Runde schon jemand anderem?
+  const { data: ex } = await sb.from("tips").select("player,owner").eq("round_code", code);
+  const clash = (ex||[]).some(r => (r.player||"").toLowerCase()===myTip.name.toLowerCase() && r.owner && r.owner!==sbUid);
+  if(clash){ alert("In dieser Runde gibt es bereits einen Mitspieler „"+myTip.name+"\". Bitte oben einen anderen Namen wählen und erneut beitreten."); return; }
   await cloudSetRound(code);
 }
 async function cloudSetRound(code){
@@ -2945,8 +2970,11 @@ function cloudLeaveRound(){
 }
 async function cloudPushNow(){
   if(!CLOUD_ON() || !cloudRound || !myTip.name) return;
-  await sb("tips", {method:"POST", headers:sbHeaders({Prefer:"resolution=merge-duplicates,return=minimal"}),
-    body:JSON.stringify({round_code:cloudRound, player:myTip.name, tip:myTip, updated_at:new Date().toISOString()})});
+  const sb = await cloudAuth();
+  const row = { round_code:cloudRound, player:myTip.name, tip:myTip, owner:sbUid, updated_at:new Date().toISOString() };
+  const { error } = await sb.from("tips").upsert(row, { onConflict:"round_code,player" });
+  if(error){ cloudSetStatus("nicht gespeichert", "warn"); throw new Error(error.message); }
+  cloudSetStatus("gespeichert ✓", "ok");
 }
 function cloudPushMyTip(){
   if(!CLOUD_ON() || !cloudRound || !myTip.name) return;
@@ -2957,7 +2985,9 @@ async function cloudPullTips(){
   if(!CLOUD_ON() || !cloudRound || cloudBusy) return;
   cloudBusy = true;
   try{
-    const rows = await sb("tips?select=player,tip&round_code=eq."+encodeURIComponent(cloudRound), {headers:sbHeaders()});
+    const sb = await cloudClient();
+    const { data: rows, error } = await sb.from("tips").select("player,tip").eq("round_code", cloudRound);
+    if(error) throw error;
     const mine = (myTip.name||"").toLowerCase();
     const others = []; let own = null;
     (rows||[]).forEach(r=>{ const t = r.tip||{}; t.name = t.name || r.player;
@@ -2987,6 +3017,7 @@ function cloudBlockHtml(){
         <button class="mini-btn" id="cloudCopyCode">📋 Code kopieren</button>
         <button class="mini-btn" id="cloudRefresh">🔄 Jetzt aktualisieren</button>
         <button class="mini-btn warn" id="cloudLeave">Runde verlassen</button>
+        <span class="cloud-status" id="cloudStatus"></span>
       </div></div>`;
   }
   return `<div class="tip-block cloud-block"><h3>☁️ Cloud-Runde</h3>
