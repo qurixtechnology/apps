@@ -60,13 +60,34 @@ body{
 /* ---------- Tabs ---------- */
 .tabs{display:flex;gap:6px;position:sticky;top:0;z-index:40;
   background:linear-gradient(180deg,var(--bg) 70%,transparent);
-  padding:14px 0 12px;margin-top:6px;flex-wrap:wrap}
+  padding:14px 0 12px;margin-top:6px;
+  flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
 .tab{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--mut);
-  font-family:inherit;font-weight:700;font-size:14px;padding:10px 18px;border-radius:999px;cursor:pointer;
-  transition:.18s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+  font-family:inherit;font-weight:700;font-size:13px;padding:8px 13px;border-radius:999px;cursor:pointer;
+  transition:.18s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:0 0 auto}
 .tab:hover{color:var(--ink);border-color:var(--line2)}
 .tab.active{background:linear-gradient(180deg,var(--gold),var(--gold-d));color:#231c05;border-color:transparent;box-shadow:0 8px 22px -10px var(--gold)}
-.tab .ic{font-size:15px}
+.tab .ic{font-size:14px}
+
+/* ---------- Historie ---------- */
+.hist-titles{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 20px}
+.hist-title-chip{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-weight:700;font-size:13px}
+.hist-title-chip .nm{color:var(--ink)}
+.hist-title-chip .n{color:var(--gold);font-family:'Anton',sans-serif;font-size:17px;line-height:1}
+.hist-title-chip.sel{border-color:var(--gold-d);background:rgba(243,197,74,.12)}
+.hist-wrap{overflow-x:auto}
+.hist-table{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
+.hist-table th,.hist-table td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+.hist-table th{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+.hist-table tbody tr:hover{background:var(--panel)}
+.hist-table .yr{font-family:'Anton',sans-serif;font-size:17px;color:var(--ink)}
+.hist-table .num{text-align:center;color:var(--mut)}
+.hist-team{display:inline-flex;align-items:center;gap:7px}
+.hist-fl{font-size:16px;line-height:1}
+.hist-sel{color:var(--gold);font-weight:700}
+.hist-foot{color:var(--mut2);font-size:12px;margin-top:14px}
+@media(max-width:640px){ .hist-table th:nth-child(3),.hist-table td:nth-child(3){display:none} }
 
 /* ---------- Scenario planner ---------- */
 .planner{margin-top:16px;border:1px solid var(--line);border-radius:var(--r);
@@ -1523,6 +1544,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <button class="tab" data-view="meinteam"><span class="ic">⭐</span>Mein Team</button>
     <button class="tab" data-view="dritte"><span class="ic">🥉</span>Gruppendritte</button>
     <button class="tab" data-view="orte"><span class="ic">📍</span>Austragungsorte</button>
+    <button class="tab" data-view="historie"><span class="ic">📜</span>Historie</button>
   </nav>
 
   <!-- GRUPPEN -->
@@ -1640,6 +1662,17 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div id="venueMap"></div>
       <div class="venue-list" id="venueList"></div>
     </div>
+  </section>
+
+  <!-- HISTORIE -->
+  <section class="panel-view" id="view-historie">
+    <div class="section-title">WM-Historie <span class="ln"></span></div>
+    <p class="section-sub">Alle bisherigen FIFA-Weltmeisterschaften der Männer (1930–2022) mit Gastgeber, Teilnehmerzahl und den ersten vier Plätzen. Flaggen werden für heute existierende Länder angezeigt; Westdeutschland nutzt die deutsche Flagge.</p>
+    <div class="hist-titles" id="histTitles"></div>
+    <div class="hist-wrap">
+      <table class="hist-table" id="histTable"></table>
+    </div>
+    <p class="hist-foot">Datenquelle: öffentlicher FIFA-World-Cup-Datensatz. Das in „Mein Team" gewählte Team wird hervorgehoben (Westdeutschland zählt zu Deutschland).</p>
   </section>
 
   <!-- DAY MODAL -->
@@ -3391,6 +3424,90 @@ function renderVenues(){
   updateVenueMarkers();
 }
 
+/* ===================== WM-Historie (Herren) ===================== */
+function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+// [year, host, teams, champion, runnerUp, third, fourth]
+const WC_HISTORY_M = [
+  [1930,"Uruguay",13,"Uruguay","Argentina","United States","Yugoslavia"],
+  [1934,"Italy",16,"Italy","Czechoslovakia","Germany","Austria"],
+  [1938,"France",15,"Italy","Hungary","Brazil","Sweden"],
+  [1950,"Brazil",13,"Uruguay","Brazil","Sweden","Spain"],
+  [1954,"Switzerland",16,"West Germany","Hungary","Austria","Uruguay"],
+  [1958,"Sweden",16,"Brazil","Sweden","France","West Germany"],
+  [1962,"Chile",16,"Brazil","Czechoslovakia","Chile","Yugoslavia"],
+  [1966,"England",16,"England","West Germany","Portugal","Soviet Union"],
+  [1970,"Mexico",16,"Brazil","Italy","West Germany","Uruguay"],
+  [1974,"West Germany",16,"West Germany","Netherlands","Poland","Brazil"],
+  [1978,"Argentina",16,"Argentina","Netherlands","Brazil","Italy"],
+  [1982,"Spain",24,"Italy","West Germany","Poland","France"],
+  [1986,"Mexico",24,"Argentina","West Germany","France","Belgium"],
+  [1990,"Italy",24,"West Germany","Argentina","Italy","England"],
+  [1994,"United States",24,"Brazil","Italy","Sweden","Bulgaria"],
+  [1998,"France",32,"France","Brazil","Croatia","Netherlands"],
+  [2002,"Korea, Japan",32,"Brazil","Germany","Turkey","South Korea"],
+  [2006,"Germany",32,"Italy","France","Germany","Portugal"],
+  [2010,"South Africa",32,"Spain","Netherlands","Germany","Uruguay"],
+  [2014,"Brazil",32,"Germany","Argentina","Netherlands","Brazil"],
+  [2018,"Russia",32,"France","Croatia","Belgium","England"],
+  [2022,"Qatar",32,"Argentina","France","Croatia","Morocco"]
+];
+// DB-Name → {de: deutscher Name, fl: Flaggen-Emoji}. fl:"" für untergegangene
+// Staaten ohne eindeutigen heutigen Nachfolger (keine Flagge angezeigt).
+const WC_COUNTRY = {
+  "Argentina":{de:"Argentinien",fl:"🇦🇷"}, "Austria":{de:"Österreich",fl:"🇦🇹"},
+  "Belgium":{de:"Belgien",fl:"🇧🇪"}, "Brazil":{de:"Brasilien",fl:"🇧🇷"},
+  "Bulgaria":{de:"Bulgarien",fl:"🇧🇬"}, "Chile":{de:"Chile",fl:"🇨🇱"},
+  "Croatia":{de:"Kroatien",fl:"🇭🇷"}, "Czechoslovakia":{de:"Tschechoslowakei",fl:""},
+  "England":{de:"England",fl:"🏴󠁧󠁢󠁥󠁮󠁧󠁿"}, "France":{de:"Frankreich",fl:"🇫🇷"},
+  "Germany":{de:"Deutschland",fl:"🇩🇪"}, "Hungary":{de:"Ungarn",fl:"🇭🇺"},
+  "Italy":{de:"Italien",fl:"🇮🇹"}, "Korea, Japan":{de:"Südkorea & Japan",fl:"🇰🇷 🇯🇵"},
+  "Mexico":{de:"Mexiko",fl:"🇲🇽"}, "Morocco":{de:"Marokko",fl:"🇲🇦"},
+  "Netherlands":{de:"Niederlande",fl:"🇳🇱"}, "Poland":{de:"Polen",fl:"🇵🇱"},
+  "Portugal":{de:"Portugal",fl:"🇵🇹"}, "Qatar":{de:"Katar",fl:"🇶🇦"},
+  "Russia":{de:"Russland",fl:"🇷🇺"}, "South Africa":{de:"Südafrika",fl:"🇿🇦"},
+  "South Korea":{de:"Südkorea",fl:"🇰🇷"}, "Soviet Union":{de:"Sowjetunion",fl:""},
+  "Spain":{de:"Spanien",fl:"🇪🇸"}, "Sweden":{de:"Schweden",fl:"🇸🇪"},
+  "Switzerland":{de:"Schweiz",fl:"🇨🇭"}, "Turkey":{de:"Türkei",fl:"🇹🇷"},
+  "United States":{de:"USA",fl:"🇺🇸"}, "Uruguay":{de:"Uruguay",fl:"🇺🇾"},
+  "West Germany":{de:"Westdeutschland",fl:"🇩🇪"}, "Yugoslavia":{de:"Jugoslawien",fl:""}
+};
+function histCountry(name){ return WC_COUNTRY[name] || {de:name, fl:""}; }
+// A history country matches the team chosen in "Mein Team" (selTeam, a German
+// name). West Germany counts as Deutschland.
+function histMatchesSel(name){
+  if(!selTeam) return false;
+  if(histCountry(name).de === selTeam) return true;
+  if(selTeam === "Deutschland" && (name==="Germany" || name==="West Germany")) return true;
+  return false;
+}
+function histTeamHtml(name){
+  const c = histCountry(name);
+  const fl = c.fl ? `<span class="hist-fl">${c.fl}</span>` : "";
+  return `<span class="hist-team${histMatchesSel(name)?' hist-sel':''}">${fl}${escapeHtml(c.de)}</span>`;
+}
+function renderHistorie(){
+  // Titel-Rangliste (Westdeutschland zählt zu Deutschland)
+  const tally={};
+  WC_HISTORY_M.forEach(t=>{ const k=(t[3]==="West Germany")?"Germany":t[3]; tally[k]=(tally[k]||0)+1; });
+  const ranked=Object.entries(tally).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+  const titlesEl=document.getElementById("histTitles");
+  if(titlesEl) titlesEl.innerHTML=ranked.map(([nm,n])=>{
+    const c=histCountry(nm);
+    const fl=c.fl?`<span class="hist-fl">${c.fl}</span>`:"";
+    return `<span class="hist-title-chip${histMatchesSel(nm)?' sel':''}">${fl}<span class="nm">${escapeHtml(c.de)}</span><span class="n">${n}</span></span>`;
+  }).join("");
+  const tblEl=document.getElementById("histTable");
+  if(tblEl){
+    const head=`<thead><tr><th>Jahr</th><th>Gastgeber</th><th class="num">Teams</th><th>🥇 Weltmeister</th><th>🥈 Finalist</th><th>🥉 Dritter</th><th>4.</th></tr></thead>`;
+    const body=WC_HISTORY_M.slice().reverse().map(t=>{
+      const [y,host,teams,c1,c2,c3,c4]=t;
+      return `<tr><td class="yr">${y}</td><td>${histTeamHtml(host)}</td><td class="num">${teams}</td>`+
+             `<td>${histTeamHtml(c1)}</td><td>${histTeamHtml(c2)}</td><td>${histTeamHtml(c3)}</td><td>${histTeamHtml(c4)}</td></tr>`;
+    }).join("");
+    tblEl.innerHTML=head+`<tbody>${body}</tbody>`;
+  }
+}
+
 function renderAll(){
   T3MAP=assignThirds();
   renderGroups();
@@ -3401,6 +3518,7 @@ function renderAll(){
   renderMyTeam();
   renderThirdsTable();
   renderVenues();
+  renderHistorie();
   renderScenarioCards();
   renderBlockSummary();
   updateTzNote();
