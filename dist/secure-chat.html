@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Secure Chat – qurix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* === qurix design tokens (corporate identity) === */
+:root {
+  /* Brand colors — qurix Technology CI */
+  --qrx-blue:           #156B8E;  /* primary brand blue */
+  --qrx-blue-dark:      #0E4D67;
+  --qrx-blue-light:     #2A8AB0;
+  --qrx-green:          #2EC4A2;  /* accent green (Q tail) */
+  --qrx-green-dark:     #1FA888;
+  --qrx-green-light:    #4DD8B8;
+  --qrx-gradient:       linear-gradient(135deg, var(--qrx-blue) 0%, var(--qrx-green) 100%);
+
+  /* Functional aliases */
+  --qrx-primary:        var(--qrx-blue);
+  --qrx-primary-hover:  var(--qrx-blue-dark);
+  --qrx-accent:         var(--qrx-green);
+  --qrx-accent-hover:   var(--qrx-green-dark);
+
+  /* Surfaces */
+  --qrx-bg:             #FFFFFF;
+  --qrx-bg-subtle:      #F4F7F9;
+  --qrx-bg-muted:       #E8EEF2;
+  --qrx-surface:        #FFFFFF;
+  --qrx-bg-dark:        #0A1F2B;
+
+  /* Text */
+  --qrx-text:           #0E2530;
+  --qrx-text-muted:     #5A6B75;
+  --qrx-text-subtle:    #8A9AA3;
+  --qrx-text-inverse:   #FFFFFF;
+  --qrx-text-on-brand:  #FFFFFF;
+
+  /* Borders */
+  --qrx-border:         #DBE3E8;
+  --qrx-border-strong:  #BCC8D0;
+
+  /* Semantic */
+  --qrx-success:        #1FA888;
+  --qrx-warning:        #E8A317;
+  --qrx-danger:         #C8362A;
+  --qrx-info:           var(--qrx-blue);
+
+  /* Typography */
+  --qrx-font-sans: "Quicksand", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --qrx-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  /* Spacing */
+  --qrx-s-1: 0.25rem; --qrx-s-2: 0.5rem; --qrx-s-3: 0.75rem; --qrx-s-4: 1rem;
+  --qrx-s-5: 1.25rem; --qrx-s-6: 1.5rem; --qrx-s-8: 2rem; --qrx-s-10: 2.5rem;
+
+  /* Shape */
+  --qrx-radius-sm: 4px; --qrx-radius: 8px; --qrx-radius-lg: 12px;
+  --qrx-shadow-sm: 0 1px 2px rgba(14,37,48,0.06);
+  --qrx-shadow:    0 4px 12px rgba(14,37,48,0.10);
+  --qrx-shadow-lg: 0 12px 32px rgba(14,37,48,0.14);
+  --qrx-transition: 150ms ease;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --qrx-bg:            #0A1F2B;
+    --qrx-bg-subtle:     #122B38;
+    --qrx-bg-muted:      #1E3A47;
+    --qrx-surface:       #122B38;
+    --qrx-text:          #EAF2F5;
+    --qrx-text-muted:    #9DB1BC;
+    --qrx-text-subtle:   #6E8590;
+    --qrx-border:        #1E3A47;
+    --qrx-border-strong: #2C4D5C;
+    --qrx-shadow-sm:     0 1px 2px rgba(0,0,0,0.4);
+    --qrx-shadow:        0 4px 12px rgba(0,0,0,0.5);
+    --qrx-primary:       var(--qrx-blue-light);
+    --qrx-primary-hover: var(--qrx-blue);
+  }
+}
+
+/* === Reset & base === */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; font-family: var(--qrx-font-sans); font-size: 1rem; line-height: 1.6;
+  color: var(--qrx-text); background: var(--qrx-bg); -webkit-font-smoothing: antialiased;
+  display: flex; flex-direction: column; min-height: 100vh;
+}
+a { color: var(--qrx-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: var(--qrx-font-mono); font-size: 0.9em;
+       background: var(--qrx-bg-muted); padding: 0.1em 0.3em; border-radius: var(--qrx-radius-sm); }
+
+/* === Components === */
+.qrx-btn {
+  display: inline-flex; align-items: center; gap: var(--qrx-s-2);
+  padding: var(--qrx-s-2) var(--qrx-s-4); font: inherit; font-size: 0.875rem; font-weight: 500;
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius);
+  background: var(--qrx-surface); color: var(--qrx-text);
+  cursor: pointer; transition: var(--qrx-transition);
+}
+.qrx-btn:hover { background: var(--qrx-bg-muted); border-color: var(--qrx-primary); }
+.qrx-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.qrx-btn-primary { background: var(--qrx-primary); color: var(--qrx-text-on-brand);
+                   border-color: var(--qrx-primary); }
+.qrx-btn-primary:hover:not(:disabled) { background: var(--qrx-primary-hover);
+                         border-color: var(--qrx-primary-hover); }
+.qrx-btn-accent { background: var(--qrx-accent); color: var(--qrx-text-on-brand);
+                  border-color: var(--qrx-accent); }
+.qrx-btn-accent:hover:not(:disabled) { background: var(--qrx-accent-hover);
+                        border-color: var(--qrx-accent-hover); }
+.qrx-btn-ghost { background: transparent; border-color: transparent; color: var(--qrx-text-muted); }
+.qrx-btn-ghost:hover { background: var(--qrx-bg-muted); color: var(--qrx-text); }
+.qrx-btn-sm { padding: var(--qrx-s-1) var(--qrx-s-3); font-size: 0.8125rem; }
+.qrx-btn-icon { padding: var(--qrx-s-2); }
+
+.qrx-input, .qrx-textarea, .qrx-select {
+  width: 100%; padding: var(--qrx-s-2) var(--qrx-s-3); font: inherit; font-size: 0.9375rem;
+  color: var(--qrx-text); background: var(--qrx-surface);
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius);
+  transition: var(--qrx-transition);
+}
+.qrx-input:focus, .qrx-textarea:focus, .qrx-select:focus {
+  outline: none; border-color: var(--qrx-primary);
+  box-shadow: 0 0 0 3px rgba(21,107,142,0.18);
+}
+.qrx-label { display: block; margin-bottom: var(--qrx-s-2); font-size: 0.875rem;
+             font-weight: 500; color: var(--qrx-text-muted); }
+.qrx-form-group { margin-bottom: var(--qrx-s-4); }
+
+.qrx-card {
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg); padding: var(--qrx-s-6); box-shadow: var(--qrx-shadow-sm);
+}
+.qrx-card-accent { border-top: 3px solid; border-image: var(--qrx-gradient) 1; }
+
+/* === Shell layout === */
+.qrx-shell-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--qrx-s-3) var(--qrx-s-6);
+  background: var(--qrx-surface);
+  border-bottom: 1px solid var(--qrx-border);
+  position: sticky; top: 0; z-index: 10;
+}
+.qrx-header-brand { display: flex; align-items: center; gap: var(--qrx-s-3); }
+.qrx-header-home { display: inline-flex; align-items: center; gap: var(--qrx-s-3);
+                   text-decoration: none; color: inherit; }
+.qrx-header-home:hover { text-decoration: none; opacity: 0.85; }
+.qrx-header-logo { width: 36px; height: 36px; flex-shrink: 0; }
+.qrx-header-title { margin: 0; font-size: 1.125rem; font-weight: 600;
+                    letter-spacing: -0.01em; color: var(--qrx-text); }
+.qrx-header-divider { width: 1px; height: 24px; background: var(--qrx-border);
+                      margin: 0 var(--qrx-s-2); }
+.qrx-header-app-label { font-size: 0.875rem; color: var(--qrx-text-muted); font-weight: 500; }
+
+.qrx-shell-docs {
+  background: var(--qrx-bg-subtle);
+  border-bottom: 1px solid var(--qrx-border);
+  padding: var(--qrx-s-8) var(--qrx-s-6);
+  border-left: 4px solid var(--qrx-accent);
+}
+.qrx-shell-docs-inner { max-width: 800px; margin: 0 auto; }
+.qrx-shell-docs h2 { margin-top: 0; color: var(--qrx-primary); }
+.qrx-shell-docs h3 { color: var(--qrx-text); }
+.qrx-shell-app { flex: 1; padding: var(--qrx-s-8) var(--qrx-s-6);
+                 max-width: 1200px; width: 100%; margin: 0 auto; }
+.qrx-shell-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--qrx-s-4);
+  padding: var(--qrx-s-3) var(--qrx-s-6); font-size: 0.8125rem; color: var(--qrx-text-muted);
+  background: var(--qrx-surface); border-top: 1px solid var(--qrx-border);
+}
+.qrx-footer-brand { display: flex; align-items: center; gap: var(--qrx-s-2); }
+.qrx-footer-brand a { color: var(--qrx-primary); font-weight: 500; }
+
+/* === Secure Chat — app styles (all scoped under .sc-app) === */
+
+/* Narrow, centred column — a messaging-style layout inside the shell. */
+.sc-app { max-width: 560px; margin: 0 auto; }
+
+.sc-hero { text-align: center; margin-bottom: var(--qrx-s-6); }
+.sc-hero h1 { margin: 0 0 var(--qrx-s-1); font-size: 1.6rem; color: var(--qrx-primary); }
+.sc-subtitle { margin: 0; font-size: 0.875rem; color: var(--qrx-text-muted); }
+
+/* Status bar */
+.sc-status {
+  display: flex; align-items: center; gap: var(--qrx-s-2);
+  padding: var(--qrx-s-2) var(--qrx-s-4); margin-bottom: var(--qrx-s-4);
+  background: var(--qrx-bg-subtle); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius); font-size: 0.85rem; color: var(--qrx-text-muted);
+}
+.sc-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--qrx-danger); flex-shrink: 0;
+}
+.sc-dot.online { background: var(--qrx-success); }
+.sc-dot.connecting { background: var(--qrx-warning); animation: sc-pulse 1s infinite; }
+@keyframes sc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* Cards */
+.sc-card {
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg); padding: var(--qrx-s-6);
+  margin-bottom: var(--qrx-s-4); box-shadow: var(--qrx-shadow-sm);
+}
+.sc-card.highlight { border-color: var(--qrx-primary); border-width: 2px; }
+.sc-card h2 { margin: 0 0 var(--qrx-s-4); font-size: 1rem; color: var(--qrx-primary); }
+
+/* Identity */
+.sc-identity {
+  text-align: center; padding: var(--qrx-s-4); margin-bottom: var(--qrx-s-4);
+  background: var(--qrx-bg-subtle); border-radius: var(--qrx-radius);
+}
+.sc-id-big {
+  font-family: var(--qrx-font-mono); font-size: 1.4rem; font-weight: 700;
+  letter-spacing: 2px; color: var(--qrx-primary); margin-bottom: var(--qrx-s-1);
+}
+.sc-id-label { font-size: 0.75rem; color: var(--qrx-text-subtle); }
+
+/* Buttons (scoped — must never touch the shell's .qrx-btn) */
+.sc-app button {
+  background: var(--qrx-primary); color: var(--qrx-text-on-brand);
+  border: none; padding: var(--qrx-s-3) var(--qrx-s-5);
+  border-radius: var(--qrx-radius); cursor: pointer;
+  font: inherit; font-weight: 600; font-size: 0.9rem;
+  transition: var(--qrx-transition); width: 100%; margin-bottom: var(--qrx-s-2);
+}
+.sc-app button:hover:not(:disabled) { background: var(--qrx-primary-hover); }
+.sc-app button:disabled { background: var(--qrx-bg-muted); color: var(--qrx-text-subtle); cursor: not-allowed; }
+.sc-app button.secondary {
+  background: transparent; border: 2px solid var(--qrx-primary); color: var(--qrx-primary);
+}
+.sc-app button.secondary:hover:not(:disabled) { background: var(--qrx-bg-muted); }
+.sc-app button.success { background: var(--qrx-accent); }
+.sc-app button.success:hover:not(:disabled) { background: var(--qrx-accent-hover); }
+.sc-app button.danger { background: var(--qrx-danger); }
+.sc-app button.danger:hover:not(:disabled) { filter: brightness(0.92); }
+.sc-app button.small { padding: var(--qrx-s-2) var(--qrx-s-4); font-size: 0.8rem; width: auto; }
+
+.sc-btn-row { display: flex; gap: var(--qrx-s-3); }
+.sc-btn-row button { flex: 1; }
+
+/* Inputs */
+.sc-app input[type="text"], .sc-app textarea {
+  width: 100%; background: var(--qrx-surface); color: var(--qrx-text);
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius);
+  padding: var(--qrx-s-3); font: inherit; font-size: 0.95rem; margin-bottom: var(--qrx-s-3);
+}
+.sc-app input:focus, .sc-app textarea:focus {
+  outline: none; border-color: var(--qrx-primary);
+  box-shadow: 0 0 0 3px rgba(21,107,142,0.18);
+}
+.sc-app textarea { font-family: var(--qrx-font-mono); font-size: 0.75rem; resize: vertical; }
+
+/* Contact list */
+.sc-contact-list { max-height: 220px; overflow-y: auto; }
+.sc-contact-item {
+  display: flex; align-items: center; padding: var(--qrx-s-3);
+  background: var(--qrx-bg-subtle); border-radius: var(--qrx-radius);
+  margin-bottom: var(--qrx-s-2); cursor: pointer; transition: var(--qrx-transition);
+}
+.sc-contact-item:hover { background: var(--qrx-bg-muted); }
+.sc-contact-item .sc-avatar {
+  width: 40px; height: 40px; background: var(--qrx-gradient); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; color: var(--qrx-text-on-brand); margin-right: var(--qrx-s-3);
+  flex-shrink: 0; text-transform: uppercase;
+}
+.sc-contact-item .sc-cinfo { flex: 1; min-width: 0; }
+.sc-contact-item .sc-cname { font-weight: 600; margin-bottom: 2px; }
+.sc-contact-item .sc-cid { font-size: 0.75rem; color: var(--qrx-text-muted); font-family: var(--qrx-font-mono); }
+.sc-contact-item .sc-cstatus { width: 8px; height: 8px; border-radius: 50%; background: var(--qrx-border-strong); margin-left: var(--qrx-s-3); }
+.sc-contact-item .sc-cstatus.online { background: var(--qrx-success); }
+
+.sc-empty { text-align: center; padding: var(--qrx-s-5); color: var(--qrx-text-subtle); font-size: 0.85rem; }
+
+/* Modals */
+.sc-modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(10,31,43,0.72);
+  z-index: 100; align-items: center; justify-content: center; padding: var(--qrx-s-5);
+}
+.sc-modal-overlay.active { display: flex; }
+.sc-modal {
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg); padding: var(--qrx-s-6);
+  max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto;
+  box-shadow: var(--qrx-shadow-lg);
+}
+.sc-modal h2 { margin: 0 0 var(--qrx-s-4); font-size: 1.1rem; color: var(--qrx-primary); }
+.sc-modal-close {
+  float: right; background: none; border: none; color: var(--qrx-text-subtle);
+  font-size: 1.5rem; cursor: pointer; padding: 0; width: auto; margin: 0;
+}
+.sc-modal-close:hover { background: none; color: var(--qrx-text); }
+
+/* Incoming call */
+.sc-incoming-call { text-align: center; padding: var(--qrx-s-5); }
+.sc-incoming-call .sc-caller { font-size: 1.3rem; font-weight: 700; color: var(--qrx-primary); margin: var(--qrx-s-4) 0; }
+.sc-incoming-call .sc-caller-id { font-family: var(--qrx-font-mono); color: var(--qrx-text-muted); font-size: 0.85rem; margin-bottom: var(--qrx-s-5); }
+.sc-pulse-ring {
+  width: 80px; height: 80px; border-radius: 50%; background: rgba(21,107,142,0.18);
+  margin: 0 auto; display: flex; align-items: center; justify-content: center; animation: sc-ring 1.5s infinite;
+}
+@keyframes sc-ring { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
+.sc-pulse-ring .sc-icon { font-size: 2rem; }
+
+/* Video */
+.sc-video-container { display: none; }
+.sc-video-container.active { display: block; }
+.sc-video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--qrx-s-3); margin-bottom: var(--qrx-s-3); }
+.sc-video-wrapper {
+  position: relative; background: var(--qrx-bg-dark); border-radius: var(--qrx-radius);
+  overflow: hidden; aspect-ratio: 4 / 3;
+}
+.sc-video-wrapper video { width: 100%; height: 100%; object-fit: cover; }
+.sc-vlabel {
+  position: absolute; bottom: 8px; left: 8px; background: rgba(10,31,43,0.7);
+  color: var(--qrx-text-inverse); padding: 3px 8px; border-radius: var(--qrx-radius-sm); font-size: 0.7rem;
+}
+.sc-no-video { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--qrx-text-subtle); font-size: 2rem; }
+
+.sc-video-controls { display: flex; justify-content: center; gap: var(--qrx-s-3); margin-bottom: var(--qrx-s-4); }
+.sc-video-controls button { width: 50px; height: 50px; border-radius: 50%; padding: 0; font-size: 1.2rem; margin: 0; }
+.sc-video-controls button.muted { background: var(--qrx-danger); }
+
+/* Chat panel */
+.sc-chat-panel { background: var(--qrx-bg-subtle); border-radius: var(--qrx-radius); padding: var(--qrx-s-3); }
+.sc-messages { height: 160px; overflow-y: auto; margin-bottom: var(--qrx-s-3); padding: var(--qrx-s-1); }
+.sc-message {
+  padding: var(--qrx-s-2) var(--qrx-s-3); border-radius: var(--qrx-radius);
+  margin-bottom: var(--qrx-s-2); max-width: 80%; font-size: 0.85rem; word-wrap: break-word;
+}
+.sc-message.sent { background: var(--qrx-primary); color: var(--qrx-text-on-brand); margin-left: auto; }
+.sc-message.received { background: var(--qrx-bg-muted); color: var(--qrx-text); }
+.sc-message.system { background: none; color: var(--qrx-text-subtle); text-align: center; max-width: 100%; font-size: 0.75rem; }
+
+.sc-chat-input { display: flex; gap: var(--qrx-s-2); }
+.sc-chat-input input { flex: 1; margin: 0; padding: var(--qrx-s-3); }
+.sc-chat-input button { width: 50px; margin: 0; padding: var(--qrx-s-3); }
+
+/* Tabs */
+.sc-tabs { display: flex; gap: var(--qrx-s-1); margin-bottom: var(--qrx-s-4); }
+.sc-tab {
+  flex: 1; padding: var(--qrx-s-3); background: var(--qrx-bg-muted); border: none;
+  border-radius: var(--qrx-radius); color: var(--qrx-text-muted); cursor: pointer;
+  font: inherit; font-size: 0.85rem; transition: var(--qrx-transition);
+}
+.sc-tab.active { background: var(--qrx-primary); color: var(--qrx-text-on-brand); }
+.sc-tab-content { display: none; }
+.sc-tab-content.active { display: block; }
+
+/* Alerts */
+.sc-alert { padding: var(--qrx-s-3); border-radius: var(--qrx-radius); margin-bottom: var(--qrx-s-4); font-size: 0.85rem; }
+.sc-alert.warning { background: rgba(232,163,23,0.12); border: 1px solid var(--qrx-warning); color: var(--qrx-warning); }
+.sc-alert.info { background: rgba(21,107,142,0.10); border: 1px solid var(--qrx-info); color: var(--qrx-text); }
+.sc-alert.danger { background: rgba(200,54,42,0.10); border: 1px solid var(--qrx-danger); color: var(--qrx-danger); }
+
+/* Utilities */
+.sc-app .hidden { display: none !important; }
+.sc-text-center { text-align: center; }
+.sc-text-small { font-size: 0.8rem; color: var(--qrx-text-muted); }
+.sc-mt-10 { margin-top: var(--qrx-s-3); }
+.sc-mb-10 { margin-bottom: var(--qrx-s-3); }
+
+@media (max-width: 520px) {
+  .sc-video-grid { grid-template-columns: 1fr; }
+}
+</style>
+
+<!-- PeerJS (WebRTC connection + signaling helper) via CDN, pinned, minified -->
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<header class="qrx-shell-header">
+  <div class="qrx-header-brand">
+    <a class="qrx-header-home" href="https://www.qurix.tech" target="_blank" rel="noopener"
+       aria-label="qurix Technology — www.qurix.tech">
+      <svg class="qrx-header-logo" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-label="qurix Technology">
+        <defs>
+          <linearGradient id="qrxRing" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"   stop-color="#156B8E"/>
+            <stop offset="100%" stop-color="#2EC4A2"/>
+          </linearGradient>
+        </defs>
+        <circle cx="34" cy="34" r="29" fill="none" stroke="url(#qrxRing)" stroke-width="6"/>
+        <line x1="33" y1="38" x2="62" y2="66"
+              stroke="#2EC4A2" stroke-width="8" stroke-linecap="butt"/>
+      </svg>
+      <h1 class="qrx-header-title">qurix</h1>
+    </a>
+    <span class="qrx-header-divider" aria-hidden="true"></span>
+    <span class="qrx-header-app-label">Secure Chat</span>
+  </div>
+  <nav>
+    <button class="qrx-btn qrx-btn-ghost" data-action="toggle-docs"
+            aria-expanded="false" aria-controls="qrx-docs">
+      Documentation
+    </button>
+  </nav>
+</header>
+
+<section id="qrx-docs" class="qrx-shell-docs" hidden>
+  <div class="qrx-shell-docs-inner">
+    <h2>Secure Chat — verschlüsselter P2P-Videochat</h2>
+    <p>
+      Secure Chat baut eine <b>direkte Verbindung</b> zwischen zwei Browsern auf (Peer-to-Peer
+      über WebRTC). Video, Ton und Textnachrichten laufen direkt von Gerät zu Gerät und sind dabei
+      durch WebRTC <b>Ende-zu-Ende verschlüsselt (DTLS/SRTP)</b>. Es gibt kein Konto, keine
+      Installation und keinen qurix-Server, der die Inhalte sieht oder speichert.
+    </p>
+
+    <h3>So funktioniert ein Anruf</h3>
+    <ul>
+      <li><b>⚡ Schnell:</b> Gib die Kurz-ID deines Gegenübers ein (z. B. <code>EAGLE-RIVER-77</code>)
+          und rufe an. Beide müssen online sein. Für den Verbindungsaufbau wird der öffentliche
+          PeerJS-Signalserver genutzt — er vermittelt nur den Kontakt, überträgt aber keine Gesprächsinhalte.</li>
+      <li><b>📴 Offline:</b> Ganz ohne Signalserver. Erstelle eine <b>Einladung</b> (ein Textcode),
+          schicke sie über einen beliebigen Kanal an dein Gegenüber, und füge dessen <b>Antwort-Code</b>
+          wieder ein. Damit verbindet ihr euch auch ohne erreichbaren Server.</li>
+    </ul>
+
+    <h3>Identität &amp; Verifizierung</h3>
+    <p>
+      Beim ersten Start erzeugt die App lokal ein kryptografisches Schlüsselpaar. Daraus wird deine
+      gut merkbare <b>Kurz-ID</b> abgeleitet. Bei eingehenden Anrufen zeigt die App, ob der Anrufer
+      ein <b>bekannter, verifizierter Kontakt</b> ist — oder warnt, wenn eine ID neu ist oder sich der
+      Schlüssel eines bekannten Kontakts geändert hat.
+    </p>
+
+    <h3>Daten &amp; Speicherung</h3>
+    <p>
+      Deine Identität und deine Kontakte werden ausschließlich in der lokalen
+      <code>localStorage</code> deines Browsers gespeichert. <b>Export with data</b> erzeugt eine
+      HTML-Kopie, die <b>nur die Kontaktliste</b> mitnimmt (Kurz-IDs, Namen, öffentliche Schlüssel) —
+      dein privater Schlüssel bleibt immer auf diesem Gerät. <b>Export blank</b> liefert eine leere Kopie.
+    </p>
+
+    <h3>Hinweise</h3>
+    <ul>
+      <li>Kamera- und Mikrofonzugriff wird erst <b>beim Start eines Anrufs</b> abgefragt, nicht schon
+          beim Öffnen der Seite. Auch ohne Kamerafreigabe funktioniert der Textchat.</li>
+      <li>Für den direkten Verbindungsaufbau wird ein öffentlicher STUN-Server (Google) verwendet.</li>
+      <li>Kein offizielles Sicherheitsaudit — für vertrauliche Hochsicherheits-Kommunikation
+          ohne weitere Prüfung nicht geeignet.</li>
+    </ul>
+  </div>
+</section>
+
+<main id="qrx-app" class="qrx-shell-app">
+  <div class="sc-app">
+
+    <header class="sc-hero">
+      <h1>🔐 Secure Chat</h1>
+      <p class="sc-subtitle">Ende-zu-Ende verschlüsselt · P2P-Video direkt im Browser</p>
+    </header>
+
+    <!-- Status Bar -->
+    <div class="sc-status">
+      <div class="sc-dot" id="serverStatus"></div>
+      <span id="serverStatusText">Verbinde…</span>
+    </div>
+
+    <!-- Main Section -->
+    <div id="mainSection">
+
+      <!-- Identity Card -->
+      <div class="sc-card">
+        <h2>📱 Deine Identität</h2>
+        <div class="sc-identity">
+          <div class="sc-id-big" id="myId">Lädt…</div>
+          <div class="sc-id-label">Teile diese ID mit deinen Kontakten</div>
+        </div>
+        <div class="sc-btn-row">
+          <button class="secondary small" onclick="copyMyId()">📋 Kopieren</button>
+          <button class="secondary small" onclick="shareMyId()">📤 Teilen</button>
+        </div>
+      </div>
+
+      <!-- New Call -->
+      <div class="sc-card highlight">
+        <h2>📞 Anrufen</h2>
+        <div class="sc-tabs">
+          <button class="sc-tab active" onclick="switchTab('quick')">⚡ Schnell</button>
+          <button class="sc-tab" onclick="switchTab('offline')">📴 Offline</button>
+        </div>
+
+        <!-- Quick Call (PeerJS) -->
+        <div class="sc-tab-content active" id="tabQuick">
+          <input type="text" id="callIdInput" placeholder="ID eingeben (z. B. EAGLE-RIVER-77)"
+                 oninput="formatIdInput(this)" maxlength="20">
+          <button onclick="quickCall()" id="quickCallBtn">📞 Anrufen</button>
+          <p class="sc-text-small sc-text-center sc-mt-10">
+            Partner muss online sein
+          </p>
+        </div>
+
+        <!-- Offline Mode -->
+        <div class="sc-tab-content" id="tabOffline">
+          <button onclick="createOfflineOffer()">📤 Einladung erstellen</button>
+          <button class="secondary" onclick="showPasteOffer()">📥 Einladung einfügen</button>
+          <p class="sc-text-small sc-text-center sc-mt-10">
+            Funktioniert ganz ohne Server
+          </p>
+        </div>
+      </div>
+
+      <!-- Contacts -->
+      <div class="sc-card">
+        <h2>👥 Kontakte</h2>
+        <div class="sc-contact-list" id="contactList">
+          <div class="sc-empty">Noch keine Kontakte</div>
+        </div>
+        <button class="secondary small sc-mt-10" onclick="showAddContact()">+ Kontakt hinzufügen</button>
+      </div>
+    </div>
+
+    <!-- Video Section -->
+    <div class="sc-video-container" id="videoSection">
+      <div class="sc-card">
+        <div class="sc-video-grid">
+          <div class="sc-video-wrapper">
+            <video id="localVideo" autoplay muted playsinline></video>
+            <div class="sc-vlabel">Du</div>
+          </div>
+          <div class="sc-video-wrapper">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <div class="sc-no-video" id="remoteNoVideo">👤</div>
+            <div class="sc-vlabel" id="remoteLabel">Partner</div>
+          </div>
+        </div>
+
+        <div class="sc-video-controls">
+          <button id="toggleMicBtn" onclick="toggleMic()">🎤</button>
+          <button id="toggleCamBtn" onclick="toggleCam()">📹</button>
+          <button class="danger" onclick="hangup()">📞</button>
+        </div>
+
+        <div class="sc-chat-panel">
+          <div class="sc-messages" id="messages"></div>
+          <div class="sc-chat-input">
+            <input type="text" id="messageInput" placeholder="Nachricht…"
+                   onkeypress="if(event.key==='Enter')sendMessage()">
+            <button onclick="sendMessage()">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Incoming Call -->
+    <div class="sc-modal-overlay" id="incomingCallModal">
+      <div class="sc-modal">
+        <div class="sc-incoming-call">
+          <div class="sc-pulse-ring">
+            <span class="sc-icon">📞</span>
+          </div>
+          <div class="sc-caller" id="callerName">Unbekannt</div>
+          <div class="sc-caller-id" id="callerId">UNKNOWN-ID</div>
+          <div id="callerWarning"></div>
+          <div class="sc-btn-row sc-mt-10">
+            <button class="success" onclick="acceptCall()">✓ Annehmen</button>
+            <button class="danger" onclick="rejectCall()">✕ Ablehnen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Add Contact -->
+    <div class="sc-modal-overlay" id="addContactModal">
+      <div class="sc-modal">
+        <button class="sc-modal-close" onclick="closeModal('addContactModal')">×</button>
+        <h2>Kontakt hinzufügen</h2>
+        <input type="text" id="newContactId" placeholder="ID (z. B. EAGLE-RIVER-77)"
+               oninput="formatIdInput(this)" maxlength="20">
+        <input type="text" id="newContactName" placeholder="Name (optional)">
+        <button onclick="addContact()">Hinzufügen</button>
+      </div>
+    </div>
+
+    <!-- Modal: Offline Offer -->
+    <div class="sc-modal-overlay" id="offlineOfferModal">
+      <div class="sc-modal">
+        <button class="sc-modal-close" onclick="closeModal('offlineOfferModal')">×</button>
+        <h2>📤 Einladung erstellen</h2>
+        <div id="offlineOfferStatus">
+          <p class="sc-mb-10">Generiere sichere Einladung…</p>
+          <div class="sc-dot connecting" style="margin: 20px auto;"></div>
+        </div>
+        <div id="offlineOfferReady" class="hidden">
+          <p class="sc-mb-10">Sende diese Einladung an deinen Partner:</p>
+          <textarea id="offlineOfferText" rows="4" readonly></textarea>
+          <div class="sc-btn-row">
+            <button onclick="copyOfflineOffer()">📋 Kopieren</button>
+            <button class="secondary" onclick="shareOfflineOffer()">📤 Teilen</button>
+          </div>
+          <div class="sc-alert info sc-mt-10">
+            ⏳ Warte auf Antwort deines Partners…
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Paste Offer/Answer -->
+    <div class="sc-modal-overlay" id="pasteOfferModal">
+      <div class="sc-modal">
+        <button class="sc-modal-close" onclick="closeModal('pasteOfferModal')">×</button>
+        <h2>📥 Einladung / Antwort einfügen</h2>
+        <textarea id="pasteOfferText" rows="4" placeholder="Code hier einfügen…"></textarea>
+        <button onclick="processPastedData()">Verarbeiten</button>
+      </div>
+    </div>
+
+    <!-- Modal: Paste Answer -->
+    <div class="sc-modal-overlay" id="pasteAnswerModal">
+      <div class="sc-modal">
+        <button class="sc-modal-close" onclick="closeModal('pasteAnswerModal')">×</button>
+        <h2>📥 Antwort einfügen</h2>
+        <p class="sc-mb-10 sc-text-small">Füge die Antwort deines Partners ein:</p>
+        <textarea id="pasteAnswerText" rows="4" placeholder="Antwort-Code hier einfügen…"></textarea>
+        <button onclick="processAnswer()">Verbinden</button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="qrx-shell-footer">
+  <div class="qrx-footer-brand">
+    Built by
+    <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
+    &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
+    &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
+    &middot; v<span data-build-version>260608-181103</span>
+  </div>
+  <div style="display: flex; gap: 8px;">
+    <button class="qrx-btn" data-action="export-html"
+            title="Download a blank copy of this app — no entered data">
+      Export blank
+    </button>
+    <button class="qrx-btn qrx-btn-primary" data-action="export-html-state"
+            title="Download a snapshot including all currently entered data">
+      Export with data
+    </button>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  // === Docs toggle ===
+  const docsBtn = document.querySelector('[data-action="toggle-docs"]');
+  const docs = document.getElementById('qrx-docs');
+  docsBtn.addEventListener('click', () => {
+    const open = !docs.hasAttribute('hidden');
+    if (open) { docs.setAttribute('hidden', ''); docsBtn.setAttribute('aria-expanded', 'false'); }
+    else      { docs.removeAttribute('hidden');   docsBtn.setAttribute('aria-expanded', 'true');
+                docs.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+
+  // === Build version ===
+  // Baked into the [data-build-version] span at build time (newest source
+  // mtime, format YYMMDD-HHMMSS); read here only for the export filename.
+  const versionEl = document.querySelector('[data-build-version]');
+
+  // === App state hooks ===
+  window.qurixApp = window.qurixApp || {};
+
+  // Capture the pristine app region BEFORE any data is rendered into it, so a
+  // blank export can be restored to this clean state. (Runs synchronously at
+  // parse time, before DOMContentLoaded / any user interaction.)
+  const pristineApp = document.getElementById('qrx-app');
+  const pristineAppHTML = pristineApp ? pristineApp.innerHTML : null;
+
+  function hydrate() {
+    const el = document.getElementById('qrx-app-state');
+    if (!el || !window.qurixApp.hydrateState) return;
+    try { window.qurixApp.hydrateState(JSON.parse(el.textContent)); }
+    catch (e) { console.warn('qurix: state hydrate failed', e); }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', hydrate);
+  } else { hydrate(); }
+
+  // === Export logic ===
+  function syncFormState(clone) {
+    const liveIn = document.querySelectorAll('input');
+    const cIn = clone.querySelectorAll('input');
+    liveIn.forEach((live, i) => {
+      const c = cIn[i]; if (!c) return;
+      if (live.type === 'password' || live.type === 'file') return;
+      if (live.type === 'checkbox' || live.type === 'radio') {
+        if (live.checked) c.setAttribute('checked', ''); else c.removeAttribute('checked');
+      } else { c.setAttribute('value', live.value); }
+    });
+    const liveTa = document.querySelectorAll('textarea');
+    const cTa = clone.querySelectorAll('textarea');
+    liveTa.forEach((live, i) => { if (cTa[i]) cTa[i].textContent = live.value; });
+    const liveSel = document.querySelectorAll('select');
+    const cSel = clone.querySelectorAll('select');
+    liveSel.forEach((live, i) => {
+      const c = cSel[i]; if (!c) return;
+      Array.from(c.options).forEach((opt, j) => {
+        if (live.options[j] && live.options[j].selected) opt.setAttribute('selected', '');
+        else opt.removeAttribute('selected');
+      });
+    });
+    const liveDet = document.querySelectorAll('details');
+    const cDet = clone.querySelectorAll('details');
+    liveDet.forEach((live, i) => {
+      const c = cDet[i]; if (!c) return;
+      if (live.open) c.setAttribute('open', ''); else c.removeAttribute('open');
+    });
+  }
+
+  function writeAppState(clone) {
+    if (!window.qurixApp.serializeState) return;
+    let stateData;
+    try { stateData = window.qurixApp.serializeState(); }
+    catch (e) { console.warn('qurix: state serialize failed', e); return; }
+    let s = clone.querySelector('#qrx-app-state');
+    if (!s) {
+      s = clone.ownerDocument.createElement('script');
+      s.type = 'application/json';
+      s.id = 'qrx-app-state';
+      clone.querySelector('body').appendChild(s);
+    }
+    s.textContent = JSON.stringify(stateData);
+  }
+
+  function download(clone, suffix) {
+    const html = '<!DOCTYPE html>\n' + clone.outerHTML;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const title = (document.title || 'qurix-app').replace(/\s+/g, '-');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}-${versionEl.textContent}${suffix ? '-' + suffix : ''}.html`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  document.querySelector('[data-action="export-html"]').addEventListener('click', () => {
+    const clone = document.documentElement.cloneNode(true);
+    const oldState = clone.querySelector('#qrx-app-state');
+    if (oldState) oldState.remove();
+    // Restore the pristine app region — clears any data the app rendered into
+    // the DOM (tables, results, lists, etc.) so the blank export is truly blank.
+    const cApp = clone.querySelector('#qrx-app');
+    if (cApp && pristineAppHTML !== null) cApp.innerHTML = pristineAppHTML;
+    download(clone);
+  });
+
+  document.querySelector('[data-action="export-html-state"]').addEventListener('click', () => {
+    const clone = document.documentElement.cloneNode(true);
+    syncFormState(clone);
+    writeAppState(clone);
+    download(clone, 'snapshot');
+  });
+})();
+
+// ===== Secure Chat — P2P video + chat (PeerJS + WebRTC) =====
+// All functions are declared at top level so the inline on* handlers in
+// content.html can reach them. Persistent state (identity + contacts) lives in
+// localStorage; nothing is sent to a qurix server — only the PeerJS signaling
+// server and a public STUN server are used to establish the direct connection.
+
+// ===== STATE =====
+let peer = null;
+let currentCall = null;
+let dataConnection = null;
+let localStream = null;
+let identity = null;
+let contacts = [];
+let pendingOffer = null;
+let isInitiator = false;
+let micEnabled = true;
+let camEnabled = true;
+let pendingIdentity = null;
+
+const PEERJS_CONFIG = {
+    // Free PeerJS cloud signaling server. For production, host your own:
+    // https://github.com/peers/peerjs-server
+    debug: 1
+};
+
+const WORD_LIST = [
+    'ALPHA', 'BETA', 'GAMMA', 'DELTA', 'EAGLE', 'FALCON', 'TIGER', 'LION',
+    'MAPLE', 'CEDAR', 'RIVER', 'STORM', 'CLOUD', 'SUNNY', 'FROST', 'BLAZE',
+    'CORAL', 'JADE', 'RUBY', 'PEARL', 'NOVA', 'LUNA', 'STAR', 'COMET',
+    'BRAVE', 'SWIFT', 'BOLD', 'WISE', 'CALM', 'KEEN', 'TRUE', 'PURE'
+];
+
+// ===== INITIALIZATION =====
+async function init() {
+    await loadOrCreateIdentity();
+    loadContacts();
+    renderContacts();
+    // Media is requested lazily (only when a call starts) so opening the app
+    // does not immediately trigger a camera/microphone permission prompt.
+    connectToPeerServer();
+    checkUrlForOffer();
+}
+
+async function loadOrCreateIdentity() {
+    const stored = localStorage.getItem('secureChat_identity');
+    if (stored) {
+        identity = JSON.parse(stored);
+        document.getElementById('myId').textContent = identity.shortId;
+        return;
+    }
+
+    // Generate new identity
+    const keyPair = await crypto.subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['sign', 'verify']
+    );
+
+    const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+    const publicKeyB64 = btoa(String.fromCharCode(...new Uint8Array(publicKeyRaw)));
+    const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+
+    // Generate short ID from public key hash
+    const hashBuffer = await crypto.subtle.digest('SHA-256', publicKeyRaw);
+    const hashArray = new Uint8Array(hashBuffer);
+    const shortId = `${WORD_LIST[hashArray[0] % WORD_LIST.length]}-${WORD_LIST[hashArray[1] % WORD_LIST.length]}-${(hashArray[2] % 90) + 10}`;
+
+    identity = {
+        shortId,
+        publicKey: publicKeyB64,
+        privateKey: privateKeyJwk
+    };
+
+    localStorage.setItem('secureChat_identity', JSON.stringify(identity));
+    document.getElementById('myId').textContent = identity.shortId;
+}
+
+function loadContacts() {
+    const stored = localStorage.getItem('secureChat_contacts');
+    contacts = stored ? JSON.parse(stored) : [];
+}
+
+function saveContacts() {
+    localStorage.setItem('secureChat_contacts', JSON.stringify(contacts));
+}
+
+// ===== PEERJS CONNECTION =====
+function connectToPeerServer() {
+    updateServerStatus('connecting', 'Verbinde mit Server…');
+
+    // Use shortId as PeerJS ID
+    peer = new Peer(identity.shortId.replace(/-/g, '').toLowerCase(), PEERJS_CONFIG);
+
+    peer.on('open', (id) => {
+        console.log('Connected to PeerJS with ID:', id);
+        updateServerStatus('online', `Online als ${identity.shortId}`);
+    });
+
+    peer.on('error', (err) => {
+        console.error('PeerJS error:', err);
+        if (err.type === 'unavailable-id') {
+            updateServerStatus('online', `Online als ${identity.shortId}`);
+        } else {
+            updateServerStatus('offline', 'Server nicht erreichbar – Offline-Modus');
+        }
+    });
+
+    peer.on('disconnected', () => {
+        updateServerStatus('offline', 'Verbindung verloren – Offline-Modus');
+        setTimeout(() => peer.reconnect(), 3000);
+    });
+
+    peer.on('call', handleIncomingCall);
+    peer.on('connection', handleDataConnection);
+}
+
+function updateServerStatus(status, text) {
+    const dot = document.getElementById('serverStatus');
+    dot.className = 'sc-dot ' + status;
+    document.getElementById('serverStatusText').textContent = text;
+}
+
+// ===== MEDIA =====
+async function startMedia() {
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: true
+        });
+        document.getElementById('localVideo').srcObject = localStream;
+    } catch (err) {
+        console.error('Media error:', err);
+        // Continue without media - chat still works
+    }
+}
+
+// Acquire camera/mic on demand; returns the stream (or null if denied).
+async function ensureMedia() {
+    if (localStream) return localStream;
+    await startMedia();
+    return localStream;
+}
+
+function toggleMic() {
+    if (!localStream) return;
+    micEnabled = !micEnabled;
+    localStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
+    document.getElementById('toggleMicBtn').className = micEnabled ? '' : 'muted';
+    document.getElementById('toggleMicBtn').textContent = micEnabled ? '🎤' : '🔇';
+}
+
+function toggleCam() {
+    if (!localStream) return;
+    camEnabled = !camEnabled;
+    localStream.getVideoTracks().forEach(t => t.enabled = camEnabled);
+    document.getElementById('toggleCamBtn').className = camEnabled ? '' : 'muted';
+    document.getElementById('toggleCamBtn').textContent = camEnabled ? '📹' : '📷';
+}
+
+// ===== QUICK CALL (PeerJS) =====
+async function quickCall() {
+    const targetId = document.getElementById('callIdInput').value.trim().toUpperCase();
+    if (!targetId || !validateId(targetId)) {
+        alert('Bitte gültige ID eingeben (z. B. EAGLE-RIVER-77)');
+        return;
+    }
+
+    if (!peer || peer.disconnected) {
+        alert('Nicht mit Server verbunden. Nutze den Offline-Modus.');
+        return;
+    }
+
+    await ensureMedia();
+
+    isInitiator = true;
+    const peerId = targetId.replace(/-/g, '').toLowerCase();
+
+    document.getElementById('quickCallBtn').disabled = true;
+    document.getElementById('quickCallBtn').textContent = 'Rufe an…';
+
+    // Establish data connection first
+    dataConnection = peer.connect(peerId, { reliable: true });
+
+    dataConnection.on('open', () => {
+        console.log('Data connection established');
+
+        // Send our identity
+        dataConnection.send({
+            type: 'identity',
+            shortId: identity.shortId,
+            publicKey: identity.publicKey
+        });
+
+        // Start call
+        if (localStream) {
+            currentCall = peer.call(peerId, localStream);
+            setupCallHandlers(currentCall);
+        }
+
+        showVideoSection(targetId);
+    });
+
+    dataConnection.on('data', handleDataMessage);
+
+    dataConnection.on('error', (err) => {
+        console.error('Connection error:', err);
+        alert('Verbindung fehlgeschlagen. Ist der Partner online?');
+        resetCallUI();
+    });
+
+    // Timeout
+    setTimeout(() => {
+        if (!dataConnection || !dataConnection.open) {
+            alert('Partner nicht erreichbar. Versuche Offline-Modus.');
+            resetCallUI();
+        }
+    }, 10000);
+}
+
+function handleIncomingCall(call) {
+    console.log('Incoming call from:', call.peer);
+    currentCall = call;
+
+    // Show modal after we have identity from data connection
+    // The data connection should arrive first or simultaneously
+}
+
+function handleDataConnection(conn) {
+    console.log('Incoming data connection from:', conn.peer);
+    dataConnection = conn;
+
+    conn.on('open', () => {
+        console.log('Data connection open');
+    });
+
+    conn.on('data', (data) => {
+        handleDataMessage(data);
+
+        if (data.type === 'identity' && currentCall) {
+            showIncomingCall(data.shortId, data.publicKey);
+        } else if (data.type === 'identity') {
+            // Data came before call, store it
+            pendingIdentity = data;
+        }
+    });
+}
+
+function showIncomingCall(callerId, publicKey) {
+    document.getElementById('callerName').textContent = getContactName(callerId) || 'Unbekannt';
+    document.getElementById('callerId').textContent = callerId;
+
+    // Check if known contact
+    const contact = contacts.find(c => c.shortId === callerId);
+    const warningEl = document.getElementById('callerWarning');
+
+    if (!contact) {
+        warningEl.innerHTML = '<div class="sc-alert warning">⚠️ Neuer Kontakt – Verifiziere die ID!</div>';
+    } else if (contact.publicKey !== publicKey) {
+        warningEl.innerHTML = '<div class="sc-alert danger">🚨 WARNUNG: Schlüssel hat sich geändert!</div>';
+    } else {
+        warningEl.innerHTML = '<div class="sc-alert info">✓ Verifizierter Kontakt</div>';
+    }
+
+    pendingIdentity = { shortId: callerId, publicKey };
+    document.getElementById('incomingCallModal').classList.add('active');
+}
+
+async function acceptCall() {
+    closeModal('incomingCallModal');
+
+    // Save/update contact
+    if (pendingIdentity) {
+        addOrUpdateContact(pendingIdentity.shortId, pendingIdentity.publicKey);
+    }
+
+    await ensureMedia();
+
+    // Answer call
+    if (currentCall && localStream) {
+        currentCall.answer(localStream);
+        setupCallHandlers(currentCall);
+    }
+
+    // Send our identity
+    if (dataConnection && dataConnection.open) {
+        dataConnection.send({
+            type: 'identity',
+            shortId: identity.shortId,
+            publicKey: identity.publicKey
+        });
+    }
+
+    showVideoSection(pendingIdentity?.shortId || 'Partner');
+}
+
+function rejectCall() {
+    closeModal('incomingCallModal');
+    if (currentCall) currentCall.close();
+    if (dataConnection) dataConnection.close();
+    currentCall = null;
+    dataConnection = null;
+}
+
+function setupCallHandlers(call) {
+    call.on('stream', (remoteStream) => {
+        console.log('Received remote stream');
+        document.getElementById('remoteVideo').srcObject = remoteStream;
+        document.getElementById('remoteNoVideo').classList.add('hidden');
+    });
+
+    call.on('close', () => {
+        console.log('Call ended');
+        addSystemMessage('Anruf beendet');
+    });
+
+    call.on('error', (err) => {
+        console.error('Call error:', err);
+    });
+}
+
+// ===== OFFLINE MODE =====
+async function createOfflineOffer() {
+    document.getElementById('offlineOfferModal').classList.add('active');
+    document.getElementById('offlineOfferStatus').classList.remove('hidden');
+    document.getElementById('offlineOfferReady').classList.add('hidden');
+
+    isInitiator = true;
+
+    await ensureMedia();
+
+    const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    }
+
+    const dc = pc.createDataChannel('chat');
+    setupOfflineDataChannel(dc);
+
+    pendingOffer = { pc, dc };
+
+    pc.onicecandidate = (e) => {
+        if (!e.candidate) {
+            // ICE gathering complete
+            const offerData = {
+                type: 'offer',
+                sdp: pc.localDescription,
+                identity: {
+                    shortId: identity.shortId,
+                    publicKey: identity.publicKey
+                }
+            };
+
+            const encoded = btoa(JSON.stringify(offerData));
+            document.getElementById('offlineOfferText').value = encoded;
+            document.getElementById('offlineOfferStatus').classList.add('hidden');
+            document.getElementById('offlineOfferReady').classList.remove('hidden');
+        }
+    };
+
+    pc.ontrack = (e) => {
+        document.getElementById('remoteVideo').srcObject = e.streams[0];
+        document.getElementById('remoteNoVideo').classList.add('hidden');
+    };
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+}
+
+function setupOfflineDataChannel(dc) {
+    dc.onopen = () => {
+        console.log('Offline data channel open');
+        dataConnection = { send: (data) => dc.send(JSON.stringify(data)), open: true };
+    };
+
+    dc.onmessage = (e) => {
+        try {
+            handleDataMessage(JSON.parse(e.data));
+        } catch {
+            handleDataMessage({ type: 'chat', text: e.data });
+        }
+    };
+}
+
+function copyOfflineOffer() {
+    const text = document.getElementById('offlineOfferText').value;
+    navigator.clipboard.writeText(text);
+    alert('Kopiert!');
+}
+
+async function shareOfflineOffer() {
+    const text = document.getElementById('offlineOfferText').value;
+    if (navigator.share) {
+        await navigator.share({
+            title: 'Secure Chat Einladung',
+            text: `Tritt meinem sicheren Videochat bei:\n\n${text}`
+        });
+    } else {
+        copyOfflineOffer();
+    }
+}
+
+function showPasteOffer() {
+    document.getElementById('pasteOfferText').value = '';
+    document.getElementById('pasteOfferModal').classList.add('active');
+}
+
+async function processPastedData() {
+    const text = document.getElementById('pasteOfferText').value.trim();
+    try {
+        const data = JSON.parse(atob(text));
+
+        if (data.type === 'offer') {
+            await handleOfflineOffer(data);
+        } else if (data.type === 'answer') {
+            await handleOfflineAnswer(data);
+        }
+
+        closeModal('pasteOfferModal');
+    } catch (err) {
+        alert('Ungültiger Code: ' + err.message);
+    }
+}
+
+async function handleOfflineOffer(data) {
+    isInitiator = false;
+
+    // Verify/save contact
+    addOrUpdateContact(data.identity.shortId, data.identity.publicKey);
+
+    await ensureMedia();
+
+    const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    }
+
+    pc.ondatachannel = (e) => {
+        setupOfflineDataChannel(e.channel);
+    };
+
+    pc.ontrack = (e) => {
+        document.getElementById('remoteVideo').srcObject = e.streams[0];
+        document.getElementById('remoteNoVideo').classList.add('hidden');
+    };
+
+    pc.onicecandidate = (e) => {
+        if (!e.candidate) {
+            const answerData = {
+                type: 'answer',
+                sdp: pc.localDescription,
+                identity: {
+                    shortId: identity.shortId,
+                    publicKey: identity.publicKey
+                }
+            };
+
+            const encoded = btoa(JSON.stringify(answerData));
+
+            // Show answer to copy
+            document.getElementById('offlineOfferText').value = encoded;
+            document.getElementById('offlineOfferStatus').classList.add('hidden');
+            document.getElementById('offlineOfferReady').classList.remove('hidden');
+            document.getElementById('offlineOfferReady').querySelector('.sc-alert').innerHTML =
+                '📤 Sende diese Antwort zurück an deinen Partner!';
+            document.getElementById('offlineOfferModal').classList.add('active');
+        }
+    };
+
+    await pc.setRemoteDescription(data.sdp);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    pendingOffer = { pc };
+    showVideoSection(data.identity.shortId);
+}
+
+async function handleOfflineAnswer(data) {
+    if (!pendingOffer || !pendingOffer.pc) {
+        alert('Kein ausstehender Anruf gefunden');
+        return;
+    }
+
+    addOrUpdateContact(data.identity.shortId, data.identity.publicKey);
+    await pendingOffer.pc.setRemoteDescription(data.sdp);
+
+    closeModal('offlineOfferModal');
+    showVideoSection(data.identity.shortId);
+}
+
+function showPasteAnswer() {
+    document.getElementById('pasteAnswerText').value = '';
+    document.getElementById('pasteAnswerModal').classList.add('active');
+}
+
+async function processAnswer() {
+    const text = document.getElementById('pasteAnswerText').value.trim();
+    try {
+        const data = JSON.parse(atob(text));
+        if (data.type === 'answer') {
+            await handleOfflineAnswer(data);
+        }
+        closeModal('pasteAnswerModal');
+    } catch (err) {
+        alert('Ungültiger Code: ' + err.message);
+    }
+}
+
+// ===== DATA MESSAGES =====
+function handleDataMessage(data) {
+    console.log('Received data:', data);
+
+    switch (data.type) {
+        case 'identity':
+            addOrUpdateContact(data.shortId, data.publicKey);
+            document.getElementById('remoteLabel').textContent =
+                getContactName(data.shortId) || data.shortId;
+            break;
+        case 'chat':
+            addMessage(data.text, 'received');
+            break;
+    }
+}
+
+function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    if (dataConnection && dataConnection.open) {
+        dataConnection.send({ type: 'chat', text });
+        addMessage(text, 'sent');
+        input.value = '';
+    } else if (pendingOffer && pendingOffer.dc && pendingOffer.dc.readyState === 'open') {
+        pendingOffer.dc.send(JSON.stringify({ type: 'chat', text }));
+        addMessage(text, 'sent');
+        input.value = '';
+    }
+}
+
+function addMessage(text, type) {
+    const messages = document.getElementById('messages');
+    const msg = document.createElement('div');
+    msg.className = 'sc-message ' + type;
+    msg.textContent = text;
+    messages.appendChild(msg);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+function addSystemMessage(text) {
+    addMessage(text, 'system');
+}
+
+// ===== CONTACTS =====
+function addOrUpdateContact(shortId, publicKey, name = null) {
+    const existing = contacts.findIndex(c => c.shortId === shortId);
+
+    if (existing >= 0) {
+        if (contacts[existing].publicKey !== publicKey) {
+            console.warn('Public key changed for', shortId);
+            // Could show warning here
+        }
+        contacts[existing].publicKey = publicKey;
+        contacts[existing].lastSeen = Date.now();
+    } else {
+        contacts.push({
+            shortId,
+            publicKey,
+            name: name || null,
+            addedAt: Date.now(),
+            lastSeen: Date.now()
+        });
+    }
+
+    saveContacts();
+    renderContacts();
+}
+
+function getContactName(shortId) {
+    const contact = contacts.find(c => c.shortId === shortId);
+    return contact?.name || null;
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderContacts() {
+    const list = document.getElementById('contactList');
+
+    if (contacts.length === 0) {
+        list.innerHTML = '<div class="sc-empty">Noch keine Kontakte</div>';
+        return;
+    }
+
+    list.innerHTML = contacts.map(c => {
+        const safeId = escapeHtml(c.shortId);
+        const name = escapeHtml(c.name || 'Unbenannt');
+        const initial = escapeHtml((c.name || c.shortId)[0]);
+        return `
+            <div class="sc-contact-item" onclick="callContact('${safeId}')">
+                <div class="sc-avatar">${initial}</div>
+                <div class="sc-cinfo">
+                    <div class="sc-cname">${name}</div>
+                    <div class="sc-cid">${safeId}</div>
+                </div>
+                <div class="sc-cstatus" id="status-${c.shortId.replace(/-/g, '')}"></div>
+            </div>
+        `;
+    }).join('');
+}
+
+function callContact(shortId) {
+    document.getElementById('callIdInput').value = shortId;
+    quickCall();
+}
+
+function showAddContact() {
+    document.getElementById('newContactId').value = '';
+    document.getElementById('newContactName').value = '';
+    document.getElementById('addContactModal').classList.add('active');
+}
+
+function addContact() {
+    const id = document.getElementById('newContactId').value.trim().toUpperCase();
+    const name = document.getElementById('newContactName').value.trim();
+
+    if (!validateId(id)) {
+        alert('Ungültige ID');
+        return;
+    }
+
+    addOrUpdateContact(id, '', name);
+    closeModal('addContactModal');
+}
+
+// ===== UI HELPERS =====
+function showVideoSection(partnerId) {
+    document.getElementById('mainSection').classList.add('hidden');
+    document.getElementById('videoSection').classList.add('active');
+    document.getElementById('remoteLabel').textContent =
+        getContactName(partnerId) || partnerId;
+    addSystemMessage('Verbunden mit ' + partnerId);
+}
+
+function hangup() {
+    if (currentCall) currentCall.close();
+    if (dataConnection) dataConnection.close();
+    if (pendingOffer?.pc) pendingOffer.pc.close();
+
+    currentCall = null;
+    dataConnection = null;
+    pendingOffer = null;
+
+    document.getElementById('mainSection').classList.remove('hidden');
+    document.getElementById('videoSection').classList.remove('active');
+    document.getElementById('remoteVideo').srcObject = null;
+    document.getElementById('remoteNoVideo').classList.remove('hidden');
+    document.getElementById('messages').innerHTML = '';
+
+    resetCallUI();
+}
+
+function resetCallUI() {
+    document.getElementById('quickCallBtn').disabled = false;
+    document.getElementById('quickCallBtn').textContent = '📞 Anrufen';
+    document.getElementById('callIdInput').value = '';
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.sc-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.sc-tab-content').forEach(t => t.classList.remove('active'));
+
+    document.querySelector(`.sc-tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+    document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+}
+
+function validateId(id) {
+    return /^[A-Z]+-[A-Z]+-\d{2}$/.test(id);
+}
+
+function formatIdInput(input) {
+    let val = input.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    input.value = val;
+}
+
+function copyMyId() {
+    navigator.clipboard.writeText(identity.shortId);
+    alert('ID kopiert: ' + identity.shortId);
+}
+
+async function shareMyId() {
+    if (navigator.share) {
+        await navigator.share({
+            title: 'Meine Secure Chat ID',
+            text: `Ruf mich an auf Secure Chat: ${identity.shortId}`
+        });
+    } else {
+        copyMyId();
+    }
+}
+
+function checkUrlForOffer() {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+        try {
+            document.getElementById('pasteOfferText').value = hash;
+            processPastedData();
+            window.location.hash = '';
+        } catch (e) {
+            console.error('Invalid URL offer:', e);
+        }
+    }
+}
+
+// ===== qurix snapshot hooks =====
+// "Export with data" carries only the CONTACTS list (short IDs, names, public
+// keys) to another device — never the private signing key, which stays on this
+// device in localStorage. "Export blank" yields a clean copy with no contacts.
+window.qurixApp = window.qurixApp || {};
+window.qurixApp.serializeState = function () {
+    try { return { contacts: JSON.parse(localStorage.getItem('secureChat_contacts') || '[]') }; }
+    catch (_) { return { contacts: [] }; }
+};
+window.qurixApp.hydrateState = function (s) {
+    if (!s || !Array.isArray(s.contacts) || !s.contacts.length) return;
+    loadContacts();
+    const byId = new Map(contacts.map(c => [c.shortId, c]));
+    s.contacts.forEach(c => { if (c && c.shortId) byId.set(c.shortId, c); });
+    contacts = Array.from(byId.values());
+    saveContacts();
+    renderContacts();
+};
+
+// ===== START =====
+init();
+</script>
+
+</body>
+</html>

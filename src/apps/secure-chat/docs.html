@@ -1,0 +1,42 @@
+    <h2>Secure Chat — verschlüsselter P2P-Videochat</h2>
+    <p>
+      Secure Chat baut eine <b>direkte Verbindung</b> zwischen zwei Browsern auf (Peer-to-Peer
+      über WebRTC). Video, Ton und Textnachrichten laufen direkt von Gerät zu Gerät und sind dabei
+      durch WebRTC <b>Ende-zu-Ende verschlüsselt (DTLS/SRTP)</b>. Es gibt kein Konto, keine
+      Installation und keinen qurix-Server, der die Inhalte sieht oder speichert.
+    </p>
+
+    <h3>So funktioniert ein Anruf</h3>
+    <ul>
+      <li><b>⚡ Schnell:</b> Gib die Kurz-ID deines Gegenübers ein (z. B. <code>EAGLE-RIVER-77</code>)
+          und rufe an. Beide müssen online sein. Für den Verbindungsaufbau wird der öffentliche
+          PeerJS-Signalserver genutzt — er vermittelt nur den Kontakt, überträgt aber keine Gesprächsinhalte.</li>
+      <li><b>📴 Offline:</b> Ganz ohne Signalserver. Erstelle eine <b>Einladung</b> (ein Textcode),
+          schicke sie über einen beliebigen Kanal an dein Gegenüber, und füge dessen <b>Antwort-Code</b>
+          wieder ein. Damit verbindet ihr euch auch ohne erreichbaren Server.</li>
+    </ul>
+
+    <h3>Identität &amp; Verifizierung</h3>
+    <p>
+      Beim ersten Start erzeugt die App lokal ein kryptografisches Schlüsselpaar. Daraus wird deine
+      gut merkbare <b>Kurz-ID</b> abgeleitet. Bei eingehenden Anrufen zeigt die App, ob der Anrufer
+      ein <b>bekannter, verifizierter Kontakt</b> ist — oder warnt, wenn eine ID neu ist oder sich der
+      Schlüssel eines bekannten Kontakts geändert hat.
+    </p>
+
+    <h3>Daten &amp; Speicherung</h3>
+    <p>
+      Deine Identität und deine Kontakte werden ausschließlich in der lokalen
+      <code>localStorage</code> deines Browsers gespeichert. <b>Export with data</b> erzeugt eine
+      HTML-Kopie, die <b>nur die Kontaktliste</b> mitnimmt (Kurz-IDs, Namen, öffentliche Schlüssel) —
+      dein privater Schlüssel bleibt immer auf diesem Gerät. <b>Export blank</b> liefert eine leere Kopie.
+    </p>
+
+    <h3>Hinweise</h3>
+    <ul>
+      <li>Kamera- und Mikrofonzugriff wird erst <b>beim Start eines Anrufs</b> abgefragt, nicht schon
+          beim Öffnen der Seite. Auch ohne Kamerafreigabe funktioniert der Textchat.</li>
+      <li>Für den direkten Verbindungsaufbau wird ein öffentlicher STUN-Server (Google) verwendet.</li>
+      <li>Kein offizielles Sicherheitsaudit — für vertrauliche Hochsicherheits-Kommunikation
+          ohne weitere Prüfung nicht geeignet.</li>
+    </ul>

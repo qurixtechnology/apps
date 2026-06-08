@@ -1,0 +1,174 @@
+  <div class="sc-app">
+
+    <header class="sc-hero">
+      <h1>🔐 Secure Chat</h1>
+      <p class="sc-subtitle">Ende-zu-Ende verschlüsselt · P2P-Video direkt im Browser</p>
+    </header>
+
+    <!-- Status Bar -->
+    <div class="sc-status">
+      <div class="sc-dot" id="serverStatus"></div>
+      <span id="serverStatusText">Verbinde…</span>
+    </div>
+
+    <!-- Main Section -->
+    <div id="mainSection">
+
+      <!-- Identity Card -->
+      <div class="sc-card">
+        <h2>📱 Deine Identität</h2>
+        <div class="sc-identity">
+          <div class="sc-id-big" id="myId">Lädt…</div>
+          <div class="sc-id-label">Teile diese ID mit deinen Kontakten</div>
+        </div>
+        <div class="sc-btn-row">
+          <button class="secondary small" onclick="copyMyId()">📋 Kopieren</button>
+          <button class="secondary small" onclick="shareMyId()">📤 Teilen</button>
+        </div>
+      </div>
+
+      <!-- New Call -->
+      <div class="sc-card highlight">
+        <h2>📞 Anrufen</h2>
+        <div class="sc-tabs">
+          <button class="sc-tab active" onclick="switchTab('quick')">⚡ Schnell</button>
+          <button class="sc-tab" onclick="switchTab('offline')">📴 Offline</button>
+        </div>
+
+        <!-- Quick Call (PeerJS) -->
+        <div class="sc-tab-content active" id="tabQuick">
+          <input type="text" id="callIdInput" placeholder="ID eingeben (z. B. EAGLE-RIVER-77)"
+                 oninput="formatIdInput(this)" maxlength="20">
+          <button onclick="quickCall()" id="quickCallBtn">📞 Anrufen</button>
+          <p class="sc-text-small sc-text-center sc-mt-10">
+            Partner muss online sein
+          </p>
+        </div>
+
+        <!-- Offline Mode -->
+        <div class="sc-tab-content" id="tabOffline">
+          <button onclick="createOfflineOffer()">📤 Einladung erstellen</button>
+          <button class="secondary" onclick="showPasteOffer()">📥 Einladung einfügen</button>
+          <p class="sc-text-small sc-text-center sc-mt-10">
+            Funktioniert ganz ohne Server
+          </p>
+        </div>
+      </div>
+
+      <!-- Contacts -->
+      <div class="sc-card">
+        <h2>👥 Kontakte</h2>
+        <div class="sc-contact-list" id="contactList">
+          <div class="sc-empty">Noch keine Kontakte</div>
+        </div>
+        <button class="secondary small sc-mt-10" onclick="showAddContact()">+ Kontakt hinzufügen</button>
+      </div>
+    </div>
+
+    <!-- Video Section -->
+    <div class="sc-video-container" id="videoSection">
+      <div class="sc-card">
+        <div class="sc-video-grid">
+          <div class="sc-video-wrapper">
+            <video id="localVideo" autoplay muted playsinline></video>
+            <div class="sc-vlabel">Du</div>
+          </div>
+          <div class="sc-video-wrapper">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <div class="sc-no-video" id="remoteNoVideo">👤</div>
+            <div class="sc-vlabel" id="remoteLabel">Partner</div>
+          </div>
+        </div>
+
+        <div class="sc-video-controls">
+          <button id="toggleMicBtn" onclick="toggleMic()">🎤</button>
+          <button id="toggleCamBtn" onclick="toggleCam()">📹</button>
+          <button class="danger" onclick="hangup()">📞</button>
+        </div>
+
+        <div class="sc-chat-panel">
+          <div class="sc-messages" id="messages"></div>
+          <div class="sc-chat-input">
+            <input type="text" id="messageInput" placeholder="Nachricht…"
+                   onkeypress="if(event.key==='Enter')sendMessage()">
+            <button onclick="sendMessage()">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Incoming Call -->
+    <div class="sc-modal-overlay" id="incomingCallModal">
+      <div class="sc-modal">
+        <div class="sc-incoming-call">
+          <div class="sc-pulse-ring">
+            <span class="sc-icon">📞</span>
+          </div>
+          <div class="sc-caller" id="callerName">Unbekannt</div>
+          <div class="sc-caller-id" id="callerId">UNKNOWN-ID</div>
+          <div id="callerWarning"></div>
+          <div class="sc-btn-row sc-mt-10">
+            <button class="success" onclick="acceptCall()">✓ Annehmen</button>
+            <button class="danger" onclick="rejectCall()">✕ Ablehnen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Add Contact -->
+    <div class="sc-modal-overlay" id="addContactModal">
+      <div class="sc-modal">
+        <button class="sc-modal-close" onclick="closeModal('addContactModal')">×</button>
+        <h2>Kontakt hinzufügen</h2>
+        <input type="text" id="newContactId" placeholder="ID (z. B. EAGLE-RIVER-77)"
+               oninput="formatIdInput(this)" maxlength="20">
+        <input type="text" id="newContactName" placeholder="Name (optional)">
+        <button onclick="addContact()">Hinzufügen</button>
+      </div>
+    </div>
+
+    <!-- Modal: Offline Offer -->
+    <div class="sc-modal-overlay" id="offlineOfferModal">
+      <div class="sc-modal">
+        <button class="sc-modal-close" onclick="closeModal('offlineOfferModal')">×</button>
+        <h2>📤 Einladung erstellen</h2>
+        <div id="offlineOfferStatus">
+          <p class="sc-mb-10">Generiere sichere Einladung…</p>
+          <div class="sc-dot connecting" style="margin: 20px auto;"></div>
+        </div>
+        <div id="offlineOfferReady" class="hidden">
+          <p class="sc-mb-10">Sende diese Einladung an deinen Partner:</p>
+          <textarea id="offlineOfferText" rows="4" readonly></textarea>
+          <div class="sc-btn-row">
+            <button onclick="copyOfflineOffer()">📋 Kopieren</button>
+            <button class="secondary" onclick="shareOfflineOffer()">📤 Teilen</button>
+          </div>
+          <div class="sc-alert info sc-mt-10">
+            ⏳ Warte auf Antwort deines Partners…
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Paste Offer/Answer -->
+    <div class="sc-modal-overlay" id="pasteOfferModal">
+      <div class="sc-modal">
+        <button class="sc-modal-close" onclick="closeModal('pasteOfferModal')">×</button>
+        <h2>📥 Einladung / Antwort einfügen</h2>
+        <textarea id="pasteOfferText" rows="4" placeholder="Code hier einfügen…"></textarea>
+        <button onclick="processPastedData()">Verarbeiten</button>
+      </div>
+    </div>
+
+    <!-- Modal: Paste Answer -->
+    <div class="sc-modal-overlay" id="pasteAnswerModal">
+      <div class="sc-modal">
+        <button class="sc-modal-close" onclick="closeModal('pasteAnswerModal')">×</button>
+        <h2>📥 Antwort einfügen</h2>
+        <p class="sc-mb-10 sc-text-small">Füge die Antwort deines Partners ein:</p>
+        <textarea id="pasteAnswerText" rows="4" placeholder="Antwort-Code hier einfügen…"></textarea>
+        <button onclick="processAnswer()">Verbinden</button>
+      </div>
+    </div>
+
+  </div>

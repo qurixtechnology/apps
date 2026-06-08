@@ -1,0 +1,19 @@
+{
+  "name": "Secure Chat",
+  "lang": "de",
+  "theme": "qurix",
+  "output": "secure-chat.html",
+  "title": "Secure Chat – qurix",
+  "card": {
+    "description": "Verschlüsselter Peer-to-Peer-Videochat direkt im Browser. Die Verbindung läuft Ende-zu-Ende zwischen den Geräten — kein Konto, keine App, kein zentraler Server, der mithört. Per Kurz-ID anrufen oder ganz ohne Server über einen Einladungscode.",
+    "tags": ["P2P Video", "Ende-zu-Ende", "WebRTC"]
+  },
+  "fonts": ["qurix.fonts.html"],
+  "headAssets": [
+    {
+      "comment": "PeerJS (WebRTC connection + signaling helper) via CDN, pinned, minified",
+      "src": "https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js",
+      "crossorigin": "anonymous"
+    }
+  ]
+}
