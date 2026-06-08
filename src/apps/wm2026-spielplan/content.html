@@ -1,12 +1,13 @@
 
 <header class="app-hero">
+  <button id="langToggle" class="lang-toggle" type="button" data-lang-toggle title="Switch to English">EN</button>
   <div class="head-inner">
-    <div class="kicker"><span class="dot"></span>FIFA Fussball-Weltmeisterschaft</div>
-    <h1>WM <span class="yr">2026</span></h1>
+    <div class="kicker"><span class="dot"></span><span data-i18n="hero.kicker">FIFA Fussball-Weltmeisterschaft</span></div>
+    <h1 data-i18n-html="hero.title">WM <span class="yr">2026</span></h1>
     <div class="subhead">
-      <span>🇺🇸 USA · 🇨🇦 Kanada · 🇲🇽 Mexiko</span>
-      <span><b>11. Juni – 19. Juli 2026</b></span>
-      <span>48 Teams · 104 Spiele · 16 Stadien</span>
+      <span data-i18n="hero.sub1">🇺🇸 USA · 🇨🇦 Kanada · 🇲🇽 Mexiko</span>
+      <span><b data-i18n="hero.sub2">11. Juni – 19. Juli 2026</b></span>
+      <span data-i18n="hero.sub3">48 Teams · 104 Spiele · 16 Stadien</span>
     </div>
   </div>
 </header>
@@ -14,34 +15,34 @@
 <div class="wrap">
 
   <nav class="tabs" id="tabs">
-    <button class="tab active" data-view="gruppen"><span class="ic">📊</span>Gruppen</button>
-    <button class="tab" data-view="baum"><span class="ic">🏆</span>Turnierbaum</button>
-    <button class="tab" data-view="kalender"><span class="ic">🗓️</span>Kalender</button>
-    <button class="tab" data-view="simulator"><span class="ic">🎲</span>Simulator</button>
-    <button class="tab" data-view="tippspiel"><span class="ic">✍️</span>Tippspiel</button>
-    <button class="tab" data-view="meinteam"><span class="ic">⭐</span>Mein Team</button>
-    <button class="tab" data-view="dritte"><span class="ic">🥉</span>Gruppendritte</button>
-    <button class="tab" data-view="orte"><span class="ic">📍</span>Austragungsorte</button>
-    <button class="tab" data-view="historie"><span class="ic">📜</span>Historie</button>
+    <button class="tab active" data-view="gruppen"><span class="ic">📊</span><span data-i18n="tab.gruppen">Gruppen</span></button>
+    <button class="tab" data-view="baum"><span class="ic">🏆</span><span data-i18n="tab.baum">Turnierbaum</span></button>
+    <button class="tab" data-view="kalender"><span class="ic">🗓️</span><span data-i18n="tab.kalender">Kalender</span></button>
+    <button class="tab" data-view="simulator"><span class="ic">🎲</span><span data-i18n="tab.simulator">Simulator</span></button>
+    <button class="tab" data-view="tippspiel"><span class="ic">✍️</span><span data-i18n="tab.tippspiel">Tippspiel</span></button>
+    <button class="tab" data-view="meinteam"><span class="ic">⭐</span><span data-i18n="tab.meinteam">Mein Team</span></button>
+    <button class="tab" data-view="dritte"><span class="ic">🥉</span><span data-i18n="tab.dritte">Gruppendritte</span></button>
+    <button class="tab" data-view="orte"><span class="ic">📍</span><span data-i18n="tab.orte">Austragungsorte</span></button>
+    <button class="tab" data-view="historie"><span class="ic">📜</span><span data-i18n="tab.historie">Historie</span></button>
   </nav>
 
   <!-- GRUPPEN -->
   <section class="panel-view active" id="view-gruppen">
-    <div class="section-title">Gruppenphase <span class="ln"></span></div>
-    <p class="section-sub">Trage Ergebnisse ein — die Tabellen rechnen Punkte, Tordifferenz und Platzierung automatisch. Gespeichert wird lokal im Browser.</p>
+    <div class="section-title"><span data-i18n="g.title">Gruppenphase</span> <span class="ln"></span></div>
+    <p class="section-sub" data-i18n="g.sub">Trage Ergebnisse ein — die Tabellen rechnen Punkte, Tordifferenz und Platzierung automatisch. Gespeichert wird lokal im Browser.</p>
     <div class="tools-bar">
-      <button class="mini-btn warn" id="resetScores">Alle Ergebnisse löschen</button>
-      <button class="mini-btn warn" id="resetPicks">K.-o.-Ergebnisse löschen</button>
+      <button class="mini-btn warn" id="resetScores" data-i18n="g.resetScores">Alle Ergebnisse löschen</button>
+      <button class="mini-btn warn" id="resetPicks" data-i18n="g.resetPicks">K.-o.-Ergebnisse löschen</button>
       <div class="legend-q">
-        <span><i style="background:var(--gold)"></i>Platz 1 & 2 — sicher weiter</span>
-        <span><i style="background:var(--violet)"></i>Platz 3 — evtl. weiter (8 von 12)</span>
+        <span><i style="background:var(--gold)"></i><span data-i18n="g.legend1">Platz 1 & 2 — sicher weiter</span></span>
+        <span><i style="background:var(--violet)"></i><span data-i18n="g.legend2">Platz 3 — evtl. weiter (8 von 12)</span></span>
       </div>
     </div>
     <div class="olb-bar">
-      <div class="olb-info"><span class="olb-dot" id="olbDot"></span><div><b>OpenLigaDB</b> · echte Ergebnisse <span class="olb-src">wm26 · 2026</span></div></div>
-      <button class="mini-btn olb-load" id="olbLoad">🔄 Ergebnisse laden</button>
-      <label class="olb-auto"><input type="checkbox" id="olbAuto"><span class="sw"></span>Auto (alle 2 Min)</label>
-      <span class="olb-status" id="olbStatus">noch nicht geladen</span>
+      <div class="olb-info"><span class="olb-dot" id="olbDot"></span><div><b>OpenLigaDB</b> · <span data-i18n="g.olbReal">echte Ergebnisse</span> <span class="olb-src">wm26 · 2026</span></div></div>
+      <button class="mini-btn olb-load" id="olbLoad" data-i18n="g.olbLoad">🔄 Ergebnisse laden</button>
+      <label class="olb-auto"><input type="checkbox" id="olbAuto"><span class="sw"></span><span data-i18n="g.olbAuto">Auto (alle 2 Min)</span></label>
+      <span class="olb-status" id="olbStatus" data-i18n="g.olbStatus">noch nicht geladen</span>
     </div>
     <div class="grp-grid" id="grpGrid"></div>
     <div id="koSim"></div>
@@ -49,31 +50,31 @@
 
   <!-- TURNIERBAUM -->
   <section class="panel-view" id="view-baum">
-    <div class="section-title">Turnierbaum <span class="ln"></span></div>
-    <p class="section-sub">K.-o.-Phase ab dem Sechzehntelfinale (Runde der letzten 32). Wähle oben ein Team, um seine möglichen Pfade hervorzuheben.</p>
+    <div class="section-title"><span data-i18n="b.title">Turnierbaum</span> <span class="ln"></span></div>
+    <p class="section-sub" data-i18n="b.sub">K.-o.-Phase ab dem Sechzehntelfinale (Runde der letzten 32). Wähle oben ein Team, um seine möglichen Pfade hervorzuheben.</p>
     <div class="br-legend">
-      <span><i style="background:var(--gold)"></i>als Gruppensieger</span>
-      <span><i style="background:var(--blue)"></i>als Gruppenzweiter</span>
-      <span><i style="background:var(--violet)"></i>als Gruppendritter</span>
+      <span><i style="background:var(--gold)"></i><span data-i18n="b.leg1">als Gruppensieger</span></span>
+      <span><i style="background:var(--blue)"></i><span data-i18n="b.leg2">als Gruppenzweiter</span></span>
+      <span><i style="background:var(--violet)"></i><span data-i18n="b.leg3">als Gruppendritter</span></span>
     </div>
     <div class="bracket-scroll"><div class="bracket" id="bracket"></div></div>
   </section>
 
   <!-- KALENDER -->
   <section class="panel-view" id="view-kalender">
-    <div class="section-title">Kalender <span class="ln"></span></div>
-    <p class="section-sub">Alle Spiele chronologisch. Zeiten in der gewählten Zeitzone. US-Abendspiele fallen je nach Zeitzone auf den Folgetag.</p>
+    <div class="section-title"><span data-i18n="c.title">Kalender</span> <span class="ln"></span></div>
+    <p class="section-sub" data-i18n="c.sub">Alle Spiele chronologisch. Zeiten in der gewählten Zeitzone. US-Abendspiele fallen je nach Zeitzone auf den Folgetag.</p>
     <div class="cal-controls">
       <div class="viewseg" id="viewSeg">
-        <button class="vbtn active" data-view="list">📋 Liste</button>
-        <button class="vbtn" data-view="month">▦ Monat</button>
+        <button class="vbtn active" data-view="list" data-i18n="c.list">📋 Liste</button>
+        <button class="vbtn" data-view="month" data-i18n="c.month">▦ Monat</button>
       </div>
-      <button class="chip active" data-filter="all">Alle Spiele</button>
-      <button class="chip" data-filter="group">Nur Gruppenphase</button>
-      <button class="chip" data-filter="ko">Nur K.-o.-Phase</button>
-      <button class="chip" data-filter="team" id="chipTeam" style="display:none">Nur mein Team</button>
+      <button class="chip active" data-filter="all" data-i18n="c.fAll">Alle Spiele</button>
+      <button class="chip" data-filter="group" data-i18n="c.fGroup">Nur Gruppenphase</button>
+      <button class="chip" data-filter="ko" data-i18n="c.fKo">Nur K.-o.-Phase</button>
+      <button class="chip" data-filter="team" id="chipTeam" style="display:none" data-i18n="c.fTeam">Nur mein Team</button>
       <label class="tz-pick">🌍 <select id="tzSel"></select></label>
-      <button class="chip ics" id="icsAll">📅 .ics-Export</button>
+      <button class="chip ics" id="icsAll" data-i18n="c.ics">📅 .ics-Export</button>
       <span class="tz-note" id="tzNote">Zeiten: MESZ</span>
     </div>
     <div id="calendar"></div>
@@ -81,24 +82,24 @@
 
   <!-- SIMULATOR -->
   <section class="panel-view" id="view-simulator">
-    <div class="section-title">Monte-Carlo-Simulator <span class="ln"></span></div>
-    <p class="section-sub">Würfelt das gesamte Turnier zufällig aus — gewichtet nach der FIFA-Weltrangliste (Stand 10. Juni 2026). Je grösser der Punkteabstand, desto wahrscheinlicher der Sieg. Jeder Klick erzeugt einen neuen Turnierverlauf.</p>
+    <div class="section-title"><span data-i18n="s.title">Monte-Carlo-Simulator</span> <span class="ln"></span></div>
+    <p class="section-sub" data-i18n="s.sub">Würfelt das gesamte Turnier zufällig aus — gewichtet nach der FIFA-Weltrangliste (Stand 10. Juni 2026). Je grösser der Punkteabstand, desto wahrscheinlicher der Sieg. Jeder Klick erzeugt einen neuen Turnierverlauf.</p>
     <div class="sim-controls">
-      <button class="sim-btn" id="simRun">🎲 Einzel-Simulation</button>
+      <button class="sim-btn" id="simRun" data-i18n="s.runOne">🎲 Einzel-Simulation</button>
       <div class="sim-many">
-        <label class="sim-nlbl">Anzahl
+        <label class="sim-nlbl"><span data-i18n="s.count">Anzahl</span>
           <input type="number" id="simN" value="1000" min="10" max="50000" step="100">
         </label>
-        <button class="sim-btn alt" id="simRunMany">📊 Verteilung berechnen</button>
+        <button class="sim-btn alt" id="simRunMany" data-i18n="s.runMany">📊 Verteilung berechnen</button>
       </div>
-      <label class="sim-toggle"><input type="checkbox" id="simBase" checked><span class="sw"></span>Eingetragene Ergebnisse als Basis</label>
+      <label class="sim-toggle"><input type="checkbox" id="simBase" checked><span class="sw"></span><span data-i18n="s.base">Eingetragene Ergebnisse als Basis</span></label>
     </div>
-    <div id="simOut"><div class="empty-state">„Einzel-Simulation" würfelt ein komplettes Turnier aus. „Verteilung berechnen" spielt viele Turniere durch und zeigt, wie oft jedes Team Weltmeister wird.</div></div>
+    <div id="simOut"><div class="empty-state" data-i18n="s.empty">„Einzel-Simulation" würfelt ein komplettes Turnier aus. „Verteilung berechnen" spielt viele Turniere durch und zeigt, wie oft jedes Team Weltmeister wird.</div></div>
 
     <div class="fifa-panel" id="fifaPanel">
       <div class="fifa-head" id="fifaHead">
         <div class="pin">📋</div>
-        <div><h2>FIFA-Weltrangliste der 48 Teams</h2><p>Grundlage der Simulation · Stand 10. Juni 2026</p></div>
+        <div><h2 data-i18n="s.fifaH">FIFA-Weltrangliste der 48 Teams</h2><p data-i18n="s.fifaP">Grundlage der Simulation · Stand 10. Juni 2026</p></div>
         <div class="chev">▼</div>
       </div>
       <div class="fifa-body"><div class="fifa-list" id="fifaList"></div></div>
@@ -107,34 +108,34 @@
 
   <!-- TIPPSPIEL -->
   <section class="panel-view" id="view-tippspiel">
-    <div class="section-title">Tippspiel <span class="ln"></span></div>
-    <p class="section-sub">Tippe alle Gruppenspiele und die K.-o.-Plätze, exportiere deinen Tipp als Code und importiere die Codes deiner Mitspieler. Gewertet wird gegen die echten Ergebnisse aus den Tabs „Gruppen" & „K.-o.". Alles bleibt lokal im Browser.</p>
+    <div class="section-title"><span data-i18n="tp.title">Tippspiel</span> <span class="ln"></span></div>
+    <p class="section-sub" data-i18n="tp.sub">Tippe alle Gruppenspiele und die K.-o.-Plätze, exportiere deinen Tipp als Code und importiere die Codes deiner Mitspieler. Gewertet wird gegen die echten Ergebnisse aus den Tabs „Gruppen" & „K.-o.". Alles bleibt lokal im Browser.</p>
     <div id="tipMain"></div>
   </section>
 
   <!-- MEIN TEAM -->
   <section class="panel-view" id="view-meinteam">
-    <div class="section-title">Mein Team <span class="ln"></span></div>
-    <p class="section-sub">Wähle dein Team — es wird in Gruppen, Kalender und Weltrangliste hervorgehoben. Hier siehst du Tabellenstand, Restprogramm und simulierte Titelchancen. Außerdem: Kalender-Export und Datensicherung.</p>
+    <div class="section-title"><span data-i18n="mt.title">Mein Team</span> <span class="ln"></span></div>
+    <p class="section-sub" data-i18n="mt.sub">Wähle dein Team — es wird in Gruppen, Kalender und Weltrangliste hervorgehoben. Hier siehst du Tabellenstand, Restprogramm und simulierte Titelchancen. Außerdem: Kalender-Export und Datensicherung.</p>
     <div id="mtMain"></div>
   </section>
 
   <!-- GRUPPENDRITTE -->
   <section class="panel-view" id="view-dritte">
-    <div class="section-title">Tabelle für Gruppendritte <span class="ln"></span></div>
-    <p class="section-sub">Wer kann noch bester Gruppendritter werden? Die Tabelle zeigt alle Teams, die rechnerisch noch auf Platz 3 ihrer Gruppe landen können — gewertet nach Punkten, Tordifferenz und Toren. Acht der zwölf Gruppendritten erreichen das Sechzehntelfinale.</p>
+    <div class="section-title"><span data-i18n="d3.title">Tabelle für Gruppendritte</span> <span class="ln"></span></div>
+    <p class="section-sub" data-i18n="d3.sub">Wer kann noch bester Gruppendritter werden? Die Tabelle zeigt alle Teams, die rechnerisch noch auf Platz 3 ihrer Gruppe landen können — gewertet nach Punkten, Tordifferenz und Toren. Acht der zwölf Gruppendritten erreichen das Sechzehntelfinale.</p>
     <div id="thirdsMain"></div>
   </section>
 
   <!-- AUSTRAGUNGSORTE -->
   <section class="panel-view" id="view-orte">
-    <div class="section-title">Austragungsorte <span class="ln"></span></div>
-    <p class="section-sub">Die 16 Stadien der WM 2026 in den USA, Mexiko und Kanada. Klicke einen Marker (oder einen Ort in der Liste) für die dort angesetzten Spiele. Kartendaten © OpenStreetMap-Mitwirkende, Kacheln © CARTO.</p>
+    <div class="section-title"><span data-i18n="v.title">Austragungsorte</span> <span class="ln"></span></div>
+    <p class="section-sub" data-i18n="v.sub">Die 16 Stadien der WM 2026 in den USA, Mexiko und Kanada. Klicke einen Marker (oder einen Ort in der Liste) für die dort angesetzten Spiele. Kartendaten © OpenStreetMap-Mitwirkende, Kacheln © CARTO.</p>
     <div class="map-style-bar" id="mapStyleBar">
-      <span class="msb-label">Kartenstil:</span>
-      <button class="msb-btn" data-style="voyager">Voyager</button>
-      <button class="msb-btn" data-style="light">Hell</button>
-      <button class="msb-btn" data-style="dark">Dunkel</button>
+      <span class="msb-label" data-i18n="v.mapStyle">Kartenstil:</span>
+      <button class="msb-btn" data-style="voyager" data-i18n="v.voyager">Voyager</button>
+      <button class="msb-btn" data-style="light" data-i18n="v.light">Hell</button>
+      <button class="msb-btn" data-style="dark" data-i18n="v.dark">Dunkel</button>
     </div>
     <div class="venue-wrap">
       <div id="venueMap"></div>
@@ -144,13 +145,13 @@
 
   <!-- HISTORIE -->
   <section class="panel-view" id="view-historie">
-    <div class="section-title">WM-Historie <span class="ln"></span></div>
-    <p class="section-sub">Alle bisherigen FIFA-Weltmeisterschaften der Männer (1930–2022) mit Gastgeber, Teilnehmerzahl und den ersten vier Plätzen. Flaggen werden für heute existierende Länder angezeigt; Westdeutschland nutzt die deutsche Flagge.</p>
+    <div class="section-title"><span data-i18n="h.title">WM-Historie</span> <span class="ln"></span></div>
+    <p class="section-sub" data-i18n="h.sub">Alle bisherigen FIFA-Weltmeisterschaften der Männer (1930–2022) mit Gastgeber, Teilnehmerzahl und den ersten vier Plätzen. Flaggen werden für heute existierende Länder angezeigt; Westdeutschland nutzt die deutsche Flagge.</p>
     <div class="hist-titles" id="histTitles"></div>
     <div class="hist-wrap">
       <table class="hist-table" id="histTable"></table>
     </div>
-    <p class="hist-foot">Datenquelle: öffentlicher FIFA-World-Cup-Datensatz. Das in „Mein Team" gewählte Team wird hervorgehoben (Westdeutschland zählt zu Deutschland).</p>
+    <p class="hist-foot" data-i18n="h.foot">Datenquelle: öffentlicher FIFA-World-Cup-Datensatz. Das in „Mein Team" gewählte Team wird hervorgehoben (Westdeutschland zählt zu Deutschland).</p>
   </section>
 
   <!-- DAY MODAL -->
@@ -163,36 +164,36 @@
   </div>
 
   <details class="dev-sim">
-    <summary>🧪 Testdaten simulieren</summary>
+    <summary data-i18n="dev.summary">🧪 Testdaten simulieren</summary>
     <div class="dev-body">
-      <p class="dev-note">Nur zum Ausprobieren: füllt zufällige, nach FIFA-Stärke gewichtete Ergebnisse bis zum gewählten Punkt — <b>überschreibt alle eingetragenen Ergebnisse</b>; spätere Spiele bleiben leer.</p>
+      <p class="dev-note" data-i18n-html="dev.note">Nur zum Ausprobieren: füllt zufällige, nach FIFA-Stärke gewichtete Ergebnisse bis zum gewählten Punkt — <b>überschreibt alle eingetragenen Ergebnisse</b>; spätere Spiele bleiben leer.</p>
       <div class="dev-row">
-        <label>Bis
+        <label><span data-i18n="dev.bis">Bis</span>
           <select id="devLevel">
-            <option value="1">1. Gruppenspieltag</option>
-            <option value="2">2. Gruppenspieltag</option>
-            <option value="3">3. Gruppenspieltag (Gruppen komplett)</option>
-            <option value="4">Sechzehntelfinale</option>
-            <option value="5">Achtelfinale</option>
-            <option value="6">Viertelfinale</option>
-            <option value="7">Halbfinale</option>
-            <option value="8">Finale (komplett)</option>
+            <option value="1" data-i18n="dev.l1">1. Gruppenspieltag</option>
+            <option value="2" data-i18n="dev.l2">2. Gruppenspieltag</option>
+            <option value="3" data-i18n="dev.l3">3. Gruppenspieltag (Gruppen komplett)</option>
+            <option value="4" data-i18n="dev.l4">Sechzehntelfinale</option>
+            <option value="5" data-i18n="dev.l5">Achtelfinale</option>
+            <option value="6" data-i18n="dev.l6">Viertelfinale</option>
+            <option value="7" data-i18n="dev.l7">Halbfinale</option>
+            <option value="8" data-i18n="dev.l8">Finale (komplett)</option>
           </select>
         </label>
-        <button class="mini-btn" id="devRunLevel">Simulieren</button>
+        <button class="mini-btn" id="devRunLevel" data-i18n="dev.runLevel">Simulieren</button>
       </div>
       <div class="dev-row">
-        <label>… oder bis Datum <input type="date" id="devDate" min="2026-06-11" max="2026-07-19" value="2026-06-20"></label>
-        <button class="mini-btn" id="devRunDate">bis Datum simulieren</button>
+        <label><span data-i18n="dev.orDate">… oder bis Datum</span> <input type="date" id="devDate" min="2026-06-11" max="2026-07-19" value="2026-06-20"></label>
+        <button class="mini-btn" id="devRunDate" data-i18n="dev.runDate">bis Datum simulieren</button>
       </div>
-      <div class="dev-row"><button class="mini-btn warn" id="devClear">Alle Ergebnisse löschen</button></div>
+      <div class="dev-row"><button class="mini-btn warn" id="devClear" data-i18n="dev.clear">Alle Ergebnisse löschen</button></div>
     </div>
   </details>
 
   <footer class="app-foot">
-    <b>Datengrundlage:</b> Auslosung vom 5. Dezember 2025, Play-off-Sieger vom 31. März 2026 (Bosnien-H., Tschechien, Schweden, Türkei, DR Kongo, Irak). Vollständiger Spielplan inkl. Anstosszeiten und Stadien.<br>
-    Die K.-o.-Pfade zeigen <b>strukturelle Szenarien</b> (wer als Gruppensieger/-zweiter in welches Spiel kommt, bzw. welche Spiele für Gruppendritte in Frage kommen). Gegner und tatsächliche Qualifikation der Dritten stehen erst nach den Spielen fest.<br>
-    <b>Ergebnis-Daten:</b> <a href="https://www.openligadb.de" target="_blank" rel="noopener">OpenLigaDB</a> (community-gepflegt, Lizenz ODbL) — Abruf der Liga <code>wm26/2026</code>.<br>
-    Ohne Gewähr · kein offizielles FIFA-Produkt.
+    <span data-i18n-html="foot.1"><b>Datengrundlage:</b> Auslosung vom 5. Dezember 2025, Play-off-Sieger vom 31. März 2026 (Bosnien-H., Tschechien, Schweden, Türkei, DR Kongo, Irak). Vollständiger Spielplan inkl. Anstosszeiten und Stadien.</span><br>
+    <span data-i18n-html="foot.2">Die K.-o.-Pfade zeigen <b>strukturelle Szenarien</b> (wer als Gruppensieger/-zweiter in welches Spiel kommt, bzw. welche Spiele für Gruppendritte in Frage kommen). Gegner und tatsächliche Qualifikation der Dritten stehen erst nach den Spielen fest.</span><br>
+    <span data-i18n-html="foot.3"><b>Ergebnis-Daten:</b> <a href="https://www.openligadb.de" target="_blank" rel="noopener">OpenLigaDB</a> (community-gepflegt, Lizenz ODbL) — Abruf der Liga <code>wm26/2026</code>.</span><br>
+    <span data-i18n-html="foot.4">Ohne Gewähr · kein offizielles FIFA-Produkt.</span>
   </footer>
 </div>

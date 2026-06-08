@@ -161,6 +161,10 @@ const KO=[
 const KOBY={}; KO.forEach(m=>KOBY[m.no]=m);
 const RD_NAME={R32:"Sechzehntelfinale",R16:"Achtelfinale",QF:"Viertelfinale",SF:"Halbfinale","3RD":"Spiel um Platz 3",FINAL:"Finale"};
 const RD_SHORT={R32:"Sechzehntelf.",R16:"Achtelfinale",QF:"Viertelfinale",SF:"Halbfinale","3RD":"Platz 3",FINAL:"Finale"};
+const RD_NAME_EN={R32:"Round of 32",R16:"Round of 16",QF:"Quarter-finals",SF:"Semi-finals","3RD":"Third-place play-off",FINAL:"Final"};
+const RD_SHORT_EN={R32:"R32",R16:"R16",QF:"QF",SF:"SF","3RD":"3rd place",FINAL:"Final"};
+function rdName(rd){return (LANG==="en"?RD_NAME_EN:RD_NAME)[rd];}
+function rdShort(rd){return (LANG==="en"?RD_SHORT_EN:RD_SHORT)[rd];}
 
 /* ============================== TIME ============================== */
 /* ET in Jun/Jul = EDT (UTC-4). Build the real instant, then format in Europe/Berlin. */
@@ -170,29 +174,35 @@ function instant(dateISO,time){
   return new Date(Date.UTC(y,m-1,d,hh+4,mm)); // EDT -> UTC
 }
 const TZ_OPTIONS=[
-  {id:"Europe/Berlin",label:"Deutschland · MESZ",abbr:"MESZ"},
-  {id:"Europe/London",label:"UK · BST",abbr:"BST"},
-  {id:"UTC",label:"UTC",abbr:"UTC"},
-  {id:"America/New_York",label:"US Ostküste · ET",abbr:"ET"},
-  {id:"America/Chicago",label:"US Central · CT",abbr:"CT"},
-  {id:"America/Denver",label:"US Mountain · MT",abbr:"MT"},
-  {id:"America/Los_Angeles",label:"US Westküste · PT",abbr:"PT"},
-  {id:"America/Mexico_City",label:"Mexiko-Stadt",abbr:"MEX"}
+  {id:"Europe/Berlin",label:"Deutschland · MESZ",en:"Germany · CEST",abbr:"MESZ"},
+  {id:"Europe/London",label:"UK · BST",en:"UK · BST",abbr:"BST"},
+  {id:"UTC",label:"UTC",en:"UTC",abbr:"UTC"},
+  {id:"America/New_York",label:"US Ostküste · ET",en:"US East Coast · ET",abbr:"ET"},
+  {id:"America/Chicago",label:"US Central · CT",en:"US Central · CT",abbr:"CT"},
+  {id:"America/Denver",label:"US Mountain · MT",en:"US Mountain · MT",abbr:"MT"},
+  {id:"America/Los_Angeles",label:"US Westküste · PT",en:"US West Coast · PT",abbr:"PT"},
+  {id:"America/Mexico_City",label:"Mexiko-Stadt",en:"Mexico City",abbr:"MEX"}
 ];
+function tzLabel(o){return LANG==="en"?(o.en||o.label):o.label;}
 let dispTz="Europe/Berlin";
 try{const s=localStorage.getItem("wm2026tz"); if(s)dispTz=s;}catch(e){}
 function saveTz(){try{localStorage.setItem("wm2026tz",dispTz);}catch(e){}}
 function tzAbbr(id){const o=TZ_OPTIONS.find(x=>x.id===id);return o?o.abbr:id;}
+// Language is read here (early) because the date formatters below depend on it.
+let LANG="de";
+try{const s=localStorage.getItem("wm2026_lang"); if(s==="en"||s==="de")LANG=s;}catch(e){}
+const dateLocale=()=> LANG==="en" ? "en-GB" : "de-DE";
 let _TF={};
 function buildTF(){
   const tz=dispTz, sec=(tz==="America/New_York")?"Europe/Berlin":"America/New_York";
+  const loc=dateLocale();
   _TF={
-    time:new Intl.DateTimeFormat("de-DE",{timeZone:tz,hour:"2-digit",minute:"2-digit"}),
+    time:new Intl.DateTimeFormat(loc,{timeZone:tz,hour:"2-digit",minute:"2-digit"}),
     key :new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit"}),
-    day :new Intl.DateTimeFormat("de-DE",{timeZone:tz,day:"numeric",month:"long"}),
-    wd  :new Intl.DateTimeFormat("de-DE",{timeZone:tz,weekday:"long"}),
-    sec :new Intl.DateTimeFormat("de-DE",{timeZone:sec,hour:"2-digit",minute:"2-digit"}),
-    primAbbr:tzAbbr(tz), secAbbr:(sec==="Europe/Berlin"?"MESZ":"ET")
+    day :new Intl.DateTimeFormat(loc,{timeZone:tz,day:"numeric",month:"long"}),
+    wd  :new Intl.DateTimeFormat(loc,{timeZone:tz,weekday:"long"}),
+    sec :new Intl.DateTimeFormat(loc,{timeZone:sec,hour:"2-digit",minute:"2-digit"}),
+    primAbbr:tzAbbr(tz), secAbbr:(sec==="Europe/Berlin"?(LANG==="en"?"CEST":"MESZ"):"ET")
   };
 }
 buildTF();
@@ -217,11 +227,11 @@ MATCHES.sort((x,y)=>x.inst-y.inst);
 
 /* ============================== SCENARIO ENGINE ============================== */
 function slotLabel(sl,withTeam){
-  if(sl.s==="W")return "Sieger "+sl.g;
-  if(sl.s==="R")return "Zweiter "+sl.g;
-  if(sl.s==="T3")return "3. ("+sl.g.join("/")+")";
-  if(sl.s==="win")return "Sieger Sp. "+sl.m;
-  if(sl.s==="lose")return "Verlierer Sp. "+sl.m;
+  if(sl.s==="W")return t("sl.winner")+" "+sl.g;
+  if(sl.s==="R")return t("sl.runner")+" "+sl.g;
+  if(sl.s==="T3")return t("sl.third")+" ("+sl.g.join("/")+")";
+  if(sl.s==="win")return t("sl.winM")+sl.m;
+  if(sl.s==="lose")return t("sl.loseM")+sl.m;
   return "?";
 }
 /* find R32 match (no) for a team's finishing position */
@@ -299,6 +309,359 @@ let tipPlayers=[];
 try{const s=localStorage.getItem("wm2026_tips"); if(s)tipPlayers=JSON.parse(s);}catch(e){}
 function saveTipPlayers(){try{localStorage.setItem("wm2026_tips",JSON.stringify(tipPlayers));}catch(e){}}
 let tipViewName=null;
+
+/* ===================== i18n (Deutsch / English) ===================== */
+// LANG is declared earlier (before buildTF). Persist on change:
+function saveLang(){try{localStorage.setItem("wm2026_lang",LANG);}catch(e){}}
+function t(k){const d=I18N[LANG]||I18N.de; return (k in d)?d[k]:(k in I18N.de?I18N.de[k]:k);}
+// Team display name: the German name stays the internal key everywhere; only the
+// rendered label is translated in English mode.
+const TEAM_EN={
+  "Mexiko":"Mexico","Südafrika":"South Africa","Südkorea":"South Korea","Tschechien":"Czechia",
+  "Kanada":"Canada","Bosnien-H.":"Bosnia-H.","Katar":"Qatar","Schweiz":"Switzerland",
+  "Brasilien":"Brazil","Marokko":"Morocco","Haiti":"Haiti","Schottland":"Scotland",
+  "USA":"USA","Paraguay":"Paraguay","Australien":"Australia","Türkei":"Türkiye",
+  "Deutschland":"Germany","Curaçao":"Curaçao","Elfenbeinküste":"Côte d'Ivoire","Ecuador":"Ecuador",
+  "Niederlande":"Netherlands","Japan":"Japan","Schweden":"Sweden","Tunesien":"Tunisia",
+  "Belgien":"Belgium","Ägypten":"Egypt","Iran":"Iran","Neuseeland":"New Zealand",
+  "Spanien":"Spain","Kap Verde":"Cape Verde","Saudi-Arabien":"Saudi Arabia","Uruguay":"Uruguay",
+  "Frankreich":"France","Senegal":"Senegal","Irak":"Iraq","Norwegen":"Norway",
+  "Argentinien":"Argentina","Algerien":"Algeria","Österreich":"Austria","Jordanien":"Jordan",
+  "Portugal":"Portugal","DR Kongo":"DR Congo","Usbekistan":"Uzbekistan","Kolumbien":"Colombia",
+  "England":"England","Kroatien":"Croatia","Ghana":"Ghana","Panama":"Panama"
+};
+function tn(name){ return (LANG==="en" && name && TEAM_EN[name]) ? TEAM_EN[name] : name; }
+const LAND_EN={USA:"USA",Mexiko:"Mexico",Kanada:"Canada"};
+const CITY_EN={"Mexiko-Stadt":"Mexico City"};
+function landName(l){ return LANG==="en" ? (LAND_EN[l]||l) : l; }
+function cityName(c){ return LANG==="en" ? (CITY_EN[c]||c) : c; }
+function ordEn(n){ const v=n%100; return (["th","st","nd","rd"][(v-20)%10]||["th","st","nd","rd"][v]||"th"); }
+const MONTHS={de:["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
+              en:["January","February","March","April","May","June","July","August","September","October","November","December"]};
+const WDAYS ={de:["So","Mo","Di","Mi","Do","Fr","Sa"], en:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]};
+function monthName(i){return (MONTHS[LANG]||MONTHS.de)[i];}
+function weekdayShort(i){return (WDAYS[LANG]||WDAYS.de)[i];}
+
+const I18N={ de:{}, en:{} };
+// ---- static UI dictionary (keys mirror data-i18n attributes in content.html) ----
+Object.assign(I18N.de,{
+  "lang.toggle":"EN","lang.title":"Switch to English",
+  "hero.kicker":"FIFA Fussball-Weltmeisterschaft",
+  "hero.title":"WM <span class=\"yr\">2026</span>",
+  "hero.sub1":"🇺🇸 USA · 🇨🇦 Kanada · 🇲🇽 Mexiko",
+  "hero.sub2":"11. Juni – 19. Juli 2026","hero.sub3":"48 Teams · 104 Spiele · 16 Stadien",
+  "tab.gruppen":"Gruppen","tab.baum":"Turnierbaum","tab.kalender":"Kalender","tab.simulator":"Simulator",
+  "tab.tippspiel":"Tippspiel","tab.meinteam":"Mein Team","tab.dritte":"Gruppendritte","tab.orte":"Austragungsorte","tab.historie":"Historie",
+  "g.title":"Gruppenphase","g.sub":"Trage Ergebnisse ein — die Tabellen rechnen Punkte, Tordifferenz und Platzierung automatisch. Gespeichert wird lokal im Browser.",
+  "g.resetScores":"Alle Ergebnisse löschen","g.resetPicks":"K.-o.-Ergebnisse löschen",
+  "g.legend1":"Platz 1 & 2 — sicher weiter","g.legend2":"Platz 3 — evtl. weiter (8 von 12)",
+  "g.olbReal":"echte Ergebnisse","g.olbLoad":"🔄 Ergebnisse laden","g.olbAuto":"Auto (alle 2 Min)","g.olbStatus":"noch nicht geladen",
+  "b.title":"Turnierbaum","b.sub":"K.-o.-Phase ab dem Sechzehntelfinale (Runde der letzten 32). Wähle oben ein Team, um seine möglichen Pfade hervorzuheben.",
+  "b.leg1":"als Gruppensieger","b.leg2":"als Gruppenzweiter","b.leg3":"als Gruppendritter",
+  "c.title":"Kalender","c.sub":"Alle Spiele chronologisch. Zeiten in der gewählten Zeitzone. US-Abendspiele fallen je nach Zeitzone auf den Folgetag.",
+  "c.list":"📋 Liste","c.month":"▦ Monat","c.fAll":"Alle Spiele","c.fGroup":"Nur Gruppenphase","c.fKo":"Nur K.-o.-Phase","c.fTeam":"Nur mein Team","c.ics":"📅 .ics-Export",
+  "s.title":"Monte-Carlo-Simulator","s.sub":"Würfelt das gesamte Turnier zufällig aus — gewichtet nach der FIFA-Weltrangliste (Stand 10. Juni 2026). Je grösser der Punkteabstand, desto wahrscheinlicher der Sieg. Jeder Klick erzeugt einen neuen Turnierverlauf.",
+  "s.runOne":"🎲 Einzel-Simulation","s.count":"Anzahl","s.runMany":"📊 Verteilung berechnen","s.base":"Eingetragene Ergebnisse als Basis",
+  "s.empty":"„Einzel-Simulation\" würfelt ein komplettes Turnier aus. „Verteilung berechnen\" spielt viele Turniere durch und zeigt, wie oft jedes Team Weltmeister wird.",
+  "s.fifaH":"FIFA-Weltrangliste der 48 Teams","s.fifaP":"Grundlage der Simulation · Stand 10. Juni 2026",
+  "tp.title":"Tippspiel","tp.sub":"Tippe alle Gruppenspiele und die K.-o.-Plätze, exportiere deinen Tipp als Code und importiere die Codes deiner Mitspieler. Gewertet wird gegen die echten Ergebnisse aus den Tabs „Gruppen\" & „K.-o.\". Alles bleibt lokal im Browser.",
+  "mt.title":"Mein Team","mt.sub":"Wähle dein Team — es wird in Gruppen, Kalender und Weltrangliste hervorgehoben. Hier siehst du Tabellenstand, Restprogramm und simulierte Titelchancen. Außerdem: Kalender-Export und Datensicherung.",
+  "d3.title":"Tabelle für Gruppendritte","d3.sub":"Wer kann noch bester Gruppendritter werden? Die Tabelle zeigt alle Teams, die rechnerisch noch auf Platz 3 ihrer Gruppe landen können — gewertet nach Punkten, Tordifferenz und Toren. Acht der zwölf Gruppendritten erreichen das Sechzehntelfinale.",
+  "v.title":"Austragungsorte","v.sub":"Die 16 Stadien der WM 2026 in den USA, Mexiko und Kanada. Klicke einen Marker (oder einen Ort in der Liste) für die dort angesetzten Spiele. Kartendaten © OpenStreetMap-Mitwirkende, Kacheln © CARTO.",
+  "v.mapStyle":"Kartenstil:","v.voyager":"Voyager","v.light":"Hell","v.dark":"Dunkel",
+  "h.title":"WM-Historie","h.sub":"Alle bisherigen FIFA-Weltmeisterschaften der Männer (1930–2022) mit Gastgeber, Teilnehmerzahl und den ersten vier Plätzen. Flaggen werden für heute existierende Länder angezeigt; Westdeutschland nutzt die deutsche Flagge.",
+  "h.foot":"Datenquelle: öffentlicher FIFA-World-Cup-Datensatz. Das in „Mein Team\" gewählte Team wird hervorgehoben (Westdeutschland zählt zu Deutschland).",
+  "dev.summary":"🧪 Testdaten simulieren","dev.note":"Nur zum Ausprobieren: füllt zufällige, nach FIFA-Stärke gewichtete Ergebnisse bis zum gewählten Punkt — <b>überschreibt alle eingetragenen Ergebnisse</b>; spätere Spiele bleiben leer.",
+  "dev.bis":"Bis","dev.l1":"1. Gruppenspieltag","dev.l2":"2. Gruppenspieltag","dev.l3":"3. Gruppenspieltag (Gruppen komplett)","dev.l4":"Sechzehntelfinale","dev.l5":"Achtelfinale","dev.l6":"Viertelfinale","dev.l7":"Halbfinale","dev.l8":"Finale (komplett)",
+  "dev.runLevel":"Simulieren","dev.orDate":"… oder bis Datum","dev.runDate":"bis Datum simulieren","dev.clear":"Alle Ergebnisse löschen",
+  "foot.1":"<b>Datengrundlage:</b> Auslosung vom 5. Dezember 2025, Play-off-Sieger vom 31. März 2026 (Bosnien-H., Tschechien, Schweden, Türkei, DR Kongo, Irak). Vollständiger Spielplan inkl. Anstosszeiten und Stadien.",
+  "foot.2":"Die K.-o.-Pfade zeigen <b>strukturelle Szenarien</b> (wer als Gruppensieger/-zweiter in welches Spiel kommt, bzw. welche Spiele für Gruppendritte in Frage kommen). Gegner und tatsächliche Qualifikation der Dritten stehen erst nach den Spielen fest.",
+  "foot.3":"<b>Ergebnis-Daten:</b> <a href=\"https://www.openligadb.de\" target=\"_blank\" rel=\"noopener\">OpenLigaDB</a> (community-gepflegt, Lizenz ODbL) — Abruf der Liga <code>wm26/2026</code>.",
+  "foot.4":"Ohne Gewähr · kein offizielles FIFA-Produkt.",
+  "modal.close":"Schliessen"
+});
+Object.assign(I18N.en,{
+  "lang.toggle":"DE","lang.title":"Auf Deutsch umschalten",
+  "hero.kicker":"FIFA World Cup",
+  "hero.title":"World Cup <span class=\"yr\">2026</span>",
+  "hero.sub1":"🇺🇸 USA · 🇨🇦 Canada · 🇲🇽 Mexico",
+  "hero.sub2":"11 June – 19 July 2026","hero.sub3":"48 teams · 104 matches · 16 stadiums",
+  "tab.gruppen":"Groups","tab.baum":"Bracket","tab.kalender":"Calendar","tab.simulator":"Simulator",
+  "tab.tippspiel":"Prediction game","tab.meinteam":"My team","tab.dritte":"Third-placed","tab.orte":"Venues","tab.historie":"History",
+  "g.title":"Group stage","g.sub":"Enter results — the tables compute points, goal difference and ranking automatically. Stored locally in your browser.",
+  "g.resetScores":"Clear all results","g.resetPicks":"Clear knockout results",
+  "g.legend1":"1st & 2nd — through for sure","g.legend2":"3rd — possibly through (8 of 12)",
+  "g.olbReal":"real results","g.olbLoad":"🔄 Load results","g.olbAuto":"Auto (every 2 min)","g.olbStatus":"not loaded yet",
+  "b.title":"Bracket","b.sub":"Knockout stage from the round of 32 onwards. Pick a team above to highlight its possible paths.",
+  "b.leg1":"as group winner","b.leg2":"as group runner-up","b.leg3":"as third-placed",
+  "c.title":"Calendar","c.sub":"All matches in chronological order. Times in the selected time zone. US evening kick-offs may fall on the next day depending on the zone.",
+  "c.list":"📋 List","c.month":"▦ Month","c.fAll":"All matches","c.fGroup":"Group stage only","c.fKo":"Knockout only","c.fTeam":"My team only","c.ics":"📅 .ics export",
+  "s.title":"Monte Carlo simulator","s.sub":"Randomly plays out the whole tournament — weighted by the FIFA world ranking (as of 10 June 2026). The larger the points gap, the more likely the win. Each click generates a new tournament run.",
+  "s.runOne":"🎲 Single simulation","s.count":"Count","s.runMany":"📊 Compute distribution","s.base":"Use entered results as basis",
+  "s.empty":"\"Single simulation\" plays out one complete tournament. \"Compute distribution\" runs many tournaments and shows how often each team becomes world champion.",
+  "s.fifaH":"FIFA world ranking of the 48 teams","s.fifaP":"Basis of the simulation · as of 10 June 2026",
+  "tp.title":"Prediction game","tp.sub":"Predict all group matches and the knockout places, export your prediction as a code and import your friends' codes. Scored against the real results from the \"Groups\" & \"Knockout\" tabs. Everything stays local in your browser.",
+  "mt.title":"My team","mt.sub":"Pick your team — it is highlighted in groups, calendar and world ranking. Here you see standings, remaining fixtures and simulated title chances. Plus: calendar export and data backup.",
+  "d3.title":"Third-placed table","d3.sub":"Who can still become a best third-placed team? The table shows all teams that can mathematically still finish 3rd in their group — ranked by points, goal difference and goals. Eight of the twelve third-placed teams reach the round of 32.",
+  "v.title":"Venues","v.sub":"The 16 stadiums of the 2026 World Cup in the USA, Mexico and Canada. Click a marker (or a venue in the list) for the matches scheduled there. Map data © OpenStreetMap contributors, tiles © CARTO.",
+  "v.mapStyle":"Map style:","v.voyager":"Voyager","v.light":"Light","v.dark":"Dark",
+  "h.title":"World Cup history","h.sub":"All previous men's FIFA World Cups (1930–2022) with host, number of teams and the top four. Flags are shown for countries that exist today; West Germany uses the German flag.",
+  "h.foot":"Data source: public FIFA World Cup dataset. The team selected in \"My team\" is highlighted (West Germany counts as Germany).",
+  "dev.summary":"🧪 Simulate test data","dev.note":"For trying out only: fills random results weighted by FIFA strength up to the chosen point — <b>overwrites all entered results</b>; later matches stay empty.",
+  "dev.bis":"Up to","dev.l1":"Matchday 1","dev.l2":"Matchday 2","dev.l3":"Matchday 3 (groups complete)","dev.l4":"Round of 32","dev.l5":"Round of 16","dev.l6":"Quarter-finals","dev.l7":"Semi-finals","dev.l8":"Final (complete)",
+  "dev.runLevel":"Simulate","dev.orDate":"… or up to date","dev.runDate":"simulate up to date","dev.clear":"Clear all results",
+  "foot.1":"<b>Data basis:</b> draw of 5 December 2025, play-off winners of 31 March 2026 (Bosnia-H., Czechia, Sweden, Türkiye, DR Congo, Iraq). Full schedule incl. kick-off times and stadiums.",
+  "foot.2":"The knockout paths show <b>structural scenarios</b> (who enters which match as group winner/runner-up, and which matches the third-placed teams may reach). Opponents and the actual qualification of the third-placed teams are only fixed after the matches.",
+  "foot.3":"<b>Result data:</b> <a href=\"https://www.openligadb.de\" target=\"_blank\" rel=\"noopener\">OpenLigaDB</a> (community-maintained, ODbL licence) — querying league <code>wm26/2026</code>.",
+  "foot.4":"No guarantee · not an official FIFA product.",
+  "modal.close":"Close"
+});
+// ---- documentation (#qrx-docs) ----
+Object.assign(I18N.de,{
+  "doc.h2":"WM 2026 — Spielplan & Szenario-Planer",
+  "doc.intro":"Interaktiver Spielplan der FIFA-Weltmeisterschaft 2026 (USA · Kanada · Mexiko, 48 Teams, 104 Spiele). Trage Ergebnisse ein, plane K.-o.-Szenarien und führe ein eigenes Tippspiel — alles läuft lokal in deinem Browser, es werden keine Daten an einen Server gesendet.",
+  "doc.viewsH":"Ansichten",
+  "doc.li1":"<b>Gruppen</b> — Tabellen aller Gruppen; Ergebnisse direkt eintragbar.",
+  "doc.li2":"<b>Turnierbaum</b> — K.-o.-Pfade ab dem Sechzehntelfinale.",
+  "doc.li3":"<b>Kalender</b> — alle Spiele chronologisch mit Anstosszeiten und Stadien.",
+  "doc.li4":"<b>Simulator</b> — strukturelle Szenarien für die K.-o.-Runde durchspielen.",
+  "doc.li5":"<b>Tippspiel</b> — eigene Tipps und Mitspieler verwalten, Punkte auswerten.",
+  "doc.li6":"<b>Mein Team</b> — Lieblingsteam wählen und dessen Weg verfolgen.",
+  "doc.li7":"<b>Gruppendritte</b> — Szenarien für die besten Gruppendritten.",
+  "doc.li8":"<b>Austragungsorte</b> — Stadien auf der Karte.",
+  "doc.dataH":"Daten & Speicherung",
+  "doc.data":"Eingaben (Ergebnisse, Tipps, Lieblingsteam, Zeitzone) werden in der lokalen <code>localStorage</code> deines Browsers gespeichert. Über <b>Export with data</b> erzeugst du eine HTML-Kopie inklusive deines aktuellen Stands; <b>Export blank</b> liefert eine leere Kopie ohne eingetragene Daten. Ergebnis-Daten stammen von <a href=\"https://www.openligadb.de\" target=\"_blank\" rel=\"noopener\">OpenLigaDB</a>. Kein offizielles FIFA-Produkt, ohne Gewähr."
+});
+Object.assign(I18N.en,{
+  "doc.h2":"WC 2026 — Schedule & scenario planner",
+  "doc.intro":"Interactive schedule for the 2026 FIFA World Cup (USA · Canada · Mexico, 48 teams, 104 matches). Enter results, plan knockout scenarios and run your own prediction game — everything runs locally in your browser, no data is sent to a server.",
+  "doc.viewsH":"Views",
+  "doc.li1":"<b>Groups</b> — tables for all groups; results entered directly.",
+  "doc.li2":"<b>Bracket</b> — knockout paths from the round of 32 onwards.",
+  "doc.li3":"<b>Calendar</b> — all matches chronologically with kick-off times and stadiums.",
+  "doc.li4":"<b>Simulator</b> — play through structural scenarios for the knockout stage.",
+  "doc.li5":"<b>Prediction game</b> — manage your own predictions and players, score points.",
+  "doc.li6":"<b>My team</b> — pick a favourite team and follow its path.",
+  "doc.li7":"<b>Third-placed</b> — scenarios for the best third-placed teams.",
+  "doc.li8":"<b>Venues</b> — stadiums on the map.",
+  "doc.dataH":"Data & storage",
+  "doc.data":"Your input (results, predictions, favourite team, time zone) is stored in your browser's local <code>localStorage</code>. <b>Export with data</b> creates an HTML copy including your current state; <b>Export blank</b> produces an empty copy without entered data. Result data comes from <a href=\"https://www.openligadb.de\" target=\"_blank\" rel=\"noopener\">OpenLigaDB</a>. Not an official FIFA product, no guarantee."
+});
+
+// ---- dynamic render strings ----
+Object.assign(I18N.de,{
+  "sl.winner":"Sieger","sl.runner":"Zweiter","sl.third":"3.","sl.winM":"Sieger Sp. ","sl.loseM":"Verlierer Sp. ",
+  "dyn.group":"Gruppe","dyn.matches":"Spiele","dyn.match":"Spiel",
+  "th.team":"Team","th.sp":"Sp","th.sun":"S-U-N","th.tore":"Tore","th.diff":"Diff","th.pkt":"Pkt",
+  "dyn.asWinner":"als Sieger","dyn.asRunner":"als Zweiter","dyn.asThird":"als 3.",
+  "dyn.calNote":"Turnierzeitraum 11. Juni – 19. Juli 2026 · Tag anklicken für die Spieldetails.",
+  "dyn.thirdPlace":"Spiel um Platz 3","dyn.champion":"Weltmeister","dyn.tbd":"offen","dyn.pen":"i.E.","dyn.keepFree":"★ freihalten"
+});
+Object.assign(I18N.en,{
+  "sl.winner":"Winner","sl.runner":"Runner-up","sl.third":"3rd","sl.winM":"Winner M","sl.loseM":"Loser M",
+  "dyn.group":"Group","dyn.matches":"Matches","dyn.match":"Match",
+  "th.team":"Team","th.sp":"MP","th.sun":"W-D-L","th.tore":"Goals","th.diff":"Diff","th.pkt":"Pts",
+  "dyn.asWinner":"as winner","dyn.asRunner":"as runner-up","dyn.asThird":"as 3rd",
+  "dyn.calNote":"Tournament window 11 June – 19 July 2026 · click a day for match details.",
+  "dyn.thirdPlace":"Third-place play-off","dyn.champion":"World champion","dyn.tbd":"TBD","dyn.pen":"pen.","dyn.keepFree":"★ keep free"
+});
+function nfmt(n){ return Number(n).toLocaleString(LANG==="en"?"en-GB":"de-DE"); }
+function tf(key,vars){ let s=t(key); for(const k in (vars||{})) s=s.split("{"+k+"}").join(vars[k]); return s; }
+Object.assign(I18N.de,{
+  "dyn.matchAbbr":"Sp.","dyn.grpAbbr":"Gr.",
+  "ko.title":"K.-o.-Phase — Ergebnisse eintragen",
+  "ko.subComplete":"Alle Gruppen vollständig. Trage Ergebnisse ein (oder klicke direkt den Sieger an) — die nächste Runde füllt sich automatisch. Bei Unentschieden wählst du den Sieger im Elfmeterschießen.",
+  "ko.subIncomplete":"Trage die Gruppenergebnisse oben ein ({n}/72 Spiele). Plätze 1 & 2 stehen fest, sobald eine Gruppe komplett ist; die 8 besten Dritten werden erst nach <b>allen</b> Gruppen zugeordnet.",
+  "ko.thirdsPanel":"Beste Gruppendritte — 8 von 12 qualifiziert",
+  "ko.drawWinner":"Weiter per Elfmeterschießen:","ko.drawPick":"Unentschieden — Sieger anklicken (Elfmeterschießen)"
+});
+Object.assign(I18N.en,{
+  "dyn.matchAbbr":"M","dyn.grpAbbr":"Grp",
+  "ko.title":"Knockout stage — enter results",
+  "ko.subComplete":"All groups complete. Enter results (or click the winner directly) — the next round fills automatically. On a draw, pick the winner of the penalty shoot-out.",
+  "ko.subIncomplete":"Enter the group results above ({n}/72 matches). Places 1 & 2 are fixed once a group is complete; the 8 best third-placed teams are assigned only after <b>all</b> groups.",
+  "ko.thirdsPanel":"Best third-placed teams — 8 of 12 qualify",
+  "ko.drawWinner":"Through on penalties:","ko.drawPick":"Draw — click the winner (penalty shoot-out)"
+});
+Object.assign(I18N.de,{
+  "scn.winner":"Gruppensieger","scn.runner":"Gruppenzweiter","scn.third":"Gruppendritter",
+  "scn.sub":"Platz {rk} in Gruppe {g}","scn.fixed":"steht fest",
+  "scn.thirdNote":"⚠ Als Dritter nicht sicher weiter — nur die 8 besten Gruppendritten ziehen ein. Bis zu {n} mögliche K.-o.-Tage im Kalender.",
+  "scn.koDays":"{n} mögliche K.-o.-Tage im Kalender markiert",
+  "blk.title":"Sperrtermine","blk.hint":"{fix} fixe Gruppenspiele · {ko} mögliche K.-o.-Tage (je nach aktivierten Szenarien). Tag anklicken für Details · Zeiten {tz}.",
+  "blk.legFix":"Gruppenspiel (fix)"
+});
+Object.assign(I18N.en,{
+  "scn.winner":"Group winner","scn.runner":"Group runner-up","scn.third":"Group third",
+  "scn.sub":"Place {rk} in group {g}","scn.fixed":"fixed",
+  "scn.thirdNote":"⚠ As third-placed not safely through — only the 8 best third-placed teams advance. Up to {n} possible knockout days in the calendar.",
+  "scn.koDays":"{n} possible knockout days marked in the calendar",
+  "blk.title":"Block dates","blk.hint":"{fix} fixed group matches · {ko} possible knockout days (depending on active scenarios). Click a day for details · times {tz}.",
+  "blk.legFix":"Group match (fixed)"
+});
+Object.assign(I18N.de,{
+  "mt.label":"Mein Team","mt.clear":"Zurücksetzen","mt.noTeam":"— kein Team gewählt —",
+  "mt.empty":"Wähle dein Team — dann erscheinen hier Tabellenstand, Restprogramm, Titelchancen und der Szenario-Planer. Dein Team wird außerdem in Gruppen, Kalender und Weltrangliste hervorgehoben.",
+  "mt.leadDone":"Gruppenphase in Gruppe {g} abgeschlossen","mt.leadFix":"Platz in Gruppe {g} bereits uneinholbar",
+  "mt.outAs":"{lead} — dein Team ist als <b>{n}.</b> ausgeschieden.",
+  "mt.setAs":"{lead} — dein Team ist als <b>{word}</b> gesetzt{slot}.{third} Die Szenarien unten dienen nur noch der Übersicht.",
+  "mt.advances":" und steht im Sechzehntelfinale (als {pos} Gruppe {g})",
+  "mt.thirdHint":" Ob es als Gruppendritter reicht, hängt vom Vergleich aller Gruppendritten ab.",
+  "mt.meta":"Gruppe {g} · aktuell Platz {pos} · {pts} Pkt · {rec} · {gf}:{ga} Tore",
+  "mt.fixHead":"Restprogramm & Ergebnisse","mt.koHead":"K.-o.-Phase (Stand jetzt)",
+  "mt.chancesHead":"Titelchancen","mt.useResults":"Eingetragene Ergebnisse berücksichtigen",
+  "mt.calcBtn":"📊 Chancen berechnen (2000×)","mt.notCalc":"Noch nicht berechnet.","mt.icsBtn":"📅 {team}-Spiele als .ics",
+  "mt.plannerSummary":"🎯 Szenario-Planer — mögliche K.-o.-Termine",
+  "mt.plannerIntro":"Aktiviere die Szenarien (Gruppensieger / -zweiter / -dritter). Alle möglichen K.-o.-Termine werden im Turnierbaum & Kalender markiert — nützlich, um vorab Termine freizuhalten.",
+  "tz.note":"Zeiten: {prim} · {sec} in Klammern",
+  "th3.qual":"qualifiziert","th3.out":"ausgeschieden","th3.onTrack":"auf Kurs (Top 8)","th3.out912":"aktuell 9.–12.","th3.possible":"noch möglich",
+  "th3.pl":"Pl.","th3.plTitle":"Aktueller Platz in der Gruppe","th3.status":"Status",
+  "th3.noteComplete":"Alle Gruppen abgeschlossen — die acht grün markierten Gruppendritten sind für das Sechzehntelfinale qualifiziert, die vier roten ausgeschieden.",
+  "th3.noteIncomplete":"<b>{n}</b> Mannschaften können rechnerisch noch Gruppendritter werden (Teams, die nicht mehr Dritter werden können, sind ausgeblendet). Spalte „Pl.\" = aktueller Platz in der Gruppe. Acht der zwölf Gruppendritten ziehen ins Sechzehntelfinale ein — die endgültige Wertung steht erst nach Abschluss aller Gruppen fest.",
+  "th3.leg1":"auf Kurs / qualifiziert","th3.leg2":"aktuell außerhalb Top 8","th3.leg3":"noch möglich (derzeit nicht 3.)",
+  "ven.places":"Orte","hist.year":"Jahr","hist.host":"Gastgeber","hist.teams":"Teams","hist.champ":"🥇 Weltmeister","hist.runner":"🥈 Finalist","hist.third":"🥉 Dritter","hist.fourth":"4.",
+  "alert.resetScores":"Alle eingetragenen Ergebnisse löschen?","alert.resetPicks":"Alle K.-o.-Ergebnisse löschen? (Gruppenergebnisse bleiben erhalten)",
+  "alert.devLevel":"Testdaten erzeugen? Alle eingetragenen Ergebnisse werden überschrieben.","alert.devDate":"Testdaten bis {d} erzeugen? Alle eingetragenen Ergebnisse werden überschrieben.",
+  "alert.backupConfirm":"Backup einspielen? Die aktuellen Daten in diesem Browser werden überschrieben.","alert.backupRead":"Backup-Datei konnte nicht gelesen werden.",
+  "alert.snapshotConfirm":"Dieser Snapshot enthält gespeicherte Daten, die deine aktuellen lokalen Daten in diesem Browser überschreiben. Fortfahren?",
+  "sim.loading":"⏳ Simuliere {n} Turniere …"
+});
+Object.assign(I18N.en,{
+  "mt.clear":"Reset","mt.noTeam":"— no team selected —",
+  "mt.empty":"Pick your team — then standings, remaining fixtures, title chances and the scenario planner appear here. Your team is also highlighted in groups, calendar and world ranking.",
+  "mt.leadDone":"Group stage in group {g} complete","mt.leadFix":"Place in group {g} already locked",
+  "mt.outAs":"{lead} — your team has been eliminated in <b>{n}{ord}</b> place.",
+  "mt.setAs":"{lead} — your team is set as <b>{word}</b>{slot}.{third} The scenarios below are now for overview only.",
+  "mt.advances":" and is in the round of 32 (as {pos} of group {g})",
+  "mt.thirdHint":" Whether it is enough as a third-placed team depends on the comparison of all third-placed teams.",
+  "mt.meta":"Group {g} · currently {pos}{ordpos} place · {pts} pts · {rec} · {gf}:{ga} goals",
+  "mt.fixHead":"Remaining fixtures & results","mt.koHead":"Knockout stage (as of now)",
+  "mt.chancesHead":"Title chances","mt.useResults":"Take entered results into account",
+  "mt.calcBtn":"📊 Compute chances (2000×)","mt.notCalc":"Not computed yet.","mt.icsBtn":"📅 {team} matches as .ics",
+  "mt.plannerSummary":"🎯 Scenario planner — possible knockout dates",
+  "mt.plannerIntro":"Activate the scenarios (group winner / runner-up / third). All possible knockout dates are marked in the bracket & calendar — useful to block dates in advance.",
+  "tz.note":"Times: {prim} · {sec} in parentheses",
+  "th3.qual":"qualified","th3.out":"eliminated","th3.onTrack":"on track (top 8)","th3.out912":"currently 9th–12th","th3.possible":"still possible",
+  "th3.pl":"Pos","th3.plTitle":"Current position in the group","th3.status":"Status",
+  "th3.noteComplete":"All groups complete — the eight green third-placed teams are qualified for the round of 32, the four red ones are eliminated.",
+  "th3.noteIncomplete":"<b>{n}</b> teams can mathematically still become a third-placed team (teams that can no longer finish 3rd are hidden). Column \"Pos\" = current position in the group. Eight of the twelve third-placed teams reach the round of 32 — the final ranking is only fixed after all groups conclude.",
+  "th3.leg1":"on track / qualified","th3.leg2":"currently outside top 8","th3.leg3":"still possible (not 3rd right now)",
+  "ven.places":"venues","hist.year":"Year","hist.host":"Host","hist.teams":"Teams","hist.champ":"🥇 Champion","hist.runner":"🥈 Runner-up","hist.third":"🥉 Third","hist.fourth":"4th",
+  "alert.resetScores":"Clear all entered results?","alert.resetPicks":"Clear all knockout results? (group results are kept)",
+  "alert.devLevel":"Generate test data? All entered results will be overwritten.","alert.devDate":"Generate test data up to {d}? All entered results will be overwritten.",
+  "alert.backupConfirm":"Import backup? The current data in this browser will be overwritten.","alert.backupRead":"Backup file could not be read.",
+  "alert.snapshotConfirm":"This snapshot contains saved data that will overwrite your current local data in this browser. Continue?",
+  "sim.loading":"⏳ Simulating {n} tournaments …"
+});
+Object.assign(I18N.de,{
+  "ch.grp":"Gruppenphase überstanden","ch.r16":"Achtelfinale","ch.qf":"Viertelfinale","ch.sf":"Halbfinale","ch.fin":"Finale","ch.ch":"Weltmeister",
+  "ch.note":"aus {n} simulierten Turnieren",
+  "ven.matches":"Spiele","ven.dash":"—",
+  "db.title":"Daten &amp; Sicherung",
+  "db.note":"Sichert alle lokal gespeicherten Daten (Ergebnisse, K.-o.-Tipps, dein Tippspiel inkl. Mitspieler, Lieblingsteam, Zeitzone) als Datei — etwa zum Übertragen auf ein anderes Gerät.",
+  "db.export":"⬇️ Backup exportieren (.json)","db.import":"⬆️ Backup importieren"
+});
+Object.assign(I18N.en,{
+  "ch.grp":"Survived group stage","ch.r16":"Round of 16","ch.qf":"Quarter-final","ch.sf":"Semi-final","ch.fin":"Final","ch.ch":"Champion",
+  "ch.note":"from {n} simulated tournaments",
+  "ven.matches":"matches","ven.dash":"—",
+  "db.title":"Data &amp; backup",
+  "db.note":"Saves all locally stored data (results, knockout picks, your tip game incl. players, favourite team, time zone) as a file — e.g. to transfer to another device.",
+  "db.export":"⬇️ Export backup (.json)","db.import":"⬆️ Import backup"
+});
+Object.assign(I18N.de,{
+  "tip.scheme":"<b>Wertung je Spiel:</b> exakt 4 · richtige Tordifferenz 3 · richtige Tendenz 2 · sonst 0. &nbsp;<b>Bonus:</b> Weltmeister +20 · je richtiger Finalist +8 · je richtiger Halbfinalist +4.",
+  "tip.s1":"① Mein Tipp","tip.nameLbl":"Name","tip.namePlaceholder":"Dein Name","tip.predSummary":"Gruppenspiele tippen (72 Spiele)",
+  "tip.champ":"Weltmeister (+20)","tip.runner":"Vize-WM (+8)","tip.semi":"Halbfinalist (+4)",
+  "tip.export":"📤 Tipp als Code exportieren","tip.clearMine":"Meinen Tipp leeren",
+  "tip.s2":"② Mitspieler importieren","tip.importPlaceholder":"Code eines Mitspielers hier einfügen …","tip.import":"📥 Tipp importieren",
+  "tip.s3":"③ Rangliste","tip.s4":"④ Tipps ansehen","tip.playerLbl":"Spieler","tip.copy":"📋 Kopieren",
+  "tip.needName":"Bitte zuerst einen Namen eingeben.","tip.confirmClear":"Deinen eigenen Tipp leeren? (Name bleibt)",
+  "tip.ownName":"Dieser Name ist dein eigener Tipp.","tip.overwrite":"„{name}\" existiert bereits — überschreiben?",
+  "tip.readErr":"Code konnte nicht gelesen werden. Bitte vollständig kopieren.",
+  "tip.you":"(du)","tip.youParen":" (du)","tip.remove":"Entfernen",
+  "tip.rosterEmpty":"Noch keine Mitspieler. Gib oben deinen Namen ein und importiere Codes.",
+  "tip.boardEmpty":"Sobald Tipps abgegeben und echte Ergebnisse eingetragen sind, erscheint hier die Rangliste.",
+  "tip.subStats":"Gruppe {grp} · Bonus {bonus} · {exact}× exakt","tip.boardNote":"{n}/72 echte Gruppenergebnisse eingetragen",
+  "tip.champFixed":" · 🏆 Weltmeister steht fest: {flag} {team}",
+  "tip.viewerEmpty":"Noch keine Tipps vorhanden. Gib oben deinen Namen + Tipp ein oder importiere Mitspieler-Codes.",
+  "tip.resultLbl":"Ergebnis","tip.bWinner":"🏆 Weltmeister <small>+20</small>","tip.bRunner":"🥈 Vize <small>+8</small>","tip.bSemi":"Halbfinalist <small>+4</small>",
+  "tip.viewerSummary":"<b>{name}</b> · {n}/72 getippt · <b>{total} Pkt</b> <small>(Gruppe {grp} · Bonus {bonus} · {exact}× exakt)</small>",
+  "tip.bonusHead":"Bonus-Tipps","tip.opt":"— wählen —",
+  "cloud.needName":"Bitte zuerst oben deinen Namen eingeben.","cloud.errNoCode":"Konnte keinen freien Runden-Code erzeugen. Bitte erneut versuchen.",
+  "cloud.needCode":"Bitte einen Runden-Code eingeben.","cloud.notFound":"Runde nicht gefunden: {code}",
+  "cloud.nameClash":"In dieser Runde gibt es bereits einen Mitspieler „{name}\". Bitte oben einen anderen Namen wählen und erneut beitreten.",
+  "cloud.stNotSaved":"nicht gespeichert","cloud.stSaved":"gespeichert ✓","cloud.title":"☁️ Cloud-Runde",
+  "cloud.hintNoCfg":"Cloud-Tippspiel ist nicht konfiguriert. Trage <code>SUPABASE_URL</code> und <code>SUPABASE_ANON_KEY</code> oben im Script ein, um Tipprunden online zu teilen. Bis dahin läuft alles lokal (Code-Austausch unten).",
+  "cloud.connected":"verbunden","cloud.hintConnected":"Runden-Code: <b class=\"cloud-code\">{code}</b> — teile ihn mit Mitspielern. Dein Tipp wird automatisch gespeichert; die Rangliste aktualisiert sich alle 15&nbsp;s (oder per Klick).",
+  "cloud.copyCode":"📋 Code kopieren","cloud.refresh":"🔄 Jetzt aktualisieren","cloud.leave":"Runde verlassen",
+  "cloud.hintJoin":"Erstelle eine Tipprunde oder tritt mit einem Code bei (zuerst oben deinen Namen eingeben).",
+  "cloud.codePlaceholder":"Runden-Code, z. B. WM-7F3K","cloud.join":"Beitreten","cloud.create":"Neue Runde erstellen",
+  "cloud.confirmLeave":"Cloud-Runde verlassen? Dein Tipp bleibt lokal erhalten.",
+  "cloud.authErr":"Anonyme Anmeldung fehlgeschlagen (in Supabase 'Anonymous sign-ins' aktivieren): ",
+  "sim.champTitle":"Weltmeister 2026","sim.finalPre":"Finale: ","sim.place3":"🥉 Platz 3: ",
+  "sim.baseInc":"inkl. deiner eingetragenen Ergebnisse","sim.baseRand":"komplett zufällig (ohne deine Ergebnisse)",
+  "sim.bracket":"Turnierbaum","sim.groupsFinal":"Gruppen-Endstand",
+  "sim.distTitle":"Weltmeister-Häufigkeit","sim.distSub":"{n} Simulationen · {k} verschiedene Champions · {base}",
+  "sim.baseIncShort":"inkl. deiner Ergebnisse","sim.baseRandShort":"komplett zufällig",
+  "sim.distNote":"Wahrscheinlichkeiten basieren auf den FIFA-Punkten (Stand 10. Juni 2026). Mehr Simulationen → stabilere Werte.",
+  "olb.loading":"lädt …","olb.noData":"Liga noch ohne Spieldaten · {t}","olb.noChange":"aktuell · keine Änderung · {t}",
+  "olb.imported":"{n} Spiele übernommen (Gruppe {grp} · K.o. {ko}) · Stand {t}","olb.unmatched":" · ⚠ nicht zugeordnet: {list}",
+  "olb.loadErr":"⚠ Laden fehlgeschlagen ({err}). Beim lokalen Öffnen ggf. CORS/Netz.",
+  "ics.allCal":"WM 2026 — Alle Spiele","ics.teamCal":"WM 2026 — {team}","ics.descPrefix":"WM 2026 · ","ics.eventPrefix":"WM ⚽ "
+});
+Object.assign(I18N.en,{
+  "tip.scheme":"<b>Scoring per match:</b> exact 4 · correct goal difference 3 · correct tendency 2 · otherwise 0. &nbsp;<b>Bonus:</b> champion +20 · per correct finalist +8 · per correct semi-finalist +4.",
+  "tip.s1":"① My tip","tip.nameLbl":"Name","tip.namePlaceholder":"Your name","tip.predSummary":"Predict group matches (72 matches)",
+  "tip.champ":"Champion (+20)","tip.runner":"Runner-up (+8)","tip.semi":"Semi-finalist (+4)",
+  "tip.export":"📤 Export tip as code","tip.clearMine":"Clear my tip",
+  "tip.s2":"② Import players","tip.importPlaceholder":"Paste a player's code here …","tip.import":"📥 Import tip",
+  "tip.s3":"③ Leaderboard","tip.s4":"④ View tips","tip.playerLbl":"Player","tip.copy":"📋 Copy",
+  "tip.needName":"Please enter a name first.","tip.confirmClear":"Clear your own tip? (name is kept)",
+  "tip.ownName":"This name is your own tip.","tip.overwrite":"\"{name}\" already exists — overwrite?",
+  "tip.readErr":"Could not read the code. Please copy it in full.",
+  "tip.you":"(you)","tip.youParen":" (you)","tip.remove":"Remove",
+  "tip.rosterEmpty":"No players yet. Enter your name above and import codes.",
+  "tip.boardEmpty":"Once tips are submitted and real results entered, the leaderboard appears here.",
+  "tip.subStats":"Group {grp} · bonus {bonus} · {exact}× exact","tip.boardNote":"{n}/72 real group results entered",
+  "tip.champFixed":" · 🏆 Champion decided: {flag} {team}",
+  "tip.viewerEmpty":"No tips yet. Enter your name + tip above or import player codes.",
+  "tip.resultLbl":"Result","tip.bWinner":"🏆 Champion <small>+20</small>","tip.bRunner":"🥈 Runner-up <small>+8</small>","tip.bSemi":"Semi-finalist <small>+4</small>",
+  "tip.viewerSummary":"<b>{name}</b> · {n}/72 predicted · <b>{total} pts</b> <small>(group {grp} · bonus {bonus} · {exact}× exact)</small>",
+  "tip.bonusHead":"Bonus tips","tip.opt":"— select —",
+  "cloud.needName":"Please enter your name above first.","cloud.errNoCode":"Could not generate a free round code. Please try again.",
+  "cloud.needCode":"Please enter a round code.","cloud.notFound":"Round not found: {code}",
+  "cloud.nameClash":"This round already has a player \"{name}\". Please choose a different name above and join again.",
+  "cloud.stNotSaved":"not saved","cloud.stSaved":"saved ✓","cloud.title":"☁️ Cloud round",
+  "cloud.hintNoCfg":"Cloud tip game is not configured. Enter <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> at the top of the script to share rounds online. Until then everything runs locally (code exchange below).",
+  "cloud.connected":"connected","cloud.hintConnected":"Round code: <b class=\"cloud-code\">{code}</b> — share it with players. Your tip is saved automatically; the leaderboard refreshes every 15&nbsp;s (or on click).",
+  "cloud.copyCode":"📋 Copy code","cloud.refresh":"🔄 Refresh now","cloud.leave":"Leave round",
+  "cloud.hintJoin":"Create a round or join with a code (enter your name above first).",
+  "cloud.codePlaceholder":"Round code, e.g. WM-7F3K","cloud.join":"Join","cloud.create":"Create new round",
+  "cloud.confirmLeave":"Leave the cloud round? Your tip is kept locally.",
+  "cloud.authErr":"Anonymous sign-in failed (enable 'Anonymous sign-ins' in Supabase): ",
+  "sim.champTitle":"Champion 2026","sim.finalPre":"Final: ","sim.place3":"🥉 Third place: ",
+  "sim.baseInc":"incl. your entered results","sim.baseRand":"fully random (without your results)",
+  "sim.bracket":"Bracket","sim.groupsFinal":"Final group standings",
+  "sim.distTitle":"Champion frequency","sim.distSub":"{n} simulations · {k} different champions · {base}",
+  "sim.baseIncShort":"incl. your results","sim.baseRandShort":"fully random",
+  "sim.distNote":"Probabilities are based on the FIFA points (as of 10 June 2026). More simulations → more stable values.",
+  "olb.loading":"loading …","olb.noData":"League has no match data yet · {t}","olb.noChange":"up to date · no change · {t}",
+  "olb.imported":"{n} matches imported (group {grp} · knockout {ko}) · as of {t}","olb.unmatched":" · ⚠ not matched: {list}",
+  "olb.loadErr":"⚠ Loading failed ({err}). When opened locally, CORS/network may block it.",
+  "ics.allCal":"World Cup 2026 — All matches","ics.teamCal":"World Cup 2026 — {team}","ics.descPrefix":"World Cup 2026 · ","ics.eventPrefix":"WC ⚽ "
+});
+
+// Apply the static dictionary to all [data-i18n] / [data-i18n-html] nodes.
+function applyStaticI18n(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{ const v=t(el.getAttribute("data-i18n")); if(v!=null)el.textContent=v; });
+  document.querySelectorAll("[data-i18n-html]").forEach(el=>{ const v=t(el.getAttribute("data-i18n-html")); if(v!=null)el.innerHTML=v; });
+  const lt=document.getElementById("langToggle");
+  if(lt){ lt.textContent=t("lang.toggle"); lt.title=t("lang.title"); }
+  try{ document.documentElement.lang=LANG; }catch(e){}
+}
+function setLang(l){ if(l!==LANG){ LANG=l; saveLang(); } buildTF(); applyStaticI18n(); if(typeof renderAll==="function")renderAll(); }
+
 function koScoreSet(no){const s=koScores[no];return s&&s.h!==""&&s.a!==""&&s.h!=null&&s.a!=null;}
 function koDraw(no){return koScoreSet(no)&&(+koScores[no].h)===(+koScores[no].a);}
 /* winning side: decisive score wins; a draw needs a penalty pick; with no score fall back to a manual pick */
@@ -404,7 +767,7 @@ function renderGroups(){
       const isFav=row.t===selTeam;
       const gd=row.gf-row.ga; const gds=(gd>0?"+":"")+gd;
       rows+=`<tr class="${cls}${isFav?' fav-row':''}">
-        <td class="team"><span class="pos">${idx+1}</span><span class="fl">${FLAG[row.t]}</span>${row.t}${isFav?' <span class="favstar">★</span>':''}</td>
+        <td class="team"><span class="pos">${idx+1}</span><span class="fl">${FLAG[row.t]}</span>${tn(row.t)}${isFav?' <span class="favstar">★</span>':''}</td>
         <td>${row.sp}</td><td>${row.s}-${row.u}-${row.n}</td>
         <td>${row.gf}:${row.ga}</td><td>${gds}</td><td class="pts">${row.pts}</td></tr>`;
     });
@@ -414,16 +777,16 @@ function renderGroups(){
       const inst=instant(r[1],r[2]); const sc=scores["g"+i]||{h:"",a:""};
       fix+=`<div class="fx">
         <div class="fd">${berlinDayLabel(inst).replace(/ /,'.&nbsp;')}<br>${berlinTime(inst)}</div>
-        <div class="h">${r[3]} <span style="font-size:13px">${FLAG[r[3]]}</span></div>
+        <div class="h">${tn(r[3])} <span style="font-size:13px">${FLAG[r[3]]}</span></div>
         <div class="sc"><input class="score-in" data-k="g${i}" data-s="h" inputmode="numeric" value="${sc.h??""}">:<input class="score-in" data-k="g${i}" data-s="a" inputmode="numeric" value="${sc.a??""}"></div>
-        <div class="a"><span style="font-size:13px">${FLAG[r[4]]}</span> ${r[4]}</div>
+        <div class="a"><span style="font-size:13px">${FLAG[r[4]]}</span> ${tn(r[4])}</div>
       </div>`;
     });
     card.innerHTML=`
-      <div class="grp-h"><div class="grp-badge">${g}</div><div class="gt">Gruppe ${g}<small>${GROUPS[g].length} Teams</small></div></div>
-      <table><thead><tr><th class="l">Team</th><th>Sp</th><th>S-U-N</th><th>Tore</th><th>Diff</th><th>Pkt</th></tr></thead>
+      <div class="grp-h"><div class="grp-badge">${g}</div><div class="gt">${t("dyn.group")} ${g}<small>${GROUPS[g].length} Teams</small></div></div>
+      <table><thead><tr><th class="l">${t("th.team")}</th><th>${t("th.sp")}</th><th>${t("th.sun")}</th><th>${t("th.tore")}</th><th>${t("th.diff")}</th><th>${t("th.pkt")}</th></tr></thead>
       <tbody>${rows}</tbody></table>
-      <div class="grp-fix"><h4>Spiele (${_TF.primAbbr})</h4>${fix}</div>`;
+      <div class="grp-fix"><h4>${t("dyn.matches")} (${_TF.primAbbr})</h4>${fix}</div>`;
     wrap.appendChild(card);
   });
   wrap.querySelectorAll(".score-in").forEach(inp=>{
@@ -473,13 +836,13 @@ function makeBox(m){
       const win=winSide===side;
       const hl=(team===selTeam)?" team-here":"";
       const goal = koScoreSet(m.no) ? `<span class="gl">${side==="a"?s.h:s.a}</span>` : (win?'<span class="wtick">✓</span>':"");
-      return `<div class="mslot resolved${win?" win":""}${hl}" data-no="${m.no}" data-side="${side}"><span class="fl">${FLAG[team]}</span><span class="bn">${team}</span>${goal}</div>`;
+      return `<div class="mslot resolved${win?" win":""}${hl}" data-no="${m.no}" data-side="${side}"><span class="fl">${FLAG[team]}</span><span class="bn">${tn(team)}</span>${goal}</div>`;
     }
     const here=teamInSlotLabel(sl);
-    if(here) return `<div class="mslot team-here"><span class="fl">${FLAG[selTeam]}</span>${selTeam}</div>`;
+    if(here) return `<div class="mslot team-here"><span class="fl">${FLAG[selTeam]}</span>${tn(selTeam)}</div>`;
     return `<div class="mslot"><span class="ph">${slotLabel(sl)}</span></div>`;
   };
-  const pen = koDraw(m.no)?'<span class="pen">i.E.</span>':"";
+  const pen = koDraw(m.no)?`<span class="pen">${t("dyn.pen")}</span>`:"";
   box.innerHTML=`<span class="mno">#${m.no}</span>
     <div class="mdt">${berlinDayLabel(inst)} · ${berlinTime(inst)}${pen}</div>`+
     slotHTML(m.a,"a",p.a)+slotHTML(m.b,"b",p.b);
@@ -502,12 +865,12 @@ function renderBracket(){
   const wrap=document.getElementById("bracket"); wrap.innerHTML="";
   order.forEach(rd=>{
     const col=document.createElement("div"); col.className="round-col"+(rd==="R32"?" r32":"")+(rd==="FINAL"?" final-col":"");
-    col.innerHTML=`<div class="round-lbl">${RD_SHORT[rd]}<small>${counts[rd]} ${counts[rd]===1?"Spiel":"Spiele"}</small></div>`;
+    col.innerHTML=`<div class="round-lbl">${rdShort(rd)}<small>${counts[rd]} ${counts[rd]===1?t("dyn.match"):t("dyn.matches")}</small></div>`;
     const mc=document.createElement("div"); mc.className="matches";
     if(rd==="FINAL"){ const tr=document.createElement("div"); tr.className="trophy"; tr.textContent="🏆"; mc.appendChild(tr); }
     ord[rd].forEach(no=>mc.appendChild(makeBox(KOBY[no])));
     if(rd==="FINAL"){
-      const lbl=document.createElement("div"); lbl.className="thirdlbl"; lbl.textContent="Spiel um Platz 3";
+      const lbl=document.createElement("div"); lbl.className="thirdlbl"; lbl.textContent=t("dyn.thirdPlace");
       mc.appendChild(lbl); mc.appendChild(makeBox(KOBY[103]));
     }
     col.appendChild(mc); wrap.appendChild(col);
@@ -526,8 +889,8 @@ function projectedKoSet(){
 }
 function koSlotText(m){
   const p=koParts(m.no);
-  const a=p.a?`${FLAG[p.a]} ${p.a}`:slotLabel(m.a);
-  const b=p.b?`${FLAG[p.b]} ${p.b}`:slotLabel(m.b);
+  const a=p.a?`${FLAG[p.a]} ${tn(p.a)}`:slotLabel(m.a);
+  const b=p.b?`${FLAG[p.b]} ${tn(p.b)}`:slotLabel(m.b);
   return `<span class="vs"><span class="mid">#${m.no}</span> ${a} <span class="mid">–</span> ${b}</span>`;
 }
 function passFilter(m,proj){
@@ -551,14 +914,14 @@ function buildCalRow(m,proj){
   if(isProj)row.classList.add("proj");
   let mid="";
   if(m.type==="group"){
-    const hh=(m.home===selTeam)?`<b>${m.home}</b>`:m.home;
-    const aa=(m.away===selTeam)?`<b>${m.away}</b>`:m.away;
-    mid=`<div class="cal-match"><span class="gtag" style="--gcol:${GCOL[m.group]};background:${GCOL[m.group]}">Gr. ${m.group}</span>
+    const hh=(m.home===selTeam)?`<b>${tn(m.home)}</b>`:tn(m.home);
+    const aa=(m.away===selTeam)?`<b>${tn(m.away)}</b>`:tn(m.away);
+    mid=`<div class="cal-match"><span class="gtag" style="--gcol:${GCOL[m.group]};background:${GCOL[m.group]}">${t("dyn.grpAbbr")} ${m.group}</span>
       <span class="vs">${FLAG[m.home]} ${hh} <span class="mid">–</span> ${FLAG[m.away]} ${aa}</span></div>`;
   } else {
     const projRank=proj[m.no];
-    const rankTxt=projRank?` <span class="proj-badge">${projRank===1?"als Sieger":projRank===2?"als Zweiter":"als 3."}</span>`:"";
-    mid=`<div class="cal-match"><span class="kotag">${RD_SHORT[m.rd]}</span>${koSlotText(m)}${rankTxt}</div>`;
+    const rankTxt=projRank?` <span class="proj-badge">${projRank===1?t("dyn.asWinner"):projRank===2?t("dyn.asRunner"):t("dyn.asThird")}</span>`:"";
+    mid=`<div class="cal-match"><span class="kotag">${rdShort(m.rd)}</span>${koSlotText(m)}${rankTxt}</div>`;
   }
   row.innerHTML=`<div class="cal-time">${berlinTime(m.inst)}<small>${etTime(m.inst)} ${_TF.secAbbr}</small></div>
     ${mid}
@@ -580,13 +943,13 @@ function renderCalList(){
   const blockedDates=blockedDateKeys();
   Object.keys(days).sort().forEach(k=>{
     const list=days[k]; const inst0=list[0].inst;
-    const stages=[...new Set(list.map(m=>m.type==="ko"?RD_NAME[m.rd]:"Gruppenphase"))];
+    const stages=[...new Set(list.map(m=>m.type==="ko"?rdName(m.rd):t("g.title")))];
     const dayEl=document.createElement("div"); dayEl.className="day";
     const isBlocked=blockedDates.has(k);
     dayEl.innerHTML=`<div class="day-h">
       <span class="dn">${berlinDayLabel(inst0)}</span>
       <span class="dw">${berlinWeekday(inst0)}</span>
-      ${isBlocked?'<span class="blockflag">★ freihalten</span>':''}
+      ${isBlocked?`<span class="blockflag">${t("dyn.keepFree")}</span>`:''}
       <span class="ph-stage">${stages.join(" · ")}</span></div>`;
     list.forEach(m=>dayEl.appendChild(buildCalRow(m,proj)));
     cal.appendChild(dayEl);
@@ -599,10 +962,10 @@ function renderCalMonth(){
   const days=daysMap(proj);
   const blocked=blockedDateKeys();
   const note=document.createElement("p"); note.className="mo-hint";
-  note.innerHTML="Turnierzeitraum 11. Juni – 19. Juli 2026 · Tag anklicken für die Spieldetails.";
+  note.innerHTML=t("dyn.calNote");
   cal.appendChild(note);
   const wrap=document.createElement("div"); wrap.className="months";
-  [[2026,6,"Juni"],[2026,7,"Juli"]].forEach(([y,mo,name])=>wrap.appendChild(buildMonth(y,mo,name,days,blocked)));
+  [[2026,6],[2026,7]].forEach(([y,mo])=>wrap.appendChild(buildMonth(y,mo,monthName(mo-1),days,blocked)));
   cal.appendChild(wrap);
   cal.querySelectorAll(".mo-cell.has").forEach(c=>c.addEventListener("click",()=>openDayModal(c.dataset.key)));
 }
@@ -610,7 +973,7 @@ function buildMonth(y,mo,name,days,blocked){
   const box=document.createElement("div"); box.className="month";
   const nDays=new Date(y,mo,0).getDate();
   const startDow=(new Date(y,mo-1,1).getDay()+6)%7; // Monday=0
-  const wd=["Mo","Di","Mi","Do","Fr","Sa","So"];
+  const wd = LANG==="en" ? ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"] : ["Mo","Di","Mi","Do","Fr","Sa","So"];
   let cells=wd.map(d=>`<div class="mo-wd">${d}</div>`).join("");
   for(let i=0;i<startDow;i++) cells+='<div class="mo-cell empty"></div>';
   for(let d=1;d<=nDays;d++){
@@ -635,11 +998,11 @@ function openDayModal(key,forceAll){
   const ms = forceAll ? dayMatchesAll(key) : (daysMap(proj)[key]||[]);
   if(!ms||!ms.length)return;
   const inst0=ms[0].inst;
-  const stages=[...new Set(ms.map(m=>m.type==="ko"?RD_NAME[m.rd]:"Gruppenphase"))];
+  const stages=[...new Set(ms.map(m=>m.type==="ko"?rdName(m.rd):t("g.title")))];
   const isBlk=blockedDateKeys().has(key);
   document.getElementById("dayModalHead").innerHTML=`
     <div class="md-title"><span class="dn">${berlinDayLabel(inst0)}</span><span class="dw">${berlinWeekday(inst0)}</span></div>
-    ${isBlk?'<span class="blockflag">★ freihalten</span>':''}
+    ${isBlk?`<span class="blockflag">${t("dyn.keepFree")}</span>`:''}
     <span class="ph-stage">${stages.join(" · ")}</span>`;
   const body=document.getElementById("dayModalBody"); body.innerHTML="";
   ms.forEach(m=>body.appendChild(buildCalRow(m,proj)));
@@ -665,9 +1028,9 @@ function renderScenarioCards(){
   const g=TEAM2GROUP[selTeam];
   const det=determinedRank(selTeam); const ar=activeRanks();
   const meta=[
-    {rk:1,col:"var(--gold)",t:"Gruppensieger",sub:"Platz 1 in Gruppe "+g},
-    {rk:2,col:"var(--blue)",t:"Gruppenzweiter",sub:"Platz 2 in Gruppe "+g},
-    {rk:3,col:"var(--violet)",t:"Gruppendritter",sub:"Platz 3 in Gruppe "+g}
+    {rk:1,col:"var(--gold)",t:t("scn.winner"),sub:tf("scn.sub",{rk:1,g})},
+    {rk:2,col:"var(--blue)",t:t("scn.runner"),sub:tf("scn.sub",{rk:2,g})},
+    {rk:3,col:"var(--violet)",t:t("scn.third"),sub:tf("scn.sub",{rk:3,g})}
   ];
   meta.forEach(mt=>{
     const sc=scenarioMatches(selTeam,mt.rk);
@@ -675,10 +1038,10 @@ function renderScenarioCards(){
     const on=ar.includes(mt.rk);
     const card=document.createElement("div");
     card.className="scn"+(on?" on":"")+(det!=null?" locked":""); card.style.setProperty("--scol",mt.col);
-    const fixed = det!=null && det===mt.rk ? `<span class="scn-fixed">steht fest</span>` : "";
+    const fixed = det!=null && det===mt.rk ? `<span class="scn-fixed">${t("scn.fixed")}</span>` : "";
     const body = mt.rk===3
-      ? `<div class="scn-body"><div class="scn-note">⚠ Als Dritter nicht sicher weiter — nur die 8 besten Gruppendritten ziehen ein. Bis zu ${koDays} mögliche K.-o.-Tage im Kalender.</div></div>`
-      : `<div class="scn-body"><div class="scn-mini">${koDays} mögliche K.-o.-Tage im Kalender markiert</div></div>`;
+      ? `<div class="scn-body"><div class="scn-note">${tf("scn.thirdNote",{n:koDays})}</div></div>`
+      : `<div class="scn-body"><div class="scn-mini">${tf("scn.koDays",{n:koDays})}</div></div>`;
     card.innerHTML=`
       <div class="scn-top" data-rk="${mt.rk}">
         <div class="scn-rank">${mt.rk}</div>
@@ -711,7 +1074,7 @@ function buildMiniMonth(y,mo,name,map){
   const box=document.createElement("div"); box.className="bc-month";
   const nDays=new Date(y,mo,0).getDate();
   const startDow=(new Date(y,mo-1,1).getDay()+6)%7;
-  const wd=["M","D","M","D","F","S","S"];
+  const wd = LANG==="en" ? ["M","T","W","T","F","S","S"] : ["M","D","M","D","F","S","S"];
   let cells=wd.map(d=>`<div class="bc-wd">${d}</div>`).join("");
   for(let i=0;i<startDow;i++) cells+='<div class="bc-cell pad"></div>';
   for(let d=1;d<=nDays;d++){
@@ -736,18 +1099,18 @@ function renderBlockSummary(){
   const map=blockCatMap();
   const fixDays=Object.values(map).filter(o=>o.fix).length;
   const koDays=Object.values(map).filter(o=>o.ranks.size>0).length;
-  box.innerHTML=`<h3>🗓️ Sperrtermine — ${selTeam} ${FLAG[selTeam]}</h3>
-    <p class="hint">${fixDays} fixe Gruppenspiele · ${koDays} mögliche K.-o.-Tage (je nach aktivierten Szenarien). Tag anklicken für Details · Zeiten ${_TF.primAbbr}.</p>
+  box.innerHTML=`<h3>🗓️ ${t("blk.title")} — ${tn(selTeam)} ${FLAG[selTeam]}</h3>
+    <p class="hint">${tf("blk.hint",{fix:fixDays,ko:koDays,tz:_TF.primAbbr})}</p>
     <div class="blockcal" id="blockCal"></div>
     <div class="bc-legend">
-      <span><i class="g"></i>Gruppenspiel (fix)</span>
-      <span><i class="r1"></i>als Sieger</span>
-      <span><i class="r2"></i>als Zweiter</span>
-      <span><i class="r3"></i>als 3.</span>
+      <span><i class="g"></i>${t("blk.legFix")}</span>
+      <span><i class="r1"></i>${t("dyn.asWinner")}</span>
+      <span><i class="r2"></i>${t("dyn.asRunner")}</span>
+      <span><i class="r3"></i>${t("dyn.asThird")}</span>
     </div>`;
   const cal=document.getElementById("blockCal");
-  cal.appendChild(buildMiniMonth(2026,6,"Juni 2026",map));
-  cal.appendChild(buildMiniMonth(2026,7,"Juli 2026",map));
+  cal.appendChild(buildMiniMonth(2026,6,monthName(5)+" 2026",map));
+  cal.appendChild(buildMiniMonth(2026,7,monthName(6)+" 2026",map));
   cal.querySelectorAll(".bc-cell.on").forEach(c=>c.addEventListener("click",()=>openDayModal(c.dataset.key,true)));
 }
 
@@ -756,13 +1119,11 @@ function renderKoSim(){
   const wrap=document.getElementById("koSim"); if(!wrap)return;
   const complete=allGroupsComplete();
   const played=gamesPlayed();
-  let html=`<div class="section-title" style="margin-top:34px">K.-o.-Phase — Ergebnisse eintragen <span class="ln"></span></div>`;
-  html+=`<p class="section-sub">${complete
-    ? "Alle Gruppen vollständig. Trage Ergebnisse ein (oder klicke direkt den Sieger an) — die nächste Runde füllt sich automatisch. Bei Unentschieden wählst du den Sieger im Elfmeterschießen."
-    : `Trage die Gruppenergebnisse oben ein (${played}/72 Spiele). Plätze 1 & 2 stehen fest, sobald eine Gruppe komplett ist; die 8 besten Dritten werden erst nach <b>allen</b> Gruppen zugeordnet.`}</p>`;
+  let html=`<div class="section-title" style="margin-top:34px">${t("ko.title")} <span class="ln"></span></div>`;
+  html+=`<p class="section-sub">${complete ? t("ko.subComplete") : tf("ko.subIncomplete",{n:played})}</p>`;
 
   const champ=koWinner(104);
-  if(champ) html+=`<div class="champ-banner">🏆 Weltmeister: <span class="fl">${FLAG[champ]}</span> <b>${champ}</b></div>`;
+  if(champ) html+=`<div class="champ-banner">🏆 ${t("dyn.champion")}: <span class="fl">${FLAG[champ]}</span> <b>${tn(champ)}</b></div>`;
 
   if(complete){
     const ranking=thirdRanking();
@@ -770,14 +1131,14 @@ function renderKoSim(){
     const slotByGroup={}; if(T3MAP)Object.entries(T3MAP).forEach(([no,g])=>slotByGroup[g]=no);
     let chips=ranking.map((o,i)=>{
       const q=qualG.has(o.g);
-      const slot=q&&slotByGroup[o.g]?` → Sp. ${slotByGroup[o.g]}`:"";
-      return `<span class="third-chip ${q?"q":"out"}"><b>${i+1}.</b> ${FLAG[o.t]} ${o.t} <small>Gr. ${o.g} · ${o.pts} Pkt${slot}</small></span>`;
+      const slot=q&&slotByGroup[o.g]?` → ${t("dyn.matchAbbr")} ${slotByGroup[o.g]}`:"";
+      return `<span class="third-chip ${q?"q":"out"}"><b>${i+1}.</b> ${FLAG[o.t]} ${tn(o.t)} <small>${t("dyn.grpAbbr")} ${o.g} · ${o.pts} ${t("th.pkt")}${slot}</small></span>`;
     }).join("");
-    html+=`<div class="thirds-panel"><h4>Beste Gruppendritte — 8 von 12 qualifiziert</h4><div class="third-chips">${chips}</div></div>`;
+    html+=`<div class="thirds-panel"><h4>${t("ko.thirdsPanel")}</h4><div class="third-chips">${chips}</div></div>`;
   }
 
-  const rounds=[["R32","Sechzehntelfinale"],["R16","Achtelfinale"],["QF","Viertelfinale"],["SF","Halbfinale"],["3RD","Spiel um Platz 3"],["FINAL","Finale"]];
-  rounds.forEach(([rd,name])=>{
+  const rounds=["R32","R16","QF","SF","3RD","FINAL"];
+  rounds.forEach((rd)=>{
     const ms=KO.filter(m=>m.rd===rd).sort((a,b)=>a.no-b.no);
     let rowsH="";
     ms.forEach(m=>{
@@ -787,7 +1148,7 @@ function renderKoSim(){
       const team=(side,t)=>{
         if(!t)return `<div class="ko-team ph">${slotLabel(side==="a"?m.a:m.b)}</div>`;
         const win=winSide===side;
-        return `<button class="ko-team${win?" win":""}" data-no="${m.no}" data-side="${side}"><span class="fl">${FLAG[t]}</span><span class="nm">${t}</span></button>`;
+        return `<button class="ko-team${win?" win":""}" data-no="${m.no}" data-side="${side}"><span class="fl">${FLAG[t]}</span><span class="nm">${tn(t)}</span></button>`;
       };
       const dis=ready?"":"disabled";
       rowsH+=`<div class="ko-match">
@@ -801,11 +1162,11 @@ function renderKoSim(){
         <div class="ko-tw right">${team("b",p.b)}</div>
       </div>`;
       if(koDraw(m.no)){
-        const wTxt = winSide?`Weiter per Elfmeterschießen: <b>${winSide==="a"?p.a:p.b}</b>` : "Unentschieden — Sieger anklicken (Elfmeterschießen)";
+        const wTxt = winSide?`${t("ko.drawWinner")} <b>${tn(winSide==="a"?p.a:p.b)}</b>` : t("ko.drawPick");
         rowsH+=`<div class="ko-draw">⚽ ${wTxt}</div>`;
       }
     });
-    html+=`<div class="ko-round"><h4>${name}</h4>${rowsH}</div>`;
+    html+=`<div class="ko-round"><h4>${rdName(rd)}</h4>${rowsH}</div>`;
   });
   wrap.innerHTML=html;
   wrap.querySelectorAll(".ko-team").forEach(b=>{ if(b.tagName==="BUTTON") b.addEventListener("click",()=>pickWinner(+b.dataset.no,b.dataset.side)); });
@@ -876,11 +1237,11 @@ function simSlotHTML(team,side,m,res){
   const o=res.SC[m.no]; const w=o?(o.ga>o.gb?"a":o.gb>o.ga?"b":o.pen):null; const win=w===side;
   const goal=o?`<span class="gl">${side==="a"?o.ga:o.gb}</span>`:"";
   const hl=(team===selTeam)?" team-here":"";
-  return `<div class="mslot resolved${win?" win":""}${hl}"><span class="fl">${FLAG[team]}</span><span class="bn">${team}</span>${goal}</div>`;
+  return `<div class="mslot resolved${win?" win":""}${hl}"><span class="fl">${FLAG[team]}</span><span class="bn">${tn(team)}</span>${goal}</div>`;
 }
 function makeSimBox(m,res){
   const box=document.createElement("div"); box.className="mbox";
-  const o=res.SC[m.no]; const pen=(o&&o.ga===o.gb)?'<span class="pen">i.E.</span>':"";
+  const o=res.SC[m.no]; const pen=(o&&o.ga===o.gb)?`<span class="pen">${t("dyn.pen")}</span>`:"";
   box.innerHTML=`<span class="mno">#${m.no}</span><div class="mdt">${berlinDayLabel(m.inst)} · ${berlinTime(m.inst)}${pen}</div>`+
     simSlotHTML(res.A[m.no],"a",m,res)+simSlotHTML(res.B[m.no],"b",m,res);
   return box;
@@ -891,39 +1252,39 @@ function renderSimBracket(res){
   const counts={R32:16,R16:8,QF:4,SF:2,FINAL:1}; wrap.innerHTML="";
   order.forEach(rd=>{
     const col=document.createElement("div"); col.className="round-col"+(rd==="R32"?" r32":"")+(rd==="FINAL"?" final-col":"");
-    col.innerHTML=`<div class="round-lbl">${RD_SHORT[rd]}<small>${counts[rd]} ${counts[rd]===1?"Spiel":"Spiele"}</small></div>`;
+    col.innerHTML=`<div class="round-lbl">${rdShort(rd)}<small>${counts[rd]} ${counts[rd]===1?t("dyn.match"):t("dyn.matches")}</small></div>`;
     const mc=document.createElement("div"); mc.className="matches";
     if(rd==="FINAL"){const tr=document.createElement("div");tr.className="trophy";tr.textContent="🏆";mc.appendChild(tr);}
     ord[rd].forEach(no=>mc.appendChild(makeSimBox(KOBY[no],res)));
-    if(rd==="FINAL"){const lbl=document.createElement("div");lbl.className="thirdlbl";lbl.textContent="Spiel um Platz 3";mc.appendChild(lbl);mc.appendChild(makeSimBox(KOBY[103],res));}
+    if(rd==="FINAL"){const lbl=document.createElement("div");lbl.className="thirdlbl";lbl.textContent=t("dyn.thirdPlace");mc.appendChild(lbl);mc.appendChild(makeSimBox(KOBY[103],res));}
     col.appendChild(mc); wrap.appendChild(col);
   });
 }
 function renderSim(){
   const out=document.getElementById("simOut"); if(!out||!SIMRES)return;
   const res=SIMRES; const fo=res.SC[104];
-  const fScore=fo?`${fo.ga}:${fo.gb}${fo.ga===fo.gb?" i.E.":""}`:"";
+  const fScore=fo?`${fo.ga}:${fo.gb}${fo.ga===fo.gb?" "+t("dyn.pen"):""}`:"";
   let groups='<div class="sim-groups">';
   Object.keys(GROUPS).forEach(g=>{
     const st=simStandings(g,res.gs); const q3=res.quals.includes(g);
-    groups+=`<div class="sim-grp"><div class="sg-h"><span class="gb" style="background:${GCOL[g]}">${g}</span>Gruppe ${g}</div>`;
+    groups+=`<div class="sim-grp"><div class="sg-h"><span class="gb" style="background:${GCOL[g]}">${g}</span>${t("dyn.group")} ${g}</div>`;
     st.forEach((row,i)=>{ const adv=i<2?"adv":(i===2&&q3?"adv3":"");
-      groups+=`<div class="sg-row ${adv}"><span class="pos">${i+1}</span><span class="fl">${FLAG[row.t]}</span><span class="nm">${row.t}</span><span class="pts">${row.pts}</span></div>`; });
+      groups+=`<div class="sg-row ${adv}"><span class="pos">${i+1}</span><span class="fl">${FLAG[row.t]}</span><span class="nm">${tn(row.t)}</span><span class="pts">${row.pts}</span></div>`; });
     groups+="</div>";
   });
   groups+="</div>";
   out.innerHTML=`
     <div class="sim-champ">
       <div class="cup">🏆</div>
-      <div class="ctxt"><div class="ttl">Weltmeister 2026</div>
-        <div class="team">${FLAG[res.champ]} ${res.champ}</div>
-        <div class="sub">Finale: ${res.champ} <b>${fScore}</b> ${res.runnerup} &nbsp;·&nbsp; 🥉 Platz 3: ${FLAG[res.third]} ${res.third}</div>
-        <div class="base-note">${res.useBase?"inkl. deiner eingetragenen Ergebnisse":"komplett zufällig (ohne deine Ergebnisse)"}</div>
+      <div class="ctxt"><div class="ttl">${t("sim.champTitle")}</div>
+        <div class="team">${FLAG[res.champ]} ${tn(res.champ)}</div>
+        <div class="sub">${t("sim.finalPre")}${tn(res.champ)} <b>${fScore}</b> ${tn(res.runnerup)} &nbsp;·&nbsp; ${t("sim.place3")}${FLAG[res.third]} ${tn(res.third)}</div>
+        <div class="base-note">${res.useBase?t("sim.baseInc"):t("sim.baseRand")}</div>
       </div>
     </div>
-    <div class="section-title" style="font-size:18px;margin-top:26px">Turnierbaum <span class="ln"></span></div>
+    <div class="section-title" style="font-size:18px;margin-top:26px">${t("sim.bracket")} <span class="ln"></span></div>
     <div class="bracket-scroll"><div class="bracket" id="simBracket"></div></div>
-    <div class="section-title" style="font-size:18px;margin-top:26px">Gruppen-Endstand <span class="ln"></span></div>
+    <div class="section-title" style="font-size:18px;margin-top:26px">${t("sim.groupsFinal")} <span class="ln"></span></div>
     ${groups}`;
   renderSimBracket(res);
 }
@@ -936,7 +1297,7 @@ function renderFifaRanking(){
     const w=(8+(o.p-min)/span*92).toFixed(0);
     return `<div class="fifa-row${o.t===selTeam?' faved':''}">
       <span class="fr-rank">${i+1}</span>
-      <span class="fr-team"><span class="fl">${FLAG[o.t]}</span><span class="nm">${o.t}${o.t===selTeam?' <span class="favstar">★</span>':''}</span></span>
+      <span class="fr-team"><span class="fl">${FLAG[o.t]}</span><span class="nm">${tn(o.t)}${o.t===selTeam?' <span class="favstar">★</span>':''}</span></span>
       <span class="fr-grp" style="background:${GCOL[g]}">${g}</span>
       <div class="fr-barwrap"><div class="fr-bar" style="width:${w}%"></div></div>
       <span class="fr-pts">${o.p.toFixed(0)}</span>
@@ -960,18 +1321,18 @@ function renderDistribution(res,n,useBase){
   const rows=arr.map((o,i)=>`
     <div class="dist-row">
       <span class="dr-rank">${i+1}</span>
-      <span class="dr-team"><span class="fl">${FLAG[o.t]}</span><span class="nm">${o.t}</span></span>
+      <span class="dr-team"><span class="fl">${FLAG[o.t]}</span><span class="nm">${tn(o.t)}</span></span>
       <div class="dr-barwrap"><div class="dr-bar" style="width:${Math.max(2,o.c/max*100).toFixed(1)}%"></div></div>
       <span class="dr-pct">${o.p.toFixed(1)}%</span>
       <span class="dr-cnt">${o.c}×</span>
     </div>`).join("");
   out.innerHTML=`
     <div class="dist-head">
-      <div><div class="dh-ttl">Weltmeister-Häufigkeit</div>
-        <div class="dh-sub">${n.toLocaleString("de-DE")} Simulationen · ${arr.length} verschiedene Champions · ${useBase?"inkl. deiner Ergebnisse":"komplett zufällig"}</div></div>
+      <div><div class="dh-ttl">${t("sim.distTitle")}</div>
+        <div class="dh-sub">${tf("sim.distSub",{n:nfmt(n),k:arr.length,base:useBase?t("sim.baseIncShort"):t("sim.baseRandShort")})}</div></div>
     </div>
     <div class="dist-list">${rows}</div>
-    <p class="section-sub" style="margin-top:14px">Wahrscheinlichkeiten basieren auf den FIFA-Punkten (Stand 10. Juni 2026). Mehr Simulationen → stabilere Werte.</p>`;
+    <p class="section-sub" style="margin-top:14px">${t("sim.distNote")}</p>`;
 }
 /* ============================== TIPPSPIEL ============================== */
 function b64enc(obj){const s=JSON.stringify(obj);const by=new TextEncoder().encode(s);let bin="";by.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
@@ -1010,7 +1371,7 @@ function scorePlayer(p){
   return {total:grp+bonus,grp,bonus,exact,counted};
 }
 function teamOptions(sel){
-  return '<option value="">— wählen —</option>'+TEAMS.slice().sort((a,b)=>a.localeCompare(b,"de")).map(t=>`<option value="${t}"${t===sel?" selected":""}>${t}</option>`).join("");
+  return `<option value="">${t("tip.opt")}</option>`+TEAMS.slice().sort((a,b)=>tn(a).localeCompare(tn(b),dateLocale())).map(tm=>`<option value="${tm}"${tm===sel?" selected":""}>${tn(tm)}</option>`).join("");
 }
 /* ===================== Cloud-Tippspiel (Supabase, optional) =====================
    Trage die Projekt-URL und den OEFFENTLICHEN anon-Key deines kostenlosen
@@ -1039,7 +1400,7 @@ async function cloudAuth(){
   let { data:{ session } } = await sb.auth.getSession();
   if(!session){
     const { data, error } = await sb.auth.signInAnonymously();
-    if(error) throw new Error("Anonyme Anmeldung fehlgeschlagen (in Supabase 'Anonymous sign-ins' aktivieren): "+error.message);
+    if(error) throw new Error(t("cloud.authErr")+error.message);
     session = data.session;
   }
   sbUid = session && session.user ? session.user.id : null;
@@ -1054,7 +1415,7 @@ function cloudTipFilled(){ return !!(myTip.name && (Object.keys(myTip.g).length 
 
 async function cloudCreateRound(){
   if(!CLOUD_ON()) return;
-  if(!myTip.name){ alert("Bitte zuerst oben deinen Namen eingeben."); return; }
+  if(!myTip.name){ alert(t("cloud.needName")); return; }
   const sb = await cloudAuth();
   let code = null, lastErr = null;
   for(let i=0;i<6;i++){
@@ -1066,22 +1427,22 @@ async function cloudCreateRound(){
     const dup = error.code === "23505" || /duplicate|unique/i.test(error.message||"");
     if(!dup) throw new Error(error.message);
   }
-  if(!code) throw new Error("Konnte keinen freien Runden-Code erzeugen. Bitte erneut versuchen." + (lastErr&&lastErr.message?" ("+lastErr.message+")":""));
+  if(!code) throw new Error(t("cloud.errNoCode") + (lastErr&&lastErr.message?" ("+lastErr.message+")":""));
   await cloudSetRound(code);
 }
 async function cloudJoinRound(code){
   if(!CLOUD_ON()) return;
   code = (code||"").trim().toUpperCase();
-  if(!code){ alert("Bitte einen Runden-Code eingeben."); return; }
-  if(!myTip.name){ alert("Bitte zuerst oben deinen Namen eingeben."); return; }
+  if(!code){ alert(t("cloud.needCode")); return; }
+  if(!myTip.name){ alert(t("cloud.needName")); return; }
   const sb = await cloudAuth();
   const { data: rounds, error } = await sb.from("rounds").select("code").eq("code", code).limit(1);
   if(error) throw new Error(error.message);
-  if(!rounds || !rounds.length){ alert("Runde nicht gefunden: "+code); return; }
+  if(!rounds || !rounds.length){ alert(tf("cloud.notFound",{code})); return; }
   // Namens-Kollision prüfen: gehört der Name in dieser Runde schon jemand anderem?
   const { data: ex } = await sb.from("tips").select("player,owner").eq("round_code", code);
   const clash = (ex||[]).some(r => (r.player||"").toLowerCase()===myTip.name.toLowerCase() && r.owner && r.owner!==sbUid);
-  if(clash){ alert("In dieser Runde gibt es bereits einen Mitspieler „"+myTip.name+"\". Bitte oben einen anderen Namen wählen und erneut beitreten."); return; }
+  if(clash){ alert(tf("cloud.nameClash",{name:myTip.name})); return; }
   await cloudSetRound(code);
 }
 async function cloudSetRound(code){
@@ -1100,8 +1461,8 @@ async function cloudPushNow(){
   const sb = await cloudAuth();
   const row = { round_code:cloudRound, player:myTip.name, tip:myTip, owner:sbUid, updated_at:new Date().toISOString() };
   const { error } = await sb.from("tips").upsert(row, { onConflict:"round_code,player" });
-  if(error){ cloudSetStatus("nicht gespeichert", "warn"); throw new Error(error.message); }
-  cloudSetStatus("gespeichert ✓", "ok");
+  if(error){ cloudSetStatus(t("cloud.stNotSaved"), "warn"); throw new Error(error.message); }
+  cloudSetStatus(t("cloud.stSaved"), "ok");
 }
 function cloudPushMyTip(){
   if(!CLOUD_ON() || !cloudRound || !myTip.name) return;
@@ -1134,25 +1495,25 @@ function cloudStopPolling(){ if(cloudPollTimer){ clearInterval(cloudPollTimer); 
 
 function cloudBlockHtml(){
   if(!CLOUD_ON()){
-    return `<div class="tip-block cloud-block"><h3>☁️ Cloud-Runde</h3>
-      <p class="cloud-hint">Cloud-Tippspiel ist nicht konfiguriert. Trage <code>SUPABASE_URL</code> und <code>SUPABASE_ANON_KEY</code> oben im Script ein, um Tipprunden online zu teilen. Bis dahin läuft alles lokal (Code-Austausch unten).</p></div>`;
+    return `<div class="tip-block cloud-block"><h3>${t("cloud.title")}</h3>
+      <p class="cloud-hint">${t("cloud.hintNoCfg")}</p></div>`;
   }
   if(cloudRound){
-    return `<div class="tip-block cloud-block"><h3>☁️ Cloud-Runde <span class="cloud-pill on">verbunden</span></h3>
-      <p class="cloud-hint">Runden-Code: <b class="cloud-code">${cloudRound}</b> — teile ihn mit Mitspielern. Dein Tipp wird automatisch gespeichert; die Rangliste aktualisiert sich alle 15&nbsp;s (oder per Klick).</p>
+    return `<div class="tip-block cloud-block"><h3>${t("cloud.title")} <span class="cloud-pill on">${t("cloud.connected")}</span></h3>
+      <p class="cloud-hint">${tf("cloud.hintConnected",{code:cloudRound})}</p>
       <div class="tip-actions">
-        <button class="mini-btn" id="cloudCopyCode">📋 Code kopieren</button>
-        <button class="mini-btn" id="cloudRefresh">🔄 Jetzt aktualisieren</button>
-        <button class="mini-btn warn" id="cloudLeave">Runde verlassen</button>
+        <button class="mini-btn" id="cloudCopyCode">${t("cloud.copyCode")}</button>
+        <button class="mini-btn" id="cloudRefresh">${t("cloud.refresh")}</button>
+        <button class="mini-btn warn" id="cloudLeave">${t("cloud.leave")}</button>
         <span class="cloud-status" id="cloudStatus"></span>
       </div></div>`;
   }
-  return `<div class="tip-block cloud-block"><h3>☁️ Cloud-Runde</h3>
-    <p class="cloud-hint">Erstelle eine Tipprunde oder tritt mit einem Code bei (zuerst oben deinen Namen eingeben).</p>
+  return `<div class="tip-block cloud-block"><h3>${t("cloud.title")}</h3>
+    <p class="cloud-hint">${t("cloud.hintJoin")}</p>
     <div class="cloud-join">
-      <input id="cloudCode" class="tip-name" maxlength="12" placeholder="Runden-Code, z. B. WM-7F3K">
-      <button class="sim-btn" id="cloudJoin">Beitreten</button>
-      <button class="sim-btn alt" id="cloudCreate">Neue Runde erstellen</button>
+      <input id="cloudCode" class="tip-name" maxlength="12" placeholder="${t("cloud.codePlaceholder")}">
+      <button class="sim-btn" id="cloudJoin">${t("cloud.join")}</button>
+      <button class="sim-btn alt" id="cloudCreate">${t("cloud.create")}</button>
     </div></div>`;
 }
 
@@ -1160,50 +1521,50 @@ function renderTippspiel(){
   const main=document.getElementById("tipMain"); if(!main)return;
   let pred="";
   Object.keys(GROUPS).forEach(g=>{
-    pred+=`<div class="tg"><div class="tg-h"><span class="gb" style="background:${GCOL[g]}">${g}</span>Gruppe ${g}</div>`;
-    GM.forEach((r,i)=>{ if(r[0]!==g)return; const t=myTip.g["g"+i]||["",""];
-      pred+=`<div class="tip-fx"><span class="hm">${r[3]} <span class="fl">${FLAG[r[3]]}</span></span>
-        <input class="tip-in" data-gi="${i}" data-s="0" inputmode="numeric" value="${t[0]??""}">
+    pred+=`<div class="tg"><div class="tg-h"><span class="gb" style="background:${GCOL[g]}">${g}</span>${t("dyn.group")} ${g}</div>`;
+    GM.forEach((r,i)=>{ if(r[0]!==g)return; const tp=myTip.g["g"+i]||["",""];
+      pred+=`<div class="tip-fx"><span class="hm">${tn(r[3])} <span class="fl">${FLAG[r[3]]}</span></span>
+        <input class="tip-in" data-gi="${i}" data-s="0" inputmode="numeric" value="${tp[0]??""}">
         <span class="cl">:</span>
-        <input class="tip-in" data-gi="${i}" data-s="1" inputmode="numeric" value="${t[1]??""}">
-        <span class="aw"><span class="fl">${FLAG[r[4]]}</span> ${r[4]}</span></div>`;
+        <input class="tip-in" data-gi="${i}" data-s="1" inputmode="numeric" value="${tp[1]??""}">
+        <span class="aw"><span class="fl">${FLAG[r[4]]}</span> ${tn(r[4])}</span></div>`;
     });
     pred+="</div>";
   });
   const b=myTip.b||[null,null,null,null];
   main.innerHTML=`
-    <div class="tip-scheme"><b>Wertung je Spiel:</b> exakt 4 · richtige Tordifferenz 3 · richtige Tendenz 2 · sonst 0. &nbsp;<b>Bonus:</b> Weltmeister +20 · je richtiger Finalist +8 · je richtiger Halbfinalist +4.</div>
+    <div class="tip-scheme">${t("tip.scheme")}</div>
     ${cloudBlockHtml()}
     <div class="tip-block">
-      <h3>① Mein Tipp</h3>
-      <div class="tip-namerow"><label>Name</label><input id="tipName" class="tip-name" maxlength="40" placeholder="Dein Name" value="${(myTip.name||"").replace(/"/g,"&quot;")}"></div>
-      <details class="tip-pred" open><summary>Gruppenspiele tippen (72 Spiele)</summary><div class="tg-grid">${pred}</div></details>
+      <h3>${t("tip.s1")}</h3>
+      <div class="tip-namerow"><label>${t("tip.nameLbl")}</label><input id="tipName" class="tip-name" maxlength="40" placeholder="${t("tip.namePlaceholder")}" value="${(myTip.name||"").replace(/"/g,"&quot;")}"></div>
+      <details class="tip-pred" open><summary>${t("tip.predSummary")}</summary><div class="tg-grid">${pred}</div></details>
       <div class="tip-bonusrow">
-        <div class="field"><label>Weltmeister (+20)</label><select class="tip-bonus" data-slot="0">${teamOptions(b[0])}</select></div>
-        <div class="field"><label>Vize-WM (+8)</label><select class="tip-bonus" data-slot="1">${teamOptions(b[1])}</select></div>
-        <div class="field"><label>Halbfinalist (+4)</label><select class="tip-bonus" data-slot="2">${teamOptions(b[2])}</select></div>
-        <div class="field"><label>Halbfinalist (+4)</label><select class="tip-bonus" data-slot="3">${teamOptions(b[3])}</select></div>
+        <div class="field"><label>${t("tip.champ")}</label><select class="tip-bonus" data-slot="0">${teamOptions(b[0])}</select></div>
+        <div class="field"><label>${t("tip.runner")}</label><select class="tip-bonus" data-slot="1">${teamOptions(b[1])}</select></div>
+        <div class="field"><label>${t("tip.semi")}</label><select class="tip-bonus" data-slot="2">${teamOptions(b[2])}</select></div>
+        <div class="field"><label>${t("tip.semi")}</label><select class="tip-bonus" data-slot="3">${teamOptions(b[3])}</select></div>
       </div>
       <div class="tip-actions">
-        <button class="sim-btn" id="tipExportBtn">📤 Tipp als Code exportieren</button>
-        <button class="mini-btn warn" id="tipResetMy">Meinen Tipp leeren</button>
+        <button class="sim-btn" id="tipExportBtn">${t("tip.export")}</button>
+        <button class="mini-btn warn" id="tipResetMy">${t("tip.clearMine")}</button>
       </div>
       <textarea id="tipCode" class="tip-code" readonly style="display:none" placeholder=""></textarea>
-      <button class="mini-btn" id="tipCopy" style="display:none">📋 Kopieren</button>
+      <button class="mini-btn" id="tipCopy" style="display:none">${t("tip.copy")}</button>
     </div>
     <div class="tip-block">
-      <h3>② Mitspieler importieren</h3>
-      <textarea id="tipImport" class="tip-code" placeholder="Code eines Mitspielers hier einfügen …"></textarea>
-      <button class="sim-btn alt" id="tipImportBtn">📥 Tipp importieren</button>
+      <h3>${t("tip.s2")}</h3>
+      <textarea id="tipImport" class="tip-code" placeholder="${t("tip.importPlaceholder")}"></textarea>
+      <button class="sim-btn alt" id="tipImportBtn">${t("tip.import")}</button>
       <div id="tipRoster" class="tip-roster"></div>
     </div>
     <div class="tip-block">
-      <h3>③ Rangliste</h3>
+      <h3>${t("tip.s3")}</h3>
       <div id="tipBoard"></div>
     </div>
     <div class="tip-block">
-      <h3>④ Tipps ansehen</h3>
-      <div class="tip-viewsel"><label>Spieler</label><select id="tipViewSel"></select></div>
+      <h3>${t("tip.s4")}</h3>
+      <div class="tip-viewsel"><label>${t("tip.playerLbl")}</label><select id="tipViewSel"></select></div>
       <div id="tipViewBody"></div>
     </div>`;
   main.querySelector("#tipName").addEventListener("input",e=>{myTip.name=e.target.value;saveMyTip();renderTipRoster();renderTipBoard();});
@@ -1218,25 +1579,25 @@ function renderTippspiel(){
     myTip.b=myTip.b||[null,null,null,null]; myTip.b[+e.target.dataset.slot]=e.target.value||null; saveMyTip(); renderTipBoard();
   }));
   main.querySelector("#tipExportBtn").addEventListener("click",()=>{
-    if(!myTip.name){alert("Bitte zuerst einen Namen eingeben.");return;}
+    if(!myTip.name){alert(t("tip.needName"));return;}
     const ta=main.querySelector("#tipCode"); ta.value=encodeTip(myTip); ta.style.display="block";
     const cp=main.querySelector("#tipCopy"); cp.style.display="inline-block"; ta.focus(); ta.select();
   });
   main.querySelector("#tipCopy").addEventListener("click",()=>{const ta=main.querySelector("#tipCode");ta.select();try{navigator.clipboard.writeText(ta.value);}catch(_){try{document.execCommand("copy");}catch(e){}}});
-  main.querySelector("#tipResetMy").addEventListener("click",()=>{if(confirm("Deinen eigenen Tipp leeren? (Name bleibt)")){myTip={name:myTip.name||"",g:{},b:[null,null,null,null]};saveMyTip();renderTippspiel();}});
+  main.querySelector("#tipResetMy").addEventListener("click",()=>{if(confirm(t("tip.confirmClear"))){myTip={name:myTip.name||"",g:{},b:[null,null,null,null]};saveMyTip();renderTippspiel();}});
   main.querySelector("#tipImportBtn").addEventListener("click",()=>{
     const ta=main.querySelector("#tipImport"); const code=ta.value.trim(); if(!code)return;
     try{ const p=decodeTip(code);
-      if(myTip.name&&p.name.toLowerCase()===myTip.name.toLowerCase()){alert("Dieser Name ist dein eigener Tipp.");return;}
+      if(myTip.name&&p.name.toLowerCase()===myTip.name.toLowerCase()){alert(t("tip.ownName"));return;}
       const idx=tipPlayers.findIndex(x=>x.name.toLowerCase()===p.name.toLowerCase());
-      if(idx>=0){ if(!confirm(`„${p.name}" existiert bereits — überschreiben?`))return; tipPlayers[idx]=p; } else tipPlayers.push(p);
+      if(idx>=0){ if(!confirm(tf("tip.overwrite",{name:p.name})))return; tipPlayers[idx]=p; } else tipPlayers.push(p);
       saveTipPlayers(); ta.value=""; renderTippspiel();
-    }catch(e){ alert("Code konnte nicht gelesen werden. Bitte vollständig kopieren."); }
+    }catch(e){ alert(t("tip.readErr")); }
   });
   // Cloud-Runde
   const cCreate=main.querySelector("#cloudCreate"); if(cCreate)cCreate.addEventListener("click",()=>cloudCreateRound().catch(e=>alert(e.message)));
   const cJoin=main.querySelector("#cloudJoin"); if(cJoin)cJoin.addEventListener("click",()=>cloudJoinRound(main.querySelector("#cloudCode").value).catch(e=>alert(e.message)));
-  const cLeave=main.querySelector("#cloudLeave"); if(cLeave)cLeave.addEventListener("click",()=>{ if(confirm("Cloud-Runde verlassen? Dein Tipp bleibt lokal erhalten."))cloudLeaveRound(); });
+  const cLeave=main.querySelector("#cloudLeave"); if(cLeave)cLeave.addEventListener("click",()=>{ if(confirm(t("cloud.confirmLeave")))cloudLeaveRound(); });
   const cRef=main.querySelector("#cloudRefresh"); if(cRef)cRef.addEventListener("click",()=>cloudPullTips().catch(e=>alert(e.message)));
   const cCopy=main.querySelector("#cloudCopyCode"); if(cCopy)cCopy.addEventListener("click",()=>{ try{navigator.clipboard.writeText(cloudRound);}catch(_){} });
   renderTipRoster(); renderTipBoard();
@@ -1244,35 +1605,35 @@ function renderTippspiel(){
 function renderTipRoster(){
   const el=document.getElementById("tipRoster"); if(!el)return;
   let h="";
-  if(myTip.name)h+=`<div class="rost-item me"><span class="ri">🧑</span><span class="rn">${myTip.name} <small>(du)</small></span><span class="rc">${Object.keys(myTip.g).length}/72</span></div>`;
-  tipPlayers.forEach((p,i)=>{ h+=`<div class="rost-item"><span class="ri">👤</span><span class="rn">${p.name}</span><span class="rc">${Object.keys(p.g).length}/72</span><button class="rost-x" data-i="${i}" title="Entfernen">✕</button></div>`; });
-  if(!h)h=`<div class="empty-state" style="padding:8px 2px">Noch keine Mitspieler. Gib oben deinen Namen ein und importiere Codes.</div>`;
+  if(myTip.name)h+=`<div class="rost-item me"><span class="ri">🧑</span><span class="rn">${myTip.name} <small>${t("tip.you")}</small></span><span class="rc">${Object.keys(myTip.g).length}/72</span></div>`;
+  tipPlayers.forEach((p,i)=>{ h+=`<div class="rost-item"><span class="ri">👤</span><span class="rn">${p.name}</span><span class="rc">${Object.keys(p.g).length}/72</span><button class="rost-x" data-i="${i}" title="${t("tip.remove")}">✕</button></div>`; });
+  if(!h)h=`<div class="empty-state" style="padding:8px 2px">${t("tip.rosterEmpty")}</div>`;
   el.innerHTML=h;
   el.querySelectorAll(".rost-x").forEach(btn=>btn.addEventListener("click",()=>{tipPlayers.splice(+btn.dataset.i,1);saveTipPlayers();renderTippspiel();}));
 }
 function renderTipBoard(){
   const el=document.getElementById("tipBoard"); if(!el)return;
   const players=[]; if(myTip.name)players.push(Object.assign({_me:true},myTip)); tipPlayers.forEach(p=>players.push(p));
-  if(!players.length){el.innerHTML=`<div class="empty-state" style="padding:8px 2px">Sobald Tipps abgegeben und echte Ergebnisse eingetragen sind, erscheint hier die Rangliste.</div>`;return;}
-  const scored=players.map(p=>({p,s:scorePlayer(p)})).sort((a,b)=>b.s.total-a.s.total||b.s.exact-a.s.exact||a.p.name.localeCompare(b.p.name,"de"));
+  if(!players.length){el.innerHTML=`<div class="empty-state" style="padding:8px 2px">${t("tip.boardEmpty")}</div>`;return;}
+  const scored=players.map(p=>({p,s:scorePlayer(p)})).sort((a,b)=>b.s.total-a.s.total||b.s.exact-a.s.exact||a.p.name.localeCompare(b.p.name,dateLocale()));
   const champ=koWinner(104);
   const rows=scored.map((o,i)=>`<div class="tb-row${o.p._me?" me":""}">
      <span class="tb-rank">${i+1}</span>
-     <span class="tb-name">${o.p.name||"—"}${o.p._me?' <small>(du)</small>':''}</span>
+     <span class="tb-name">${o.p.name||"—"}${o.p._me?` <small>${t("tip.you")}</small>`:''}</span>
      <span class="tb-tot">${o.s.total}</span>
-     <span class="tb-sub">Gruppe ${o.s.grp} · Bonus ${o.s.bonus} · ${o.s.exact}× exakt</span>
+     <span class="tb-sub">${tf("tip.subStats",{grp:o.s.grp,bonus:o.s.bonus,exact:o.s.exact})}</span>
    </div>`).join("");
-  el.innerHTML=`<div class="tb-note">${gamesPlayed()}/72 echte Gruppenergebnisse eingetragen${champ?` · 🏆 Weltmeister steht fest: ${FLAG[champ]} ${champ}`:""}.</div><div class="tboard">${rows}</div>`;
+  el.innerHTML=`<div class="tb-note">${tf("tip.boardNote",{n:gamesPlayed()})}${champ?tf("tip.champFixed",{flag:FLAG[champ],team:tn(champ)}):""}.</div><div class="tboard">${rows}</div>`;
   renderTipViewer();
 }
 function tipPlayerList(){ const arr=[]; if(myTip.name)arr.push(Object.assign({_me:true},myTip)); tipPlayers.forEach(p=>arr.push(p)); return arr; }
 function renderTipViewer(){
   const sel=document.getElementById("tipViewSel"), body=document.getElementById("tipViewBody"); if(!sel||!body)return;
   const list=tipPlayerList();
-  if(!list.length){ sel.innerHTML=""; sel.parentElement.style.display="none"; body.innerHTML=`<div class="empty-state" style="padding:8px 2px">Noch keine Tipps vorhanden. Gib oben deinen Namen + Tipp ein oder importiere Mitspieler-Codes.</div>`; return; }
+  if(!list.length){ sel.innerHTML=""; sel.parentElement.style.display="none"; body.innerHTML=`<div class="empty-state" style="padding:8px 2px">${t("tip.viewerEmpty")}</div>`; return; }
   sel.parentElement.style.display="";
   if(!list.some(p=>p.name===tipViewName))tipViewName=list[0].name;
-  sel.innerHTML=list.map(p=>`<option value="${(p.name||"").replace(/"/g,"&quot;")}"${p.name===tipViewName?" selected":""}>${p.name||"—"}${p._me?" (du)":""}</option>`).join("");
+  sel.innerHTML=list.map(p=>`<option value="${(p.name||"").replace(/"/g,"&quot;")}"${p.name===tipViewName?" selected":""}>${p.name||"—"}${p._me?t("tip.youParen"):""}</option>`).join("");
   body.innerHTML=tipViewerBodyHTML(list.find(p=>p.name===tipViewName)||list[0]);
   sel.onchange=e=>{ tipViewName=e.target.value; const p=tipPlayerList().find(x=>x.name===tipViewName); const b=document.getElementById("tipViewBody"); if(p&&b)b.innerHTML=tipViewerBodyHTML(p); };
 }
@@ -1282,34 +1643,34 @@ function tipViewerBodyHTML(pl){
   Object.keys(GROUPS).forEach(g=>{
     let rows="";
     GM.forEach((r,i)=>{ if(r[0]!==g)return;
-      const t=pl.g["g"+i];
-      const tipped=t&&t[0]!==""&&t[1]!==""&&t[0]!=null&&t[1]!=null;
+      const tg=pl.g["g"+i];
+      const tipped=tg&&tg[0]!==""&&tg[1]!==""&&tg[0]!=null&&tg[1]!=null;
       const a=scores["g"+i]; const hasA=a&&a.h!==""&&a.a!==""&&a.h!=null&&a.a!=null;
-      const tipTxt=tipped?`${t[0]}:${t[1]}`:"–:–";
+      const tipTxt=tipped?`${tg[0]}:${tg[1]}`:"–:–";
       let meta="";
-      if(hasA){ let badge=""; if(tipped){ const pt=scoreGroupTip([+t[0],+t[1]],{h:+a.h,a:+a.a}); badge=`<span class="tv-pt p${pt}">+${pt}</span>`; }
-        meta=`<span class="tv-meta">Ergebnis ${+a.h}:${+a.a} ${badge}</span>`; }
+      if(hasA){ let badge=""; if(tipped){ const pt=scoreGroupTip([+tg[0],+tg[1]],{h:+a.h,a:+a.a}); badge=`<span class="tv-pt p${pt}">+${pt}</span>`; }
+        meta=`<span class="tv-meta">${t("tip.resultLbl")} ${+a.h}:${+a.a} ${badge}</span>`; }
       rows+=`<div class="tv-fx${tipped?"":" untip"}">
-        <span class="tv-hm">${r[3]} <span class="fl">${FLAG[r[3]]}</span></span>
+        <span class="tv-hm">${tn(r[3])} <span class="fl">${FLAG[r[3]]}</span></span>
         <span class="tv-tip">${tipTxt}</span>
-        <span class="tv-aw"><span class="fl">${FLAG[r[4]]}</span> ${r[4]}</span>${meta}</div>`;
+        <span class="tv-aw"><span class="fl">${FLAG[r[4]]}</span> ${tn(r[4])}</span>${meta}</div>`;
     });
-    groups+=`<div class="tv-g"><div class="tv-gh"><span class="gb" style="background:${GCOL[g]}">${g}</span>Gruppe ${g}</div>${rows}</div>`;
+    groups+=`<div class="tv-g"><div class="tv-gh"><span class="gb" style="background:${GCOL[g]}">${g}</span>${t("dyn.group")} ${g}</div>${rows}</div>`;
   });
   const b=pl.b||[]; const champ=koWinner(104);
   const f=koParts(104); const fin=[f.a,f.b].filter(Boolean);
   const s1=koParts(101),s2=koParts(102); const semi=[s1.a,s1.b,s2.a,s2.b].filter(Boolean);
-  const bteam=nm=>nm?`${FLAG[nm]} ${nm}`:`<span class="tv-none">—</span>`;
+  const bteam=nm=>nm?`${FLAG[nm]} ${tn(nm)}`:`<span class="tv-none">—</span>`;
   const ok=c=>c?`<span class="tv-ok">✓</span>`:"";
   const bonus=`<div class="tv-bonus">
-     <div class="tv-brow"><span>🏆 Weltmeister <small>+20</small></span><span>${bteam(b[0])} ${champ?ok(b[0]&&b[0]===champ):""}</span></div>
-     <div class="tv-brow"><span>🥈 Vize <small>+8</small></span><span>${bteam(b[1])} ${fin.length?ok(b[1]&&fin.includes(b[1])):""}</span></div>
-     <div class="tv-brow"><span>Halbfinalist <small>+4</small></span><span>${bteam(b[2])} ${semi.length?ok(b[2]&&semi.includes(b[2])):""}</span></div>
-     <div class="tv-brow"><span>Halbfinalist <small>+4</small></span><span>${bteam(b[3])} ${semi.length?ok(b[3]&&semi.includes(b[3])):""}</span></div>
+     <div class="tv-brow"><span>${t("tip.bWinner")}</span><span>${bteam(b[0])} ${champ?ok(b[0]&&b[0]===champ):""}</span></div>
+     <div class="tv-brow"><span>${t("tip.bRunner")}</span><span>${bteam(b[1])} ${fin.length?ok(b[1]&&fin.includes(b[1])):""}</span></div>
+     <div class="tv-brow"><span>${t("tip.bSemi")}</span><span>${bteam(b[2])} ${semi.length?ok(b[2]&&semi.includes(b[2])):""}</span></div>
+     <div class="tv-brow"><span>${t("tip.bSemi")}</span><span>${bteam(b[3])} ${semi.length?ok(b[3]&&semi.includes(b[3])):""}</span></div>
    </div>`;
-  return `<div class="tv-summary"><b>${pl.name||"—"}</b> · ${Object.keys(pl.g).length}/72 getippt · <b>${sc.total} Pkt</b> <small>(Gruppe ${sc.grp} · Bonus ${sc.bonus} · ${sc.exact}× exakt)</small></div>
+  return `<div class="tv-summary">${tf("tip.viewerSummary",{name:pl.name||"—",n:Object.keys(pl.g).length,total:sc.total,grp:sc.grp,bonus:sc.bonus,exact:sc.exact})}</div>
     <div class="tv-grid">${groups}</div>
-    <div class="tv-bh">Bonus-Tipps</div>${bonus}`;
+    <div class="tv-bh">${t("tip.bonusHead")}</div>${bonus}`;
 }
 
 /* ============================== OPENLIGADB ============================== */
@@ -1376,25 +1737,25 @@ function olbImport(matches){
   return {grp,ko,unmatched:[...unmatched].filter(Boolean)};
 }
 let olbAuto=false,olbTimer=null,olbLastSig="";
-function olbNow(){return new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});}
+function olbNow(){return new Date().toLocaleTimeString(dateLocale(),{hour:"2-digit",minute:"2-digit"});}
 function olbSetDot(state){const d=document.getElementById("olbDot");if(d)d.className="olb-dot"+(state?" "+state:"");}
 async function olbDoUpdate(manual){
   const st=document.getElementById("olbStatus");
-  olbSetDot("busy"); if(st)st.textContent="lädt …";
+  olbSetDot("busy"); if(st)st.textContent=t("olb.loading");
   try{
     const res=await fetch(`${OLB_BASE}/getmatchdata/${OLB_SC}/${OLB_SE}`,{headers:{Accept:"application/json"}});
     if(!res.ok)throw new Error("HTTP "+res.status);
     const data=await res.json();
-    if(!Array.isArray(data)||!data.length){olbSetDot(olbAuto?"live":"");if(st)st.textContent="Liga noch ohne Spieldaten · "+olbNow();return;}
+    if(!Array.isArray(data)||!data.length){olbSetDot(olbAuto?"live":"");if(st)st.textContent=tf("olb.noData",{t:olbNow()});return;}
     const sig=data.map(m=>m.matchID+":"+m.lastUpdateDateTime).join("|");
-    if(!manual&&sig===olbLastSig){olbSetDot(olbAuto?"live":"");if(st)st.textContent="aktuell · keine Änderung · "+olbNow();return;}
+    if(!manual&&sig===olbLastSig){olbSetDot(olbAuto?"live":"");if(st)st.textContent=tf("olb.noChange",{t:olbNow()});return;}
     olbLastSig=sig;
     const r=olbImport(data); renderAll();
-    let msg=`${r.grp+r.ko} Spiele übernommen (Gruppe ${r.grp} · K.o. ${r.ko}) · Stand ${olbNow()}`;
-    if(r.unmatched.length)msg+=` · ⚠ nicht zugeordnet: ${r.unmatched.slice(0,4).join(", ")}${r.unmatched.length>4?" …":""}`;
+    let msg=tf("olb.imported",{n:r.grp+r.ko,grp:r.grp,ko:r.ko,t:olbNow()});
+    if(r.unmatched.length)msg+=tf("olb.unmatched",{list:`${r.unmatched.slice(0,4).join(", ")}${r.unmatched.length>4?" …":""}`});
     if(st)st.textContent=msg;
     olbSetDot(olbAuto?"live":"");
-  }catch(e){ olbSetDot(olbAuto?"live":""); if(st)st.textContent="⚠ Laden fehlgeschlagen ("+(e.message||e)+"). Beim lokalen Öffnen ggf. CORS/Netz."; }
+  }catch(e){ olbSetDot(olbAuto?"live":""); if(st)st.textContent=tf("olb.loadErr",{err:(e.message||e)}); }
 }
 function olbToggleAuto(on){
   olbAuto=on; if(olbTimer){clearInterval(olbTimer);olbTimer=null;}
@@ -1416,20 +1777,20 @@ function simTeamChances(team,n,useBase){
   return {n,grp,r16,qf,sf,fin,ch};
 }
 function renderChances(c){
-  const rows=[["Gruppenphase überstanden",c.grp,"var(--green)"],["Achtelfinale",c.r16,"var(--blue)"],["Viertelfinale",c.qf,"var(--blue)"],["Halbfinale",c.sf,"var(--violet)"],["Finale",c.fin,"var(--gold)"],["Weltmeister",c.ch,"var(--gold)"]];
+  const rows=[[t("ch.grp"),c.grp,"var(--green)"],[t("ch.r16"),c.r16,"var(--blue)"],[t("ch.qf"),c.qf,"var(--blue)"],[t("ch.sf"),c.sf,"var(--violet)"],[t("ch.fin"),c.fin,"var(--gold)"],[t("ch.ch"),c.ch,"var(--gold)"]];
   return `<div class="chance-list">`+rows.map(([lbl,v,col])=>{const pct=v/c.n*100;
     return `<div class="chance-row"><span class="cl">${lbl}</span><div class="cbarwrap"><div class="cbar" style="width:${Math.max(pct,0).toFixed(1)}%;background:${col}"></div></div><span class="cv">${pct.toFixed(1)}%</span></div>`;}).join("")
-    +`</div><div class="chance-note">aus ${c.n.toLocaleString("de-DE")} simulierten Turnieren</div>`;
+    +`</div><div class="chance-note">${tf("ch.note",{n:nfmt(c.n)})}</div>`;
 }
 function downloadFile(name,content,mime){const b=new Blob([content],{type:mime||"text/plain;charset=utf-8"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);}
 function icsEsc(s){return (s||"").replace(/([,;\\])/g,"\\$1").replace(/\n/g,"\\n");}
 function icsDt(d){return d.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z");}
 function icsFold(line){if(line.length<=74)return line;let out=line.slice(0,74),rest=line.slice(74);while(rest.length){out+="\r\n "+rest.slice(0,73);rest=rest.slice(73);}return out;}
-const RD_ICS={R32:"Sechzehntelfinale",R16:"Achtelfinale",QF:"Viertelfinale",SF:"Halbfinale","3RD":"Spiel um Platz 3",FINAL:"Finale"};
 function matchSummary(m){
-  if(m.type==="group")return `WM ⚽ ${m.home} – ${m.away} (Gruppe ${m.group})`;
-  const p=koParts(m.no), a=p.a||slotLabel(KOBY[m.no].a), b=p.b||slotLabel(KOBY[m.no].b);
-  return `WM ⚽ ${RD_ICS[m.rd]}: ${a} – ${b}`;
+  const pre=t("ics.eventPrefix");
+  if(m.type==="group")return `${pre}${tn(m.home)} – ${tn(m.away)} (${t("dyn.group")} ${m.group})`;
+  const p=koParts(m.no), a=p.a?tn(p.a):slotLabel(KOBY[m.no].a), b=p.b?tn(p.b):slotLabel(KOBY[m.no].b);
+  return `${pre}${rdName(m.rd)}: ${a} – ${b}`;
 }
 function buildICS(list,calName){
   const now=icsDt(new Date());
@@ -1437,22 +1798,22 @@ function buildICS(list,calName){
   list.forEach(m=>{ const st=m.inst,en=new Date(st.getTime()+105*60000);
     L.push("BEGIN:VEVENT","UID:wm2026-"+m.id+"@finwohl","DTSTAMP:"+now,"DTSTART:"+icsDt(st),"DTEND:"+icsDt(en),
       "SUMMARY:"+icsEsc(matchSummary(m)),"LOCATION:"+icsEsc(m.venue+", "+m.city),
-      "DESCRIPTION:"+icsEsc("WM 2026 · "+(m.type==="group"?("Gruppe "+m.group):RD_ICS[m.rd])),"END:VEVENT"); });
+      "DESCRIPTION:"+icsEsc(t("ics.descPrefix")+(m.type==="group"?(t("dyn.group")+" "+m.group):rdName(m.rd))),"END:VEVENT"); });
   L.push("END:VCALENDAR");
   return L.map(icsFold).join("\r\n");
 }
-function exportAllIcs(){downloadFile("wm2026-alle-spiele.ics",buildICS(MATCHES,"WM 2026 — Alle Spiele"),"text/calendar;charset=utf-8");}
+function exportAllIcs(){downloadFile("wm2026-alle-spiele.ics",buildICS(MATCHES,t("ics.allCal")),"text/calendar;charset=utf-8");}
 function exportTeamIcs(team){ if(!team)return;
   const list=MATCHES.filter(m=>{ if(m.type==="group")return m.home===team||m.away===team; const p=koParts(m.no); return p.a===team||p.b===team; });
-  downloadFile(`wm2026-${team.replace(/[^a-z0-9]/gi,"_")}.ics`,buildICS(list,"WM 2026 — "+team),"text/calendar;charset=utf-8");
+  downloadFile(`wm2026-${team.replace(/[^a-z0-9]/gi,"_")}.ics`,buildICS(list,tf("ics.teamCal",{team:tn(team)})),"text/calendar;charset=utf-8");
 }
-const BK_KEYS=["wm2026scores","wm2026picks","wm2026koscores","wm2026_mytip","wm2026_tips","wm2026fav","wm2026tz","wm2026_round"];
+const BK_KEYS=["wm2026scores","wm2026picks","wm2026koscores","wm2026_mytip","wm2026_tips","wm2026fav","wm2026tz","wm2026_round","wm2026_lang"];
 function dataBlockHTML(){
-  return `<div class="mt-block data-block"><h3>Daten &amp; Sicherung</h3>
-    <p class="db-note">Sichert alle lokal gespeicherten Daten (Ergebnisse, K.-o.-Tipps, dein Tippspiel inkl. Mitspieler, Lieblingsteam, Zeitzone) als Datei — etwa zum Übertragen auf ein anderes Gerät.</p>
+  return `<div class="mt-block data-block"><h3>${t("db.title")}</h3>
+    <p class="db-note">${t("db.note")}</p>
     <div class="db-actions">
-      <button class="mini-btn" id="dbExport">⬇️ Backup exportieren (.json)</button>
-      <button class="mini-btn" id="dbImportBtn">⬆️ Backup importieren</button>
+      <button class="mini-btn" id="dbExport">${t("db.export")}</button>
+      <button class="mini-btn" id="dbImportBtn">${t("db.import")}</button>
       <input type="file" id="dbImport" accept="application/json,.json" hidden>
     </div></div>`;
 }
@@ -1466,27 +1827,27 @@ function wireDataBlock(root){
   if(ib&&inp){ ib.addEventListener("click",()=>inp.click());
     inp.addEventListener("change",e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return;
       const rd=new FileReader(); rd.onload=()=>{ try{ const o=JSON.parse(rd.result); if(!o||!o.data)throw 0;
-        if(!confirm("Backup einspielen? Die aktuellen Daten in diesem Browser werden überschrieben."))return;
+        if(!confirm(t("alert.backupConfirm")))return;
         BK_KEYS.forEach(k=>{ if(o.data[k]!=null)localStorage.setItem(k,o.data[k]); });
         location.reload();
-      }catch(err){ alert("Backup-Datei konnte nicht gelesen werden."); } };
+      }catch(err){ alert(t("alert.backupRead")); } };
       rd.readAsText(f); e.target.value="";
     });
   }
 }
 function teamSelectHTML(){
-  let o='<option value="">— kein Team gewählt —</option>';
-  Object.keys(GROUPS).forEach(g=>{ o+=`<optgroup label="Gruppe ${g}">`+GROUPS[g].map(t=>`<option value="${t}"${t===selTeam?" selected":""}>${FLAG[t]}  ${t}</option>`).join("")+`</optgroup>`; });
+  let o=`<option value="">${t("mt.noTeam")}</option>`;
+  Object.keys(GROUPS).forEach(g=>{ o+=`<optgroup label="${t("dyn.group")} ${g}">`+GROUPS[g].map(tm=>`<option value="${tm}"${tm===selTeam?" selected":""}>${FLAG[tm]}  ${tn(tm)}</option>`).join("")+`</optgroup>`; });
   return o;
 }
 function renderMyTeam(){
   const main=document.getElementById("mtMain"); if(!main)return;
   const picker=`<div class="team-row">
-      <div class="field"><label>Mein Team</label><select id="teamSel">${teamSelectHTML()}</select></div>
-      ${selTeam?'<button class="btn-clear" id="clearTeam">Zurücksetzen</button>':''}
+      <div class="field"><label>${t("mt.label")}</label><select id="teamSel">${teamSelectHTML()}</select></div>
+      ${selTeam?`<button class="btn-clear" id="clearTeam">${t("mt.clear")}</button>`:''}
     </div>`;
   let body="";
-  if(!selTeam){ body=`<div class="empty-state">Wähle dein Team — dann erscheinen hier Tabellenstand, Restprogramm, Titelchancen und der Szenario-Planer. Dein Team wird außerdem in Gruppen, Kalender und Weltrangliste hervorgehoben.</div>`; }
+  if(!selTeam){ body=`<div class="empty-state">${t("mt.empty")}</div>`; }
   else {
     const g=TEAM2GROUP[selTeam], tab=standings(g), pos=tab.findIndex(r=>r.t===selTeam)+1, me=tab.find(r=>r.t===selTeam);
     let fx="";
@@ -1496,46 +1857,46 @@ function renderMyTeam(){
       let res;
       if(played){const my=r[3]===selTeam?+sc.h:+sc.a, ot=r[3]===selTeam?+sc.a:+sc.h; const wl=my>ot?"win":my<ot?"loss":"draw"; res=`<span class="mt-res ${wl}">${my}:${ot}</span>`;}
       else res=`<span class="mt-res up">${berlinTime(inst)}</span>`;
-      fx+=`<div class="mt-fx"><div class="mt-d">${berlinDayLabel(inst)}</div><div class="mt-o"><span class="ha">${ha}</span>${FLAG[opp]} ${opp}</div>${res}</div>`;
+      fx+=`<div class="mt-fx"><div class="mt-d">${berlinDayLabel(inst)}</div><div class="mt-o"><span class="ha">${ha}</span>${FLAG[opp]} ${tn(opp)}</div>${res}</div>`;
     });
     let kox="";
     KO.forEach(m=>{ const p=koParts(m.no); if(p.a!==selTeam&&p.b!==selTeam)return; const opp=(p.a===selTeam?p.b:p.a);
       const set=koScoreSet(m.no); let res;
-      if(set){const s=koScores[m.no];const my=p.a===selTeam?s.h:s.a, ot=p.a===selTeam?s.a:s.h; const w=koResultWinner(m.no); const won=(w===(p.a===selTeam?"a":"b")); res=`<span class="mt-res ${won?"win":"loss"}">${my}:${ot}${my===ot?" i.E.":""}</span>`;}
+      if(set){const s=koScores[m.no];const my=p.a===selTeam?s.h:s.a, ot=p.a===selTeam?s.a:s.h; const w=koResultWinner(m.no); const won=(w===(p.a===selTeam?"a":"b")); res=`<span class="mt-res ${won?"win":"loss"}">${my}:${ot}${my===ot?" "+t("dyn.pen"):""}</span>`;}
       else res=`<span class="mt-res up">${berlinTime(m.inst)}</span>`;
-      kox+=`<div class="mt-fx"><div class="mt-d">${berlinDayLabel(m.inst)}</div><div class="mt-o"><span class="ha ko">${RD_SHORT[m.rd]}</span>${FLAG[opp]||""} ${opp||"?"}</div>${res}</div>`;
+      kox+=`<div class="mt-fx"><div class="mt-d">${berlinDayLabel(m.inst)}</div><div class="mt-o"><span class="ha ko">${rdShort(m.rd)}</span>${FLAG[opp]||""} ${opp?tn(opp):"?"}</div>${res}</div>`;
     });
     const det=determinedRank(selTeam); const gc=groupComplete(g);
     let scnDone="";
     if(det!=null){
-      const lead=gc?`Gruppenphase in Gruppe ${g} abgeschlossen`:`Platz in Gruppe ${g} bereits uneinholbar`;
-      if(det===4||det>4) scnDone=`<div class="scn-done">${lead} — dein Team ist als <b>${det}.</b> ausgeschieden.</div>`;
-      else { const word=det===1?"Gruppensieger":det===2?"Gruppenzweiter":"Gruppendritter";
-        const slot=det<=2?` und steht im Sechzehntelfinale (als ${det===1?"Sieger":"Zweiter"} Gruppe ${g})`:"";
-        const third=det===3?" Ob es als Gruppendritter reicht, hängt vom Vergleich aller Gruppendritten ab.":"";
-        scnDone=`<div class="scn-done">${lead} — dein Team ist als <b>${word}</b> gesetzt${slot}.${third} Die Szenarien unten dienen nur noch der Übersicht.</div>`;
+      const lead=gc?tf("mt.leadDone",{g}):tf("mt.leadFix",{g});
+      if(det===4||det>4) scnDone=`<div class="scn-done">${tf("mt.outAs",{lead,n:det,ord:ordEn(det)})}</div>`;
+      else { const word=det===1?t("scn.winner"):det===2?t("scn.runner"):t("scn.third");
+        const slot=det<=2?tf("mt.advances",{pos:(det===1?t("sl.winner"):t("sl.runner")),g}):"";
+        const third=det===3?t("mt.thirdHint"):"";
+        scnDone=`<div class="scn-done">${tf("mt.setAs",{lead,word,slot,third})}</div>`;
       }
     }
     body=`
       <div class="mt-headcard">
         <div class="mt-flag">${FLAG[selTeam]}</div>
-        <div><div class="mt-name">${selTeam} <span class="favstar">★</span></div>
-        <div class="mt-meta">Gruppe ${g} · aktuell Platz ${pos} · ${me.pts} Pkt · ${me.s}-${me.u}-${me.n} · ${me.gf}:${me.ga} Tore</div></div>
+        <div><div class="mt-name">${tn(selTeam)} <span class="favstar">★</span></div>
+        <div class="mt-meta">${tf("mt.meta",{g,pos,ordpos:ordEn(pos),pts:me.pts,rec:`${me.s}-${me.u}-${me.n}`,gf:me.gf,ga:me.ga})}</div></div>
       </div>
       <div class="mt-cols">
-        <div class="mt-block"><h3>Restprogramm &amp; Ergebnisse</h3><div class="mt-fxlist">${fx}${kox?`<div class="mt-kohead">K.-o.-Phase (Stand jetzt)</div>`+kox:""}</div></div>
+        <div class="mt-block"><h3>${t("mt.fixHead")}</h3><div class="mt-fxlist">${fx}${kox?`<div class="mt-kohead">${t("mt.koHead")}</div>`+kox:""}</div></div>
         <div class="mt-block">
-          <h3>Titelchancen <small>Monte-Carlo</small></h3>
-          <label class="sim-toggle mt-toggle"><input type="checkbox" id="mtBase" checked><span class="sw"></span>Eingetragene Ergebnisse berücksichtigen</label>
-          <button class="sim-btn" id="mtCalc">📊 Chancen berechnen (2000×)</button>
-          <div id="mtChances"><div class="empty-state" style="padding:10px 2px">Noch nicht berechnet.</div></div>
-          <div class="mt-actions"><button class="mini-btn" id="mtIcs">📅 ${selTeam}-Spiele als .ics</button></div>
+          <h3>${t("mt.chancesHead")} <small>Monte-Carlo</small></h3>
+          <label class="sim-toggle mt-toggle"><input type="checkbox" id="mtBase" checked><span class="sw"></span>${t("mt.useResults")}</label>
+          <button class="sim-btn" id="mtCalc">${t("mt.calcBtn")}</button>
+          <div id="mtChances"><div class="empty-state" style="padding:10px 2px">${t("mt.notCalc")}</div></div>
+          <div class="mt-actions"><button class="mini-btn" id="mtIcs">${tf("mt.icsBtn",{team:tn(selTeam)})}</button></div>
         </div>
       </div>
       ${scnDone}
       <details class="scn-details"${det!=null?"":" open"}>
-        <summary>🎯 Szenario-Planer — mögliche K.-o.-Termine</summary>
-        <p class="scn-intro">Aktiviere die Szenarien (Gruppensieger / -zweiter / -dritter). Alle möglichen K.-o.-Termine werden im Turnierbaum &amp; Kalender markiert — nützlich, um vorab Termine freizuhalten.</p>
+        <summary>${t("mt.plannerSummary")}</summary>
+        <p class="scn-intro">${t("mt.plannerIntro")}</p>
         <div class="scn-grid" id="scnGrid"></div>
         <div class="block-sum" id="blockSum"></div>
       </details>`;
@@ -1546,15 +1907,15 @@ function renderMyTeam(){
   const ic=main.querySelector("#mtIcs"); if(ic)ic.addEventListener("click",()=>exportTeamIcs(selTeam));
   const mc=main.querySelector("#mtCalc"); if(mc)mc.addEventListener("click",()=>{
     const useBase=main.querySelector("#mtBase").checked, box=main.querySelector("#mtChances");
-    box.innerHTML=`<div class="sim-loading">⏳ Simuliere 2000 Turniere …</div>`;
+    box.innerHTML=`<div class="sim-loading">${tf("sim.loading",{n:nfmt(2000)})}</div>`;
     setTimeout(()=>{ box.innerHTML=renderChances(simTeamChances(selTeam,2000,useBase)); },30);
   });
   wireDataBlock(main);
 }
 function updateTzNote(){
   const sel=document.getElementById("tzSel");
-  if(sel&&!sel.dataset.init){ sel.innerHTML=TZ_OPTIONS.map(o=>`<option value="${o.id}"${o.id===dispTz?" selected":""}>${o.label}</option>`).join(""); sel.dataset.init="1"; }
-  const note=document.getElementById("tzNote"); if(note)note.textContent=`Zeiten: ${_TF.primAbbr} · ${_TF.secAbbr} in Klammern`;
+  if(sel){ sel.innerHTML=TZ_OPTIONS.map(o=>`<option value="${o.id}"${o.id===dispTz?" selected":""}>${tzLabel(o)}</option>`).join(""); }
+  const note=document.getElementById("tzNote"); if(note)note.textContent=tf("tz.note",{prim:_TF.primAbbr,sec:_TF.secAbbr});
 }
 
 function renderThirdsTable(){
@@ -1567,29 +1928,27 @@ function renderThirdsTable(){
   let rows="";
   cand.forEach((c,i)=>{
     let cls,badge;
-    if(complete){ const q=top8.has(c.g); cls=q?"q":"out"; badge=`<span class="tt-b ${q?"q":"out"}">${q?"qualifiziert":"ausgeschieden"}</span>`; }
-    else if(c.pos===3){ const q=top8.has(c.g); cls=q?"q":"warn"; badge=`<span class="tt-b ${q?"q":"warn"}">${q?"auf Kurs (Top 8)":"aktuell 9.–12."}</span>`; }
-    else { cls="poss"; badge='<span class="tt-b poss">noch möglich</span>'; }
+    if(complete){ const q=top8.has(c.g); cls=q?"q":"out"; badge=`<span class="tt-b ${q?"q":"out"}">${q?t("th3.qual"):t("th3.out")}</span>`; }
+    else if(c.pos===3){ const q=top8.has(c.g); cls=q?"q":"warn"; badge=`<span class="tt-b ${q?"q":"warn"}">${q?t("th3.onTrack"):t("th3.out912")}</span>`; }
+    else { cls="poss"; badge=`<span class="tt-b poss">${t("th3.possible")}</span>`; }
     const fav=c.t===selTeam?" fav-row":"";
     const gds=(c.gd>0?"+":"")+c.gd;
     rows+=`<tr class="${cls}${fav}">
       <td class="rk">${i+1}</td>
-      <td class="l team"><span class="fl">${FLAG[c.t]}</span>${c.t}${c.t===selTeam?' <span class="favstar">★</span>':''}</td>
+      <td class="l team"><span class="fl">${FLAG[c.t]}</span>${tn(c.t)}${c.t===selTeam?' <span class="favstar">★</span>':''}</td>
       <td><span class="ttg" style="background:${GCOL[c.g]}">${c.g}</span></td>
       <td class="pl">${c.pos}.</td><td>${c.sp}</td><td>${c.gf}:${c.ga}</td><td>${gds}</td><td class="pts">${c.pts}</td>
       <td class="st">${badge}</td></tr>`;
   });
-  const note = complete
-    ? "Alle Gruppen abgeschlossen — die acht grün markierten Gruppendritten sind für das Sechzehntelfinale qualifiziert, die vier roten ausgeschieden."
-    : `<b>${cand.length}</b> Mannschaften können rechnerisch noch Gruppendritter werden (Teams, die nicht mehr Dritter werden können, sind ausgeblendet). Spalte „Pl." = aktueller Platz in der Gruppe. Acht der zwölf Gruppendritten ziehen ins Sechzehntelfinale ein — die endgültige Wertung steht erst nach Abschluss aller Gruppen fest.`;
+  const note = complete ? t("th3.noteComplete") : tf("th3.noteIncomplete",{n:cand.length});
   main.innerHTML=`<p class="thirds-intro">${note}</p>
     <div class="thirds-legend">
-      <span><i class="q"></i>auf Kurs / qualifiziert</span>
-      <span><i class="warn"></i>aktuell außerhalb Top 8</span>
-      <span><i class="poss"></i>noch möglich (derzeit nicht 3.)</span>
+      <span><i class="q"></i>${t("th3.leg1")}</span>
+      <span><i class="warn"></i>${t("th3.leg2")}</span>
+      <span><i class="poss"></i>${t("th3.leg3")}</span>
     </div>
     <div class="thirds-tablewrap"><table class="thirds-table">
-      <thead><tr><th>#</th><th class="l">Team</th><th>Gr.</th><th title="Aktueller Platz in der Gruppe">Pl.</th><th>Sp</th><th>Tore</th><th>Diff</th><th>Pkt</th><th class="l">Status</th></tr></thead>
+      <thead><tr><th>#</th><th class="l">${t("th.team")}</th><th>${t("dyn.grpAbbr")}</th><th title="${t("th3.plTitle")}">${t("th3.pl")}</th><th>${t("th.sp")}</th><th>${t("th.tore")}</th><th>${t("th.diff")}</th><th>${t("th.pkt")}</th><th class="l">${t("th3.status")}</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
 }
 
@@ -1661,13 +2020,13 @@ function venueHasSel(vn){ return venueMatches(vn).some(matchInvolvesSel); }
 function venueMatchLine(m){
   const when=`${berlinDayLabel(m.inst)}, ${berlinTime(m.inst)}`;
   let teams;
-  if(m.type==="group"){ teams=`<span class="vg" style="background:${GCOL[m.group]}">${m.group}</span> ${FLAG[m.home]} ${m.home} – ${FLAG[m.away]} ${m.away}`; }
-  else { const p=koParts(m.no); const a=p.a?`${FLAG[p.a]} ${p.a}`:slotLabel(KOBY[m.no].a); const b=p.b?`${FLAG[p.b]} ${p.b}`:slotLabel(KOBY[m.no].b); teams=`<span class="vko">${RD_SHORT[m.rd]}</span> ${a} – ${b}`; }
+  if(m.type==="group"){ teams=`<span class="vg" style="background:${GCOL[m.group]}">${m.group}</span> ${FLAG[m.home]} ${tn(m.home)} – ${FLAG[m.away]} ${tn(m.away)}`; }
+  else { const p=koParts(m.no); const a=p.a?`${FLAG[p.a]} ${tn(p.a)}`:slotLabel(KOBY[m.no].a); const b=p.b?`${FLAG[p.b]} ${tn(p.b)}`:slotLabel(KOBY[m.no].b); teams=`<span class="vko">${rdShort(m.rd)}</span> ${a} – ${b}`; }
   return `<div class="vm-line${matchInvolvesSel(m)?' sel':''}"><span class="vm-when">${when}</span><span class="vm-teams">${teams}</span></div>`;
 }
 function venuePopupHTML(vd){
   const ms=venueMatches(vd.v);
-  return `<div class="vpop"><div class="vpop-h">${vd.v}</div><div class="vpop-sub">${LANDFLAG[vd.land]} ${vd.c} · ${ms.length} Spiele</div><div class="vpop-list">${ms.map(venueMatchLine).join("")||'<div class="vm-line">—</div>'}</div></div>`;
+  return `<div class="vpop"><div class="vpop-h">${vd.v}</div><div class="vpop-sub">${LANDFLAG[vd.land]} ${cityName(vd.c)} · ${ms.length} ${t("ven.matches")}</div><div class="vpop-list">${ms.map(venueMatchLine).join("")||`<div class="vm-line">${t("ven.dash")}</div>`}</div></div>`;
 }
 let venueMap=null, venueMarkers=[];
 function venueIcon(active){ return L.divIcon({className:"vmark-wrap", html:`<div class="vmark${active?' on':''}"></div>`, iconSize:[18,18], iconAnchor:[9,9], popupAnchor:[0,-9]}); }
@@ -1691,9 +2050,9 @@ function renderVenues(){
   VENUES.slice().sort((a,b)=>a.c.localeCompare(b.c,"de")).forEach(vd=>byLand[vd.land].push(vd));
   let h="";
   ["USA","Mexiko","Kanada"].forEach(land=>{
-    h+=`<div class="vl-group"><div class="vl-h">${LANDFLAG[land]} ${land} <small>${byLand[land].length} Orte</small></div>`;
+    h+=`<div class="vl-group"><div class="vl-h">${LANDFLAG[land]} ${landName(land)} <small>${byLand[land].length} ${t("ven.places")}</small></div>`;
     byLand[land].forEach(vd=>{ const n=venueMatches(vd.v).length;
-      h+=`<button class="vl-item${venueHasSel(vd.v)?' sel':''}" data-v="${vd.v.replace(/"/g,'&quot;')}"><span class="vl-dot"></span><span class="vl-name">${vd.v}<small>${vd.c}</small></span><span class="vl-cnt">${n}</span></button>`; });
+      h+=`<button class="vl-item${venueHasSel(vd.v)?' sel':''}" data-v="${vd.v.replace(/"/g,'&quot;')}"><span class="vl-dot"></span><span class="vl-name">${vd.v}<small>${cityName(vd.c)}</small></span><span class="vl-cnt">${n}</span></button>`; });
     h+=`</div>`;
   });
   list.innerHTML=h;
@@ -1761,10 +2120,11 @@ function histMatchesSel(name){
   if(selTeam === "Deutschland" && (name==="Germany" || name==="West Germany")) return true;
   return false;
 }
+function histName(name){ const c=histCountry(name); return LANG==="en"?name:c.de; }
 function histTeamHtml(name){
   const c = histCountry(name);
   const fl = c.fl ? `<span class="hist-fl">${c.fl}</span>` : "";
-  return `<span class="hist-team${histMatchesSel(name)?' hist-sel':''}">${fl}${escapeHtml(c.de)}</span>`;
+  return `<span class="hist-team${histMatchesSel(name)?' hist-sel':''}">${fl}${escapeHtml(histName(name))}</span>`;
 }
 function renderHistorie(){
   // Titel-Rangliste (Westdeutschland zählt zu Deutschland)
@@ -1775,11 +2135,11 @@ function renderHistorie(){
   if(titlesEl) titlesEl.innerHTML=ranked.map(([nm,n])=>{
     const c=histCountry(nm);
     const fl=c.fl?`<span class="hist-fl">${c.fl}</span>`:"";
-    return `<span class="hist-title-chip${histMatchesSel(nm)?' sel':''}">${fl}<span class="nm">${escapeHtml(c.de)}</span><span class="n">${n}</span></span>`;
+    return `<span class="hist-title-chip${histMatchesSel(nm)?' sel':''}">${fl}<span class="nm">${escapeHtml(histName(nm))}</span><span class="n">${n}</span></span>`;
   }).join("");
   const tblEl=document.getElementById("histTable");
   if(tblEl){
-    const head=`<thead><tr><th>Jahr</th><th>Gastgeber</th><th class="num">Teams</th><th>🥇 Weltmeister</th><th>🥈 Finalist</th><th>🥉 Dritter</th><th>4.</th></tr></thead>`;
+    const head=`<thead><tr><th>${t("hist.year")}</th><th>${t("hist.host")}</th><th class="num">${t("hist.teams")}</th><th>${t("hist.champ")}</th><th>${t("hist.runner")}</th><th>${t("hist.third")}</th><th>${t("hist.fourth")}</th></tr></thead>`;
     const body=WC_HISTORY_M.slice().reverse().map(t=>{
       const [y,host,teams,c1,c2,c3,c4]=t;
       return `<tr><td class="yr">${y}</td><td>${histTeamHtml(host)}</td><td class="num">${teams}</td>`+
@@ -1836,10 +2196,10 @@ document.getElementById("dayModal").addEventListener("click",e=>{ if(e.target.id
 document.addEventListener("keydown",e=>{ if(e.key==="Escape")closeDayModal(); });
 /* reset scores */
 document.getElementById("resetScores").addEventListener("click",()=>{
-  if(confirm("Alle eingetragenen Ergebnisse löschen?")){ scores={}; saveScores(); renderAll(); }
+  if(confirm(t("alert.resetScores"))){ scores={}; saveScores(); renderAll(); }
 });
 document.getElementById("resetPicks").addEventListener("click",()=>{
-  if(confirm("Alle K.-o.-Ergebnisse löschen? (Gruppenergebnisse bleiben erhalten)")){ koPicks={}; koScores={}; savePicks(); saveKoScores(); renderAll(); }
+  if(confirm(t("alert.resetPicks"))){ koPicks={}; koScores={}; savePicks(); saveKoScores(); renderAll(); }
 });
 
 document.getElementById("simRun").addEventListener("click",()=>{
@@ -1851,7 +2211,7 @@ document.getElementById("simRunMany").addEventListener("click",()=>{
   let n=parseInt(inp.value,10); if(isNaN(n))n=1000; n=Math.max(10,Math.min(50000,n)); inp.value=n;
   const useBase=document.getElementById("simBase").checked;
   const out=document.getElementById("simOut");
-  out.innerHTML=`<div class="sim-loading">⏳ Simuliere ${n.toLocaleString("de-DE")} Turniere …</div>`;
+  out.innerHTML=`<div class="sim-loading">${tf("sim.loading",{n:nfmt(n)})}</div>`;
   setTimeout(()=>{ const res=runManySimulations(n,useBase); renderDistribution(res,n,useBase); },30);
 });
 
@@ -1864,17 +2224,21 @@ document.getElementById("olbAuto").addEventListener("change",e=>olbToggleAuto(e.
 /* dev: testdata simulation */
 document.getElementById("devRunLevel").addEventListener("click",()=>{
   const lv=+document.getElementById("devLevel").value;
-  if(confirm("Testdaten erzeugen? Alle eingetragenen Ergebnisse werden überschrieben."))devSimulate({level:lv});
+  if(confirm(t("alert.devLevel")))devSimulate({level:lv});
 });
 document.getElementById("devRunDate").addEventListener("click",()=>{
   const d=document.getElementById("devDate").value; if(!d)return;
-  if(confirm("Testdaten bis "+d+" erzeugen? Alle eingetragenen Ergebnisse werden überschrieben."))devSimulate({date:d});
+  if(confirm(tf("alert.devDate",{d})))devSimulate({date:d});
 });
 document.getElementById("devClear").addEventListener("click",()=>{
-  if(confirm("Alle eingetragenen Ergebnisse löschen?")){ scores={};koScores={};koPicks={};saveScores();saveKoScores();savePicks();renderAll(); }
+  if(confirm(t("alert.resetScores"))){ scores={};koScores={};koPicks={};saveScores();saveKoScores();savePicks();renderAll(); }
 });
 
 renderAll();
+
+// Language: apply the saved language to the static UI + wire the DE/EN toggle.
+applyStaticI18n();
+{ const _lt=document.getElementById("langToggle"); if(_lt)_lt.addEventListener("click",()=>setLang(LANG==="de"?"en":"de")); }
 
 // Wenn beim Laden bereits eine Cloud-Runde gespeichert ist: Tipps holen + Polling starten.
 if(CLOUD_ON() && cloudRound){ cloudStartPolling(); cloudPullTips().catch(()=>{}); }
@@ -1897,7 +2261,7 @@ window.qurixApp.hydrateState = function(s){
     let cur; try { cur = localStorage.getItem(k); } catch(_){ return false; }
     return cur != null && s[k] != null && cur !== s[k];
   });
-  if (conflict && !confirm("Dieser Snapshot enthält gespeicherte Daten, die deine aktuellen lokalen Daten in diesem Browser überschreiben. Fortfahren?")) return;
+  if (conflict && !confirm(t("alert.snapshotConfirm"))) return;
   let changed = false;
   BK_KEYS.forEach(k => {
     if (s[k] == null) return;

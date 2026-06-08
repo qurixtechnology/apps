@@ -37,6 +37,8 @@ body{
 
 /* ---------- Header ---------- */
 .app-hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+.lang-toggle{position:absolute;top:14px;right:clamp(14px,4vw,28px);z-index:3;font:inherit;font-weight:700;font-size:12px;letter-spacing:.04em;padding:6px 12px;border-radius:999px;border:1px solid var(--qrx-border-strong);background:var(--qrx-surface);color:var(--qrx-text);cursor:pointer;transition:.15s}
+.lang-toggle:hover{border-color:var(--qrx-primary);color:var(--qrx-primary)}
 .app-hero::before{content:"";position:absolute;inset:0;
   background:repeating-linear-gradient(115deg,transparent 0 34px,rgba(14,37,48,.025) 34px 36px);
   pointer-events:none}
