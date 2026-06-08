@@ -1,15 +1,15 @@
 {
   "name": "WM 2026 Spielplan",
   "lang": "de",
-  "theme": "wm-dark",
+  "theme": "qurix",
   "output": "wm2026-spielplan.html",
   "title": "WM 2026 — Spielplan & Szenario-Planer",
   "card": {
     "description": "Interaktiver Spielplan der Fussball-WM 2026 (USA · Kanada · Mexiko, 48 Teams, 104 Spiele). Ergebnisse eintragen, K.-o.-Szenarien planen und ein eigenes Tippspiel führen — alles lokal im Browser gespeichert, ohne Backend.",
     "tags": ["Gruppen & K.o.", "Tippspiel", "Kalender & Karte"]
   },
-  "shellCss": false,
-  "fonts": ["wm-dark.fonts.html"],
+  "shellCss": true,
+  "fonts": ["wm-qurix.fonts.html"],
   "headAssets": [],
   "inlineStyles": ["assets/leaflet-1.9.4.css"],
   "inlineScripts": ["assets/leaflet-1.9.4.js"]
