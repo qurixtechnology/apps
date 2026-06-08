@@ -1,0 +1,174 @@
+    <h2>Parquet Profiler</h2>
+    <p>
+      Eine browserbasierte Anwendung zur strukturellen und statistischen Analyse von
+      Parquet-Dateien. Die Verarbeitung erfolgt vollständig <strong>lokal</strong> im Browser
+      über DuckDB-WASM &mdash; es findet keine Datenübertragung an einen Server statt.
+      Dateien werden standardmäßig <strong>referenziert</strong> statt komplett geladen:
+      DuckDB liest nur die tatsächlich benötigten Bytebereiche, sodass auch mehrere große
+      Dateien speicherschonend bleiben.
+    </p>
+
+    <h3>Workflow</h3>
+    <ol>
+      <li>Eine oder mehrere Parquet-Dateien per Drag &amp; Drop oder Dateiauswahl laden.
+          Bei mehreren Dateien wird die markierte Datei profiliert; ein Klick wechselt die aktive Datei.</li>
+      <li>
+        Die <strong>Datei-Metadaten</strong> (Zeilen, Spalten, Row Groups, Kompression,
+        Erzeuger) werden sofort aus dem Parquet-Footer ermittelt und angezeigt &mdash;
+        ohne dass die eigentlichen Daten gescannt werden müssen.
+      </li>
+      <li>
+        Drei Tabs bieten unterschiedliche Sichten auf den Datensatz:
+        <strong>Attribute</strong> (Profiling der einzelnen Spalten),
+        <strong>Daten-Vorschau</strong> (zeilenweise Anzeige mit Filter &amp; Paginierung),
+        <strong>Pivot</strong> (Excel-Style Auswertung) und <strong>SQL</strong>
+        (freier SQL-Editor mit DuckDB-Backend).
+        Klick auf einen Tab wechselt instant die Ansicht, der State bleibt erhalten.
+      </li>
+    </ol>
+
+    <h3>Attribute</h3>
+    <p>
+      Die Statistiken pro Attribut beziehen sich immer auf den <strong>gesamten Datensatz</strong>
+      &mdash; unabhängig von Filtern, die in der Daten-Vorschau gesetzt sind. So bleibt die
+      Attribut-Übersicht als Profiling-Werkzeug stabil und vergleichbar.
+    </p>
+    <p>
+      In der Zeile jedes Attributs werden bereits ohne Aufklappen einige Werte
+      direkt aus dem <strong>Parquet-Footer</strong> angezeigt &mdash; Null-Anteil, Wertebereich
+      (Min/Max), Anzahl eindeutiger Werte und Speichergröße auf der Platte inkl.
+      Kompressionsrate. Die meisten dieser Werte sind exakt und kosten <em>keinen</em>
+      Datenscan; sie sind auch bei mehreren GB großen Dateien in Millisekunden verfügbar.
+      Falls der Writer keine Statistiken in den Footer geschrieben hat, bleiben die Felder
+      leer (&mdash;).
+    </p>
+    <p>
+      Die Spalte <strong>Eindeutig</strong> zeigt die Anzahl verschiedener Werte pro Attribut.
+      Diese Information steht im Parquet-Footer in der Regel nicht zur Verfügung, daher
+      wird sie nach dem Laden im Hintergrund über eine einzelne Sammelquery berechnet
+      (ein gemeinsamer Scan über alle Attribute). Bis die Berechnung abgeschlossen ist,
+      zeigt die Zelle pulsende Punkte (&hellip;).
+    </p>
+    <p>
+      Die Attribut-Tabelle ist <strong>sortierbar</strong> (Klick auf den Spaltenkopf, tri-state:
+      asc &rarr; desc &rarr; aus) und <strong>filterbar</strong> via Filter-Icon im Spaltenkopf
+      (Excel-Style: Werteliste, Bereichs-Filter oder Volltext-Suche, je nach Datenart).
+      Filter wirken nur auf die Attribut-Tabelle und beeinflussen die Statistiken nicht.
+    </p>
+    <ul>
+      <li>
+        <strong>Numerisch</strong> (<code>INTEGER</code>, <code>DOUBLE</code>,
+        <code>DECIMAL</code> &hellip;): Min, Max, Mittelwert, Standardabweichung, Median,
+        Quartile, Histogramm mit ca. 30 Bins.
+      </li>
+      <li>
+        <strong>String</strong> (<code>VARCHAR</code>): Anzahl eindeutiger Werte,
+        Min-/Max-Länge, durchschnittliche Länge, Top-20-Werte als sortierte Liste
+        (Rang, Wert, relativer Balken, Anzahl, Anteil an Non-NULL).
+      </li>
+      <li>
+        <strong>Datum/Zeit</strong> (<code>DATE</code>, <code>TIMESTAMP</code>):
+        Zeitspanne, Verteilung als Zeitreihen-Histogramm (automatische Granularität:
+        Stunde/Tag/Monat/Jahr).
+      </li>
+      <li>
+        <strong>Boolean</strong>: Verteilung über <code>TRUE</code> / <code>FALSE</code> /
+        <code>NULL</code> als Doughnut-Chart.
+      </li>
+      <li>Für alle Typen: Anzahl Zeilen, Non-Null-Werte und Null-Anteil.</li>
+    </ul>
+
+    <h3>Daten-Vorschau, Filter &amp; Paginierung</h3>
+    <p>
+      Über das Filter-Icon im Spaltenkopf der Vorschau-Tabelle lassen sich
+      <strong>Excel-Style-Filter</strong> setzen. Numerische und Datums-Spalten bieten
+      einen <strong>Bereichs-Filter</strong> (Min/Max), kategorische Spalten (String,
+      Boolean) eine durchsuchbare <strong>Werteliste mit Checkboxen</strong>. Filter sind
+      kombinierbar (UND-Verknüpfung); aktive Filter erscheinen als Chips oberhalb der
+      Tabelle und sind einzeln entfernbar.
+    </p>
+    <p>
+      Die Tabelle wird seitenweise geladen (25, 50, 100 oder 500 Zeilen pro Seite) &mdash;
+      auch bei großen Dateien bleibt das Blättern flüssig, da pro Seite nur ein
+      <code>LIMIT &hellip; OFFSET</code> ausgeführt wird.
+    </p>
+
+    <h3>Pivot</h3>
+    <p>
+      Excel-Style Pivot-Auswertung. Drei Zonen analog zu Excel:
+      <strong>Zeilen</strong> (Gruppierungs-Dimensionen, mehrere möglich),
+      <strong>Spalten</strong> (eine Spalten-Dimension, optional, spreizt das Ergebnis in
+      die Breite) und <strong>Werte</strong> (eine oder mehrere Aggregationen, z.B.
+      <em>Anzahl</em>, <em>Summe</em>, <em>Mittelwert</em>, <em>Min</em>, <em>Max</em>,
+      <em>Anzahl Eindeutig</em>).
+    </p>
+    <p>
+      Die Aggregation läuft als <code>GROUP BY</code>-Query in DuckDB; bei gesetzter
+      Spalten-Dimension wird das Ergebnis in JavaScript in die 2D-Matrix-Form gebracht.
+      Damit lassen sich die Spaltenwerte auf die <strong>Top 100</strong>
+      begrenzen, ohne dass eine hohe Kardinalität die Tabelle unbedienbar macht. Bei
+      Überschreitung wird eine Warnung mit Anzahl der ausgeblendeten Werte angezeigt.
+    </p>
+    <p>
+      Die Ergebnis-Tabelle ist sortierbar &mdash; Klick auf eine Spaltenüberschrift schaltet
+      durch aufsteigend &rarr; absteigend &rarr; Original-Reihenfolge.
+    </p>
+
+    <h3>SQL</h3>
+    <p>
+      Freier SQL-Editor mit der vollen Power von DuckDB. Jede geladene Datei ist als
+      eigener View verfügbar (Name aus dem Dateinamen abgeleitet); <code>data</code>
+      verweist immer auf die aktuell aktive Datei. So sind auch Joins über mehrere
+      Dateien hinweg möglich. Beispiele:
+    </p>
+    <ul>
+      <li><code>SELECT * FROM data LIMIT 100</code></li>
+      <li><code>DESCRIBE data</code> &mdash; Schema der aktiven Datei</li>
+      <li><code>SUMMARIZE data</code> &mdash; Statistik-Übersicht aller Spalten in einer Query</li>
+      <li><code>SELECT a.*, b.* FROM datei_a a JOIN datei_b b ON a.id = b.id</code> &mdash; Join über zwei Dateien</li>
+      <li><code>PIVOT data ON col USING COUNT(*) GROUP BY row</code> &mdash; native DuckDB-Pivot-Syntax</li>
+    </ul>
+    <p>
+      Tastenkürzel: <code>Strg</code>/<code>⌘</code>+<code>Enter</code> führt die Query aus,
+      <code>Tab</code> fügt zwei Leerzeichen ein. Das Dropdown <em>Beispiel</em> lädt
+      vorgefertigte Snippets in den Editor.
+    </p>
+    <p>
+      Die Anzeige ist auf <strong>10.000 Zeilen</strong> begrenzt &mdash; die Query selbst
+      läuft komplett, aber das Rendering der Tabelle würde sonst den Browser blockieren.
+      Bei mehr Treffern erscheint eine Warnung mit der vollen Anzahl. Für ein gefiltertes
+      Voll-Ergebnis bitte die Query selbst mit <code>LIMIT</code> oder <code>WHERE</code>
+      einschränken.
+    </p>
+
+    <h3>Performance-Hinweise</h3>
+    <ul>
+      <li>
+        Datei-Metadaten kommen aus dem Parquet-Footer und sind in Millisekunden verfügbar
+        &mdash; auch bei Multi-GB-Dateien.
+      </li>
+      <li>
+        Spaltenstatistiken erfordern einen tatsächlichen Scan und können bei großen
+        Dateien einige Sekunden dauern. Sie werden gecacht und müssen nur einmal pro
+        Spalte und Datei berechnet werden.
+      </li>
+      <li>
+        Filter wirken nur auf die Daten-Vorschau und werden direkt als
+        <code>WHERE</code>-Klausel in der SQL-Abfrage umgesetzt. Spaltenstatistiken werden
+        durch Filter nicht ungültig.
+      </li>
+      <li>
+        Die gesamte Datei wird in den Browser-Speicher geladen. Für Dateien über 2&ndash;4
+        GB empfehlen sich Desktop-Browser mit ausreichend RAM.
+      </li>
+    </ul>
+
+    <h3>Technologie</h3>
+    <ul>
+      <li><strong>DuckDB-WASM <code>@1.32.0</code></strong> &mdash; In-Browser-SQL-Engine mit nativer Parquet-Unterstützung.</li>
+      <li><strong>Chart.js <code>@4.4.1</code></strong> &mdash; Visualisierungen.</li>
+      <li>
+        Beide Bibliotheken werden via CDN geladen &mdash; bei der ersten Nutzung wird daher
+        eine Internetverbindung benötigt. Anschließend cached der Browser die Bundles.
+      </li>
+    </ul>

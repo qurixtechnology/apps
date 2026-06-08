@@ -1,0 +1,53 @@
+<header class="qrx-shell-header">
+  <div class="qrx-header-brand">
+    <svg class="qrx-header-logo" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"
+         role="img" aria-label="qurix Technology">
+      <defs>
+        <linearGradient id="qrxRing" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"   stop-color="#156B8E"/>
+          <stop offset="100%" stop-color="#2EC4A2"/>
+        </linearGradient>
+      </defs>
+      <circle cx="34" cy="34" r="29" fill="none" stroke="url(#qrxRing)" stroke-width="6"/>
+      <line x1="33" y1="38" x2="62" y2="66"
+            stroke="#2EC4A2" stroke-width="8" stroke-linecap="butt"/>
+    </svg>
+    <h1 class="qrx-header-title">qurix</h1>
+    <span class="qrx-header-divider" aria-hidden="true"></span>
+    <span class="qrx-header-app-label">{{APP_NAME}}</span>
+  </div>
+  <nav>
+    <button class="qrx-btn qrx-btn-ghost" data-action="toggle-docs"
+            aria-expanded="false" aria-controls="qrx-docs">
+      Documentation
+    </button>
+  </nav>
+</header>
+
+<section id="qrx-docs" class="qrx-shell-docs" hidden>
+  <div class="qrx-shell-docs-inner">
+<!--SLOT:app-docs-->
+  </div>
+</section>
+
+<main id="qrx-app" class="qrx-shell-app">
+<!--SLOT:app-content-->
+</main>
+
+<footer class="qrx-shell-footer">
+  <div class="qrx-footer-brand">
+    Built by
+    <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
+    &middot; v<span data-build-version></span>
+  </div>
+  <div style="display: flex; gap: 8px;">
+    <button class="qrx-btn" data-action="export-html"
+            title="Download a blank copy of this app — no entered data">
+      Export blank
+    </button>
+    <button class="qrx-btn qrx-btn-primary" data-action="export-html-state"
+            title="Download a snapshot including all currently entered data">
+      Export with data
+    </button>
+  </div>
+</footer>

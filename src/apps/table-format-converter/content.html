@@ -1,0 +1,131 @@
+  <div class="app-shell">
+
+    <!-- Drop zone (initial state) -->
+    <div id="dropzone" class="dropzone" tabindex="0" role="button"
+         aria-label="Drop a file here or click to pick one">
+      <p class="dz-title">Drop a file here, or click to pick one</p>
+      <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · DuckDB · SQLite · up to ~1 GB</p>
+      <input type="file" id="filePicker" hidden
+             accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.duckdb,.ddb,.db,.sqlite,.sqlite3">
+    </div>
+
+    <!-- File info bar (after load) -->
+    <div id="fileInfo" class="file-info" hidden>
+      <div class="file-info-left">
+        <div class="file-icon" id="fileIcon">FMT</div>
+        <div style="min-width: 0;">
+          <div class="file-name" id="fileName">—</div>
+          <div class="file-meta" id="fileMeta">—</div>
+        </div>
+      </div>
+      <div>
+        <button class="qrx-btn" id="resetFileBtn">Load another file</button>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div id="statusBar" class="status-bar" hidden>
+      <span class="spinner" id="statusSpinner"></span>
+      <span id="statusText">Working…</span>
+    </div>
+
+    <!-- Workspace -->
+    <div id="workspace" class="workspace" hidden>
+      <details class="qrx-card heuristic-panel" id="heuristicPanel">
+        <summary>
+          <span class="heuristic-summary-title">Source format</span>
+          <span class="heuristic-summary-hint" id="heuristicSummaryHint">auto-detected</span>
+          <svg class="heuristic-summary-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 4 10 8 6 12"/>
+          </svg>
+        </summary>
+        <div class="heuristic-body">
+          <div id="heuristicFields"></div>
+          <details class="data-block-panel" id="rangePickerCard" hidden>
+            <summary>
+              <span class="data-block-title" id="rangePickerTitle">Data block</span>
+              <span class="data-block-hint" id="rangePickerHint"></span>
+              <svg class="data-block-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 4 10 8 6 12"/>
+              </svg>
+            </summary>
+            <div class="data-block-body">
+              <div class="range-picker" id="rangePicker"></div>
+              <p class="muted" id="rangePickerHelp" style="margin-top: var(--qrx-s-3); font-size: 0.8125rem;"></p>
+            </div>
+          </details>
+          <button class="qrx-btn reset-btn" id="resetHeuristicBtn">Reset to auto-detected</button>
+        </div>
+      </details>
+
+      <div class="workspace-right">
+
+        <div class="qrx-card">
+          <h3 class="section-title">
+            Preview
+            <span class="section-title-right">
+              <span class="muted">first 10 rows</span>
+              <button type="button" class="icon-btn" id="copySchemaBtn"
+                      title="Copy schema (DDL / Markdown / TSV / JSON)" aria-label="Copy schema">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+                        d="M5 2.5h4a1 1 0 0 1 1 1V4H4v-.5a1 1 0 0 1 1-1zM4 4h6a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 10 15H4a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 4 4zM6 8h4M6 11h4"/>
+                </svg>
+              </button>
+            </span>
+          </h3>
+          <div class="preview-stats" id="previewStats"></div>
+          <div class="preview-grid-wrap" id="previewWrap">
+            <table class="preview-grid" id="previewGrid">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="qrx-card">
+          <h3 class="section-title">Export</h3>
+
+          <!-- Section 1: Filter (universal, persistent across format changes) -->
+          <div class="export-section">
+            <h4 class="export-section-label">Filter (optional)</h4>
+            <div class="export-filter-wrap">
+              <textarea class="qrx-input" id="ex_filter" rows="2" spellcheck="false"
+                placeholder="SQL WHERE expression — e.g. revenue > 1000 AND region = 'EU'"></textarea>
+              <p class="filter-hint">
+                References original column names. Applied before any column rename or exclusion.
+              </p>
+            </div>
+          </div>
+
+          <!-- Section 2: Target format chips -->
+          <div class="export-section">
+            <h4 class="export-section-label">Target format</h4>
+            <div class="format-chips" id="formatChips" role="radiogroup" aria-label="Target format">
+              <button type="button" class="format-chip is-active" data-format="csv"      role="radio" aria-checked="true">CSV<span class="format-chip-ext">.csv</span></button>
+              <button type="button" class="format-chip"           data-format="parquet"  role="radio" aria-checked="false">Parquet<span class="format-chip-ext">.parquet</span></button>
+              <button type="button" class="format-chip"           data-format="json"     role="radio" aria-checked="false">JSON<span class="format-chip-ext">.json</span></button>
+              <button type="button" class="format-chip"           data-format="ndjson"   role="radio" aria-checked="false">NDJSON<span class="format-chip-ext">.ndjson</span></button>
+              <button type="button" class="format-chip"           data-format="xlsx"     role="radio" aria-checked="false">Excel<span class="format-chip-ext">.xlsx</span></button>
+            </div>
+          </div>
+
+          <!-- Section 3: Format-specific options -->
+          <div class="export-section">
+            <h4 class="export-section-label">Options</h4>
+            <div class="export-options-grid" id="exportOptions"></div>
+          </div>
+
+          <!-- Action row -->
+          <div class="export-section">
+            <div class="export-actions">
+              <button class="qrx-btn qrx-btn-primary" id="exportBtn">Export &amp; download</button>
+              <span class="progress-msg" id="exportProgress"></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>

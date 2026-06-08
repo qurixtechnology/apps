@@ -1,0 +1,250 @@
+
+  <!-- Drop / file pick -->
+  <section class="pp-section" id="pp-dropSection">
+    <div class="pp-drop-zone" id="pp-dropZone">
+      <svg class="pp-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <h2>Parquet-Dateien laden</h2>
+      <p>Eine oder mehrere Dateien hier ablegen oder klicken, um Dateien auszuwählen</p>
+      <input type="file" id="pp-fileInput" accept=".parquet,application/octet-stream" multiple hidden>
+      <button class="qrx-btn qrx-btn-primary" id="pp-pickBtn" type="button">
+        Dateien auswählen
+      </button>
+    </div>
+  </section>
+
+  <!-- File list (visible once at least one file is loaded) -->
+  <section class="pp-section" id="pp-statusSection" hidden>
+    <div class="pp-files-head">
+      <h2 class="pp-files-title">Geladene Dateien <span class="pp-files-count" id="pp-filesCount"></span></h2>
+      <div class="pp-files-controls">
+        <label class="pp-buffer-toggle" title="Lädt die aktive Datei vollständig in den Arbeitsspeicher. Schnelleres Profiling, aber höherer RAM-Verbrauch. Andere Dateien bleiben speicherschonend referenziert.">
+          <input type="checkbox" id="pp-bufferActive">
+          <span>Aktive Datei in den Speicher laden</span>
+        </label>
+        <button class="qrx-btn qrx-btn-sm" id="pp-addFilesBtn" type="button">+ Datei(en) hinzufügen</button>
+      </div>
+    </div>
+    <ul class="pp-file-list" id="pp-fileList"></ul>
+    <p class="pp-files-hint">
+      Die markierte Datei wird in den Tabs <em>Spalten</em>, <em>Vorschau</em> und <em>Pivot</em> profiliert.
+      Im <em>SQL</em>-Tab stehen alle Dateien als Views für Joins zur Verfügung.
+      Weitere Dateien jederzeit per Drag &amp; Drop (auch hierher) oder über die Schaltfläche hinzufügen.
+    </p>
+  </section>
+
+  <!-- Initialization / loading -->
+  <section class="pp-section" id="pp-loadingSection" hidden>
+    <div class="pp-loading">
+      <div class="pp-spinner" aria-hidden="true"></div>
+      <p id="pp-loadingText">DuckDB wird initialisiert &hellip;</p>
+    </div>
+  </section>
+
+  <!-- Error placeholder -->
+  <div id="pp-errorBox"></div>
+
+  <!-- Metadata cards -->
+  <section class="pp-section" id="pp-metaSection" hidden>
+    <h2 class="pp-section-title">Datei-Metadaten</h2>
+    <div class="pp-meta-grid" id="pp-metaGrid"></div>
+    <div class="pp-meta-tech" id="pp-metaTech"></div>
+  </section>
+
+  <!-- Tabs -->
+  <div class="pp-tabs" id="pp-tabs" role="tablist" hidden>
+    <button class="pp-tab pp-tab-active" role="tab" type="button"
+            id="pp-tab-cols" data-tab="cols"
+            aria-selected="true" aria-controls="pp-columnsSection">
+      <span class="pp-tab-label">Attribute</span>
+      <span class="pp-tab-count" id="pp-colsSummaryCount"></span>
+    </button>
+    <button class="pp-tab" role="tab" type="button"
+            id="pp-tab-preview" data-tab="preview"
+            aria-selected="false" aria-controls="pp-previewSection" tabindex="-1">
+      <span class="pp-tab-label">Daten-Vorschau</span>
+      <span class="pp-tab-count" id="pp-previewSummaryCount"></span>
+    </button>
+    <button class="pp-tab" role="tab" type="button"
+            id="pp-tab-pivot" data-tab="pivot"
+            aria-selected="false" aria-controls="pp-pivotSection" tabindex="-1">
+      <span class="pp-tab-label">Pivot</span>
+      <span class="pp-tab-count" id="pp-pivotSummaryCount"></span>
+    </button>
+    <button class="pp-tab" role="tab" type="button"
+            id="pp-tab-sql" data-tab="sql"
+            aria-selected="false" aria-controls="pp-sqlSection" tabindex="-1">
+      <span class="pp-tab-label">SQL</span>
+      <span class="pp-tab-count" id="pp-sqlSummaryCount"></span>
+    </button>
+    <button class="pp-tabs-fullscreen" id="pp-fullscreenBtn" type="button"
+            aria-label="Vollbild" aria-pressed="false"
+            title="Vollbild f\u00FCr aktiven Tab (Esc zum Verlassen)">
+      <svg class="pp-icon-enlarge" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+        <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+      </svg>
+      <svg class="pp-icon-shrink" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+        <line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Attribute panel -->
+  <section class="pp-tab-panel" id="pp-columnsSection"
+           role="tabpanel" aria-labelledby="pp-tab-cols" tabindex="0" hidden>
+    <p class="pp-section-hint">Statistiken beziehen sich auf den gesamten Datensatz, unabhängig von Filtern.</p>
+
+    <div class="pp-cols-filters" id="pp-colsFilters" hidden>
+      <div class="pp-preview-filters-header">
+        <div class="pp-filter-result" id="pp-colsFilterResult"></div>
+        <button class="qrx-btn qrx-btn-sm qrx-btn-ghost" id="pp-clearColsFiltersBtn" type="button">
+          Alle Filter entfernen
+        </button>
+      </div>
+      <div class="pp-filters-list" id="pp-colsFiltersList"></div>
+    </div>
+
+    <p class="pp-cols-meta" id="pp-colsMeta"></p>
+    <div class="pp-cols-wrap" id="pp-columnsList"></div>
+  </section>
+
+  <!-- Data preview -->
+  <!-- Daten-Vorschau panel -->
+  <section class="pp-tab-panel" id="pp-previewSection"
+           role="tabpanel" aria-labelledby="pp-tab-preview" tabindex="0" hidden>
+    <div class="pp-preview-filters" id="pp-previewFilters" hidden>
+      <div class="pp-preview-filters-header">
+        <div class="pp-filter-result" id="pp-filterResult"></div>
+        <button class="qrx-btn qrx-btn-sm qrx-btn-ghost" id="pp-clearFiltersBtn" type="button">
+          Alle Filter entfernen
+        </button>
+      </div>
+      <div class="pp-filters-list" id="pp-filtersList"></div>
+    </div>
+
+    <div class="pp-preview-controls">
+      <label>
+        Zeilen pro Seite:
+        <select id="pp-previewLimit" class="qrx-select" style="display:inline-block;width:auto;margin-left:.5rem">
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="500">500</option>
+        </select>
+      </label>
+      <span class="pp-preview-meta" id="pp-previewMeta"></span>
+    </div>
+
+    <div class="pp-preview-wrap">
+      <table class="pp-preview-table" id="pp-previewTable">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="pp-pagination" id="pp-pagination" hidden>
+      <button class="qrx-btn qrx-btn-sm" data-page-action="first" type="button" aria-label="Erste Seite">«</button>
+      <button class="qrx-btn qrx-btn-sm" data-page-action="prev" type="button" aria-label="Vorherige Seite">‹ Zurück</button>
+      <span class="pp-pagination-info" id="pp-paginationInfo"></span>
+      <button class="qrx-btn qrx-btn-sm" data-page-action="next" type="button" aria-label="Nächste Seite">Vor ›</button>
+      <button class="qrx-btn qrx-btn-sm" data-page-action="last" type="button" aria-label="Letzte Seite">»</button>
+      <label class="pp-pagination-jump">
+        Seite
+        <input type="number" id="pp-pageJump" class="qrx-input" min="1" step="1">
+      </label>
+    </div>
+  </section>
+
+  <!-- Pivot -->
+  <!-- Pivot panel -->
+  <section class="pp-tab-panel" id="pp-pivotSection"
+           role="tabpanel" aria-labelledby="pp-tab-pivot" tabindex="0" hidden>
+    <p class="pp-section-hint">
+      Erstelle eine Pivot-Auswertung &uuml;ber den gesamten Datensatz &mdash; analog zu Excel.
+      Felder f&uuml;r Zeilen und Spalten gruppieren, Werte werden aggregiert.
+    </p>
+
+    <div class="pp-pivot-config">
+      <div class="pp-pivot-zone" data-zone="rows">
+        <div class="pp-pivot-zone-head">
+          <span class="pp-pivot-zone-title">Zeilen</span>
+          <button class="qrx-btn qrx-btn-sm qrx-btn-ghost" type="button"
+                  data-action="add-pivot-field" data-zone="rows">+ Feld</button>
+        </div>
+        <div class="pp-pivot-chips" data-chips="rows"></div>
+        <div class="pp-pivot-zone-empty">Keine Zeilen-Dimension</div>
+      </div>
+      <div class="pp-pivot-zone" data-zone="cols">
+        <div class="pp-pivot-zone-head">
+          <span class="pp-pivot-zone-title">Spalten</span>
+          <button class="qrx-btn qrx-btn-sm qrx-btn-ghost" type="button"
+                  data-action="add-pivot-field" data-zone="cols">+ Feld</button>
+        </div>
+        <div class="pp-pivot-chips" data-chips="cols"></div>
+        <div class="pp-pivot-zone-empty">Keine Spalten-Dimension</div>
+      </div>
+      <div class="pp-pivot-zone" data-zone="values">
+        <div class="pp-pivot-zone-head">
+          <span class="pp-pivot-zone-title">Werte</span>
+          <button class="qrx-btn qrx-btn-sm qrx-btn-ghost" type="button"
+                  data-action="add-pivot-field" data-zone="values">+ Wert</button>
+        </div>
+        <div class="pp-pivot-chips" data-chips="values"></div>
+        <div class="pp-pivot-zone-empty">Keine Werte definiert</div>
+      </div>
+    </div>
+
+    <div class="pp-pivot-actions">
+      <button class="qrx-btn qrx-btn-primary" id="pp-pivotRunBtn" type="button">Berechnen</button>
+      <button class="qrx-btn" id="pp-pivotResetBtn" type="button">Zur&uuml;cksetzen</button>
+      <span class="pp-pivot-status" id="pp-pivotStatus"></span>
+    </div>
+
+    <div class="pp-pivot-result" id="pp-pivotResult"></div>
+  </section>
+
+  <!-- SQL panel -->
+  <section class="pp-tab-panel" id="pp-sqlSection"
+           role="tabpanel" aria-labelledby="pp-tab-sql" tabindex="0" hidden>
+    <p class="pp-section-hint">
+      Direkter SQL-Zugriff auf alle geladenen Dateien via DuckDB. Jede Datei ist als
+      eigener View verfügbar (siehe Tabellen-Chips); <code>data</code> verweist immer auf
+      die aktive Datei. Joins über mehrere Dateien sind möglich. Tastenkürzel:
+      <kbd>Strg</kbd>/<kbd>&#8984;</kbd>+<kbd>Enter</kbd> zum Ausführen.
+    </p>
+
+    <div class="pp-sql-tables" id="pp-sqlTables"></div>
+
+    <div class="pp-sql-toolbar">
+      <label class="pp-sql-examples-label">
+        Beispiel:
+        <select id="pp-sqlExamples" class="qrx-select pp-sql-examples">
+          <option value="">&mdash; w&auml;hlen &mdash;</option>
+        </select>
+      </label>
+      <button class="qrx-btn" id="pp-sqlClearBtn" type="button">Leeren</button>
+    </div>
+
+    <textarea id="pp-sqlEditor" class="pp-sql-editor"
+              spellcheck="false" autocomplete="off" autocorrect="off"
+              autocapitalize="off" rows="8"
+              placeholder="SELECT * FROM data LIMIT 100;"></textarea>
+
+    <div class="pp-sql-actions">
+      <button class="qrx-btn qrx-btn-primary" id="pp-sqlRunBtn" type="button">
+        Ausf&uuml;hren
+        <span class="pp-sql-shortcut" aria-hidden="true">Strg+Enter</span>
+      </button>
+      <span class="pp-sql-status" id="pp-sqlStatus"></span>
+    </div>
+
+    <div class="pp-sql-result" id="pp-sqlResult"></div>
+  </section>

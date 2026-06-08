@@ -1,0 +1,73 @@
+/* === qurix design tokens (corporate identity) === */
+:root {
+  /* Brand colors — qurix Technology CI */
+  --qrx-blue:           #156B8E;  /* primary brand blue */
+  --qrx-blue-dark:      #0E4D67;
+  --qrx-blue-light:     #2A8AB0;
+  --qrx-green:          #2EC4A2;  /* accent green (Q tail) */
+  --qrx-green-dark:     #1FA888;
+  --qrx-green-light:    #4DD8B8;
+  --qrx-gradient:       linear-gradient(135deg, var(--qrx-blue) 0%, var(--qrx-green) 100%);
+
+  /* Functional aliases */
+  --qrx-primary:        var(--qrx-blue);
+  --qrx-primary-hover:  var(--qrx-blue-dark);
+  --qrx-accent:         var(--qrx-green);
+  --qrx-accent-hover:   var(--qrx-green-dark);
+
+  /* Surfaces */
+  --qrx-bg:             #FFFFFF;
+  --qrx-bg-subtle:      #F4F7F9;
+  --qrx-bg-muted:       #E8EEF2;
+  --qrx-surface:        #FFFFFF;
+  --qrx-bg-dark:        #0A1F2B;
+
+  /* Text */
+  --qrx-text:           #0E2530;
+  --qrx-text-muted:     #5A6B75;
+  --qrx-text-subtle:    #8A9AA3;
+  --qrx-text-inverse:   #FFFFFF;
+  --qrx-text-on-brand:  #FFFFFF;
+
+  /* Borders */
+  --qrx-border:         #DBE3E8;
+  --qrx-border-strong:  #BCC8D0;
+
+  /* Semantic */
+  --qrx-success:        #1FA888;
+  --qrx-warning:        #E8A317;
+  --qrx-danger:         #C8362A;
+  --qrx-info:           var(--qrx-blue);
+
+  /* Typography */
+  --qrx-font-sans: "Quicksand", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --qrx-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  /* Spacing */
+  --qrx-s-1: 0.25rem; --qrx-s-2: 0.5rem; --qrx-s-3: 0.75rem; --qrx-s-4: 1rem;
+  --qrx-s-5: 1.25rem; --qrx-s-6: 1.5rem; --qrx-s-8: 2rem; --qrx-s-10: 2.5rem;
+
+  /* Shape */
+  --qrx-radius-sm: 4px; --qrx-radius: 8px; --qrx-radius-lg: 12px;
+  --qrx-shadow-sm: 0 1px 2px rgba(14,37,48,0.06);
+  --qrx-shadow:    0 4px 12px rgba(14,37,48,0.10);
+  --qrx-shadow-lg: 0 12px 32px rgba(14,37,48,0.14);
+  --qrx-transition: 150ms ease;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --qrx-bg:            #0A1F2B;
+    --qrx-bg-subtle:     #122B38;
+    --qrx-bg-muted:      #1E3A47;
+    --qrx-surface:       #122B38;
+    --qrx-text:          #EAF2F5;
+    --qrx-text-muted:    #9DB1BC;
+    --qrx-text-subtle:   #6E8590;
+    --qrx-border:        #1E3A47;
+    --qrx-border-strong: #2C4D5C;
+    --qrx-shadow-sm:     0 1px 2px rgba(0,0,0,0.4);
+    --qrx-shadow:        0 4px 12px rgba(0,0,0,0.5);
+    --qrx-primary:       var(--qrx-blue-light);
+    --qrx-primary-hover: var(--qrx-blue);
+  }
+}

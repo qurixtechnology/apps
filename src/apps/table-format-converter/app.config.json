@@ -1,0 +1,17 @@
+{
+  "name": "Table Format Converter",
+  "lang": "en",
+  "theme": "qurix",
+  "output": "table-format-converter.html",
+  "card": {
+    "description": "Read CSV, Parquet, JSON, NDJSON or Excel, inspect the schema, fine-tune the parsing heuristic with a live preview, and export to a different format. Sample-first, so the first preview appears in ~100 ms even on multi-GB files.",
+    "tags": ["CSV ⇄ Parquet", "JSON", "Excel"]
+  },
+  "fonts": [],
+  "headAssets": [
+    {
+      "src": "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+      "crossorigin": "anonymous"
+    }
+  ]
+}

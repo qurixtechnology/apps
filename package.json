@@ -1,0 +1,11 @@
+{
+  "name": "qurix-apps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Modular qurix single-file apps: source modules + themes assembled into self-contained HTML by a zero-dependency Node generator.",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "extract": "node tools/extract.mjs"
+  }
+}

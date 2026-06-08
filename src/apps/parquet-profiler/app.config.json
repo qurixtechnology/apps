@@ -1,0 +1,18 @@
+{
+  "name": "Parquet Profiler",
+  "lang": "de",
+  "theme": "qurix",
+  "output": "parquet-profiler.html",
+  "card": {
+    "description": "Structural and statistical analysis of Parquet files. Reads metadata straight from the footer and profiles columns, row groups and compression — referencing files by byte range, so even several large files stay memory-friendly.",
+    "tags": [".parquet", "metadata", "column stats"]
+  },
+  "fonts": [],
+  "headAssets": [
+    {
+      "comment": "Chart.js via CDN, pinned version, minified",
+      "src": "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+      "crossorigin": "anonymous"
+    }
+  ]
+}

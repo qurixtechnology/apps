@@ -1,0 +1,10 @@
+:root{
+  --bg:#0a0d14; --bg2:#0f1422; --panel:#141a2a; --panel2:#1a2236;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --ink:#f3f0e8; --mut:#8a94a8; --mut2:#5e6781;
+  --gold:#f3c54a; --gold-d:#caa233;
+  --green:#34c878; --red:#ef5d60; --blue:#52a8e8; --violet:#9b8cff;
+  --host:#52a8e8;
+  --shadow:0 18px 50px -20px rgba(0,0,0,.7);
+  --r:14px;
+}

@@ -1,0 +1,75 @@
+    <h2>Table Format Converter</h2>
+    <p>
+      A browser-only tool to read structured tabular data (CSV, Parquet, JSON, NDJSON,
+      Excel, DuckDB, SQLite), inspect its structure, adjust the parsing heuristic, and
+      export it to a different format. <strong>Your data never leaves the browser</strong> — all
+      processing happens locally with DuckDB-WASM and SheetJS.
+    </p>
+
+    <h3>Workflow</h3>
+    <ol>
+      <li>Drop a file onto the drop zone, or click to pick one.</li>
+      <li>The app detects format and parsing parameters from a small sample
+          and shows a preview of the first 10 rows plus the schema.</li>
+      <li>Adjust any parameter on the left panel — the preview re-runs live
+          (debounced ~300 ms).</li>
+      <li>Pick a target format and options, then click <em>Export</em>. Only at
+          this point is the full file read end-to-end.</li>
+    </ol>
+
+    <h3>Sample-first performance</h3>
+    <p>
+      Drop is instant regardless of file size, and the first preview appears
+      within ~100 ms even for multi-GB files:
+    </p>
+    <ul>
+      <li><strong>Files &gt; 512&nbsp;KB</strong> — registered as a lazy
+          <code>FileReader</code> handle (no bytes loaded). A small
+          <strong>512&nbsp;KB head slice</strong> is pre-loaded into the WASM
+          heap and used for all preview / detection queries — they never touch
+          the rest of the file.</li>
+      <li><strong>Files ≤ 512&nbsp;KB</strong> — loaded entirely into the heap
+          once and reused for both preview and export.</li>
+      <li><strong>Parquet</strong> — column-pruned + row-group-pruned by DuckDB,
+          so even full reads only fetch what the query actually needs.</li>
+      <li><strong>Excel</strong> — must be loaded fully (SheetJS doesn't stream).
+          The heuristic peeks at only the first 100 rows per sheet.</li>
+      <li><strong>Export</strong> — always reads the <em>full</em> file; this is
+          the only stage where the entire dataset is touched.</li>
+    </ul>
+
+    <h3>Supported formats</h3>
+    <ul>
+      <li><strong>CSV / TSV</strong> — auto-detects encoding, BOM, line ending,
+          delimiter, quote, skiprows, header.</li>
+      <li><strong>Parquet</strong> — schema is read from metadata directly; no
+          heuristic needed.</li>
+      <li><strong>JSON (array)</strong> — full file is parsed (a JSON array is a
+          single value). For files &gt; 100&nbsp;MB the app suggests NDJSON instead.</li>
+      <li><strong>NDJSON / JSON Lines</strong> — schema inferred from the first ~100
+          lines.</li>
+      <li><strong>Excel (.xlsx)</strong> — sheet selection, data-block detection
+          (bounding box), header row, plus a visual range picker on the first
+          ~30&nbsp;×&nbsp;15 cells.</li>
+      <li><strong>DuckDB (.duckdb / .ddb / .db)</strong> — attached read-only;
+          pick which table to read from. Schema and types come straight from
+          the file. Can also be produced as an export target.</li>
+      <li><strong>SQLite (.sqlite / .sqlite3 / .db)</strong> — attached read-only
+          via DuckDB's SQLite scanner; pick which table to read from, then convert
+          it to any supported export format. (<code>.db</code> is auto-detected as
+          SQLite or DuckDB from the file's magic bytes.)</li>
+    </ul>
+
+    <h3>Notes &amp; limitations (v1)</h3>
+    <ul>
+      <li>Excel sheets with multiple disjoint data blocks: only the first/largest is
+          detected. Use the range picker to select another block manually.</li>
+      <li>Nested structures (Struct/List/Map) are shown as JSON strings in the preview;
+          Parquet export preserves native types.</li>
+      <li>If your browser blocks cross-origin <code>SharedArrayBuffer</code> (typical
+          for <code>file://</code>), DuckDB falls back to the single-threaded MVP build —
+          slightly slower but otherwise functional.</li>
+      <li>External libs (DuckDB-WASM, SheetJS) are loaded from public CDNs. Internet
+          access is therefore needed on first load; browsers cache aggressively
+          afterwards.</li>
+    </ul>

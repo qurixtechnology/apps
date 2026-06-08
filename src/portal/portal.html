@@ -1,0 +1,46 @@
+<header class="qrx-header">
+  <svg class="qrx-logo" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="qurix Technology">
+    <defs>
+      <linearGradient id="qrxRing" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#156B8E"/>
+        <stop offset="100%" stop-color="#2EC4A2"/>
+      </linearGradient>
+    </defs>
+    <circle cx="34" cy="34" r="29" fill="none" stroke="url(#qrxRing)" stroke-width="6"/>
+    <line x1="33" y1="38" x2="62" y2="66" stroke="#2EC4A2" stroke-width="8" stroke-linecap="butt"/>
+  </svg>
+  <span class="qrx-wordmark">qurix</span>
+  <span class="qrx-tag"><span class="qrx-dot"></span>Browser Data Tools</span>
+</header>
+
+<main>
+  <section class="qrx-hero">
+    <span class="qrx-eyebrow">Local-first · No backend</span>
+    <h1>Data tools that run <span class="grad">entirely in your browser</span>.</h1>
+    <p>
+      A small suite of single-file web apps for inspecting and reshaping tabular data.
+      Your files are read locally and never uploaded anywhere.
+    </p>
+    <div class="qrx-pills">
+      <span class="qrx-pill">No installation</span>
+      <span class="qrx-pill">Privacy by design</span>
+      <span class="qrx-pill">Open in any modern browser</span>
+    </div>
+  </section>
+
+  <section class="qrx-grid">
+
+<!--SLOT:cards-->
+
+  </section>
+</main>
+
+<footer>
+  <span>© <span id="yr"></span> qurix Technology GmbH · Powered by DuckDB</span>
+  <span class="qrx-priv">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    All processing happens locally in your browser.
+  </span>
+</footer>
+
+<script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
