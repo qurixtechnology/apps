@@ -11,12 +11,10 @@
                 docs.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
 
-  // === Version stamp YYMMDD-HHMMSS ===
+  // === Build version ===
+  // Baked into the [data-build-version] span at build time (newest source
+  // mtime, format YYMMDD-HHMMSS); read here only for the export filename.
   const versionEl = document.querySelector('[data-build-version]');
-  const d = new Date(), pad = n => String(n).padStart(2, '0');
-  versionEl.textContent =
-    `${String(d.getFullYear()).slice(2)}${pad(d.getMonth()+1)}${pad(d.getDate())}` +
-    `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 
   // === App state hooks ===
   window.qurixApp = window.qurixApp || {};

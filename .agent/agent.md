@@ -13,7 +13,7 @@ src/
   shell/
     chrome.html        # header/docs/main/footer markup with slot markers (shared)
     shell.css          # reset + components + .qrx-shell-* layout (token-driven, shared)
-    shell.js           # the IIFE: docs toggle, version stamp, pristine capture,
+    shell.js           # the IIFE: docs toggle, build-version readout, pristine capture,
                        #   hydrate, syncFormState, writeAppState, download,
                        #   export-blank + export-with-data handlers (shared, DO NOT edit per app)
   themes/
@@ -46,6 +46,7 @@ dist/                  # GENERATED, self-contained, the deployable artifacts (co
 - `npm run build` → regenerates every `dist/<app>.html` **and** the portal `dist/index.html`. No dependencies; needs Node only.
 - The generated file MUST stay self-contained: one inline `<style>` (theme + shell + app CSS), one inline `<script>` (shell IIFE then app JS), external libs only as the `<script src>` refs declared in `headAssets`, fonts only via theme `<link>`s.
 - After building, sanity-check: open `dist/<app>.html` via `file://` (no console errors); exercise docs toggle, the footer version stamp, **Export blank** (clean copy, no entered data) and **Export with data** (reopen the snapshot → state restored).
+- The footer **build version** (`[data-build-version]`, format `YYMMDD-HHMMSS`) is computed at build time as the newest modification time among that app's dependent source files (theme, shell, app modules, fonts, inline assets) and baked into the HTML — it is stable, not a runtime clock. It also forms the export filename suffix.
 - Editing `dist/*.html` by hand is forbidden — change the source modules and rebuild. (`tools/extract.mjs` can re-derive modules from an old monolith by stable anchors.)
 
 ## Authoring a new app — files to produce

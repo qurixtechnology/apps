@@ -2,7 +2,7 @@
 // Assembles each app under src/apps/* from {theme + shell + app} modules into a
 // single self-contained HTML file in dist/. CDN libs stay external <script src>;
 // fonts stay <link>. Run: npm run build  (or: node tools/build.mjs)
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { fillSlots } from './slots.mjs';
@@ -10,6 +10,16 @@ import { fillSlots } from './slots.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const rd = (p) => readFileSync(join(ROOT, p), 'utf8');
 const trimNl = (s) => s.replace(/\n+$/, '');
+
+// Build version = newest modification time among an app's source files,
+// formatted YYMMDD-HHMMSS (local time). Baked into [data-build-version].
+const mtimeMs = (p) => { try { return statSync(join(ROOT, p)).mtimeMs; } catch { return 0; } };
+const pad2 = (n) => String(n).padStart(2, '0');
+function fmtVersion(ms) {
+  const d = new Date(ms);
+  return `${String(d.getFullYear()).slice(2)}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`
+       + `-${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+}
 
 function buildApp(appRel) {
   const cfg = JSON.parse(rd(`${appRel}/app.config.json`));
@@ -34,9 +44,23 @@ function buildApp(appRel) {
   });
   const headAssetsHtml = headAssets.length ? '\n\n' + headAssets.join('\n') : '';
 
+  // --- build version: newest mtime across this app's dependent source files ---
+  const deps = [
+    `src/themes/${cfg.theme}.css`,
+    ...(cfg.fonts || []).map((f) => `src/themes/${f}`),
+    ...(includeShellCss ? ['src/shell/shell.css'] : []),
+    'src/shell/shell.js', 'src/shell/chrome.html',
+    `${appRel}/app.config.json`, `${appRel}/app.css`, `${appRel}/app.js`,
+    `${appRel}/content.html`, `${appRel}/docs.html`,
+    ...(cfg.inlineStyles || []).map((p) => `${appRel}/${p}`),
+    ...(cfg.inlineScripts || []).map((p) => `${appRel}/${p}`),
+  ];
+  const version = fmtVersion(Math.max(...deps.map(mtimeMs)));
+
   // --- chrome with app slots filled (literal replace) ---
   const chrome = trimNl(fillSlots(rd('src/shell/chrome.html'), {
     '{{APP_NAME}}': cfg.name,
+    '{{BUILD_VERSION}}': version,
     '<!--SLOT:app-docs-->': trimNl(rd(`${appRel}/docs.html`)),
     '<!--SLOT:app-content-->': trimNl(rd(`${appRel}/content.html`)),
   }));
@@ -74,7 +98,7 @@ ${scriptsHtml}
 
   mkdirSync(join(ROOT, 'dist'), { recursive: true });
   writeFileSync(join(ROOT, 'dist', cfg.output), html);
-  console.log('built dist/' + cfg.output, '(' + html.length + ' bytes)');
+  console.log('built dist/' + cfg.output, 'v' + version, '(' + html.length + ' bytes)');
 }
 
 // Portal (index.html): uses the THEME but NOT the shell; cards are derived
