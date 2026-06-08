@@ -146,6 +146,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   position: sticky; top: 0; z-index: 10;
 }
 .qrx-header-brand { display: flex; align-items: center; gap: var(--qrx-s-3); }
+.qrx-header-home { display: inline-flex; align-items: center; gap: var(--qrx-s-3);
+                   text-decoration: none; color: inherit; }
+.qrx-header-home:hover { text-decoration: none; opacity: 0.85; }
 .qrx-header-logo { width: 36px; height: 36px; flex-shrink: 0; }
 .qrx-header-title { margin: 0; font-size: 1.125rem; font-weight: 600;
                     letter-spacing: -0.01em; color: var(--qrx-text); }
@@ -1606,19 +1609,22 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
 <header class="qrx-shell-header">
   <div class="qrx-header-brand">
-    <svg class="qrx-header-logo" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"
-         role="img" aria-label="qurix Technology">
-      <defs>
-        <linearGradient id="qrxRing" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%"   stop-color="#156B8E"/>
-          <stop offset="100%" stop-color="#2EC4A2"/>
-        </linearGradient>
-      </defs>
-      <circle cx="34" cy="34" r="29" fill="none" stroke="url(#qrxRing)" stroke-width="6"/>
-      <line x1="33" y1="38" x2="62" y2="66"
-            stroke="#2EC4A2" stroke-width="8" stroke-linecap="butt"/>
-    </svg>
-    <h1 class="qrx-header-title">qurix</h1>
+    <a class="qrx-header-home" href="https://www.qurix.tech" target="_blank" rel="noopener"
+       aria-label="qurix Technology — www.qurix.tech">
+      <svg class="qrx-header-logo" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-label="qurix Technology">
+        <defs>
+          <linearGradient id="qrxRing" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"   stop-color="#156B8E"/>
+            <stop offset="100%" stop-color="#2EC4A2"/>
+          </linearGradient>
+        </defs>
+        <circle cx="34" cy="34" r="29" fill="none" stroke="url(#qrxRing)" stroke-width="6"/>
+        <line x1="33" y1="38" x2="62" y2="66"
+              stroke="#2EC4A2" stroke-width="8" stroke-linecap="butt"/>
+      </svg>
+      <h1 class="qrx-header-title">qurix</h1>
+    </a>
     <span class="qrx-header-divider" aria-hidden="true"></span>
     <span class="qrx-header-app-label">WM 2026 Spielplan</span>
   </div>
@@ -1866,6 +1872,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="qrx-footer-brand">
     Built by
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
+    &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
+    &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
     &middot; v<span data-build-version></span>
   </div>
   <div style="display: flex; gap: 8px;">
