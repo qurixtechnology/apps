@@ -4,7 +4,8 @@
   "theme": "qurix",
   "output": "table-format-converter.html",
   "card": {
-    "description": "Read CSV, Parquet, JSON, NDJSON or Excel, inspect the schema, fine-tune the parsing heuristic with a live preview, and export to a different format. Sample-first, so the first preview appears in ~100 ms even on multi-GB files.",
+    "description": "Liest CSV, Parquet, JSON, NDJSON oder Excel, zeigt das Schema, lässt die Parsing-Heuristik mit Live-Vorschau feinjustieren und exportiert in ein anderes Format. Sample-first — die erste Vorschau erscheint in ~100 ms, selbst bei mehreren GB.",
+    "description_en": "Read CSV, Parquet, JSON, NDJSON or Excel, inspect the schema, fine-tune the parsing heuristic with a live preview, and export to a different format. Sample-first, so the first preview appears in ~100 ms even on multi-GB files.",
     "tags": ["CSV ⇄ Parquet", "JSON", "Excel"]
   },
   "fonts": [],

@@ -104,6 +104,7 @@ ${scriptsHtml}
 // Portal (index.html): uses the THEME but NOT the shell; cards are derived
 // from each app's config + icon.svg, so adding an app surfaces it automatically.
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
 
 function buildPortal() {
   const cfgRel = 'src/portal/portal.config.json';
@@ -117,21 +118,36 @@ function buildPortal() {
     const a = JSON.parse(rd(`src/apps/${app}/app.config.json`));
     const card = a.card || {};
     const icon = trimNl(rd(`src/apps/${app}/icon.svg`)).split('\n').map((l) => '        ' + l).join('\n');
-    const tags = (card.tags || []).map((t) => `        <span class="qrx-tagchip">${esc(t)}</span>`).join('\n');
+
+    // Bilingual card text: German is the rendered default, English carried in
+    // data-en (the portal's DE/EN toggle swaps it client-side).
+    const titleDe = card.title || a.name;
+    const titleEn = card.title_en || titleDe;
+    const titleAttrs = (card.title || card.title_en)
+      ? ` data-de="${escAttr(titleDe)}" data-en="${escAttr(titleEn)}"` : '';
+    const descDe = card.description || '';
+    const descEn = card.description_en || descDe;
+    const tagsDe = card.tags || [];
+    const tagsEn = card.tags_en || tagsDe;
+    const tags = tagsDe.map((t, i) => {
+      const en = tagsEn[i] != null ? tagsEn[i] : t;
+      return `        <span class="qrx-tagchip" data-de="${escAttr(t)}" data-en="${escAttr(en)}">${esc(t)}</span>`;
+    }).join('\n');
+
     return `    <!-- ${esc(a.name)} -->
     <article class="qrx-card">
       <div class="qrx-card-icon">
 ${icon}
       </div>
-      <h2>${esc(a.name)}</h2>
-      <p>
-        ${esc(card.description || '')}
+      <h2${titleAttrs}>${esc(titleDe)}</h2>
+      <p data-de="${escAttr(descDe)}" data-en="${escAttr(descEn)}">
+        ${esc(descDe)}
       </p>
       <div class="qrx-card-meta">
 ${tags}
       </div>
       <a class="qrx-launch" href="${a.output}">
-        Launch app
+        <span data-de="App öffnen" data-en="Launch app">App öffnen</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </a>
     </article>`;

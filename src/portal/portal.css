@@ -35,6 +35,12 @@ code {
 .qrx-dot { width:8px; height:8px; border-radius:50%; background:var(--qrx-green); box-shadow:0 0 0 4px rgba(46,196,162,0.18); }
 .qrx-home { display:inline-flex; align-items:center; gap:0.75rem; text-decoration:none; color:inherit; }
 .qrx-home:hover { text-decoration:none; opacity:0.85; }
+.qrx-lang {
+  font:inherit; font-size:0.8rem; font-weight:600; line-height:1;
+  padding:0.4rem 0.7rem; border:1px solid var(--qrx-border-strong); border-radius:999px;
+  background:var(--qrx-bg); color:var(--qrx-text-muted); cursor:pointer; transition:var(--qrx-transition);
+}
+.qrx-lang:hover { border-color:var(--qrx-primary); color:var(--qrx-primary); }
 
 /* === Hero === */
 main { flex:1; width:100%; max-width:1080px; margin:0 auto; padding:clamp(2.5rem,7vw,5rem) clamp(1.25rem,5vw,3rem) 3rem; }

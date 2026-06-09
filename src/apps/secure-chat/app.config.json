@@ -6,7 +6,9 @@
   "title": "Secure Chat – qurix",
   "card": {
     "description": "Verschlüsselter Peer-to-Peer-Videochat direkt im Browser. Die Verbindung läuft Ende-zu-Ende zwischen den Geräten — kein Konto, keine App, kein zentraler Server, der mithört. Per Kurz-ID anrufen oder ganz ohne Server über einen Einladungscode.",
-    "tags": ["P2P Video", "Ende-zu-Ende", "WebRTC"]
+    "description_en": "Encrypted peer-to-peer video chat right in the browser. The connection runs end-to-end between the devices — no account, no app, no central server listening in. Call via a short ID, or fully server-free using an invitation code.",
+    "tags": ["P2P-Video", "Ende-zu-Ende", "WebRTC"],
+    "tags_en": ["P2P video", "End-to-end", "WebRTC"]
   },
   "fonts": ["qurix.fonts.html"],
   "headAssets": [

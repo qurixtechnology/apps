@@ -1,6 +1,6 @@
 {
   "title": "qurix · Browser Data Tools",
-  "lang": "en",
+  "lang": "de",
   "theme": "qurix",
   "output": "index.html",
   "description": "A suite of local-first, browser-only data tools by qurix Technology. No data leaves your browser — everything runs on DuckDB-WASM.",

@@ -4,8 +4,10 @@
   "theme": "qurix",
   "output": "parquet-profiler.html",
   "card": {
-    "description": "Structural and statistical analysis of Parquet files. Reads metadata straight from the footer and profiles columns, row groups and compression — referencing files by byte range, so even several large files stay memory-friendly.",
-    "tags": [".parquet", "metadata", "column stats"]
+    "description": "Strukturelle und statistische Analyse von Parquet-Dateien. Liest die Metadaten direkt aus dem Footer und profiliert Spalten, Row-Groups und Kompression — Dateien werden per Byte-Bereich referenziert, sodass selbst mehrere grosse Dateien speicherschonend bleiben.",
+    "description_en": "Structural and statistical analysis of Parquet files. Reads metadata straight from the footer and profiles columns, row groups and compression — referencing files by byte range, so even several large files stay memory-friendly.",
+    "tags": [".parquet", "Metadaten", "Spalten-Statistik"],
+    "tags_en": [".parquet", "metadata", "column stats"]
   },
   "fonts": [],
   "headAssets": [
