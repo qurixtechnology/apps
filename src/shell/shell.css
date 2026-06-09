@@ -65,7 +65,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .qrx-header-home { display: inline-flex; align-items: center; gap: var(--qrx-s-3);
                    text-decoration: none; color: inherit; }
 .qrx-header-home:hover { text-decoration: none; opacity: 0.85; }
-.qrx-header-logo { width: 36px; height: 36px; flex-shrink: 0; }
+.qrx-header-logo { height: 40px; width: auto; flex-shrink: 0; display: block; }
 .qrx-header-title { margin: 0; font-size: 1.125rem; font-weight: 600;
                     letter-spacing: -0.01em; color: var(--qrx-text); }
 .qrx-header-divider { width: 1px; height: 24px; background: var(--qrx-border);

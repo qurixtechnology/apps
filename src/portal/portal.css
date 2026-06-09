@@ -26,7 +26,7 @@ code {
   backdrop-filter:saturate(140%) blur(8px);
   position:sticky; top:0; z-index:10;
 }
-.qrx-logo { width:38px; height:38px; flex-shrink:0; }
+.qrx-logo { height:42px; width:auto; flex-shrink:0; display:block; }
 .qrx-wordmark { font-weight:700; font-size:1.35rem; letter-spacing:-0.01em; }
 .qrx-tag {
   margin-left:auto; font-size:0.8rem; color:var(--qrx-text-muted);
