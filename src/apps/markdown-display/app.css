@@ -57,6 +57,24 @@
 }
 .md-layout > .md-paper { margin: 0; }   /* hug the column; outline sits beside it */
 
+/* Edit mode: source editor (left) + live preview (right); outline steps aside */
+.md-layout.is-editing { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.md-layout.is-editing .md-outline { display: none !important; }
+.md-editor { display: none; position: sticky; top: 84px; height: calc(100vh - 104px); }
+.md-layout.is-editing .md-editor { display: flex; }
+.md-source {
+  flex: 1; width: 100%; resize: none;
+  padding: var(--qrx-s-4);
+  font-family: var(--qrx-font-mono); font-size: 0.85rem; line-height: 1.6;
+  tab-size: 2;
+  color: var(--qrx-text); background: var(--qrx-surface);
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius-lg);
+}
+.md-source:focus { outline: none; border-color: var(--qrx-primary); box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
+
+/* Empty-state action buttons */
+.md-dropzone-actions { display: flex; flex-wrap: wrap; gap: var(--qrx-s-3); justify-content: center; }
+
 .md-outline {
   position: sticky; top: 84px;
   max-height: calc(100vh - 104px); overflow: auto;
@@ -94,8 +112,10 @@
 .md-ol-l5, .md-ol-l6 { padding-left: 3.3em; }
 
 @media (max-width: 900px) {
-  .md-layout { grid-template-columns: 1fr; }
+  .md-layout, .md-layout.is-editing { grid-template-columns: 1fr; }
   .md-outline { display: none !important; }
+  .md-editor { position: static; height: auto; }
+  .md-source { min-height: 50vh; }
 }
 
 /* Rendered markdown — paper-style */
@@ -340,10 +360,11 @@
 @media print {
   /* Hide everything except the rendered document */
   .qrx-shell-header, .qrx-shell-docs, .qrx-shell-footer,
-  .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar, .md-outline { display: none !important; }
+  .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar, .md-outline,
+  .md-editor { display: none !important; }
   body { background: #FFFFFF; display: block; }
   .qrx-shell-app { padding: 0; max-width: none; margin: 0; }
-  .md-layout { display: block; }
+  .md-layout, .md-layout.is-editing { display: block; grid-template-columns: none; }
 
   /* Force the light palette regardless of the screen color scheme (re-declaring
      the tokens for this subtree), and let backgrounds/borders actually print. */

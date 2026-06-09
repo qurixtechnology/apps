@@ -11,8 +11,13 @@
   const sampleBtn   = document.querySelector('[data-action="load-sample"]');
   const clearBtn    = document.querySelector('[data-action="clear"]');
   const pdfBtn      = document.querySelector('[data-action="export-pdf"]');
+  const sourceBtn   = document.querySelector('[data-action="toggle-source"]');
+  const pasteBtns   = document.querySelectorAll('[data-action="paste"]');
+  const writeBtns   = document.querySelectorAll('[data-action="write-new"]');
   const dropzone    = document.getElementById('md-dropzone');
   const output      = document.getElementById('md-output');
+  const layout      = document.querySelector('.md-layout');
+  const srcTextarea = document.getElementById('md-source');
   const filenameEl  = document.querySelector('[data-current-filename]');
   const toast       = document.getElementById('md-toast');
 
@@ -20,6 +25,8 @@
   let currentFilename = null;
   let currentText = null;   // raw markdown of the loaded document (for snapshots)
   let currentFmTitle = null; // title from YAML front matter, if any
+  let editing = false;      // source-editor mode on/off
+  let srcDebounce = null;
 
   // ----- Configure marked -----
   if (typeof marked === 'undefined') {
@@ -198,41 +205,108 @@
   }
 
   // ----- Render markdown -----
+  // Parse + inject + post-process (links, mermaid, tables, outline). Updates the
+  // document state but touches no surrounding UI — reused by both file/paste
+  // loading and the live source editor.
+  function applyMarkdown(text) {
+    const fm = extractFrontMatter(text);
+    const titleEntry = fm.data && fm.data.find((d) => d.key.toLowerCase() === 'title');
+    currentFmTitle = titleEntry ? titleEntry.value : null;
+
+    output.innerHTML = (fm.data ? frontMatterHtml(fm.data) : '') + marked.parse(fm.body);
+
+    // Make external links open in new tabs
+    output.querySelectorAll('a[href^="http"]').forEach((a) => {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
+    });
+
+    renderMermaid();
+    setupTableExports();
+    buildOutline();
+
+    currentText = text;
+  }
+
   function renderMarkdown(text, filename) {
     try {
-      const fm = extractFrontMatter(text);
-      const titleEntry = fm.data && fm.data.find((d) => d.key.toLowerCase() === 'title');
-      currentFmTitle = titleEntry ? titleEntry.value : null;
-
-      const html = marked.parse(fm.body);
-      output.innerHTML = (fm.data ? frontMatterHtml(fm.data) : '') + html;
-
-      // Make external links open in new tabs
-      output.querySelectorAll('a[href^="http"]').forEach(a => {
-        a.setAttribute('target', '_blank');
-        a.setAttribute('rel', 'noopener noreferrer');
-      });
-
-      renderMermaid();
-      setupTableExports();
-      buildOutline();
+      applyMarkdown(text);
 
       output.removeAttribute('hidden');
       dropzone.setAttribute('hidden', '');
       pdfBtn.disabled = false;
       clearBtn.removeAttribute('hidden');
+      sourceBtn.removeAttribute('hidden');
 
-      currentText = text;
       currentFilename = filename || 'document';
       filenameEl.textContent = filename || '';
 
-      // Scroll to top of rendered content
-      output.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Scroll to top of rendered content (not while live-editing)
+      if (!editing) output.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
       console.error(err);
       showToast('Failed to render Markdown: ' + err.message, 'error');
     }
   }
+
+  // ----- Source view / edit -----
+  function setEditing(on) {
+    editing = on;
+    if (layout) layout.classList.toggle('is-editing', on);
+    if (sourceBtn) sourceBtn.lastChild.textContent = on ? ' Preview' : ' Edit source';
+    if (on && srcTextarea) {
+      srcTextarea.value = currentText || '';
+      srcTextarea.focus();
+    }
+  }
+
+  function startBlankEditor() {
+    renderMarkdown('', 'untitled.md');
+    setEditing(true);
+  }
+
+  if (srcTextarea) {
+    srcTextarea.addEventListener('input', () => {
+      clearTimeout(srcDebounce);
+      srcDebounce = setTimeout(() => {
+        try { applyMarkdown(srcTextarea.value); }
+        catch (e) { console.error(e); showToast('Render error: ' + e.message, 'error'); }
+      }, 300);
+    });
+    // Tab inserts two spaces rather than moving focus out of the editor.
+    srcTextarea.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      e.preventDefault();
+      const s = srcTextarea.selectionStart, en = srcTextarea.selectionEnd;
+      srcTextarea.value = srcTextarea.value.slice(0, s) + '  ' + srcTextarea.value.slice(en);
+      srcTextarea.selectionStart = srcTextarea.selectionEnd = s + 2;
+    });
+  }
+
+  if (sourceBtn) sourceBtn.addEventListener('click', () => setEditing(!editing));
+  writeBtns.forEach((b) => b.addEventListener('click', startBlankEditor));
+
+  // ----- Paste from clipboard -----
+  async function pasteFromClipboard() {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      startBlankEditor();
+      showToast('Paste your Markdown into the editor (Ctrl/⌘+V).', 'error');
+      return;
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        setEditing(false);
+        renderMarkdown(text, 'clipboard.md');
+      } else {
+        showToast('Clipboard is empty.', 'error');
+      }
+    } catch (e) {
+      startBlankEditor();
+      showToast('Couldn’t read the clipboard — paste into the editor (Ctrl/⌘+V).', 'error');
+    }
+  }
+  pasteBtns.forEach((b) => b.addEventListener('click', pasteFromClipboard));
 
   // ----- File loading -----
   function loadFile(file) {
@@ -367,13 +441,16 @@
 
   // ----- Clear -----
   clearBtn.addEventListener('click', () => {
+    setEditing(false);
     output.innerHTML = '';
     output.setAttribute('hidden', '');
     clearOutline();
     dropzone.removeAttribute('hidden');
     pdfBtn.disabled = true;
     clearBtn.setAttribute('hidden', '');
+    sourceBtn.setAttribute('hidden', '');
     filenameEl.textContent = '';
+    if (srcTextarea) srcTextarea.value = '';
     currentFilename = null;
     currentText = null;
     currentFmTitle = null;

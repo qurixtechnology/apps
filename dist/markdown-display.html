@@ -234,6 +234,24 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 }
 .md-layout > .md-paper { margin: 0; }   /* hug the column; outline sits beside it */
 
+/* Edit mode: source editor (left) + live preview (right); outline steps aside */
+.md-layout.is-editing { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.md-layout.is-editing .md-outline { display: none !important; }
+.md-editor { display: none; position: sticky; top: 84px; height: calc(100vh - 104px); }
+.md-layout.is-editing .md-editor { display: flex; }
+.md-source {
+  flex: 1; width: 100%; resize: none;
+  padding: var(--qrx-s-4);
+  font-family: var(--qrx-font-mono); font-size: 0.85rem; line-height: 1.6;
+  tab-size: 2;
+  color: var(--qrx-text); background: var(--qrx-surface);
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius-lg);
+}
+.md-source:focus { outline: none; border-color: var(--qrx-primary); box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
+
+/* Empty-state action buttons */
+.md-dropzone-actions { display: flex; flex-wrap: wrap; gap: var(--qrx-s-3); justify-content: center; }
+
 .md-outline {
   position: sticky; top: 84px;
   max-height: calc(100vh - 104px); overflow: auto;
@@ -271,8 +289,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .md-ol-l5, .md-ol-l6 { padding-left: 3.3em; }
 
 @media (max-width: 900px) {
-  .md-layout { grid-template-columns: 1fr; }
+  .md-layout, .md-layout.is-editing { grid-template-columns: 1fr; }
   .md-outline { display: none !important; }
+  .md-editor { position: static; height: auto; }
+  .md-source { min-height: 50vh; }
 }
 
 /* Rendered markdown — paper-style */
@@ -517,10 +537,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 @media print {
   /* Hide everything except the rendered document */
   .qrx-shell-header, .qrx-shell-docs, .qrx-shell-footer,
-  .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar, .md-outline { display: none !important; }
+  .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar, .md-outline,
+  .md-editor { display: none !important; }
   body { background: #FFFFFF; display: block; }
   .qrx-shell-app { padding: 0; max-width: none; margin: 0; }
-  .md-layout { display: block; }
+  .md-layout, .md-layout.is-editing { display: block; grid-template-columns: none; }
 
   /* Force the light palette regardless of the screen color scheme (re-declaring
      the tokens for this subtree), and let backgrounds/borders actually print. */
@@ -582,6 +603,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       <li>Click <strong>Open Markdown File</strong> to pick a file, or simply
           <strong>drag &amp; drop</strong> a <code>.md</code> / <code>.markdown</code> /
           <code>.txt</code> file anywhere onto the page.</li>
+      <li><strong>Paste</strong> Markdown straight from the clipboard, or click
+          <strong>Write Markdown</strong> to start from a blank editor.</li>
+      <li>Use <strong>Edit source</strong> to view and edit the raw Markdown side-by-side with a
+          live preview; toggle <strong>Preview</strong> to hide the editor again.</li>
       <li>Use <strong>Load sample</strong> if you just want to see what the renderer looks like.</li>
       <li>Once a document is loaded, click <strong>Export as PDF</strong> to open your
           browser's print dialog — choose <em>Save as PDF</em> to get a clean copy of the
@@ -667,6 +692,15 @@ flowchart LR
         </svg>
         Open Markdown File
       </button>
+      <button class="qrx-btn" data-action="paste" aria-label="Paste Markdown from clipboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <rect x="8" y="2" width="8" height="4" rx="1"/>
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        </svg>
+        Paste
+      </button>
       <button class="qrx-btn" data-action="load-sample">
         Load sample
       </button>
@@ -676,6 +710,16 @@ flowchart LR
       <span class="md-filename" data-current-filename></span>
     </div>
     <div class="md-toolbar-right">
+      <button class="qrx-btn" data-action="toggle-source" hidden
+              aria-label="View and edit the Markdown source">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <polyline points="16 18 22 12 16 6"/>
+          <polyline points="8 6 2 12 8 18"/>
+        </svg>
+        Edit source
+      </button>
       <button class="qrx-btn qrx-btn-accent" data-action="export-pdf" disabled
               aria-label="Export rendered document as PDF">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -699,7 +743,19 @@ flowchart LR
         <line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
     </div>
-    <p>Drop a Markdown file here — or use <strong>Open Markdown File</strong> above.</p>
+    <p>Drop a Markdown file here, open one, or paste from the clipboard.</p>
+    <div class="md-dropzone-actions">
+      <button class="qrx-btn qrx-btn-primary" data-action="paste" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <rect x="8" y="2" width="8" height="4" rx="1"/>
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        </svg>
+        Paste from clipboard
+      </button>
+      <button class="qrx-btn" data-action="write-new" type="button">Write Markdown</button>
+    </div>
     <p class="md-dropzone-hint">
       Supports <code>.md</code>, <code>.markdown</code>, <code>.mdown</code>,
       <code>.mkd</code>, <code>.txt</code>
@@ -711,6 +767,11 @@ flowchart LR
       <div class="md-outline-title">Outline</div>
       <nav class="md-outline-nav" id="md-outline-nav"></nav>
     </aside>
+
+    <div class="md-editor" id="md-editor">
+      <textarea id="md-source" class="md-source" spellcheck="false" wrap="soft"
+                aria-label="Markdown source" placeholder="# Write or paste Markdown here…"></textarea>
+    </div>
 
     <article class="md-paper qrx-card" id="md-output" hidden>
       <!-- Rendered markdown injected here -->
@@ -726,7 +787,7 @@ flowchart LR
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260609-135755</span>
+    &middot; v<span data-build-version>260609-140910</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -868,8 +929,13 @@ flowchart LR
   const sampleBtn   = document.querySelector('[data-action="load-sample"]');
   const clearBtn    = document.querySelector('[data-action="clear"]');
   const pdfBtn      = document.querySelector('[data-action="export-pdf"]');
+  const sourceBtn   = document.querySelector('[data-action="toggle-source"]');
+  const pasteBtns   = document.querySelectorAll('[data-action="paste"]');
+  const writeBtns   = document.querySelectorAll('[data-action="write-new"]');
   const dropzone    = document.getElementById('md-dropzone');
   const output      = document.getElementById('md-output');
+  const layout      = document.querySelector('.md-layout');
+  const srcTextarea = document.getElementById('md-source');
   const filenameEl  = document.querySelector('[data-current-filename]');
   const toast       = document.getElementById('md-toast');
 
@@ -877,6 +943,8 @@ flowchart LR
   let currentFilename = null;
   let currentText = null;   // raw markdown of the loaded document (for snapshots)
   let currentFmTitle = null; // title from YAML front matter, if any
+  let editing = false;      // source-editor mode on/off
+  let srcDebounce = null;
 
   // ----- Configure marked -----
   if (typeof marked === 'undefined') {
@@ -1055,41 +1123,108 @@ flowchart LR
   }
 
   // ----- Render markdown -----
+  // Parse + inject + post-process (links, mermaid, tables, outline). Updates the
+  // document state but touches no surrounding UI — reused by both file/paste
+  // loading and the live source editor.
+  function applyMarkdown(text) {
+    const fm = extractFrontMatter(text);
+    const titleEntry = fm.data && fm.data.find((d) => d.key.toLowerCase() === 'title');
+    currentFmTitle = titleEntry ? titleEntry.value : null;
+
+    output.innerHTML = (fm.data ? frontMatterHtml(fm.data) : '') + marked.parse(fm.body);
+
+    // Make external links open in new tabs
+    output.querySelectorAll('a[href^="http"]').forEach((a) => {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
+    });
+
+    renderMermaid();
+    setupTableExports();
+    buildOutline();
+
+    currentText = text;
+  }
+
   function renderMarkdown(text, filename) {
     try {
-      const fm = extractFrontMatter(text);
-      const titleEntry = fm.data && fm.data.find((d) => d.key.toLowerCase() === 'title');
-      currentFmTitle = titleEntry ? titleEntry.value : null;
-
-      const html = marked.parse(fm.body);
-      output.innerHTML = (fm.data ? frontMatterHtml(fm.data) : '') + html;
-
-      // Make external links open in new tabs
-      output.querySelectorAll('a[href^="http"]').forEach(a => {
-        a.setAttribute('target', '_blank');
-        a.setAttribute('rel', 'noopener noreferrer');
-      });
-
-      renderMermaid();
-      setupTableExports();
-      buildOutline();
+      applyMarkdown(text);
 
       output.removeAttribute('hidden');
       dropzone.setAttribute('hidden', '');
       pdfBtn.disabled = false;
       clearBtn.removeAttribute('hidden');
+      sourceBtn.removeAttribute('hidden');
 
-      currentText = text;
       currentFilename = filename || 'document';
       filenameEl.textContent = filename || '';
 
-      // Scroll to top of rendered content
-      output.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Scroll to top of rendered content (not while live-editing)
+      if (!editing) output.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
       console.error(err);
       showToast('Failed to render Markdown: ' + err.message, 'error');
     }
   }
+
+  // ----- Source view / edit -----
+  function setEditing(on) {
+    editing = on;
+    if (layout) layout.classList.toggle('is-editing', on);
+    if (sourceBtn) sourceBtn.lastChild.textContent = on ? ' Preview' : ' Edit source';
+    if (on && srcTextarea) {
+      srcTextarea.value = currentText || '';
+      srcTextarea.focus();
+    }
+  }
+
+  function startBlankEditor() {
+    renderMarkdown('', 'untitled.md');
+    setEditing(true);
+  }
+
+  if (srcTextarea) {
+    srcTextarea.addEventListener('input', () => {
+      clearTimeout(srcDebounce);
+      srcDebounce = setTimeout(() => {
+        try { applyMarkdown(srcTextarea.value); }
+        catch (e) { console.error(e); showToast('Render error: ' + e.message, 'error'); }
+      }, 300);
+    });
+    // Tab inserts two spaces rather than moving focus out of the editor.
+    srcTextarea.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      e.preventDefault();
+      const s = srcTextarea.selectionStart, en = srcTextarea.selectionEnd;
+      srcTextarea.value = srcTextarea.value.slice(0, s) + '  ' + srcTextarea.value.slice(en);
+      srcTextarea.selectionStart = srcTextarea.selectionEnd = s + 2;
+    });
+  }
+
+  if (sourceBtn) sourceBtn.addEventListener('click', () => setEditing(!editing));
+  writeBtns.forEach((b) => b.addEventListener('click', startBlankEditor));
+
+  // ----- Paste from clipboard -----
+  async function pasteFromClipboard() {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      startBlankEditor();
+      showToast('Paste your Markdown into the editor (Ctrl/⌘+V).', 'error');
+      return;
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        setEditing(false);
+        renderMarkdown(text, 'clipboard.md');
+      } else {
+        showToast('Clipboard is empty.', 'error');
+      }
+    } catch (e) {
+      startBlankEditor();
+      showToast('Couldn’t read the clipboard — paste into the editor (Ctrl/⌘+V).', 'error');
+    }
+  }
+  pasteBtns.forEach((b) => b.addEventListener('click', pasteFromClipboard));
 
   // ----- File loading -----
   function loadFile(file) {
@@ -1224,13 +1359,16 @@ flowchart LR
 
   // ----- Clear -----
   clearBtn.addEventListener('click', () => {
+    setEditing(false);
     output.innerHTML = '';
     output.setAttribute('hidden', '');
     clearOutline();
     dropzone.removeAttribute('hidden');
     pdfBtn.disabled = true;
     clearBtn.setAttribute('hidden', '');
+    sourceBtn.setAttribute('hidden', '');
     filenameEl.textContent = '';
+    if (srcTextarea) srcTextarea.value = '';
     currentFilename = null;
     currentText = null;
     currentFmTitle = null;
