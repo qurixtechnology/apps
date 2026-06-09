@@ -459,6 +459,51 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   margin-right: 0.4em; transform: translateY(1px);
 }
 
+/* Mermaid figure wrapper (holds the diagram + a fullscreen button) */
+.md-paper .md-fig { position: relative; margin: 0 0 1.1em; }
+.md-paper .md-fig .mermaid { margin: 0; }
+.md-fig-fs {
+  position: absolute; top: 8px; right: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0;
+  font-size: 0.9rem; line-height: 1;
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius-sm);
+  background: var(--qrx-surface); color: var(--qrx-text-muted);
+  cursor: pointer; opacity: 0;
+  transition: opacity var(--qrx-transition), color var(--qrx-transition), border-color var(--qrx-transition);
+}
+.md-paper .md-fig:hover .md-fig-fs, .md-fig-fs:focus { opacity: 1; }
+.md-fig-fs:hover { color: var(--qrx-primary); border-color: var(--qrx-primary); }
+
+/* Fullscreen overlay */
+.md-fs { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; background: var(--qrx-bg); }
+.md-fs[hidden] { display: none; }
+.md-fs-bar {
+  display: flex; align-items: center; gap: var(--qrx-s-3);
+  padding: var(--qrx-s-3) var(--qrx-s-5);
+  background: var(--qrx-surface); border-bottom: 1px solid var(--qrx-border);
+}
+.md-fs-title {
+  margin-right: auto; font-weight: 600; font-size: 0.95rem; color: var(--qrx-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-fs-actions { display: flex; gap: var(--qrx-s-1); }
+.md-fs-btn, .md-fs-close {
+  font: inherit; font-size: 0.8125rem; font-weight: 600;
+  min-width: 2.4em; padding: 0.3em 0.6em;
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius-sm);
+  background: var(--qrx-surface); color: var(--qrx-text-muted); cursor: pointer;
+  transition: var(--qrx-transition);
+}
+.md-fs-btn:hover, .md-fs-close:hover { border-color: var(--qrx-primary); color: var(--qrx-primary); }
+.md-fs-close { margin-left: var(--qrx-s-2); font-size: 1rem; }
+.md-fs-body { flex: 1; overflow: auto; padding: var(--qrx-s-8) var(--qrx-s-6); background: var(--qrx-bg); }
+.md-fs-content { transform-origin: top left; transition: transform 0.12s ease; }
+.md-fs .md-paper {
+  padding: 0; margin: 0; max-width: none;
+  box-shadow: none; border: none; background: transparent;
+}
+
 /* Mermaid diagrams — rendered with mermaid's light theme and placed on a light
    figure surface, so they stay legible in dark mode and print cleanly. */
 .md-paper .mermaid {
@@ -538,7 +583,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   /* Hide everything except the rendered document */
   .qrx-shell-header, .qrx-shell-docs, .qrx-shell-footer,
   .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar, .md-outline,
-  .md-editor { display: none !important; }
+  .md-editor, .md-fig-fs, .md-fs { display: none !important; }
   body { background: #FFFFFF; display: block; }
   .qrx-shell-app { padding: 0; max-width: none; margin: 0; }
   .md-layout, .md-layout.is-editing { display: block; grid-template-columns: none; }
@@ -644,6 +689,12 @@ flowchart LR
     <p>
       Diagrams adapt to light / dark mode and are included in the PDF export. Rendering runs
       in Mermaid's <code>strict</code> security mode, so diagram labels can't inject scripts.
+    </p>
+
+    <h3>Fullscreen</h3>
+    <p>
+      Tables and diagrams have a <strong>⛶</strong> button to open them in a fullscreen view with
+      zoom controls (−&nbsp;/&nbsp;100%&nbsp;/&nbsp;+). Press <code>Esc</code> or the ✕ button to close.
     </p>
 
     <h3>Export tables (CSV / Parquet)</h3>
@@ -779,6 +830,20 @@ flowchart LR
   </div>
 
   <div class="md-toast" id="md-toast" role="status" aria-live="polite"></div>
+
+  <!-- Fullscreen view for tables & diagrams -->
+  <div class="md-fs" id="md-fs" hidden role="dialog" aria-modal="true" aria-label="Fullscreen view">
+    <div class="md-fs-bar">
+      <span class="md-fs-title" id="md-fs-title"></span>
+      <div class="md-fs-actions">
+        <button class="md-fs-btn" id="md-fs-zoomout" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+        <button class="md-fs-btn" id="md-fs-zoomreset" type="button" title="Reset zoom" aria-label="Reset zoom">100%</button>
+        <button class="md-fs-btn" id="md-fs-zoomin" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+      </div>
+      <button class="md-fs-close" id="md-fs-close" type="button" title="Close (Esc)" aria-label="Close fullscreen">✕</button>
+    </div>
+    <div class="md-fs-body" id="md-fs-body"></div>
+  </div>
 </main>
 
 <footer class="qrx-shell-footer">
@@ -787,7 +852,7 @@ flowchart LR
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260609-140910</span>
+    &middot; v<span data-build-version>260609-142435</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -938,6 +1003,9 @@ flowchart LR
   const srcTextarea = document.getElementById('md-source');
   const filenameEl  = document.querySelector('[data-current-filename]');
   const toast       = document.getElementById('md-toast');
+  const fsEl        = document.getElementById('md-fs');
+  const fsBody      = document.getElementById('md-fs-body');
+  const fsTitle     = document.getElementById('md-fs-title');
 
   // ----- State -----
   let currentFilename = null;
@@ -1049,15 +1117,21 @@ flowchart LR
     } catch (_e) { /* ignore re-init issues */ }
 
     const nodes = [];
+    let count = 0;
     blocks.forEach((codeEl) => {
       const pre = codeEl.closest('pre');
       if (!pre) return;
       const def = codeEl.textContent || '';
+      count++;
+      const fig = document.createElement('figure');
+      fig.className = 'md-fig';
       const el = document.createElement('div');
       el.className = 'mermaid';
       el.id = 'mmd-' + (++mermaidSeq);
       el.textContent = def;
-      pre.replaceWith(el);
+      fig.appendChild(el);
+      fig.appendChild(makeFsButton(el, 'Diagram ' + count, 'View diagram fullscreen'));
+      pre.replaceWith(fig);
       nodes.push(el);
     });
     if (!nodes.length) return;
@@ -1127,6 +1201,7 @@ flowchart LR
   // document state but touches no surrounding UI — reused by both file/paste
   // loading and the live source editor.
   function applyMarkdown(text) {
+    if (fsReturn) closeFullscreen();   // never re-render with a node moved into the overlay
     const fm = extractFrontMatter(text);
     const titleEntry = fm.data && fm.data.find((d) => d.key.toLowerCase() === 'title');
     currentFmTitle = titleEntry ? titleEntry.value : null;
@@ -1359,6 +1434,7 @@ flowchart LR
 
   // ----- Clear -----
   clearBtn.addEventListener('click', () => {
+    closeFullscreen();
     setEditing(false);
     output.innerHTML = '';
     output.setAttribute('hidden', '');
@@ -1615,9 +1691,90 @@ flowchart LR
       pqBtn.textContent = 'Parquet';
       pqBtn.addEventListener('click', () => exportTableParquet(table, idx, pqBtn));
 
+      const fsBtn = document.createElement('button');
+      fsBtn.type = 'button'; fsBtn.className = 'md-tbl-btn';
+      fsBtn.title = 'View fullscreen';
+      fsBtn.setAttribute('aria-label', 'View table fullscreen');
+      fsBtn.textContent = '⛶';
+      fsBtn.addEventListener('click', () =>
+        openFullscreen(table, tables.length > 1 ? 'Table ' + idx : 'Table'));
+
       bar.appendChild(csvBtn);
       bar.appendChild(pqBtn);
+      bar.appendChild(fsBtn);
       table.parentNode.insertBefore(bar, table);
+    });
+  }
+
+  // ----- Fullscreen view (tables & diagrams) -----
+  // The real element is MOVED into the overlay (not cloned) so its styles and
+  // mermaid SVG ids stay intact; on close it is put back via a placeholder.
+  let fsReturn = null;   // { node, placeholder }
+  let fsScale = 1;
+
+  function makeFsButton(node, label, aria) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'md-fig-fs';
+    b.title = 'View fullscreen';
+    b.setAttribute('aria-label', aria || 'View fullscreen');
+    b.textContent = '⛶';
+    b.addEventListener('click', () => openFullscreen(node, label));
+    return b;
+  }
+
+  function applyFsScale() {
+    const c = fsBody.querySelector('.md-fs-content');
+    if (c) c.style.transform = 'scale(' + fsScale + ')';
+    const rb = document.getElementById('md-fs-zoomreset');
+    if (rb) rb.textContent = Math.round(fsScale * 100) + '%';
+  }
+  function setFsScale(v) { fsScale = Math.min(4, Math.max(0.25, v)); applyFsScale(); }
+
+  function openFullscreen(node, title) {
+    if (!fsEl) return;
+    if (fsReturn) closeFullscreen();
+    const placeholder = document.createComment('md-fs');
+    node.parentNode.insertBefore(placeholder, node);
+    const wrap = document.createElement('div');
+    wrap.className = 'md-fs-content md-paper';
+    wrap.appendChild(node);              // move the real node
+    fsBody.innerHTML = '';
+    fsBody.appendChild(wrap);
+    fsTitle.textContent = title || '';
+    fsReturn = { node: node, placeholder: placeholder };
+    fsScale = 1; applyFsScale();
+    fsEl.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+    try {
+      if (fsEl.requestFullscreen) { const p = fsEl.requestFullscreen(); if (p && p.catch) p.catch(() => {}); }
+    } catch (_) {}
+    const cb = document.getElementById('md-fs-close'); if (cb) cb.focus();
+  }
+
+  function closeFullscreen() {
+    if (!fsEl || fsEl.hasAttribute('hidden')) return;
+    fsEl.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+    if (fsReturn && fsReturn.placeholder.parentNode) {
+      fsReturn.placeholder.parentNode.replaceChild(fsReturn.node, fsReturn.placeholder);
+    }
+    fsReturn = null;
+    fsBody.innerHTML = '';
+    try {
+      if (document.fullscreenElement) { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); }
+    } catch (_) {}
+  }
+
+  if (fsEl) {
+    const cb = document.getElementById('md-fs-close'); if (cb) cb.addEventListener('click', closeFullscreen);
+    const zi = document.getElementById('md-fs-zoomin'); if (zi) zi.addEventListener('click', () => setFsScale(fsScale + 0.25));
+    const zo = document.getElementById('md-fs-zoomout'); if (zo) zo.addEventListener('click', () => setFsScale(fsScale - 0.25));
+    const zr = document.getElementById('md-fs-zoomreset'); if (zr) zr.addEventListener('click', () => setFsScale(1));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !fsEl.hasAttribute('hidden')) closeFullscreen();
+    });
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && !fsEl.hasAttribute('hidden')) closeFullscreen();
     });
   }
 

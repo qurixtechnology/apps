@@ -20,6 +20,9 @@
   const srcTextarea = document.getElementById('md-source');
   const filenameEl  = document.querySelector('[data-current-filename]');
   const toast       = document.getElementById('md-toast');
+  const fsEl        = document.getElementById('md-fs');
+  const fsBody      = document.getElementById('md-fs-body');
+  const fsTitle     = document.getElementById('md-fs-title');
 
   // ----- State -----
   let currentFilename = null;
@@ -131,15 +134,21 @@
     } catch (_e) { /* ignore re-init issues */ }
 
     const nodes = [];
+    let count = 0;
     blocks.forEach((codeEl) => {
       const pre = codeEl.closest('pre');
       if (!pre) return;
       const def = codeEl.textContent || '';
+      count++;
+      const fig = document.createElement('figure');
+      fig.className = 'md-fig';
       const el = document.createElement('div');
       el.className = 'mermaid';
       el.id = 'mmd-' + (++mermaidSeq);
       el.textContent = def;
-      pre.replaceWith(el);
+      fig.appendChild(el);
+      fig.appendChild(makeFsButton(el, 'Diagram ' + count, 'View diagram fullscreen'));
+      pre.replaceWith(fig);
       nodes.push(el);
     });
     if (!nodes.length) return;
@@ -209,6 +218,7 @@
   // document state but touches no surrounding UI — reused by both file/paste
   // loading and the live source editor.
   function applyMarkdown(text) {
+    if (fsReturn) closeFullscreen();   // never re-render with a node moved into the overlay
     const fm = extractFrontMatter(text);
     const titleEntry = fm.data && fm.data.find((d) => d.key.toLowerCase() === 'title');
     currentFmTitle = titleEntry ? titleEntry.value : null;
@@ -441,6 +451,7 @@
 
   // ----- Clear -----
   clearBtn.addEventListener('click', () => {
+    closeFullscreen();
     setEditing(false);
     output.innerHTML = '';
     output.setAttribute('hidden', '');
@@ -697,9 +708,90 @@
       pqBtn.textContent = 'Parquet';
       pqBtn.addEventListener('click', () => exportTableParquet(table, idx, pqBtn));
 
+      const fsBtn = document.createElement('button');
+      fsBtn.type = 'button'; fsBtn.className = 'md-tbl-btn';
+      fsBtn.title = 'View fullscreen';
+      fsBtn.setAttribute('aria-label', 'View table fullscreen');
+      fsBtn.textContent = '⛶';
+      fsBtn.addEventListener('click', () =>
+        openFullscreen(table, tables.length > 1 ? 'Table ' + idx : 'Table'));
+
       bar.appendChild(csvBtn);
       bar.appendChild(pqBtn);
+      bar.appendChild(fsBtn);
       table.parentNode.insertBefore(bar, table);
+    });
+  }
+
+  // ----- Fullscreen view (tables & diagrams) -----
+  // The real element is MOVED into the overlay (not cloned) so its styles and
+  // mermaid SVG ids stay intact; on close it is put back via a placeholder.
+  let fsReturn = null;   // { node, placeholder }
+  let fsScale = 1;
+
+  function makeFsButton(node, label, aria) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'md-fig-fs';
+    b.title = 'View fullscreen';
+    b.setAttribute('aria-label', aria || 'View fullscreen');
+    b.textContent = '⛶';
+    b.addEventListener('click', () => openFullscreen(node, label));
+    return b;
+  }
+
+  function applyFsScale() {
+    const c = fsBody.querySelector('.md-fs-content');
+    if (c) c.style.transform = 'scale(' + fsScale + ')';
+    const rb = document.getElementById('md-fs-zoomreset');
+    if (rb) rb.textContent = Math.round(fsScale * 100) + '%';
+  }
+  function setFsScale(v) { fsScale = Math.min(4, Math.max(0.25, v)); applyFsScale(); }
+
+  function openFullscreen(node, title) {
+    if (!fsEl) return;
+    if (fsReturn) closeFullscreen();
+    const placeholder = document.createComment('md-fs');
+    node.parentNode.insertBefore(placeholder, node);
+    const wrap = document.createElement('div');
+    wrap.className = 'md-fs-content md-paper';
+    wrap.appendChild(node);              // move the real node
+    fsBody.innerHTML = '';
+    fsBody.appendChild(wrap);
+    fsTitle.textContent = title || '';
+    fsReturn = { node: node, placeholder: placeholder };
+    fsScale = 1; applyFsScale();
+    fsEl.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+    try {
+      if (fsEl.requestFullscreen) { const p = fsEl.requestFullscreen(); if (p && p.catch) p.catch(() => {}); }
+    } catch (_) {}
+    const cb = document.getElementById('md-fs-close'); if (cb) cb.focus();
+  }
+
+  function closeFullscreen() {
+    if (!fsEl || fsEl.hasAttribute('hidden')) return;
+    fsEl.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+    if (fsReturn && fsReturn.placeholder.parentNode) {
+      fsReturn.placeholder.parentNode.replaceChild(fsReturn.node, fsReturn.placeholder);
+    }
+    fsReturn = null;
+    fsBody.innerHTML = '';
+    try {
+      if (document.fullscreenElement) { const p = document.exitFullscreen(); if (p && p.catch) p.catch(() => {}); }
+    } catch (_) {}
+  }
+
+  if (fsEl) {
+    const cb = document.getElementById('md-fs-close'); if (cb) cb.addEventListener('click', closeFullscreen);
+    const zi = document.getElementById('md-fs-zoomin'); if (zi) zi.addEventListener('click', () => setFsScale(fsScale + 0.25));
+    const zo = document.getElementById('md-fs-zoomout'); if (zo) zo.addEventListener('click', () => setFsScale(fsScale - 0.25));
+    const zr = document.getElementById('md-fs-zoomreset'); if (zr) zr.addEventListener('click', () => setFsScale(1));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !fsEl.hasAttribute('hidden')) closeFullscreen();
+    });
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && !fsEl.hasAttribute('hidden')) closeFullscreen();
     });
   }
 
