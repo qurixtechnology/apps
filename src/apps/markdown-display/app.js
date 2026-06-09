@@ -215,6 +215,7 @@
 
       renderMermaid();
       setupTableExports();
+      buildOutline();
 
       output.removeAttribute('hidden');
       dropzone.setAttribute('hidden', '');
@@ -368,6 +369,7 @@
   clearBtn.addEventListener('click', () => {
     output.innerHTML = '';
     output.setAttribute('hidden', '');
+    clearOutline();
     dropzone.removeAttribute('hidden');
     pdfBtn.disabled = true;
     clearBtn.setAttribute('hidden', '');
@@ -409,6 +411,89 @@
     }
     window.print();
   });
+
+  // ----- Document outline (left sidebar) -----
+  // Built from the rendered content: headings (indented by level) plus tables
+  // and diagrams. Clicking jumps to the element; a scroll-spy marks the section
+  // currently in view.
+  const HEADER_OFFSET = 80;   // sticky shell header height (px) for scroll targets
+  let outlineEntries = [];
+
+  function scrollToTarget(el) {
+    const y = el.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  }
+
+  function buildOutline() {
+    const nav = document.getElementById('md-outline-nav');
+    const aside = document.getElementById('md-outline');
+    if (!nav || !aside) return;
+    nav.innerHTML = '';
+    outlineEntries = [];
+
+    const els = output.querySelectorAll('h1, h2, h3, h4, h5, h6, table, .mermaid');
+    let lastLevel = 1, tableNo = 0, figNo = 0, headNo = 0;
+
+    els.forEach((el) => {
+      const tag = el.tagName.toLowerCase();
+      let level, type, text;
+      if (/^h[1-6]$/.test(tag)) {
+        type = 'heading'; level = +tag[1]; text = (el.textContent || '').trim();
+        lastLevel = level;
+        if (!el.id) el.id = 'md-h-' + (++headNo);
+      } else if (tag === 'table') {
+        type = 'table'; level = Math.min(lastLevel + 1, 6);
+        text = 'Table ' + (++tableNo);
+        if (!el.id) el.id = 'md-tbl-' + tableNo;
+      } else {
+        type = 'figure'; level = Math.min(lastLevel + 1, 6);
+        text = 'Diagram ' + (++figNo);
+        if (!el.id) el.id = 'md-fig-' + figNo;
+      }
+      if (!text) return;
+
+      const a = document.createElement('a');
+      a.className = 'md-ol-link md-ol-l' + level + ' md-ol-' + type;
+      a.href = '#' + el.id;
+      const icon = type === 'table' ? '▦' : type === 'figure' ? '◇' : '';
+      a.innerHTML = (icon ? '<span class="md-ol-icon" aria-hidden="true">' + icon + '</span>' : '') +
+                    '<span class="md-ol-text"></span>';
+      a.querySelector('.md-ol-text').textContent = text;
+      a.title = text;
+      a.addEventListener('click', (e) => { e.preventDefault(); scrollToTarget(el); });
+      nav.appendChild(a);
+      outlineEntries.push({ el: el, link: a });
+    });
+
+    if (outlineEntries.length) aside.removeAttribute('hidden');
+    else aside.setAttribute('hidden', '');
+    updateOutlineActive();
+  }
+
+  function clearOutline() {
+    const nav = document.getElementById('md-outline-nav');
+    const aside = document.getElementById('md-outline');
+    if (nav) nav.innerHTML = '';
+    if (aside) aside.setAttribute('hidden', '');
+    outlineEntries = [];
+  }
+
+  function updateOutlineActive() {
+    if (!outlineEntries.length) return;
+    let activeIdx = 0;
+    for (let i = 0; i < outlineEntries.length; i++) {
+      if (outlineEntries[i].el.getBoundingClientRect().top - (HEADER_OFFSET + 20) <= 0) activeIdx = i;
+      else break;
+    }
+    outlineEntries.forEach((en, i) => en.link.classList.toggle('is-active', i === activeIdx));
+  }
+
+  let spyScheduled = false;
+  window.addEventListener('scroll', () => {
+    if (spyScheduled) return;
+    spyScheduled = true;
+    requestAnimationFrame(() => { spyScheduled = false; updateOutlineActive(); });
+  }, { passive: true });
 
   // ----- Table export (CSV / Parquet) -----
   // A small toolbar above every rendered table offers CSV (pure JS) and Parquet

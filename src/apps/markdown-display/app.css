@@ -48,6 +48,56 @@
 /* The HTML [hidden] attribute must beat any author-set display value. */
 [hidden] { display: none !important; }
 
+/* Two-column layout: sticky outline (left) + document (right) */
+.md-layout {
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  gap: var(--qrx-s-6);
+  align-items: start;
+}
+.md-layout > .md-paper { margin: 0; }   /* hug the column; outline sits beside it */
+
+.md-outline {
+  position: sticky; top: 84px;
+  max-height: calc(100vh - 104px); overflow: auto;
+  padding: var(--qrx-s-4);
+  background: var(--qrx-bg-subtle);
+  border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg);
+  font-size: 0.875rem;
+}
+.md-outline-title {
+  margin-bottom: var(--qrx-s-2);
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--qrx-text-subtle);
+}
+.md-outline-nav { display: flex; flex-direction: column; gap: 1px; }
+.md-ol-link {
+  display: flex; align-items: baseline; gap: 0.4em;
+  padding: 0.25em 0.5em;
+  border-left: 2px solid transparent; border-radius: var(--qrx-radius-sm);
+  color: var(--qrx-text-muted); text-decoration: none; line-height: 1.35;
+}
+.md-ol-link:hover { background: var(--qrx-bg-muted); color: var(--qrx-text); text-decoration: none; }
+.md-ol-link.is-active {
+  color: var(--qrx-primary); border-left-color: var(--qrx-primary);
+  background: var(--qrx-bg-muted); font-weight: 600;
+}
+.md-ol-icon { flex-shrink: 0; font-size: 0.85em; color: var(--qrx-text-subtle); }
+.md-ol-link.is-active .md-ol-icon { color: var(--qrx-primary); }
+.md-ol-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-ol-table .md-ol-text, .md-ol-figure .md-ol-text { font-style: italic; }
+.md-ol-l1 { padding-left: 0.5em; font-weight: 600; }
+.md-ol-l2 { padding-left: 0.9em; }
+.md-ol-l3 { padding-left: 1.7em; }
+.md-ol-l4 { padding-left: 2.5em; }
+.md-ol-l5, .md-ol-l6 { padding-left: 3.3em; }
+
+@media (max-width: 900px) {
+  .md-layout { grid-template-columns: 1fr; }
+  .md-outline { display: none !important; }
+}
+
 /* Rendered markdown — paper-style */
 .md-paper {
   padding: var(--qrx-s-10) clamp(var(--qrx-s-6), 8vw, 4.5rem);
@@ -290,9 +340,10 @@
 @media print {
   /* Hide everything except the rendered document */
   .qrx-shell-header, .qrx-shell-docs, .qrx-shell-footer,
-  .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar { display: none !important; }
+  .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar, .md-outline { display: none !important; }
   body { background: #FFFFFF; display: block; }
   .qrx-shell-app { padding: 0; max-width: none; margin: 0; }
+  .md-layout { display: block; }
 
   /* Force the light palette regardless of the screen color scheme (re-declaring
      the tokens for this subtree), and let backgrounds/borders actually print. */

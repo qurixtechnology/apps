@@ -225,6 +225,56 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 /* The HTML [hidden] attribute must beat any author-set display value. */
 [hidden] { display: none !important; }
 
+/* Two-column layout: sticky outline (left) + document (right) */
+.md-layout {
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  gap: var(--qrx-s-6);
+  align-items: start;
+}
+.md-layout > .md-paper { margin: 0; }   /* hug the column; outline sits beside it */
+
+.md-outline {
+  position: sticky; top: 84px;
+  max-height: calc(100vh - 104px); overflow: auto;
+  padding: var(--qrx-s-4);
+  background: var(--qrx-bg-subtle);
+  border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg);
+  font-size: 0.875rem;
+}
+.md-outline-title {
+  margin-bottom: var(--qrx-s-2);
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--qrx-text-subtle);
+}
+.md-outline-nav { display: flex; flex-direction: column; gap: 1px; }
+.md-ol-link {
+  display: flex; align-items: baseline; gap: 0.4em;
+  padding: 0.25em 0.5em;
+  border-left: 2px solid transparent; border-radius: var(--qrx-radius-sm);
+  color: var(--qrx-text-muted); text-decoration: none; line-height: 1.35;
+}
+.md-ol-link:hover { background: var(--qrx-bg-muted); color: var(--qrx-text); text-decoration: none; }
+.md-ol-link.is-active {
+  color: var(--qrx-primary); border-left-color: var(--qrx-primary);
+  background: var(--qrx-bg-muted); font-weight: 600;
+}
+.md-ol-icon { flex-shrink: 0; font-size: 0.85em; color: var(--qrx-text-subtle); }
+.md-ol-link.is-active .md-ol-icon { color: var(--qrx-primary); }
+.md-ol-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-ol-table .md-ol-text, .md-ol-figure .md-ol-text { font-style: italic; }
+.md-ol-l1 { padding-left: 0.5em; font-weight: 600; }
+.md-ol-l2 { padding-left: 0.9em; }
+.md-ol-l3 { padding-left: 1.7em; }
+.md-ol-l4 { padding-left: 2.5em; }
+.md-ol-l5, .md-ol-l6 { padding-left: 3.3em; }
+
+@media (max-width: 900px) {
+  .md-layout { grid-template-columns: 1fr; }
+  .md-outline { display: none !important; }
+}
+
 /* Rendered markdown — paper-style */
 .md-paper {
   padding: var(--qrx-s-10) clamp(var(--qrx-s-6), 8vw, 4.5rem);
@@ -467,9 +517,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 @media print {
   /* Hide everything except the rendered document */
   .qrx-shell-header, .qrx-shell-docs, .qrx-shell-footer,
-  .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar { display: none !important; }
+  .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar, .md-outline { display: none !important; }
   body { background: #FFFFFF; display: block; }
   .qrx-shell-app { padding: 0; max-width: none; margin: 0; }
+  .md-layout { display: block; }
 
   /* Force the light palette regardless of the screen color scheme (re-declaring
      the tokens for this subtree), and let backgrounds/borders actually print. */
@@ -543,6 +594,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       lists (incl. nested and task lists), links, images, blockquotes, horizontal rules,
       tables (GitHub Flavored Markdown), inline <code>code</code> and fenced code blocks
       with syntax highlighting via highlight.js.
+    </p>
+
+    <h3>Outline</h3>
+    <p>
+      Once a document is loaded, a sticky <strong>outline</strong> appears on the left listing all
+      headings (indented by level) plus every table and diagram. Click an entry to jump there; the
+      entry for the section you're currently reading is highlighted. The outline is hidden on narrow
+      screens and in the PDF export.
     </p>
 
     <h3>Mermaid diagrams</h3>
@@ -647,9 +706,16 @@ flowchart LR
     </p>
   </div>
 
-  <article class="md-paper qrx-card" id="md-output" hidden>
-    <!-- Rendered markdown injected here -->
-  </article>
+  <div class="md-layout">
+    <aside class="md-outline" id="md-outline" hidden aria-label="Document outline">
+      <div class="md-outline-title">Outline</div>
+      <nav class="md-outline-nav" id="md-outline-nav"></nav>
+    </aside>
+
+    <article class="md-paper qrx-card" id="md-output" hidden>
+      <!-- Rendered markdown injected here -->
+    </article>
+  </div>
 
   <div class="md-toast" id="md-toast" role="status" aria-live="polite"></div>
 </main>
@@ -660,7 +726,7 @@ flowchart LR
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260609-134600</span>
+    &middot; v<span data-build-version>260609-135755</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1006,6 +1072,7 @@ flowchart LR
 
       renderMermaid();
       setupTableExports();
+      buildOutline();
 
       output.removeAttribute('hidden');
       dropzone.setAttribute('hidden', '');
@@ -1159,6 +1226,7 @@ flowchart LR
   clearBtn.addEventListener('click', () => {
     output.innerHTML = '';
     output.setAttribute('hidden', '');
+    clearOutline();
     dropzone.removeAttribute('hidden');
     pdfBtn.disabled = true;
     clearBtn.setAttribute('hidden', '');
@@ -1200,6 +1268,89 @@ flowchart LR
     }
     window.print();
   });
+
+  // ----- Document outline (left sidebar) -----
+  // Built from the rendered content: headings (indented by level) plus tables
+  // and diagrams. Clicking jumps to the element; a scroll-spy marks the section
+  // currently in view.
+  const HEADER_OFFSET = 80;   // sticky shell header height (px) for scroll targets
+  let outlineEntries = [];
+
+  function scrollToTarget(el) {
+    const y = el.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  }
+
+  function buildOutline() {
+    const nav = document.getElementById('md-outline-nav');
+    const aside = document.getElementById('md-outline');
+    if (!nav || !aside) return;
+    nav.innerHTML = '';
+    outlineEntries = [];
+
+    const els = output.querySelectorAll('h1, h2, h3, h4, h5, h6, table, .mermaid');
+    let lastLevel = 1, tableNo = 0, figNo = 0, headNo = 0;
+
+    els.forEach((el) => {
+      const tag = el.tagName.toLowerCase();
+      let level, type, text;
+      if (/^h[1-6]$/.test(tag)) {
+        type = 'heading'; level = +tag[1]; text = (el.textContent || '').trim();
+        lastLevel = level;
+        if (!el.id) el.id = 'md-h-' + (++headNo);
+      } else if (tag === 'table') {
+        type = 'table'; level = Math.min(lastLevel + 1, 6);
+        text = 'Table ' + (++tableNo);
+        if (!el.id) el.id = 'md-tbl-' + tableNo;
+      } else {
+        type = 'figure'; level = Math.min(lastLevel + 1, 6);
+        text = 'Diagram ' + (++figNo);
+        if (!el.id) el.id = 'md-fig-' + figNo;
+      }
+      if (!text) return;
+
+      const a = document.createElement('a');
+      a.className = 'md-ol-link md-ol-l' + level + ' md-ol-' + type;
+      a.href = '#' + el.id;
+      const icon = type === 'table' ? '▦' : type === 'figure' ? '◇' : '';
+      a.innerHTML = (icon ? '<span class="md-ol-icon" aria-hidden="true">' + icon + '</span>' : '') +
+                    '<span class="md-ol-text"></span>';
+      a.querySelector('.md-ol-text').textContent = text;
+      a.title = text;
+      a.addEventListener('click', (e) => { e.preventDefault(); scrollToTarget(el); });
+      nav.appendChild(a);
+      outlineEntries.push({ el: el, link: a });
+    });
+
+    if (outlineEntries.length) aside.removeAttribute('hidden');
+    else aside.setAttribute('hidden', '');
+    updateOutlineActive();
+  }
+
+  function clearOutline() {
+    const nav = document.getElementById('md-outline-nav');
+    const aside = document.getElementById('md-outline');
+    if (nav) nav.innerHTML = '';
+    if (aside) aside.setAttribute('hidden', '');
+    outlineEntries = [];
+  }
+
+  function updateOutlineActive() {
+    if (!outlineEntries.length) return;
+    let activeIdx = 0;
+    for (let i = 0; i < outlineEntries.length; i++) {
+      if (outlineEntries[i].el.getBoundingClientRect().top - (HEADER_OFFSET + 20) <= 0) activeIdx = i;
+      else break;
+    }
+    outlineEntries.forEach((en, i) => en.link.classList.toggle('is-active', i === activeIdx));
+  }
+
+  let spyScheduled = false;
+  window.addEventListener('scroll', () => {
+    if (spyScheduled) return;
+    spyScheduled = true;
+    requestAnimationFrame(() => { spyScheduled = false; updateOutlineActive(); });
+  }, { passive: true });
 
   // ----- Table export (CSV / Parquet) -----
   // A small toolbar above every rendered table offers CSV (pure JS) and Parquet
