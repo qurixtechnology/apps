@@ -1,0 +1,314 @@
+/* === Markdown Display — app styles === */
+
+/* Toolbar */
+.md-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--qrx-s-4); padding: var(--qrx-s-4) var(--qrx-s-5);
+  margin-bottom: var(--qrx-s-6); flex-wrap: wrap;
+}
+.md-toolbar-left, .md-toolbar-right {
+  display: flex; align-items: center; gap: var(--qrx-s-3); flex-wrap: wrap;
+}
+.md-filename {
+  font-size: 0.875rem; color: var(--qrx-text-muted);
+  font-family: var(--qrx-font-mono);
+  padding: 0.15rem var(--qrx-s-2);
+  background: var(--qrx-bg-muted); border-radius: var(--qrx-radius-sm);
+  max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.md-filename:empty { display: none; }
+
+/* Drop zone (empty state) */
+.md-dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: var(--qrx-s-4);
+  padding: var(--qrx-s-10) var(--qrx-s-6);
+  min-height: 22rem;
+  background: var(--qrx-surface);
+  border: 2px dashed var(--qrx-border-strong); border-radius: var(--qrx-radius-lg);
+  color: var(--qrx-text-muted);
+  transition: border-color var(--qrx-transition), background var(--qrx-transition);
+}
+.md-dropzone.is-hover {
+  border-color: var(--qrx-accent);
+  background: var(--qrx-bg-subtle);
+}
+.md-dropzone-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--qrx-gradient); color: var(--qrx-text-on-brand);
+  box-shadow: var(--qrx-shadow);
+}
+.md-dropzone-icon svg { width: 32px; height: 32px; }
+.md-dropzone p { margin: 0; font-size: 1rem; }
+.md-dropzone .md-dropzone-hint {
+  font-size: 0.8125rem; color: var(--qrx-text-subtle);
+}
+
+/* The HTML [hidden] attribute must beat any author-set display value. */
+[hidden] { display: none !important; }
+
+/* Rendered markdown — paper-style */
+.md-paper {
+  padding: var(--qrx-s-10) clamp(var(--qrx-s-6), 8vw, 4.5rem);
+  max-width: 880px; margin: 0 auto;
+  line-height: 1.7;
+  font-size: 1.0625rem;
+  word-wrap: break-word;
+}
+.md-paper > *:first-child { margin-top: 0; }
+.md-paper > *:last-child  { margin-bottom: 0; }
+
+/* Document header rendered from YAML front matter (--- … ---) */
+.md-fm {
+  margin: 0 0 2.25em;
+  padding-bottom: var(--qrx-s-6);
+  border-bottom: 2px solid var(--qrx-border);
+}
+.md-fm-title {
+  font-size: 2.25rem; line-height: 1.2; letter-spacing: -0.02em; font-weight: 600;
+  color: var(--qrx-primary);
+  margin: 0 0 var(--qrx-s-5);
+}
+.md-fm-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--qrx-s-4) var(--qrx-s-6);
+  margin: 0;
+}
+.md-fm-meta > div { display: flex; flex-direction: column; gap: 0.2em; min-width: 0; }
+.md-fm-meta dt {
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--qrx-text-subtle);
+}
+.md-fm-meta dd { margin: 0; font-size: 0.9375rem; line-height: 1.45; color: var(--qrx-text); }
+.md-fm-badge {
+  display: inline-block; padding: 0.15em 0.7em;
+  background: var(--qrx-bg-muted); color: var(--qrx-text);
+  border: 1px solid var(--qrx-border); border-radius: 999px;
+  font-size: 0.8125rem; font-weight: 500;
+}
+@media (max-width: 640px) {
+  .md-fm-title { font-size: 1.6rem; }
+}
+
+.md-paper h1, .md-paper h2, .md-paper h3,
+.md-paper h4, .md-paper h5, .md-paper h6 {
+  font-weight: 600; line-height: 1.25;
+  color: var(--qrx-text);
+  margin-top: 2em; margin-bottom: 0.75em;
+}
+.md-paper h1 {
+  font-size: 2.125rem; letter-spacing: -0.02em;
+  color: var(--qrx-primary);
+  padding-bottom: var(--qrx-s-3);
+  border-bottom: 1px solid var(--qrx-border);
+  margin-top: 0.5em;
+}
+.md-paper h2 {
+  font-size: 1.625rem; letter-spacing: -0.015em;
+  padding-bottom: var(--qrx-s-2);
+  border-bottom: 1px solid var(--qrx-border);
+}
+.md-paper h3 { font-size: 1.3125rem; letter-spacing: -0.01em; }
+.md-paper h4 { font-size: 1.125rem; }
+.md-paper h5 { font-size: 1rem; color: var(--qrx-text-muted); }
+.md-paper h6 { font-size: 0.875rem; color: var(--qrx-text-muted); text-transform: uppercase;
+               letter-spacing: 0.05em; }
+
+.md-paper p, .md-paper ul, .md-paper ol, .md-paper blockquote, .md-paper table {
+  margin: 0 0 1.1em;
+}
+.md-paper ul, .md-paper ol { padding-left: 1.5em; }
+.md-paper li { margin-bottom: 0.35em; }
+.md-paper li > p { margin-bottom: 0.35em; }
+.md-paper li > ul, .md-paper li > ol { margin-top: 0.35em; margin-bottom: 0.35em; }
+
+.md-paper blockquote {
+  margin-left: 0; margin-right: 0;
+  padding: var(--qrx-s-3) var(--qrx-s-5);
+  border-left: 4px solid var(--qrx-accent);
+  background: var(--qrx-bg-subtle);
+  color: var(--qrx-text-muted);
+  border-radius: 0 var(--qrx-radius) var(--qrx-radius) 0;
+}
+.md-paper blockquote > *:last-child { margin-bottom: 0; }
+
+.md-paper hr {
+  border: none; height: 1px; background: var(--qrx-border);
+  margin: 2.5em 0;
+}
+
+.md-paper a { color: var(--qrx-primary); border-bottom: 1px solid transparent;
+              transition: border-color var(--qrx-transition); text-decoration: none; }
+.md-paper a:hover { border-bottom-color: var(--qrx-primary); }
+
+.md-paper img {
+  max-width: 100%; height: auto;
+  border-radius: var(--qrx-radius); box-shadow: var(--qrx-shadow-sm);
+  margin: 0.5em 0;
+}
+
+/* Inline code already styled by base; tighten in paper context */
+.md-paper code {
+  font-size: 0.875em;
+  background: var(--qrx-bg-muted);
+  padding: 0.15em 0.4em;
+  border-radius: var(--qrx-radius-sm);
+  color: var(--qrx-text);
+}
+.md-paper pre {
+  margin: 0 0 1.1em;
+  padding: var(--qrx-s-4) var(--qrx-s-5);
+  background: var(--qrx-bg-subtle);
+  border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius);
+  overflow-x: auto;
+  font-size: 0.875rem; line-height: 1.55;
+}
+.md-paper pre code {
+  background: none; padding: 0; font-size: inherit; color: inherit;
+  border-radius: 0;
+}
+
+/* Per-table export toolbar (CSV / Parquet) */
+.md-paper .md-tbl-bar {
+  display: flex; align-items: center; gap: var(--qrx-s-2);
+  margin: 0 0 var(--qrx-s-2);
+}
+.md-paper .md-tbl-label {
+  margin-right: auto;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--qrx-text-subtle);
+}
+.md-paper .md-tbl-btn {
+  font: inherit; font-size: 0.75rem; font-weight: 600;
+  padding: 0.2em 0.65em;
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius-sm);
+  background: var(--qrx-surface); color: var(--qrx-text-muted);
+  cursor: pointer; transition: var(--qrx-transition);
+}
+.md-paper .md-tbl-btn:hover:not(:disabled) { border-color: var(--qrx-primary); color: var(--qrx-primary); }
+.md-paper .md-tbl-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.md-paper table {
+  width: 100%; border-collapse: collapse;
+  border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius);
+  overflow: hidden;
+  font-size: 0.9375rem;
+}
+.md-paper thead { background: var(--qrx-bg-subtle); }
+.md-paper th, .md-paper td {
+  padding: var(--qrx-s-2) var(--qrx-s-3);
+  text-align: left;
+  border-bottom: 1px solid var(--qrx-border);
+}
+.md-paper th { font-weight: 600; color: var(--qrx-text); }
+.md-paper tr:last-child td { border-bottom: none; }
+.md-paper tbody tr:nth-child(even) { background: var(--qrx-bg-subtle); }
+
+.md-paper input[type="checkbox"] {
+  margin-right: 0.4em; transform: translateY(1px);
+}
+
+/* Mermaid diagrams — rendered with mermaid's light theme and placed on a light
+   figure surface, so they stay legible in dark mode and print cleanly. */
+.md-paper .mermaid {
+  margin: 0 0 1.1em; padding: var(--qrx-s-4);
+  text-align: center; line-height: normal;
+  background: #FFFFFF;
+  border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius);
+}
+.md-paper .mermaid svg { max-width: 100%; height: auto; }
+/* Before processing, hide the raw definition text to avoid a flash */
+.md-paper .mermaid:not([data-processed]) { color: transparent; min-height: 1.5em; }
+
+/* === Syntax highlighting (highlight.js token classes) — qurix-token theme,
+   adapts to light/dark via the design tokens, so no external hljs CSS needed. === */
+.md-paper .hljs { color: var(--qrx-text); background: transparent; }
+.md-paper .hljs-comment,
+.md-paper .hljs-quote { color: var(--qrx-text-subtle); font-style: italic; }
+.md-paper .hljs-keyword,
+.md-paper .hljs-selector-tag,
+.md-paper .hljs-built_in,
+.md-paper .hljs-name,
+.md-paper .hljs-tag { color: var(--qrx-primary); }
+.md-paper .hljs-string,
+.md-paper .hljs-attr,
+.md-paper .hljs-template-tag,
+.md-paper .hljs-addition,
+.md-paper .hljs-regexp { color: var(--qrx-accent-hover); }
+.md-paper .hljs-number,
+.md-paper .hljs-literal,
+.md-paper .hljs-type,
+.md-paper .hljs-params,
+.md-paper .hljs-meta,
+.md-paper .hljs-link { color: var(--qrx-warning); }
+.md-paper .hljs-title,
+.md-paper .hljs-section,
+.md-paper .hljs-selector-id,
+.md-paper .hljs-selector-class { color: var(--qrx-blue-light); font-weight: 600; }
+.md-paper .hljs-attribute,
+.md-paper .hljs-variable,
+.md-paper .hljs-symbol,
+.md-paper .hljs-bullet,
+.md-paper .hljs-deletion { color: var(--qrx-danger); }
+.md-paper .hljs-emphasis { font-style: italic; }
+.md-paper .hljs-strong { font-weight: 700; }
+
+/* Toast for errors / status */
+.md-toast {
+  position: fixed; bottom: var(--qrx-s-6); left: 50%; transform: translateX(-50%);
+  padding: var(--qrx-s-3) var(--qrx-s-5);
+  background: var(--qrx-text); color: var(--qrx-text-inverse);
+  border-radius: var(--qrx-radius);
+  box-shadow: var(--qrx-shadow-lg);
+  font-size: 0.875rem;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.md-toast.is-visible {
+  opacity: 1; transform: translateX(-50%) translateY(-4px);
+}
+.md-toast.is-error  { background: var(--qrx-danger); }
+.md-toast.is-success { background: var(--qrx-success); }
+
+/* Tighter mobile spacing */
+@media (max-width: 640px) {
+  .md-paper { padding: var(--qrx-s-6) var(--qrx-s-5); font-size: 1rem; }
+  .md-paper h1 { font-size: 1.75rem; }
+  .md-paper h2 { font-size: 1.4rem; }
+  .md-paper h3 { font-size: 1.2rem; }
+  .md-toolbar { padding: var(--qrx-s-3); }
+}
+
+/* === Export as PDF: native print of the rendered document only === */
+@page { size: A4; margin: 12mm; }
+@media print {
+  /* Hide everything except the rendered document */
+  .qrx-shell-header, .qrx-shell-docs, .qrx-shell-footer,
+  .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar { display: none !important; }
+  body { background: #FFFFFF; display: block; }
+  .qrx-shell-app { padding: 0; max-width: none; margin: 0; }
+
+  /* Force the light palette regardless of the screen color scheme (re-declaring
+     the tokens for this subtree), and let backgrounds/borders actually print. */
+  .md-paper {
+    --qrx-bg: #FFFFFF; --qrx-surface: #FFFFFF;
+    --qrx-bg-subtle: #F4F7F9; --qrx-bg-muted: #E8EEF2;
+    --qrx-text: #0E2530; --qrx-text-muted: #5A6B75; --qrx-text-subtle: #8A9AA3;
+    --qrx-border: #DBE3E8; --qrx-border-strong: #BCC8D0; --qrx-primary: #156B8E;
+    max-width: none; margin: 0; padding: 0;
+    box-shadow: none !important; border: none !important; border-radius: 0;
+    font-size: 10.5pt;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+
+  /* Keep these blocks intact across page breaks */
+  .md-paper pre, .md-paper table, .md-paper blockquote,
+  .md-paper img, .md-paper tr, .md-paper .mermaid { break-inside: avoid; }
+  .md-paper h1, .md-paper h2, .md-paper h3, .md-paper h4 { break-after: avoid; }
+}

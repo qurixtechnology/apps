@@ -5,5 +5,5 @@
   "output": "index.html",
   "description": "A suite of local-first, browser-only data tools by qurix Technology. No data leaves your browser — everything runs on DuckDB-WASM.",
   "fonts": ["qurix.fonts.html"],
-  "apps": ["table-format-converter", "parquet-profiler", "secure-chat", "wm2026-spielplan"]
+  "apps": ["table-format-converter", "parquet-profiler", "markdown-display", "secure-chat", "wm2026-spielplan"]
 }

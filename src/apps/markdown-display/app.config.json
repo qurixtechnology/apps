@@ -1,0 +1,31 @@
+{
+  "name": "Markdown Display",
+  "lang": "en",
+  "theme": "qurix",
+  "output": "markdown-display.html",
+  "title": "Markdown Display – qurix",
+  "card": {
+    "description": "Zeigt Markdown-Dateien als sauberes, papierartiges Dokument — mit Syntax-Highlighting, GitHub-Tabellen, Aufgabenlisten und Mermaid-Diagrammen. Per Klick als PDF exportieren. Alles läuft lokal im Browser, ohne Upload.",
+    "description_en": "Renders Markdown files as a clean, paper-style document — with syntax highlighting, GitHub tables, task lists and Mermaid diagrams. Export to PDF in one click. Everything runs locally in the browser, no uploads.",
+    "tags": ["Markdown", "Mermaid", "PDF-Export"],
+    "tags_en": ["Markdown", "Mermaid", "PDF export"]
+  },
+  "fonts": ["qurix.fonts.html"],
+  "headAssets": [
+    {
+      "comment": "Markdown parser (marked) via CDN, pinned, minified",
+      "src": "https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js",
+      "crossorigin": "anonymous"
+    },
+    {
+      "comment": "Syntax highlighting (highlight.js) via CDN, pinned, minified — theme colors are provided locally in app.css",
+      "src": "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js",
+      "crossorigin": "anonymous"
+    },
+    {
+      "comment": "Mermaid diagrams via CDN, pinned, minified (UMD build → window.mermaid)",
+      "src": "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js",
+      "crossorigin": "anonymous"
+    }
+  ]
+}

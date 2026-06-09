@@ -1,0 +1,71 @@
+    <h2>Markdown Display</h2>
+    <p>
+      A lightweight viewer for Markdown documents. Open any <code>.md</code> file from your
+      computer and see it rendered as a clean, paper-style document — then export the result
+      as a PDF when you need to share or archive it.
+    </p>
+
+    <h3>How to use</h3>
+    <ul>
+      <li>Click <strong>Open Markdown File</strong> to pick a file, or simply
+          <strong>drag &amp; drop</strong> a <code>.md</code> / <code>.markdown</code> /
+          <code>.txt</code> file anywhere onto the page.</li>
+      <li>Use <strong>Load sample</strong> if you just want to see what the renderer looks like.</li>
+      <li>Once a document is loaded, click <strong>Export as PDF</strong> to open your
+          browser's print dialog — choose <em>Save as PDF</em> to get a clean copy of the
+          rendered document (not the surrounding app shell).</li>
+    </ul>
+
+    <h3>What it renders</h3>
+    <p>
+      All standard Markdown features: headings, paragraphs, bold / italic / strikethrough,
+      lists (incl. nested and task lists), links, images, blockquotes, horizontal rules,
+      tables (GitHub Flavored Markdown), inline <code>code</code> and fenced code blocks
+      with syntax highlighting via highlight.js.
+    </p>
+
+    <h3>Mermaid diagrams</h3>
+    <p>
+      Fenced code blocks tagged <code>mermaid</code> are rendered as diagrams (flowcharts,
+      sequence, class, state, Gantt, pie, …). Just wrap the diagram definition in a
+      <code>```mermaid … ```</code> block:
+    </p>
+    <pre><code>```mermaid
+flowchart LR
+  A[Markdown] --&gt; B{mermaid?}
+  B --&gt;|yes| C[Diagram]
+  B --&gt;|no| D[Code block]
+```</code></pre>
+    <p>
+      Diagrams adapt to light / dark mode and are included in the PDF export. Rendering runs
+      in Mermaid's <code>strict</code> security mode, so diagram labels can't inject scripts.
+    </p>
+
+    <h3>Export tables (CSV / Parquet)</h3>
+    <p>
+      Every rendered table gets a small toolbar with <strong>CSV</strong> and
+      <strong>Parquet</strong> buttons. CSV is produced instantly; Parquet uses an embedded
+      DuckDB engine that is loaded from a CDN on first use (so the first Parquet export needs
+      internet access). Files download as <code>&lt;document&gt;-table-N.csv</code> /
+      <code>.parquet</code>.
+    </p>
+
+    <h3>Privacy</h3>
+    <p>
+      Everything runs locally in your browser. Files you open are never uploaded — they are
+      read with the browser's <code>FileReader</code> API and rendered in-page.
+    </p>
+
+    <h3>Notes</h3>
+    <ul>
+      <li>The renderer uses <code>marked</code> for parsing, <code>highlight.js</code> for code
+          highlighting and <code>mermaid</code> for diagrams. These are loaded from a CDN, so the
+          first launch needs internet access.</li>
+      <li><strong>Export as PDF</strong> uses the browser's native print → <em>Save as PDF</em>
+          (A4, 12&nbsp;mm margin). The result is vector — crisp diagrams, selectable / searchable
+          text and small files. Enable <em>Background graphics</em> in the print dialog to include
+          code-block and table shading.</li>
+      <li><strong>Export with data</strong> (footer) saves a self-contained copy that reopens
+          with the current document already rendered; <strong>Export blank</strong> gives a
+          clean copy.</li>
+    </ul>

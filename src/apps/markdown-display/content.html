@@ -1,0 +1,58 @@
+  <div class="md-toolbar qrx-card">
+    <div class="md-toolbar-left">
+      <input type="file" id="md-file-input"
+             accept=".md,.markdown,.mdown,.mkd,.txt,text/markdown,text/plain" hidden>
+      <button class="qrx-btn qrx-btn-primary" data-action="open-file"
+              aria-label="Open Markdown file">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        Open Markdown File
+      </button>
+      <button class="qrx-btn" data-action="load-sample">
+        Load sample
+      </button>
+      <button class="qrx-btn qrx-btn-ghost" data-action="clear" hidden>
+        Clear
+      </button>
+      <span class="md-filename" data-current-filename></span>
+    </div>
+    <div class="md-toolbar-right">
+      <button class="qrx-btn qrx-btn-accent" data-action="export-pdf" disabled
+              aria-label="Export rendered document as PDF">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export as PDF
+      </button>
+    </div>
+  </div>
+
+  <div class="md-dropzone" id="md-dropzone">
+    <div class="md-dropzone-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <p>Drop a Markdown file here — or use <strong>Open Markdown File</strong> above.</p>
+    <p class="md-dropzone-hint">
+      Supports <code>.md</code>, <code>.markdown</code>, <code>.mdown</code>,
+      <code>.mkd</code>, <code>.txt</code>
+    </p>
+  </div>
+
+  <article class="md-paper qrx-card" id="md-output" hidden>
+    <!-- Rendered markdown injected here -->
+  </article>
+
+  <div class="md-toast" id="md-toast" role="status" aria-live="polite"></div>
