@@ -285,18 +285,22 @@
 /* Mermaid figure wrapper (holds the diagram + a fullscreen button) */
 .md-paper .md-fig { position: relative; margin: 0 0 1.1em; }
 .md-paper .md-fig .mermaid { margin: 0; }
-.md-fig-fs {
+.md-fig-tools {
   position: absolute; top: 8px; right: 8px;
+  display: flex; gap: 4px;
+  opacity: 0.5; transition: opacity var(--qrx-transition);
+}
+.md-paper .md-fig:hover .md-fig-tools, .md-fig-tools:focus-within { opacity: 1; }
+.md-fig-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; padding: 0;
-  font-size: 0.9rem; line-height: 1;
+  min-width: 2em; height: 26px; padding: 0 0.5em;
+  font: inherit; font-size: 0.72rem; font-weight: 600; line-height: 1;
   border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius-sm);
   background: var(--qrx-surface); color: var(--qrx-text-muted);
-  cursor: pointer; opacity: 0;
-  transition: opacity var(--qrx-transition), color var(--qrx-transition), border-color var(--qrx-transition);
+  cursor: pointer; transition: var(--qrx-transition);
 }
-.md-paper .md-fig:hover .md-fig-fs, .md-fig-fs:focus { opacity: 1; }
-.md-fig-fs:hover { color: var(--qrx-primary); border-color: var(--qrx-primary); }
+.md-fig-btn:hover:not(:disabled) { color: var(--qrx-primary); border-color: var(--qrx-primary); }
+.md-fig-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Fullscreen overlay */
 .md-fs { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; background: var(--qrx-bg); }
@@ -406,7 +410,7 @@
   /* Hide everything except the rendered document */
   .qrx-shell-header, .qrx-shell-docs, .qrx-shell-footer,
   .md-toolbar, .md-dropzone, .md-toast, .md-tbl-bar, .md-outline,
-  .md-editor, .md-fig-fs, .md-fs { display: none !important; }
+  .md-editor, .md-fig-tools, .md-fs { display: none !important; }
   body { background: #FFFFFF; display: block; }
   .qrx-shell-app { padding: 0; max-width: none; margin: 0; }
   .md-layout, .md-layout.is-editing { display: block; grid-template-columns: none; }

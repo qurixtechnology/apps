@@ -128,7 +128,9 @@
         securityLevel: 'strict',
         theme: 'base',
         themeVariables: MERMAID_THEME,
-        flowchart: { curve: 'basis', useMaxWidth: true },
+        // htmlLabels:false → labels are plain SVG <text> (no <foreignObject>), so
+        // the diagrams rasterize reliably to PNG and the exported SVG is portable.
+        flowchart: { htmlLabels: false, curve: 'basis', useMaxWidth: true },
         themeCSS: '.edgeLabel { font-size: 0.85em; }'
       });
     } catch (_e) { /* ignore re-init issues */ }
@@ -147,7 +149,7 @@
       el.id = 'mmd-' + (++mermaidSeq);
       el.textContent = def;
       fig.appendChild(el);
-      fig.appendChild(makeFsButton(el, 'Diagram ' + count, 'View diagram fullscreen'));
+      fig.appendChild(makeFigTools(el, 'Diagram ' + count));
       pre.replaceWith(fig);
       nodes.push(el);
     });
@@ -729,14 +731,105 @@
   let fsReturn = null;   // { node, placeholder }
   let fsScale = 1;
 
-  function makeFsButton(node, label, aria) {
+  function makeFigBtn(text, title, onClick) {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'md-fig-fs';
-    b.title = 'View fullscreen';
-    b.setAttribute('aria-label', aria || 'View fullscreen');
-    b.textContent = '⛶';
-    b.addEventListener('click', () => openFullscreen(node, label));
+    b.type = 'button'; b.className = 'md-fig-btn';
+    b.textContent = text; b.title = title; b.setAttribute('aria-label', title);
+    b.addEventListener('click', () => onClick(b));
     return b;
+  }
+
+  // Diagram toolbar: PNG / SVG export + fullscreen.
+  function makeFigTools(node, label) {
+    const tools = document.createElement('div');
+    tools.className = 'md-fig-tools';
+    tools.appendChild(makeFigBtn('PNG', 'Export diagram as PNG', (b) => exportDiagramPng(node, label, b)));
+    tools.appendChild(makeFigBtn('SVG', 'Export diagram as SVG', () => exportDiagramSvg(node, label)));
+    tools.appendChild(makeFigBtn('⛶', 'View fullscreen', () => openFullscreen(node, label)));
+    return tools;
+  }
+
+  function diagramBaseName(label) {
+    const doc = sanitizeName(currentFmTitle || currentFilename || 'document');
+    return doc + '-' + sanitizeName(label);
+  }
+
+  // Intrinsic diagram size — from the viewBox (preferred), else the geometry,
+  // else the rendered box. Used so exports don't inherit a tiny on-screen size.
+  function svgExportSize(svg) {
+    let w = 0, h = 0;
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    if (vb && vb.width && vb.height) { w = vb.width; h = vb.height; }
+    if (!w || !h) { try { const bb = svg.getBBox(); w = w || bb.width; h = h || bb.height; } catch (_) {} }
+    if (!w || !h) { const r = svg.getBoundingClientRect(); w = w || r.width; h = h || r.height; }
+    return { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
+  }
+
+  // Serialize a rendered mermaid diagram's <svg> into a standalone, portable SVG
+  // string (namespaces + explicit intrinsic size + a white background).
+  function serializeMermaidSvg(node) {
+    const svg = node.querySelector('svg');
+    if (!svg) return null;
+    const size = svgExportSize(svg);
+    const w = size.w, h = size.h;
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('x', '0'); bg.setAttribute('y', '0');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%');
+    bg.setAttribute('fill', '#FFFFFF');
+    clone.insertBefore(bg, clone.firstChild);
+    return { xml: new XMLSerializer().serializeToString(clone), w: w, h: h };
+  }
+
+  function exportDiagramSvg(node, label) {
+    const s = serializeMermaidSvg(node);
+    if (!s) { showToast('No diagram to export.', 'error'); return; }
+    downloadBlob(new Blob([s.xml], { type: 'image/svg+xml;charset=utf-8' }),
+      diagramBaseName(label) + '.svg');
+    showToast('SVG saved as ' + diagramBaseName(label) + '.svg', 'success');
+  }
+
+  function exportDiagramPng(node, label, btn) {
+    const s = serializeMermaidSvg(node);
+    if (!s) { showToast('No diagram to export.', 'error'); return; }
+    // Scale from the diagram's intrinsic size, with a minimum target resolution
+    // so even small diagrams render crisply (SVG is vector → genuinely sharp).
+    const MIN_LONG = 1600;                 // target px on the longer side
+    const longSide = Math.max(s.w, s.h);
+    let scale = Math.max(2, MIN_LONG / longSide);
+    scale = Math.min(scale, 8);            // cap canvas size
+    const img = new Image();
+    if (btn) btn.disabled = true;
+    img.onload = function () {
+      try {
+        const c = document.createElement('canvas');
+        c.width = s.w * scale; c.height = s.h * scale;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+        ctx.drawImage(img, 0, 0, s.w, s.h);
+        c.toBlob(function (blob) {
+          if (blob) {
+            downloadBlob(blob, diagramBaseName(label) + '.png');
+            showToast('PNG saved as ' + diagramBaseName(label) + '.png', 'success');
+          } else { showToast('PNG export failed.', 'error'); }
+          if (btn) btn.disabled = false;
+        }, 'image/png');
+      } catch (e) {
+        console.error(e);
+        showToast('PNG export failed: ' + (e && e.message || e), 'error');
+        if (btn) btn.disabled = false;
+      }
+    };
+    img.onerror = function () {
+      showToast('PNG export failed (could not load the diagram).', 'error');
+      if (btn) btn.disabled = false;
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.xml);
   }
 
   function applyFsScale() {
