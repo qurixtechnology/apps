@@ -6,6 +6,35 @@
 
 .app-shell { display: flex; flex-direction: column; gap: var(--qrx-s-6); }
 
+/* Paste-from-clipboard */
+.dz-actions { margin-top: var(--qrx-s-4); }
+.paste-modal {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--qrx-s-6); background: rgba(10,31,43,0.55);
+}
+.paste-modal[hidden] { display: none; }
+.paste-modal-card {
+  width: 100%; max-width: 560px;
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg); box-shadow: var(--qrx-shadow-lg);
+  padding: var(--qrx-s-6);
+}
+.paste-modal-title { margin: 0 0 var(--qrx-s-2); color: var(--qrx-primary); font-size: 1.125rem; }
+.paste-modal-hint { margin: 0 0 var(--qrx-s-4); font-size: 0.875rem; }
+.paste-area {
+  min-height: 160px; max-height: 40vh; overflow: auto;
+  padding: var(--qrx-s-3);
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius);
+  background: var(--qrx-bg-subtle); color: var(--qrx-text);
+  font-family: var(--qrx-font-mono); font-size: 0.8125rem; white-space: pre;
+}
+.paste-area:focus { outline: none; border-color: var(--qrx-primary);
+                    box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
+.paste-area:empty::before { content: attr(data-placeholder); color: var(--qrx-text-subtle); }
+.paste-modal-actions { display: flex; justify-content: flex-end; gap: var(--qrx-s-3);
+                       margin-top: var(--qrx-s-4); }
+
 /* Drop zone */
 .dropzone {
   border: 2px dashed var(--qrx-border-strong);

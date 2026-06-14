@@ -7,6 +7,26 @@
       <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · DuckDB · SQLite · Markdown · up to ~1 GB</p>
       <input type="file" id="filePicker" hidden
              accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.duckdb,.ddb,.db,.sqlite,.sqlite3,.md,.markdown,.mdown,.mkd">
+      <div class="dz-actions">
+        <button class="qrx-btn" id="pasteBtn" type="button"
+                title="Paste a table copied from Excel, a browser, CSV/TSV, …">Paste table from clipboard</button>
+      </div>
+    </div>
+
+    <!-- Paste-capture modal (fallback when the async Clipboard API isn't available) -->
+    <div id="pasteModal" class="paste-modal" hidden>
+      <div class="paste-modal-card">
+        <h3 class="paste-modal-title">Paste a table</h3>
+        <p class="muted paste-modal-hint">
+          Press <kbd>Ctrl</kbd>/<kbd>&#8984;</kbd>+<kbd>V</kbd> to paste data copied from Excel,
+          a browser table, or CSV/TSV text. The structure is detected automatically.
+        </p>
+        <div id="pasteArea" class="paste-area" contenteditable="true" spellcheck="false"
+             role="textbox" aria-label="Paste area" data-placeholder="Paste here…"></div>
+        <div class="paste-modal-actions">
+          <button class="qrx-btn" id="pasteCancelBtn" type="button">Cancel</button>
+        </div>
+      </div>
     </div>
 
     <!-- File info bar (after load) -->

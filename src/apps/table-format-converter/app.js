@@ -83,6 +83,10 @@
     sqliteCsvName: null,  // VFS name of the table materialised as CSV for export
     markdownTables: [],   // [{name, columns:[], rows:[[]]}] parsed from a Markdown file
     mdCsvName: null,      // VFS name of the selected Markdown table materialised as CSV
+    pasteSource: null,    // 'html' | 'text' — how the pasted clipboard data was parsed
+    pasteText: null,      // raw plain-text payload (text source) for delimiter re-parse
+    pasteTables: [],      // [{name, matrix:[[...]]}] parsed from pasted clipboard data
+    pasteCsvName: null,   // VFS name of the selected pasted table materialised as CSV
     snapshotMode: false,  // true when viewing a "with data" export (no live file)
     snapshotMeta: null,   // {fileName, fileSize} of the captured snapshot
   };
@@ -389,12 +393,17 @@
       if (state.duckPreviewFile) { try { db.dropFile(state.duckPreviewFile); } catch (_) {} }
       if (state.sqliteCsvName)   { try { db.dropFile(state.sqliteCsvName); }   catch (_) {} }
       if (state.mdCsvName)       { try { db.dropFile(state.mdCsvName); }       catch (_) {} }
+      if (state.pasteCsvName)    { try { db.dropFile(state.pasteCsvName); }    catch (_) {} }
     }
     if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
     state.sqliteDb = null;
     state.sqliteCsvName = null;
     state.mdCsvName = null;
     state.markdownTables = [];
+    state.pasteCsvName = null;
+    state.pasteTables = [];
+    state.pasteText = null;
+    state.pasteSource = null;
     state.file = null;
     state.format = null;
     state.duckFile = null;
@@ -783,6 +792,179 @@
     } catch (_) { state.rowCountEstimate = null; }
   }
 
+  // ---------------------------------------------------------------- Pasted clipboard data
+  // Heuristically extract a table from clipboard content. Prefers an HTML <table>
+  // (Excel / browser copies include text/html); otherwise detects a delimiter in
+  // plain text (tab / ; / | / , / whitespace). Parsed rows are materialised to an
+  // in-memory CSV that DuckDB reads (same path as Markdown/SQLite/Excel).
+  function csvSplitLine(line) {
+    const out = []; let cur = '', q = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (q) {
+        if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+        else cur += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { out.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+  function splitDelim(line, delim) {
+    if (delim === 'ws') return line.trim().split(/\s{2,}|\t/);
+    if (delim === ',')  return csvSplitLine(line);
+    return line.split(delim);
+  }
+  function detectDelim(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim()).slice(0, 30);
+    if (!lines.length) return ',';
+    let best = null, bestScore = -1;
+    for (const d of ['\t', ';', '|', ',']) {
+      const counts = lines.map(l => splitDelim(l, d).length);
+      const freq = {};
+      counts.forEach(c => { if (c >= 2) freq[c] = (freq[c] || 0) + 1; });
+      let modeCount = 0, modeLines = 0;
+      for (const k in freq) if (freq[k] > modeLines) { modeLines = freq[k]; modeCount = +k; }
+      if (modeCount < 2) continue;
+      const score = modeLines * 100 + modeCount;
+      if (score > bestScore) { bestScore = score; best = d; }
+    }
+    if (best) return best;
+    if (lines.some(l => /\S(?: {2,}|\t)\S/.test(l))) return 'ws';
+    return ',';
+  }
+  function parseDelimited(text, delim) {
+    const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim().length);
+    const matrix = lines.map(l => splitDelim(l, delim).map(c => c.trim()));
+    const w = matrix.reduce((m, r) => Math.max(m, r.length), 0);
+    matrix.forEach(r => { while (r.length < w) r.push(''); });
+    return matrix;
+  }
+  function parseHtmlTables(html) {
+    let doc;
+    try { doc = new DOMParser().parseFromString(html, 'text/html'); } catch (_) { return []; }
+    const tables = [];
+    doc.querySelectorAll('table').forEach(tbl => {
+      const matrix = [];
+      tbl.querySelectorAll('tr').forEach(tr => {
+        const cells = [];
+        tr.querySelectorAll('th, td').forEach(td =>
+          cells.push((td.textContent || '').replace(/\s+/g, ' ').trim()));
+        if (cells.length) matrix.push(cells);
+      });
+      if (!matrix.length) return;
+      const w = matrix.reduce((m, r) => Math.max(m, r.length), 0);
+      matrix.forEach(r => { while (r.length < w) r.push(''); });
+      const cap = tbl.querySelector('caption');
+      const capTxt = cap && cap.textContent.trim();
+      tables.push({ name: `Table ${tables.length + 1}` + (capTxt ? ` — ${capTxt}` : ''), matrix });
+    });
+    return tables;
+  }
+  function loadPaste(payload) {
+    const html = (payload.html || '').trim();
+    const text = payload.text || '';
+    const htmlTables = html ? parseHtmlTables(html) : [];
+    if (htmlTables.length) {
+      state.pasteSource = 'html';
+      state.pasteText = null;
+      state.pasteTables = htmlTables;
+      state.detected = { pasteTable: 0, pasteHeader: true };
+      return;
+    }
+    if (!text.trim()) throw new Error('Clipboard contained no table-like data.');
+    const delim = detectDelim(text);
+    const matrix = parseDelimited(text, delim);
+    if (!matrix.length) throw new Error('Could not detect any rows in the pasted text.');
+    state.pasteSource = 'text';
+    state.pasteText = text;
+    state.pasteTables = [{ name: 'Pasted table', matrix }];
+    state.detected = { pasteTable: 0, pasteDelim: delim, pasteHeader: true };
+  }
+
+  async function materializePasteCsv() {
+    if (!db) { await initDuckDB(); }
+    const idx = Number(eff().pasteTable) || 0;
+    let t = state.pasteTables[idx];
+    if (!t) throw new Error('No pasted table selected.');
+    if (state.pasteSource === 'text') {
+      // Re-parse with the (possibly overridden) delimiter.
+      const delim = eff().pasteDelim || detectDelim(state.pasteText);
+      t = { name: t.name, matrix: parseDelimited(state.pasteText, delim) };
+      state.pasteTables[idx] = t;
+    }
+    const matrix = t.matrix;
+    if (!matrix.length) throw new Error('No rows to import.');
+    const header = eff().pasteHeader !== false;
+    const columns = header ? dedupeMdCols(matrix[0]) : matrix[0].map((_, i) => `column${i + 1}`);
+    const dataRows = header ? matrix.slice(1) : matrix;
+    const lines = [columns.map(csvEscape).join(',')];
+    for (const row of dataRows) lines.push(columns.map((_, i) => csvEscape(row[i])).join(','));
+    if (state.pasteCsvName) { try { await db.dropFile(state.pasteCsvName); } catch (_) {} }
+    const name = `paste_${Date.now()}.csv`;
+    await db.registerFileBuffer(name, new TextEncoder().encode(lines.join('\n')));
+    state.pasteCsvName = name;
+  }
+  function pasteSourceSql() {
+    return `SELECT * FROM read_csv('${sqlEscape(state.pasteCsvName)}', delim=',', quote='"', header=true, auto_detect=true)`;
+  }
+  async function previewPaste() {
+    if (!state.pasteTables.length) { state.schema = []; state.previewRows = []; state.rowCountEstimate = null; return; }
+    await materializePasteCsv();
+    const src = pasteSourceSql();
+    const res = await conn.query(`${src} LIMIT 10`);
+    state.schema = arrowFields(res.schema);
+    state.previewRows = arrowRows(res);
+    try {
+      const cnt = await conn.query(`SELECT count(*) AS c FROM (${src})`);
+      state.rowCountEstimate = { value: Number(cnt.toArray()[0].c), exact: true };
+    } catch (_) { state.rowCountEstimate = null; }
+  }
+
+  // Enter the workspace with pasted clipboard data (no file involved).
+  async function enterPasteMode(payload) {
+    exitSnapshotMode();
+    if (db) {
+      if (state.duckFile)        { try { await db.dropFile(state.duckFile); }        catch (_) {} }
+      if (state.duckPreviewFile) { try { await db.dropFile(state.duckPreviewFile); } catch (_) {} }
+      if (state.sqliteCsvName)   { try { await db.dropFile(state.sqliteCsvName); }   catch (_) {} }
+      if (state.mdCsvName)       { try { await db.dropFile(state.mdCsvName); }       catch (_) {} }
+      if (state.pasteCsvName)    { try { await db.dropFile(state.pasteCsvName); }    catch (_) {} }
+    }
+    if (state.duckdbAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.duckdbAlias)}`); } catch (_) {} }
+    if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
+    Object.assign(state, {
+      duckFile: null, duckPreviewFile: null, duckdbAlias: null, duckdbTables: [],
+      sqliteDb: null, sqliteCsvName: null, mdCsvName: null, markdownTables: [],
+      pasteCsvName: null, sheets: [], excelBookSample: null,
+      csvSampleText: null, csvFullColumnNames: null, user: {},
+    });
+    state.format = 'paste';
+    state.file = { name: 'clipboard.txt' };
+    state.fileSize = (payload.text || payload.html || '').length;
+
+    try {
+      setStatus('Reading clipboard…');
+      loadPaste(payload);
+      dropzone.hidden = true;
+      fileInfo.hidden = false;
+      fileIcon.textContent = 'CLP';
+      fileName.textContent = 'Pasted data';
+      const n = state.pasteTables.length;
+      fileMeta.textContent = `PASTE (${state.pasteSource === 'html' ? 'HTML' : 'text'}) · ${n} table${n === 1 ? '' : 's'}`;
+      workspace.hidden = false;
+      renderHeuristicPanel();
+      renderExportOptions();
+      await refreshPreview();
+      updateHeuristicCollapseState();
+      setStatus('');
+    } catch (err) {
+      console.error(err);
+      setStatus('Error: ' + (err && err.message ? err.message : String(err)), 'error');
+    }
+  }
+
   // ---------------------------------------------------------------- JSON / NDJSON detection
   async function detectJSON(fmt) {
     // For nested JSON (object with data under a path), try to find longest array
@@ -974,6 +1156,33 @@
         Column types are inferred (Markdown carries none).
       </p>`;
     }
+    else if (state.format === 'paste') {
+      if (state.pasteTables.length > 1) {
+        const sel = Number(e.pasteTable) || 0;
+        const opts = state.pasteTables.map((t, i) =>
+          `<option value="${i}" ${i === sel ? 'selected' : ''}>${escapeHtml(t.name)} (${t.matrix.length} rows)</option>`
+        ).join('');
+        html += renderField('Table', `<select class="qrx-select" id="h_pastetable">${opts}</select>`, e, 'pasteTable');
+      }
+      if (state.pasteSource === 'text') {
+        html += renderField('Delimiter', selectMarkup('h_pastedelim', [
+          { v: '\t', label: '\\t (tab)' },
+          { v: ',',  label: ', (comma)' },
+          { v: ';',  label: '; (semicolon)' },
+          { v: '|',  label: '| (pipe)' },
+          { v: 'ws', label: 'whitespace' },
+        ], e.pasteDelim, true), e, 'pasteDelim');
+      }
+      html += `<div class="qrx-form-group"><label class="checkbox-row">
+        <input type="checkbox" id="h_pasteheader" ${e.pasteHeader !== false ? 'checked' : ''}>
+        <span class="qrx-label" style="margin: 0;">First row is header</span>
+      </label></div>`;
+      html += `<p class="muted" style="font-size: 0.8125rem; margin-top: var(--qrx-s-2);">
+        Pasted ${state.pasteSource === 'html' ? 'HTML table' : 'text'} ·
+        ${state.pasteTables.length} table${state.pasteTables.length === 1 ? '' : 's'}.
+        Column types are inferred.
+      </p>`;
+    }
     else if (state.format === 'json' || state.format === 'ndjson') {
       const mode = e.mode || (state.format === 'ndjson' ? 'ndjson' : 'array');
       html += `<div class="qrx-form-group">
@@ -1103,6 +1312,26 @@
       $('h_mdtable').addEventListener('change', e => {
         setUser('mdTable', Number(e.target.value));
         // Switching tables changes the column space — drop per-column edits.
+        delete state.user.columnEdits;
+        rerenderBadges(); onChange();
+      });
+    }
+    else if (state.format === 'paste') {
+      const tp = $('h_pastetable');
+      if (tp) tp.addEventListener('change', e => {
+        setUser('pasteTable', Number(e.target.value));
+        delete state.user.columnEdits;
+        rerenderBadges(); onChange();
+      });
+      const dl = $('h_pastedelim');
+      if (dl) dl.addEventListener('change', e => {
+        setUser('pasteDelim', e.target.value);
+        delete state.user.columnEdits;
+        rerenderBadges(); onChange();
+      });
+      const hd = $('h_pasteheader');
+      if (hd) hd.addEventListener('change', e => {
+        setUser('pasteHeader', e.target.checked);
         delete state.user.columnEdits;
         rerenderBadges(); onChange();
       });
@@ -1549,6 +1778,7 @@
       else if (state.format === 'duckdb') await previewDuckdb();
       else if (state.format === 'sqlite') await previewSqlite();
       else if (state.format === 'markdown') await previewMarkdown();
+      else if (state.format === 'paste') await previewPaste();
       pruneColumnEdits();
       renderPreviewStats();
       renderPreviewGrid();
@@ -1667,6 +1897,9 @@
       // Markdown is parsed in JS and materialised to an in-memory CSV that DuckDB
       // queries (see materializeMarkdownCsv, called before export / preview).
       sql = markdownSourceSql();
+    } else if (state.format === 'paste') {
+      // Pasted clipboard data is parsed in JS and materialised to an in-memory CSV.
+      sql = pasteSourceSql();
     }
     if (!sql) return null;
 
@@ -2558,6 +2791,11 @@
         await materializeMarkdownCsv();
         if (fmt === 'xlsx') await exportSqlToExcel();
         else await exportSqlToFile(fmt);
+      } else if (state.format === 'paste') {
+        // Re-materialise the pasted table (CSV) so the normal SQL path applies.
+        await materializePasteCsv();
+        if (fmt === 'xlsx') await exportSqlToExcel();
+        else await exportSqlToFile(fmt);
       } else if (state.format === 'xlsx' && fmt === 'xlsx') {
         await exportExcelToExcel();
       } else if (state.format === 'xlsx') {
@@ -2951,6 +3189,55 @@
     if (f) loadFile(f);
   });
   resetFileBtn.addEventListener('click', resetFile);
+
+  // ---------------------------------------------------------------- Paste import
+  const pasteBtn       = $('pasteBtn');
+  const pasteModal     = $('pasteModal');
+  const pasteArea      = $('pasteArea');
+  const pasteCancelBtn = $('pasteCancelBtn');
+
+  function openPasteModal() {
+    if (!pasteModal) return;
+    pasteArea.innerHTML = '';
+    pasteModal.hidden = false;
+    setTimeout(() => pasteArea.focus(), 0);
+  }
+  function closePasteModal() { if (pasteModal) pasteModal.hidden = true; }
+
+  // One-click via the async Clipboard API (needs https + permission); falls back
+  // to a focused paste box that captures the native paste event (works on file://).
+  async function tryClipboardPaste() {
+    if (navigator.clipboard && navigator.clipboard.read) {
+      try {
+        const items = await navigator.clipboard.read();
+        let html = '', text = '';
+        for (const it of items) {
+          if (it.types.includes('text/html'))  html = await (await it.getType('text/html')).text();
+          if (it.types.includes('text/plain')) text = await (await it.getType('text/plain')).text();
+        }
+        if (html || text.trim()) { await enterPasteMode({ html, text }); return; }
+      } catch (_) { /* permission denied / unsupported → modal fallback */ }
+    }
+    openPasteModal();
+  }
+
+  if (pasteBtn) {
+    pasteBtn.addEventListener('click', e => { e.stopPropagation(); tryClipboardPaste(); });
+    pasteBtn.addEventListener('keydown', e => e.stopPropagation());
+  }
+  if (pasteArea) {
+    pasteArea.addEventListener('paste', e => {
+      e.preventDefault();
+      const cd = e.clipboardData || window.clipboardData;
+      const html = cd ? cd.getData('text/html') : '';
+      const text = cd ? cd.getData('text/plain') : '';
+      closePasteModal();
+      enterPasteMode({ html, text });
+    });
+    pasteArea.addEventListener('keydown', e => { if (e.key === 'Escape') closePasteModal(); });
+  }
+  if (pasteCancelBtn) pasteCancelBtn.addEventListener('click', closePasteModal);
+  if (pasteModal) pasteModal.addEventListener('click', e => { if (e.target === pasteModal) closePasteModal(); });
 
   // ---------------------------------------------------------------- Snapshot ("Export with data")
   // The source file is a live browser handle and cannot be embedded, so a

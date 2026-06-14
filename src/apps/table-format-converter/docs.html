@@ -58,6 +58,12 @@
           via DuckDB's SQLite scanner; pick which table to read from, then convert
           it to any supported export format. (<code>.db</code> is auto-detected as
           SQLite or DuckDB from the file's magic bytes.)</li>
+      <li><strong>Paste from clipboard</strong> — the <em>Paste table from clipboard</em> button
+          imports a table copied from Excel/Sheets, a browser table, or CSV/TSV text. Rich HTML
+          tables are read directly; for plain text the delimiter (tab / <code>;</code> /
+          <code>|</code> / <code>,</code> / whitespace) is auto-detected and can be overridden, and
+          the first row is treated as the header (toggleable). Multiple tables → pick one via the
+          <em>Table</em> dropdown.</li>
       <li><strong>Markdown (.md / .markdown)</strong> — GitHub-flavored pipe tables.
           All tables in the file are detected; pick which one to read via the
           <em>Table</em> dropdown (labelled by the nearest preceding heading). Column
