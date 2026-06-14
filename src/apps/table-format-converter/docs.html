@@ -61,9 +61,13 @@
       <li><strong>Paste from clipboard</strong> — the <em>Paste table from clipboard</em> button
           imports a table copied from Excel/Sheets, a browser table, or CSV/TSV text. Rich HTML
           tables are read directly; for plain text the delimiter (tab / <code>;</code> /
-          <code>|</code> / <code>,</code> / whitespace) is auto-detected and can be overridden, and
-          the first row is treated as the header (toggleable). Multiple tables → pick one via the
-          <em>Table</em> dropdown.</li>
+          <code>|</code> / <code>,</code> / whitespace / <strong>Markdown</strong>) is auto-detected
+          and can be overridden, and the first row is treated as the header (toggleable). Multiple
+          tables → pick one via the <em>Table</em> dropdown.</li>
+      <li><strong>Source editor / new table</strong> — pasted text appears in an editable
+          <em>Source editor</em> with live preview; <em>New / blank table</em> opens an empty editor
+          to author a table from scratch (e.g. a Markdown pipe table). An HTML-pasted table can be
+          turned editable via <em>Edit as text</em>.</li>
       <li><strong>Markdown (.md / .markdown)</strong> — GitHub-flavored pipe tables.
           All tables in the file are detected; pick which one to read via the
           <em>Table</em> dropdown (labelled by the nearest preceding heading). Column

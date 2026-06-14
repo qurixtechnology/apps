@@ -34,6 +34,16 @@
 .paste-area:empty::before { content: attr(data-placeholder); color: var(--qrx-text-subtle); }
 .paste-modal-actions { display: flex; justify-content: flex-end; gap: var(--qrx-s-3);
                        margin-top: var(--qrx-s-4); }
+.paste-editor {
+  width: 100%; min-height: 180px; resize: vertical;
+  padding: var(--qrx-s-3);
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius);
+  background: var(--qrx-bg-subtle); color: var(--qrx-text);
+  font-family: var(--qrx-font-mono); font-size: 0.8125rem; line-height: 1.5;
+  white-space: pre; tab-size: 4;
+}
+.paste-editor:focus { outline: none; border-color: var(--qrx-primary);
+                      box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
 
 /* Drop zone */
 .dropzone {

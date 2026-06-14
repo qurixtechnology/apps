@@ -10,6 +10,8 @@
       <div class="dz-actions">
         <button class="qrx-btn" id="pasteBtn" type="button"
                 title="Paste a table copied from Excel, a browser, CSV/TSV, …">Paste table from clipboard</button>
+        <button class="qrx-btn" id="newTableBtn" type="button"
+                title="Open an empty editor to type or paste a table (delimited or Markdown)">New / blank table</button>
       </div>
     </div>
 
@@ -79,6 +81,18 @@
       </details>
 
       <div class="workspace-right">
+
+        <div class="qrx-card" id="editorCard" hidden>
+          <h3 class="section-title">
+            Source editor
+            <span class="section-title-right">
+              <span class="muted">edit text · live preview</span>
+            </span>
+          </h3>
+          <textarea id="pasteEditor" class="paste-editor" spellcheck="false"
+                    autocomplete="off" autocorrect="off" autocapitalize="off"
+                    placeholder="Type or paste a table — delimited (tab / ; / | / ,) or a Markdown pipe table. Adjust delimiter & header on the left."></textarea>
+        </div>
 
         <div class="qrx-card">
           <h3 class="section-title">

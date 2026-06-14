@@ -404,6 +404,7 @@
     state.pasteTables = [];
     state.pasteText = null;
     state.pasteSource = null;
+    { const ec = $('editorCard'); if (ec) ec.hidden = true; const pe = $('pasteEditor'); if (pe) pe.value = ''; }
     state.file = null;
     state.format = null;
     state.duckFile = null;
@@ -817,6 +818,11 @@
     return line.split(delim);
   }
   function detectDelim(text) {
+    const raw = text.split(/\r?\n/);
+    // Markdown pipe table? (a header row with pipes followed by a |---|--- row)
+    for (let i = 1; i < raw.length; i++) {
+      if (raw[i - 1].includes('|') && isMdSeparator(raw[i])) return 'md';
+    }
     const lines = text.split(/\r?\n/).filter(l => l.trim()).slice(0, 30);
     if (!lines.length) return ',';
     let best = null, bestScore = -1;
@@ -883,19 +889,28 @@
     state.detected = { pasteTable: 0, pasteDelim: delim, pasteHeader: true };
   }
 
-  async function materializePasteCsv() {
-    if (!db) { await initDuckDB(); }
+  // Resolve the current matrix for the active paste table. For the text/editor
+  // source it is (re)parsed from state.pasteText using the chosen delimiter —
+  // including 'md' (Markdown pipe table, separator row dropped).
+  function activePasteMatrix() {
     const idx = Number(eff().pasteTable) || 0;
-    let t = state.pasteTables[idx];
-    if (!t) throw new Error('No pasted table selected.');
+    let t = state.pasteTables[idx] || { matrix: [] };
     if (state.pasteSource === 'text') {
-      // Re-parse with the (possibly overridden) delimiter.
-      const delim = eff().pasteDelim || detectDelim(state.pasteText);
-      t = { name: t.name, matrix: parseDelimited(state.pasteText, delim) };
+      const text = state.pasteText || '';
+      const delim = eff().pasteDelim || detectDelim(text);
+      let matrix;
+      if (delim === 'md') {
+        const mdt = parseMarkdownTables(text);
+        matrix = mdt.length ? [mdt[0].columns.slice(), ...mdt[0].rows.map(r => r.slice())] : [];
+      } else {
+        matrix = parseDelimited(text, delim);
+      }
+      t = { name: t.name || 'Pasted table', matrix };
       state.pasteTables[idx] = t;
     }
-    const matrix = t.matrix;
-    if (!matrix.length) throw new Error('No rows to import.');
+    return t.matrix || [];
+  }
+  async function registerPasteCsv(matrix) {
     const header = eff().pasteHeader !== false;
     const columns = header ? dedupeMdCols(matrix[0]) : matrix[0].map((_, i) => `column${i + 1}`);
     const dataRows = header ? matrix.slice(1) : matrix;
@@ -906,12 +921,20 @@
     await db.registerFileBuffer(name, new TextEncoder().encode(lines.join('\n')));
     state.pasteCsvName = name;
   }
+  async function materializePasteCsv() {
+    if (!db) { await initDuckDB(); }
+    const matrix = activePasteMatrix();
+    if (!matrix.length) throw new Error('No rows to import — the editor is empty.');
+    await registerPasteCsv(matrix);
+  }
   function pasteSourceSql() {
     return `SELECT * FROM read_csv('${sqlEscape(state.pasteCsvName)}', delim=',', quote='"', header=true, auto_detect=true)`;
   }
   async function previewPaste() {
-    if (!state.pasteTables.length) { state.schema = []; state.previewRows = []; state.rowCountEstimate = null; return; }
-    await materializePasteCsv();
+    if (!db) { await initDuckDB(); }
+    const matrix = activePasteMatrix();
+    if (!matrix.length) { state.schema = []; state.previewRows = []; state.rowCountEstimate = null; return; }
+    await registerPasteCsv(matrix);
     const src = pasteSourceSql();
     const res = await conn.query(`${src} LIMIT 10`);
     state.schema = arrowFields(res.schema);
@@ -922,8 +945,43 @@
     } catch (_) { state.rowCountEstimate = null; }
   }
 
+  // Convert the active pasted table to tab-separated text and switch to the
+  // text/editor source so an HTML-pasted table becomes editable.
+  function editPasteAsText() {
+    const idx = Number(eff().pasteTable) || 0;
+    const m = (state.pasteTables[idx] || { matrix: [] }).matrix;
+    state.pasteSource = 'text';
+    state.pasteText = m.map(r => r.join('\t')).join('\n');
+    state.pasteTables = [{ name: 'Edited table', matrix: m }];
+    state.detected = { pasteTable: 0, pasteDelim: '\t', pasteHeader: eff().pasteHeader !== false };
+    state.user = {};
+    renderHeuristicPanel();
+    renderExportOptions();
+    refreshPreview().then(syncPasteEditor);
+  }
+
+  // Show/refresh the source editor card for the text/editor paste source.
+  function syncPasteEditor() {
+    const card = $('editorCard');
+    const ta = $('pasteEditor');
+    if (!card || !ta) return;
+    const show = state.format === 'paste' && state.pasteSource === 'text';
+    card.hidden = !show;
+    if (show && document.activeElement !== ta) ta.value = state.pasteText || '';
+  }
+
+  // Open an empty editor to author a table from scratch (defaults to Markdown).
+  function enterEditorMode() {
+    const starter =
+      '| column1 | column2 | column3 |\n' +
+      '| --- | --- | --- |\n' +
+      '| a | 1 | 2024-01-01 |\n' +
+      '| b | 2 | 2024-02-01 |\n';
+    return enterPasteMode({ html: '', text: starter }, 'New table');
+  }
+
   // Enter the workspace with pasted clipboard data (no file involved).
-  async function enterPasteMode(payload) {
+  async function enterPasteMode(payload, label) {
     exitSnapshotMode();
     if (db) {
       if (state.duckFile)        { try { await db.dropFile(state.duckFile); }        catch (_) {} }
@@ -949,14 +1007,15 @@
       loadPaste(payload);
       dropzone.hidden = true;
       fileInfo.hidden = false;
-      fileIcon.textContent = 'CLP';
-      fileName.textContent = 'Pasted data';
+      fileIcon.textContent = state.pasteSource === 'html' ? 'CLP' : 'TXT';
+      fileName.textContent = label || 'Pasted data';
       const n = state.pasteTables.length;
       fileMeta.textContent = `PASTE (${state.pasteSource === 'html' ? 'HTML' : 'text'}) · ${n} table${n === 1 ? '' : 's'}`;
       workspace.hidden = false;
       renderHeuristicPanel();
       renderExportOptions();
       await refreshPreview();
+      syncPasteEditor();
       updateHeuristicCollapseState();
       setStatus('');
     } catch (err) {
@@ -1171,16 +1230,25 @@
           { v: ';',  label: '; (semicolon)' },
           { v: '|',  label: '| (pipe)' },
           { v: 'ws', label: 'whitespace' },
+          { v: 'md', label: 'Markdown table' },
         ], e.pasteDelim, true), e, 'pasteDelim');
       }
+      const mdHint = (eff().pasteDelim === 'md')
+        ? ' The <code>|---|</code> separator row is ignored; the first row is the header.' : '';
+      if (state.pasteSource !== 'text') {
+        html += `<div class="qrx-form-group">
+          <button class="qrx-btn" id="h_pasteedit" type="button">Edit as text</button>
+        </div>`;
+      }
       html += `<div class="qrx-form-group"><label class="checkbox-row">
-        <input type="checkbox" id="h_pasteheader" ${e.pasteHeader !== false ? 'checked' : ''}>
+        <input type="checkbox" id="h_pasteheader" ${e.pasteHeader !== false ? 'checked' : ''}
+               ${eff().pasteDelim === 'md' ? 'disabled' : ''}>
         <span class="qrx-label" style="margin: 0;">First row is header</span>
       </label></div>`;
       html += `<p class="muted" style="font-size: 0.8125rem; margin-top: var(--qrx-s-2);">
         Pasted ${state.pasteSource === 'html' ? 'HTML table' : 'text'} ·
         ${state.pasteTables.length} table${state.pasteTables.length === 1 ? '' : 's'}.
-        Column types are inferred.
+        Column types are inferred.${mdHint}
       </p>`;
     }
     else if (state.format === 'json' || state.format === 'ndjson') {
@@ -1327,7 +1395,9 @@
       if (dl) dl.addEventListener('change', e => {
         setUser('pasteDelim', e.target.value);
         delete state.user.columnEdits;
-        rerenderBadges(); onChange();
+        // Re-render so the header toggle / hint reflect the Markdown mode.
+        renderHeuristicPanel();
+        refreshPreview();
       });
       const hd = $('h_pasteheader');
       if (hd) hd.addEventListener('change', e => {
@@ -1335,6 +1405,8 @@
         delete state.user.columnEdits;
         rerenderBadges(); onChange();
       });
+      const ed = $('h_pasteedit');
+      if (ed) ed.addEventListener('click', editPasteAsText);
     }
     else if (state.format === 'json' || state.format === 'ndjson') {
       document.querySelectorAll('input[name="h_mode"]').forEach(r => {
@@ -3238,6 +3310,32 @@
   }
   if (pasteCancelBtn) pasteCancelBtn.addEventListener('click', closePasteModal);
   if (pasteModal) pasteModal.addEventListener('click', e => { if (e.target === pasteModal) closePasteModal(); });
+
+  const newTableBtn = $('newTableBtn');
+  if (newTableBtn) {
+    newTableBtn.addEventListener('click', e => { e.stopPropagation(); enterEditorMode(); });
+    newTableBtn.addEventListener('keydown', e => e.stopPropagation());
+  }
+  const pasteEditorEl = $('pasteEditor');
+  if (pasteEditorEl) {
+    const onEdit = debounce(() => { refreshPreview(); }, 350);
+    pasteEditorEl.addEventListener('input', () => {
+      if (state.format !== 'paste') return;
+      state.pasteText = pasteEditorEl.value;
+      state.pasteSource = 'text';
+      onEdit();
+    });
+    // Tab inserts a tab character instead of moving focus.
+    pasteEditorEl.addEventListener('keydown', e => {
+      if (e.key !== 'Tab') return;
+      e.preventDefault();
+      const s = pasteEditorEl.selectionStart, en = pasteEditorEl.selectionEnd;
+      pasteEditorEl.value = pasteEditorEl.value.slice(0, s) + '\t' + pasteEditorEl.value.slice(en);
+      pasteEditorEl.selectionStart = pasteEditorEl.selectionEnd = s + 1;
+      state.pasteText = pasteEditorEl.value;
+      onEdit();
+    });
+  }
 
   // ---------------------------------------------------------------- Snapshot ("Export with data")
   // The source file is a live browser handle and cannot be embedded, so a
