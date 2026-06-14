@@ -569,10 +569,17 @@
     const alias = `srcdb_${Date.now().toString(36)}`;
     state.duckdbAlias = alias;
     await conn.query(`ATTACH '${sqlEscape(state.duckFile)}' AS ${sqlIdent(alias)} (READ_ONLY)`);
+    // List tables + views via the global metadata functions filtered by the
+    // attached database. The catalog-qualified path
+    // "<alias>.information_schema.tables" isn't reliably addressable on this
+    // DuckDB-WASM build, so we use duckdb_tables()/duckdb_views() instead.
+    const aliasLit = sqlEscape(alias);
     const res = await conn.query(`
-      SELECT table_schema, table_name
-      FROM ${sqlIdent(alias)}.information_schema.tables
-      WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+      SELECT schema_name AS table_schema, table_name
+      FROM duckdb_tables() WHERE database_name = '${aliasLit}' AND internal = false
+      UNION ALL
+      SELECT schema_name AS table_schema, view_name AS table_name
+      FROM duckdb_views()  WHERE database_name = '${aliasLit}' AND internal = false
       ORDER BY table_schema, table_name
     `);
     const rows = res.toArray();
