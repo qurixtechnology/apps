@@ -894,7 +894,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 }
 </style>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
+<!-- SheetJS (xlsx) via the official SheetJS CDN, pinned — adds robust ODS read/write and Apple Numbers read -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -920,7 +921,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <h2>Table Format Converter</h2>
     <p>
       A browser-only tool to read structured tabular data (CSV, Parquet, JSON, NDJSON,
-      Excel, DuckDB, SQLite, Markdown), inspect its structure, adjust the parsing heuristic, and
+      Excel, ODS, Apple Numbers, DuckDB, SQLite, Markdown, HTML), inspect its structure, adjust the parsing heuristic, and
       export it to a different format. <strong>Your data never leaves the browser</strong> — all
       processing happens locally with DuckDB-WASM and SheetJS.
     </p>
@@ -967,9 +968,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           single value). For files &gt; 100&nbsp;MB the app suggests NDJSON instead.</li>
       <li><strong>NDJSON / JSON Lines</strong> — schema inferred from the first ~100
           lines.</li>
-      <li><strong>Excel (.xlsx)</strong> — sheet selection, data-block detection
-          (bounding box), header row, plus a visual range picker on the first
-          ~30&nbsp;×&nbsp;15 cells.</li>
+      <li><strong>Excel (.xlsx / .xls), OpenDocument (.ods / .fods) and Apple Numbers
+          (.numbers)</strong> — all read via SheetJS through the same path: sheet selection,
+          data-block detection (bounding box), header row, plus a visual range picker. Formulas
+          are read as their cached values. <strong>ODS</strong> is also available as an export
+          target.</li>
+      <li><strong>HTML (.html / .htm)</strong> — all <code>&lt;table&gt;</code> elements are
+          extracted (pick one via the <em>Table</em> dropdown). Also available as an export target
+          (a standalone HTML document with one table).</li>
       <li><strong>DuckDB (.duckdb / .ddb / .db)</strong> — attached read-only;
           pick which table to read from. Schema and types come straight from
           the file. Can also be produced as an export target.</li>
@@ -1018,9 +1024,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
          aria-label="Drop a file here or click to pick one">
       <p class="dz-title">Drop a file here, or click to pick one</p>
-      <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · DuckDB · SQLite · Markdown · up to ~1 GB</p>
+      <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · up to ~1 GB</p>
       <input type="file" id="filePicker" hidden
-             accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.duckdb,.ddb,.db,.sqlite,.sqlite3,.md,.markdown,.mdown,.mkd">
+             accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.ods,.fods,.numbers,.duckdb,.ddb,.db,.sqlite,.sqlite3,.md,.markdown,.mdown,.mkd,.html,.htm">
       <div class="dz-actions">
         <button class="qrx-btn" id="pasteBtn" type="button"
                 title="Paste a table copied from Excel, a browser, CSV/TSV, …">Paste table from clipboard</button>
@@ -1155,7 +1161,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
               <button type="button" class="format-chip"           data-format="json"     role="radio" aria-checked="false">JSON<span class="format-chip-ext">.json</span></button>
               <button type="button" class="format-chip"           data-format="ndjson"   role="radio" aria-checked="false">NDJSON<span class="format-chip-ext">.ndjson</span></button>
               <button type="button" class="format-chip"           data-format="xlsx"     role="radio" aria-checked="false">Excel<span class="format-chip-ext">.xlsx</span></button>
+              <button type="button" class="format-chip"           data-format="ods"      role="radio" aria-checked="false">ODS<span class="format-chip-ext">.ods</span></button>
               <button type="button" class="format-chip"           data-format="markdown" role="radio" aria-checked="false">Markdown<span class="format-chip-ext">.md</span></button>
+              <button type="button" class="format-chip"           data-format="html"     role="radio" aria-checked="false">HTML<span class="format-chip-ext">.html</span></button>
             </div>
           </div>
 
@@ -1186,7 +1194,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260614-143016</span>
+    &middot; v<span data-build-version>260614-145943</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1581,6 +1589,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     if (ext === 'parquet' || ext === 'pq') return 'parquet';
     if (ext === 'xlsx' || ext === 'xls')   return 'xlsx';
+    // ODS / flat-ODS / Apple Numbers are all read by SheetJS (the Excel path).
+    if (ext === 'ods' || ext === 'fods' || ext === 'numbers') return 'xlsx';
+    if (ext === 'html' || ext === 'htm') return 'html';
     if (ext === 'ndjson' || ext === 'jsonl') return 'ndjson';
     if (ext === 'tsv') return 'csv';
     if (ext === 'sqlite' || ext === 'sqlite3') return 'sqlite';
@@ -1654,26 +1665,33 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       state.format = fmt;
 
       // Show file info
+      const ext0 = (file.name.split('.').pop() || '').toLowerCase();
       dropzone.hidden = true;
       fileInfo.hidden = false;
       fileIcon.textContent = fmt === 'parquet' ? 'PRQ' :
-                             fmt === 'xlsx' ? 'XLS' :
+                             fmt === 'xlsx' ? (ext0 === 'ods' || ext0 === 'fods' ? 'ODS' : ext0 === 'numbers' ? 'NUM' : 'XLS') :
                              fmt === 'ndjson' ? 'NDJ' :
                              fmt === 'duckdb' ? 'DDB' :
                              fmt === 'sqlite' ? 'SQL' :
                              fmt === 'markdown' ? 'MD' :
+                             fmt === 'html' ? 'HTM' :
                              fmt === 'json' ? 'JSN' : 'CSV';
       fileName.textContent = file.name;
-      fileMeta.textContent = `${fmt.toUpperCase()} · ${fmtBytes(file.size)}`;
+      fileMeta.textContent = `${ext0.toUpperCase() || fmt.toUpperCase()} · ${fmtBytes(file.size)}`;
 
-      // Excel and SQLite are read by their own JS engines (SheetJS / sql.js),
-      // not DuckDB's range reader. DuckDB is only spun up later, at export time.
+      // Excel/ODS/Numbers and SQLite are read by their own JS engines
+      // (SheetJS / sql.js); DuckDB is only spun up later, at export time.
       if (fmt === 'xlsx') {
         await loadExcel(file);
       } else if (fmt === 'sqlite') {
         await loadSqlite(file);
       } else if (fmt === 'markdown') {
         await loadMarkdown(file);
+      } else if (fmt === 'html') {
+        // An .html file is treated like pasted HTML: extract its <table>s.
+        const text = await readSlice(file, 0, file.size);
+        state.format = 'paste';
+        loadPaste({ html: text, text: text });
       } else {
         await initDuckDB();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -4146,7 +4164,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       html += `<p class="empty-note">No options — one JSON object per line.</p>`;
     } else if (fmt === 'markdown') {
       html += `<p class="empty-note">No options — GitHub-flavored pipe table (max ${MD_EXPORT_ROW_LIMIT.toLocaleString('en-US')} rows).</p>`;
-    } else if (fmt === 'xlsx') {
+    } else if (fmt === 'html') {
+      html += `<p class="empty-note">No options — a standalone HTML document with one table (max ${HTML_EXPORT_ROW_LIMIT.toLocaleString('en-US')} rows).</p>`;
+    } else if (fmt === 'xlsx' || fmt === 'ods') {
       html += `<div class="qrx-form-group">
         <label class="qrx-label" for="ex_sheet">Sheet name</label>
         <input class="qrx-input" id="ex_sheet" type="text" value="Sheet1">
@@ -4169,28 +4189,29 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     try {
       // Excel source must be funneled through DuckDB for non-xlsx targets,
       // OR handled directly with SheetJS for xlsx target.
+      const spreadsheet = (fmt === 'xlsx' || fmt === 'ods');  // SheetJS-written targets
       if (state.format === 'sqlite') {
         // Materialise the chosen table to a CSV DuckDB can read, then export
         // through the normal SQL path (gives filter / rename / exclude for free).
         await materializeSqlite();
-        if (fmt === 'xlsx') await exportSqlToExcel();
+        if (spreadsheet) await exportSqlToExcel(fmt);
         else await exportSqlToFile(fmt);
       } else if (state.format === 'markdown') {
         // Re-materialise the selected table (CSV) so the normal SQL path applies.
         await materializeMarkdownCsv();
-        if (fmt === 'xlsx') await exportSqlToExcel();
+        if (spreadsheet) await exportSqlToExcel(fmt);
         else await exportSqlToFile(fmt);
       } else if (state.format === 'paste') {
         // Re-materialise the pasted table (CSV) so the normal SQL path applies.
         await materializePasteCsv();
-        if (fmt === 'xlsx') await exportSqlToExcel();
+        if (spreadsheet) await exportSqlToExcel(fmt);
         else await exportSqlToFile(fmt);
-      } else if (state.format === 'xlsx' && fmt === 'xlsx') {
-        await exportExcelToExcel();
+      } else if (state.format === 'xlsx' && spreadsheet) {
+        await exportExcelToExcel(fmt);
       } else if (state.format === 'xlsx') {
         await exportExcelToOther(fmt);
-      } else if (fmt === 'xlsx') {
-        await exportSqlToExcel();
+      } else if (spreadsheet) {
+        await exportSqlToExcel(fmt);
       } else {
         await exportSqlToFile(fmt);
       }
@@ -4306,6 +4327,46 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     triggerDownload(buf, makeOutName('md'), mimeFor('markdown'));
   }
 
+  // HTML: serialize a standalone document with a single <table> in JS.
+  // Capped at HTML_EXPORT_ROW_LIMIT rows (HTML tables are impractical for huge data).
+  const HTML_EXPORT_ROW_LIMIT = 100000;
+  async function exportHtmlViaJs(sourceSql) {
+    exportProgress.textContent = 'Reading data into memory…';
+    const result = await conn.query(`SELECT * FROM (${sourceSql}) LIMIT ${HTML_EXPORT_ROW_LIMIT + 1}`);
+    const fields = result.schema.fields.map(f => f.name);
+    const allRows = result.toArray();
+    const truncated = allRows.length > HTML_EXPORT_ROW_LIMIT;
+    const rows = truncated ? allRows.slice(0, HTML_EXPORT_ROW_LIMIT) : allRows;
+
+    const esc = (v) => {
+      if (v == null) return '';
+      let s = (v instanceof Date) ? v.toISOString()
+            : (typeof v === 'bigint') ? v.toString()
+            : (typeof v === 'object') ? JSON.stringify(v) : String(v);
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    };
+
+    exportProgress.textContent = 'Serializing…';
+    const title = esc((state.file && state.file.name) || 'table');
+    const parts = [];
+    parts.push('<!DOCTYPE html>');
+    parts.push('<html lang="en"><head><meta charset="UTF-8">');
+    parts.push(`<title>${title}</title>`);
+    parts.push('<style>table{border-collapse:collapse;font-family:sans-serif;font-size:14px}'
+             + 'th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}'
+             + 'th{background:#f2f2f2}</style>');
+    parts.push('</head><body>');
+    parts.push('<table>');
+    parts.push('<thead><tr>' + fields.map(f => `<th>${esc(f)}</th>`).join('') + '</tr></thead>');
+    parts.push('<tbody>');
+    for (const r of rows) parts.push('<tr>' + fields.map(f => `<td>${esc(r[f])}</td>`).join('') + '</tr>');
+    parts.push('</tbody></table>');
+    if (truncated) parts.push(`<p>Note: output truncated to ${HTML_EXPORT_ROW_LIMIT.toLocaleString('en-US')} rows.</p>`);
+    parts.push('</body></html>');
+    const buf = new TextEncoder().encode(parts.join('\n'));
+    triggerDownload(buf, makeOutName('html'), mimeFor('html'));
+  }
+
   async function exportSqlToFile(fmt) {
     // Build source SQL from current heuristic (full file, no LIMIT)
     let sourceSql = buildSourceSql(true);
@@ -4326,6 +4387,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     // Markdown: no DuckDB writer — serialize a GFM table in JS.
     if (fmt === 'markdown') {
       return exportMarkdownViaJs(sourceSql);
+    }
+    // HTML: serialize a standalone document with a <table> in JS.
+    if (fmt === 'html') {
+      return exportHtmlViaJs(sourceSql);
     }
 
     const ext = fmt;
@@ -4357,7 +4422,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     try { await db.dropFile(finalOutName); } catch (e) {}
   }
 
-  async function exportSqlToExcel() {
+  async function exportSqlToExcel(fmt) {
+    const bookType = fmt === 'ods' ? 'ods' : 'xlsx';
     let sourceSql = buildSourceSql(true);
     if (state.format === 'json' && eff().mode === 'nested') {
       const f = sqlEscape(state._nestedNdjsonName);
@@ -4391,11 +4457,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       : XLSX.utils.json_to_sheet(rows, { cellDates: true, skipHeader: true });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
-    triggerDownload(new Uint8Array(buf), makeOutName('xlsx'), mimeFor('xlsx'));
+    const buf = XLSX.write(wb, { type: 'array', bookType: bookType });
+    triggerDownload(new Uint8Array(buf), makeOutName(bookType), mimeFor(bookType));
   }
 
-  async function exportExcelToExcel() {
+  async function exportExcelToExcel(fmt) {
+    const bookType = fmt === 'ods' ? 'ods' : 'xlsx';
     // Read the original file fully with SheetJS, then re-write using selected sheet+range
     exportProgress.textContent = 'Reading Excel file (full)…';
     const buf = await readAll(state.file);
@@ -4450,8 +4517,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const newWb = XLSX.utils.book_new();
     const sheetName = ($('ex_sheet') && $('ex_sheet').value) || e.sheet;
     XLSX.utils.book_append_sheet(newWb, newWs, sheetName);
-    const out = XLSX.write(newWb, { type: 'array', bookType: 'xlsx' });
-    triggerDownload(new Uint8Array(out), makeOutName('xlsx'), mimeFor('xlsx'));
+    const out = XLSX.write(newWb, { type: 'array', bookType: bookType });
+    triggerDownload(new Uint8Array(out), makeOutName(bookType), mimeFor(bookType));
   }
 
   async function exportExcelToOther(fmt) {
@@ -4506,6 +4573,15 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       }
       return;
     }
+    // HTML: serialize a standalone document in JS.
+    if (fmt === 'html') {
+      try {
+        await exportHtmlViaJs(sourceSql);
+      } finally {
+        try { await db.dropFile(tmpName); } catch (_) {}
+      }
+      return;
+    }
 
     const ext = fmt;
     const outName = `out_${Date.now()}.${ext}`;
@@ -4546,7 +4622,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
            fmt === 'json' ? 'application/json' :
            fmt === 'ndjson' ? 'application/x-ndjson' :
            fmt === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' :
+           fmt === 'ods' ? 'application/vnd.oasis.opendocument.spreadsheet' :
            fmt === 'markdown' ? 'text/markdown' :
+           fmt === 'html' ? 'text/html' :
            'application/octet-stream';
   }
   function triggerDownload(buf, name, mime) {

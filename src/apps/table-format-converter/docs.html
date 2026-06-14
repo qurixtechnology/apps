@@ -1,7 +1,7 @@
     <h2>Table Format Converter</h2>
     <p>
       A browser-only tool to read structured tabular data (CSV, Parquet, JSON, NDJSON,
-      Excel, DuckDB, SQLite, Markdown), inspect its structure, adjust the parsing heuristic, and
+      Excel, ODS, Apple Numbers, DuckDB, SQLite, Markdown, HTML), inspect its structure, adjust the parsing heuristic, and
       export it to a different format. <strong>Your data never leaves the browser</strong> — all
       processing happens locally with DuckDB-WASM and SheetJS.
     </p>
@@ -48,9 +48,14 @@
           single value). For files &gt; 100&nbsp;MB the app suggests NDJSON instead.</li>
       <li><strong>NDJSON / JSON Lines</strong> — schema inferred from the first ~100
           lines.</li>
-      <li><strong>Excel (.xlsx)</strong> — sheet selection, data-block detection
-          (bounding box), header row, plus a visual range picker on the first
-          ~30&nbsp;×&nbsp;15 cells.</li>
+      <li><strong>Excel (.xlsx / .xls), OpenDocument (.ods / .fods) and Apple Numbers
+          (.numbers)</strong> — all read via SheetJS through the same path: sheet selection,
+          data-block detection (bounding box), header row, plus a visual range picker. Formulas
+          are read as their cached values. <strong>ODS</strong> is also available as an export
+          target.</li>
+      <li><strong>HTML (.html / .htm)</strong> — all <code>&lt;table&gt;</code> elements are
+          extracted (pick one via the <em>Table</em> dropdown). Also available as an export target
+          (a standalone HTML document with one table).</li>
       <li><strong>DuckDB (.duckdb / .ddb / .db)</strong> — attached read-only;
           pick which table to read from. Schema and types come straight from
           the file. Can also be produced as an export target.</li>
