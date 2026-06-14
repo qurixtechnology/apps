@@ -1,7 +1,7 @@
     <h2>Table Format Converter</h2>
     <p>
       A browser-only tool to read structured tabular data (CSV, Parquet, JSON, NDJSON,
-      Excel, DuckDB, SQLite), inspect its structure, adjust the parsing heuristic, and
+      Excel, DuckDB, SQLite, Markdown), inspect its structure, adjust the parsing heuristic, and
       export it to a different format. <strong>Your data never leaves the browser</strong> — all
       processing happens locally with DuckDB-WASM and SheetJS.
     </p>
@@ -58,6 +58,12 @@
           via DuckDB's SQLite scanner; pick which table to read from, then convert
           it to any supported export format. (<code>.db</code> is auto-detected as
           SQLite or DuckDB from the file's magic bytes.)</li>
+      <li><strong>Markdown (.md / .markdown)</strong> — GitHub-flavored pipe tables.
+          All tables in the file are detected; pick which one to read via the
+          <em>Table</em> dropdown (labelled by the nearest preceding heading). Column
+          types are inferred (Markdown carries none). Also available as an export
+          target — emits a GFM pipe table (cells with <code>|</code> or newlines are
+          escaped; capped at 50,000 rows).</li>
     </ul>
 
     <h3>Notes &amp; limitations (v1)</h3>

@@ -4,9 +4,9 @@
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
          aria-label="Drop a file here or click to pick one">
       <p class="dz-title">Drop a file here, or click to pick one</p>
-      <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · DuckDB · SQLite · up to ~1 GB</p>
+      <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · DuckDB · SQLite · Markdown · up to ~1 GB</p>
       <input type="file" id="filePicker" hidden
-             accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.duckdb,.ddb,.db,.sqlite,.sqlite3">
+             accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.duckdb,.ddb,.db,.sqlite,.sqlite3,.md,.markdown,.mdown,.mkd">
     </div>
 
     <!-- File info bar (after load) -->
@@ -107,6 +107,7 @@
               <button type="button" class="format-chip"           data-format="json"     role="radio" aria-checked="false">JSON<span class="format-chip-ext">.json</span></button>
               <button type="button" class="format-chip"           data-format="ndjson"   role="radio" aria-checked="false">NDJSON<span class="format-chip-ext">.ndjson</span></button>
               <button type="button" class="format-chip"           data-format="xlsx"     role="radio" aria-checked="false">Excel<span class="format-chip-ext">.xlsx</span></button>
+              <button type="button" class="format-chip"           data-format="markdown" role="radio" aria-checked="false">Markdown<span class="format-chip-ext">.md</span></button>
             </div>
           </div>
 

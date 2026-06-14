@@ -81,6 +81,8 @@
     duckdbTables: [],     // [{schema, name, qualified}] from attached DB (also reused for SQLite)
     sqliteDb: null,       // sql.js Database instance for SQLite sources
     sqliteCsvName: null,  // VFS name of the table materialised as CSV for export
+    markdownTables: [],   // [{name, columns:[], rows:[[]]}] parsed from a Markdown file
+    mdCsvName: null,      // VFS name of the selected Markdown table materialised as CSV
     snapshotMode: false,  // true when viewing a "with data" export (no live file)
     snapshotMeta: null,   // {fileName, fileSize} of the captured snapshot
   };
@@ -262,6 +264,7 @@
     if (ext === 'tsv') return 'csv';
     if (ext === 'sqlite' || ext === 'sqlite3') return 'sqlite';
     if (ext === 'duckdb' || ext === 'ddb') return 'duckdb';
+    if (ext === 'md' || ext === 'markdown' || ext === 'mdown' || ext === 'mkd') return 'markdown';
     // '.db' is ambiguous (SQLite vs DuckDB) — decided by magic bytes below.
     if (ext === 'json') {
       const text = (await readSlice(file, 0, 4096)).replace(/^\uFEFF/, '');
@@ -320,6 +323,9 @@
     state.sqliteDb = null;
     if (state.sqliteCsvName && db) { try { await db.dropFile(state.sqliteCsvName); } catch (_) {} }
     state.sqliteCsvName = null;
+    if (state.mdCsvName && db) { try { await db.dropFile(state.mdCsvName); } catch (_) {} }
+    state.mdCsvName = null;
+    state.markdownTables = [];
 
     try {
       setStatus('Detecting format…');
@@ -334,6 +340,7 @@
                              fmt === 'ndjson' ? 'NDJ' :
                              fmt === 'duckdb' ? 'DDB' :
                              fmt === 'sqlite' ? 'SQL' :
+                             fmt === 'markdown' ? 'MD' :
                              fmt === 'json' ? 'JSN' : 'CSV';
       fileName.textContent = file.name;
       fileMeta.textContent = `${fmt.toUpperCase()} · ${fmtBytes(file.size)}`;
@@ -344,6 +351,8 @@
         await loadExcel(file);
       } else if (fmt === 'sqlite') {
         await loadSqlite(file);
+      } else if (fmt === 'markdown') {
+        await loadMarkdown(file);
       } else {
         await initDuckDB();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -379,10 +388,13 @@
       if (state.duckFile)        { try { db.dropFile(state.duckFile); }        catch (_) {} }
       if (state.duckPreviewFile) { try { db.dropFile(state.duckPreviewFile); } catch (_) {} }
       if (state.sqliteCsvName)   { try { db.dropFile(state.sqliteCsvName); }   catch (_) {} }
+      if (state.mdCsvName)       { try { db.dropFile(state.mdCsvName); }       catch (_) {} }
     }
     if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
     state.sqliteDb = null;
     state.sqliteCsvName = null;
+    state.mdCsvName = null;
+    state.markdownTables = [];
     state.file = null;
     state.format = null;
     state.duckFile = null;
@@ -665,6 +677,105 @@
     state.sqliteCsvName = name;
   }
 
+  // ---------------------------------------------------------------- Markdown tables
+  // GFM pipe tables are parsed in JS, then the selected table is materialised to
+  // an in-memory CSV that DuckDB reads (same trick as Excel/SQLite) — so type
+  // inference, filter, rename and all export targets work via the normal path.
+  function splitMdRow(line) {
+    let s = line.trim();
+    if (s.startsWith('|')) s = s.slice(1);
+    if (s.endsWith('|'))   s = s.slice(0, -1);
+    // split on unescaped pipes, then unescape \| and \\
+    return s.split(/(?<!\\)\|/).map(c =>
+      c.replace(/\\\|/g, '|').replace(/\\\\/g, '\\').trim());
+  }
+  function isMdSeparator(line) {
+    const s = line.trim();
+    if (!s.includes('-')) return false;
+    const cells = splitMdRow(s);
+    return cells.length > 0 && cells.every(c => /^:?-{1,}:?$/.test(c.replace(/\s+/g, '')));
+  }
+  function dedupeMdCols(cols) {
+    const seen = new Map(); const out = [];
+    cols.forEach((c, i) => {
+      let name = (c && c.trim()) || `column${i + 1}`;
+      let base = name, n = 1;
+      while (seen.has(name)) name = `${base}_${++n}`;
+      seen.set(name, true); out.push(name);
+    });
+    return out;
+  }
+  function parseMarkdownTables(text) {
+    const lines = text.split(/\r?\n/);
+    const tables = [];
+    let lastHeading = '';
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const hm = line.match(/^\s{0,3}#{1,6}\s+(.*)$/);
+      if (hm) { lastHeading = hm[1].replace(/\s*#*\s*$/, '').trim(); continue; }
+      if (line.includes('|') && i + 1 < lines.length && isMdSeparator(lines[i + 1])) {
+        const columns = dedupeMdCols(splitMdRow(line));
+        const rows = [];
+        let j = i + 2;
+        for (; j < lines.length; j++) {
+          const l = lines[j];
+          if (!l.trim() || !l.includes('|')) break;
+          const cells = splitMdRow(l);
+          rows.push(columns.map((_, k) => (cells[k] != null ? cells[k] : '')));
+        }
+        tables.push({
+          name: `Table ${tables.length + 1}` + (lastHeading ? ` — ${lastHeading}` : ''),
+          columns, rows,
+        });
+        i = j - 1;
+        lastHeading = '';
+      } else if (line.trim()) {
+        lastHeading = '';   // any non-heading content breaks heading association
+      }
+    }
+    return tables;
+  }
+
+  async function loadMarkdown(file) {
+    setStatus('Parsing Markdown tables…');
+    const text = await readSlice(file, 0, file.size);
+    const tables = parseMarkdownTables(text);
+    if (!tables.length) throw new Error('No Markdown (pipe) table found in this file.');
+    state.markdownTables = tables;
+    state.detected = { mdTable: 0 };
+  }
+
+  // Materialise the selected Markdown table to an in-memory CSV for DuckDB.
+  async function materializeMarkdownCsv() {
+    if (!db) { await initDuckDB(); }
+    const idx = Number(eff().mdTable) || 0;
+    const t = state.markdownTables[idx];
+    if (!t) throw new Error('No Markdown table selected.');
+    const lines = [t.columns.map(csvEscape).join(',')];
+    for (const row of t.rows) lines.push(t.columns.map((_, i) => csvEscape(row[i])).join(','));
+    if (state.mdCsvName) { try { await db.dropFile(state.mdCsvName); } catch (_) {} }
+    const name = `md_table_${Date.now()}.csv`;
+    await db.registerFileBuffer(name, new TextEncoder().encode(lines.join('\n')));
+    state.mdCsvName = name;
+  }
+
+  function markdownSourceSql() {
+    return `SELECT * FROM read_csv('${sqlEscape(state.mdCsvName)}', delim=',', quote='"', header=true, auto_detect=true)`;
+  }
+
+  async function previewMarkdown() {
+    if (!state.markdownTables.length) { state.schema = []; state.previewRows = []; state.rowCountEstimate = null; return; }
+    await materializeMarkdownCsv();
+    const src = markdownSourceSql();
+    const res = await conn.query(`${src} LIMIT 10`);
+    state.schema = arrowFields(res.schema);
+    state.previewRows = arrowRows(res);
+    try {
+      const cnt = await conn.query(`SELECT count(*) AS c FROM (${src})`);
+      state.rowCountEstimate = { value: Number(cnt.toArray()[0].c), exact: true };
+    } catch (_) { state.rowCountEstimate = null; }
+  }
+
   // ---------------------------------------------------------------- JSON / NDJSON detection
   async function detectJSON(fmt) {
     // For nested JSON (object with data under a path), try to find longest array
@@ -845,6 +956,17 @@
         Pick one to read from. Schema and types come straight from the file.
       </p>`;
     }
+    else if (state.format === 'markdown') {
+      const sel = Number(e.mdTable) || 0;
+      const opts = state.markdownTables.map((t, i) =>
+        `<option value="${i}" ${i === sel ? 'selected' : ''}>${escapeHtml(t.name)} (${t.rows.length} rows)</option>`
+      ).join('');
+      html += renderField('Table', `<select class="qrx-select" id="h_mdtable">${opts}</select>`, e, 'mdTable');
+      html += `<p class="muted" style="font-size: 0.8125rem; margin-top: var(--qrx-s-2);">
+        ${state.markdownTables.length} table${state.markdownTables.length === 1 ? '' : 's'} found.
+        Column types are inferred (Markdown carries none).
+      </p>`;
+    }
     else if (state.format === 'json' || state.format === 'ndjson') {
       const mode = e.mode || (state.format === 'ndjson' ? 'ndjson' : 'array');
       html += `<div class="qrx-form-group">
@@ -968,6 +1090,14 @@
         delete state.user.columnEdits;
         rerenderBadges();
         onChange();
+      });
+    }
+    else if (state.format === 'markdown') {
+      $('h_mdtable').addEventListener('change', e => {
+        setUser('mdTable', Number(e.target.value));
+        // Switching tables changes the column space — drop per-column edits.
+        delete state.user.columnEdits;
+        rerenderBadges(); onChange();
       });
     }
     else if (state.format === 'json' || state.format === 'ndjson') {
@@ -1411,6 +1541,7 @@
       else if (state.format === 'xlsx') await previewExcel();
       else if (state.format === 'duckdb') await previewDuckdb();
       else if (state.format === 'sqlite') await previewSqlite();
+      else if (state.format === 'markdown') await previewMarkdown();
       pruneColumnEdits();
       renderPreviewStats();
       renderPreviewGrid();
@@ -1525,6 +1656,10 @@
       // SQLite is read via sql.js and materialised to an in-memory CSV that
       // DuckDB queries (see materializeSqlite, called before export).
       sql = `SELECT * FROM read_csv('${sqlEscape(state.sqliteCsvName)}', delim=',', quote='"', header=true, auto_detect=true)`;
+    } else if (state.format === 'markdown') {
+      // Markdown is parsed in JS and materialised to an in-memory CSV that DuckDB
+      // queries (see materializeMarkdownCsv, called before export / preview).
+      sql = markdownSourceSql();
     }
     if (!sql) return null;
 
@@ -2380,6 +2515,8 @@
       <p class="empty-note">Output is a single JSON array.</p>`;
     } else if (fmt === 'ndjson') {
       html += `<p class="empty-note">No options — one JSON object per line.</p>`;
+    } else if (fmt === 'markdown') {
+      html += `<p class="empty-note">No options — GitHub-flavored pipe table (max ${MD_EXPORT_ROW_LIMIT.toLocaleString('en-US')} rows).</p>`;
     } else if (fmt === 'xlsx') {
       html += `<div class="qrx-form-group">
         <label class="qrx-label" for="ex_sheet">Sheet name</label>
@@ -2407,6 +2544,11 @@
         // Materialise the chosen table to a CSV DuckDB can read, then export
         // through the normal SQL path (gives filter / rename / exclude for free).
         await materializeSqlite();
+        if (fmt === 'xlsx') await exportSqlToExcel();
+        else await exportSqlToFile(fmt);
+      } else if (state.format === 'markdown') {
+        // Re-materialise the selected table (CSV) so the normal SQL path applies.
+        await materializeMarkdownCsv();
         if (fmt === 'xlsx') await exportSqlToExcel();
         else await exportSqlToFile(fmt);
       } else if (state.format === 'xlsx' && fmt === 'xlsx') {
@@ -2497,6 +2639,39 @@
     triggerDownload(buf, makeOutName(ext), mimeFor(fmt));
   }
 
+  // Markdown has no DuckDB writer; serialize a GitHub-flavored pipe table in JS.
+  // Capped at MD_EXPORT_ROW_LIMIT rows (Markdown is impractical for huge tables).
+  const MD_EXPORT_ROW_LIMIT = 50000;
+  async function exportMarkdownViaJs(sourceSql) {
+    exportProgress.textContent = 'Reading data into memory…';
+    const result = await conn.query(`SELECT * FROM (${sourceSql}) LIMIT ${MD_EXPORT_ROW_LIMIT + 1}`);
+    const fields = result.schema.fields.map(f => f.name);
+    const allRows = result.toArray();
+    const truncated = allRows.length > MD_EXPORT_ROW_LIMIT;
+    const rows = truncated ? allRows.slice(0, MD_EXPORT_ROW_LIMIT) : allRows;
+
+    const cell = (v) => {
+      if (v == null) return '';
+      let s = (v instanceof Date) ? v.toISOString()
+            : (typeof v === 'bigint') ? v.toString()
+            : (typeof v === 'object') ? JSON.stringify(v) : String(v);
+      // Escape backslashes and pipes, collapse newlines (cells can't span lines).
+      return s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
+    };
+
+    exportProgress.textContent = 'Serializing…';
+    const head = '| ' + fields.map(cell).join(' | ') + ' |';
+    const sep  = '| ' + fields.map(() => '---').join(' | ') + ' |';
+    const lines = [head, sep];
+    for (const r of rows) lines.push('| ' + fields.map(f => cell(r[f])).join(' | ') + ' |');
+    let text = lines.join('\n') + '\n';
+    if (truncated) {
+      text += `\n> Note: output truncated to ${MD_EXPORT_ROW_LIMIT.toLocaleString('en-US')} rows.\n`;
+    }
+    const buf = new TextEncoder().encode(text);
+    triggerDownload(buf, makeOutName('md'), mimeFor('markdown'));
+  }
+
   async function exportSqlToFile(fmt) {
     // Build source SQL from current heuristic (full file, no LIMIT)
     let sourceSql = buildSourceSql(true);
@@ -2513,6 +2688,10 @@
     // JSON / NDJSON: serialize in JS (DuckDB-WASM can't load the json extension)
     if (fmt === 'json' || fmt === 'ndjson') {
       return exportJsonViaJs(sourceSql, fmt);
+    }
+    // Markdown: no DuckDB writer — serialize a GFM table in JS.
+    if (fmt === 'markdown') {
+      return exportMarkdownViaJs(sourceSql);
     }
 
     const ext = fmt;
@@ -2684,6 +2863,15 @@
       }
       return;
     }
+    // Markdown: serialize a GFM table in JS.
+    if (fmt === 'markdown') {
+      try {
+        await exportMarkdownViaJs(sourceSql);
+      } finally {
+        try { await db.dropFile(tmpName); } catch (_) {}
+      }
+      return;
+    }
 
     const ext = fmt;
     const outName = `out_${Date.now()}.${ext}`;
@@ -2724,6 +2912,7 @@
            fmt === 'json' ? 'application/json' :
            fmt === 'ndjson' ? 'application/x-ndjson' :
            fmt === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' :
+           fmt === 'markdown' ? 'text/markdown' :
            'application/octet-stream';
   }
   function triggerDownload(buf, name, mime) {
