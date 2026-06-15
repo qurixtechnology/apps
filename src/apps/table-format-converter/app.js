@@ -64,7 +64,8 @@
     file: null,
     fileSize: 0,
     format: null,         // 'csv' | 'parquet' | 'json' | 'ndjson' | 'xlsx'
-    duckFile: null,       // virtual filename inside duckdb (full file)
+    duckFile: null,       // virtual filename inside duckdb (full file / representative)
+    duckFiles: [],        // >1 entry when several same-structure files are combined
     duckPreviewFile: null, // virtual filename of a small in-heap slice for fast previews
     detected: {},         // auto-detected heuristics
     user: {},             // user overrides (merged on top of detected)
@@ -308,12 +309,14 @@
     state.fileSize = file.size;
     state.user = {};
     state.detected = {};
-    // Drop any previously-registered files (full + preview slice)
+    // Drop any previously-registered files (full + preview slice + combined set)
     if (db) {
       if (state.duckFile)        { try { await db.dropFile(state.duckFile); }        catch (_) {} }
       if (state.duckPreviewFile) { try { await db.dropFile(state.duckPreviewFile); } catch (_) {} }
+      for (const n of state.duckFiles) { try { await db.dropFile(n); } catch (_) {} }
     }
     state.duckFile = null;
+    state.duckFiles = [];
     state.duckPreviewFile = null;
     state.sheets = [];
     state.excelBookSample = null;
@@ -392,6 +395,119 @@
     }
   }
 
+  // ---------------------------------------------------------------- Multi-file import
+  // Register a file for combined reads (no head-slice — that's single-file only).
+  async function registerFullFile(file, vname) {
+    if (file.size <= PREVIEW_SLICE_BYTES) {
+      await db.registerFileBuffer(vname, await readAll(file));
+    } else {
+      await db.registerFileHandle(vname, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+    }
+  }
+  // "column:type, …" signature of one registered file using the detected options.
+  async function fileSchemaSig(vname, fmt) {
+    const e = eff();
+    let src;
+    if (fmt === 'csv') src = `read_csv('${sqlEscape(vname)}', ${buildCsvOpts(e)})`;
+    else if (fmt === 'parquet') src = `read_parquet('${sqlEscape(vname)}')`;
+    else if (fmt === 'ndjson') src = `read_json('${sqlEscape(vname)}', format='newline_delimited', auto_detect=true)`;
+    else src = `read_json('${sqlEscape(vname)}', format='array', auto_detect=true)`;
+    const d = await conn.query(`DESCRIBE SELECT * FROM ${src}`);
+    return d.toArray().map(r => `${r.column_name}:${r.column_type}`);
+  }
+
+  async function loadFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    if (files.length === 1) { await loadFile(files[0]); return; }
+
+    exitSnapshotMode();
+    setStatus('Detecting format…');
+    let fmts = [];
+    try { fmts = await Promise.all(files.map(detectFormat)); } catch (_) {}
+    const fmt = fmts[0];
+    const SUPPORTED = ['csv', 'parquet', 'json', 'ndjson'];
+    if (!fmt || !SUPPORTED.includes(fmt) || fmts.some(x => x !== fmt)) {
+      dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
+      setStatus('Multiple files can only be combined when they are all the same type — '
+        + 'CSV, Parquet, JSON or NDJSON. Excel/ODS/Numbers/SQLite/… must be imported one at a time.', 'error');
+      return;
+    }
+
+    try {
+      // Release any previous source(s).
+      if (db) {
+        if (state.duckFile)        { try { await db.dropFile(state.duckFile); }        catch (_) {} }
+        if (state.duckPreviewFile) { try { await db.dropFile(state.duckPreviewFile); } catch (_) {} }
+        for (const n of state.duckFiles) { try { await db.dropFile(n); } catch (_) {} }
+        if (state.sqliteCsvName)   { try { await db.dropFile(state.sqliteCsvName); }   catch (_) {} }
+        if (state.mdCsvName)       { try { await db.dropFile(state.mdCsvName); }       catch (_) {} }
+        if (state.pasteCsvName)    { try { await db.dropFile(state.pasteCsvName); }    catch (_) {} }
+      }
+      if (state.duckdbAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.duckdbAlias)}`); } catch (_) {} }
+      if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
+      Object.assign(state, {
+        duckPreviewFile: null, duckdbAlias: null, duckdbTables: [],
+        sqliteDb: null, sqliteCsvName: null, mdCsvName: null, markdownTables: [],
+        pasteCsvName: null, pasteTables: [], pasteText: null, pasteSource: null,
+        sheets: [], excelBookSample: null, csvSampleText: null, csvFullColumnNames: null,
+        user: {}, detected: {},
+      });
+
+      await initDuckDB();
+      setStatus('Registering files…');
+      state.duckFiles = [];
+      const stamp = Date.now();
+      for (let i = 0; i < files.length; i++) {
+        const safe = files[i].name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const vname = `input_${stamp}_${i}_${safe}`;
+        await registerFullFile(files[i], vname);
+        state.duckFiles.push(vname);
+      }
+      state.format = fmt;
+      state.duckFile = state.duckFiles[0];   // representative for detection
+      state.duckPreviewFile = null;
+      state.file = files[0];
+      state.fileSize = files.reduce((s, f) => s + (f.size || 0), 0);
+
+      setStatus('Detecting parsing parameters…');
+      if (fmt === 'csv') await detectCSV();
+      else if (fmt === 'parquet') await detectParquet();
+      else await detectJSON(fmt);
+
+      // Verify identical structure across all files; clear error otherwise.
+      setStatus('Checking structure…');
+      const first = await fileSchemaSig(state.duckFiles[0], fmt);
+      for (let i = 1; i < state.duckFiles.length; i++) {
+        const cur = await fileSchemaSig(state.duckFiles[i], fmt);
+        if (cur.length !== first.length || cur.some((c, k) => c !== first[k])) {
+          throw new Error(`"${files[i].name}" has a different structure than "${files[0].name}". `
+            + `All files must share the same columns and types.\n`
+            + `• ${files[0].name}: ${first.join(', ')}\n`
+            + `• ${files[i].name}: ${cur.join(', ')}`);
+        }
+      }
+
+      dropzone.hidden = true;
+      fileInfo.hidden = false;
+      fileIcon.textContent = fmt === 'parquet' ? 'PRQ' : fmt === 'ndjson' ? 'NDJ' : fmt === 'json' ? 'JSN' : 'CSV';
+      fileName.textContent = `${files.length} files combined`;
+      fileMeta.textContent = `${fmt.toUpperCase()} · ${files.length} files · ${fmtBytes(state.fileSize)}`;
+      workspace.hidden = false;
+      renderHeuristicPanel();
+      renderExportOptions();
+      await refreshPreview();
+      updateHeuristicCollapseState();
+      setStatus(`${files.length} files combined into one table.`, 'success');
+    } catch (err) {
+      console.error(err);
+      if (db) for (const n of state.duckFiles) { try { await db.dropFile(n); } catch (_) {} }
+      state.duckFiles = [];
+      dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
+      setStatus('Import failed: ' + (err && err.message ? err.message : String(err)), 'error');
+    }
+  }
+
   function resetFile() {
     exitSnapshotMode();
     if (state.duckdbAlias && conn) {
@@ -401,6 +517,7 @@
     if (db) {
       if (state.duckFile)        { try { db.dropFile(state.duckFile); }        catch (_) {} }
       if (state.duckPreviewFile) { try { db.dropFile(state.duckPreviewFile); } catch (_) {} }
+      for (const n of state.duckFiles) { try { db.dropFile(n); } catch (_) {} }
       if (state.sqliteCsvName)   { try { db.dropFile(state.sqliteCsvName); }   catch (_) {} }
       if (state.mdCsvName)       { try { db.dropFile(state.mdCsvName); }       catch (_) {} }
       if (state.pasteCsvName)    { try { db.dropFile(state.pasteCsvName); }    catch (_) {} }
@@ -418,6 +535,7 @@
     state.file = null;
     state.format = null;
     state.duckFile = null;
+    state.duckFiles = [];
     state.duckPreviewFile = null;
     state.detected = {};
     state.user = {};
@@ -1949,20 +2067,29 @@
 
 
 
+  // True when several same-structure files are combined into one table.
+  function isMultiFile() { return state.duckFiles && state.duckFiles.length > 1; }
+  // The path argument for read_csv/read_parquet/read_json: a single quoted path,
+  // or a DuckDB list ['a','b',…] when multiple files are combined (UNION by position).
+  function readPathArg() {
+    if (isMultiFile()) return '[' + state.duckFiles.map(n => `'${sqlEscape(n)}'`).join(', ') + ']';
+    return `'${sqlEscape(state.duckFile)}'`;
+  }
+
   function buildSourceSql(forFullRead) {
     const e = eff();
-    const f = sqlEscape(state.duckFile);
+    const f = readPathArg();
     let sql = null;
     if (state.format === 'csv') {
-      sql = `SELECT * FROM read_csv('${f}', ${buildCsvOpts(e)})`;
+      sql = `SELECT * FROM read_csv(${f}, ${buildCsvOpts(e)})`;
     } else if (state.format === 'parquet') {
-      sql = `SELECT * FROM read_parquet('${f}')`;
+      sql = `SELECT * FROM read_parquet(${f})`;
     } else if (state.format === 'ndjson') {
-      sql = `SELECT * FROM read_json('${f}', format='newline_delimited', auto_detect=true)`;
+      sql = `SELECT * FROM read_json(${f}, format='newline_delimited', auto_detect=true)`;
     } else if (state.format === 'json') {
       const mode = e.mode || 'array';
       if (mode === 'array') {
-        sql = `SELECT * FROM read_json('${f}', format='array', auto_detect=true)`;
+        sql = `SELECT * FROM read_json(${f}, format='array', auto_detect=true)`;
       } else {
         // nested: rebuilt from JS as a temporary ndjson stream at export time
         return null;
@@ -2136,19 +2263,24 @@
     const fullFile  = state.duckFile;
 
     let res;
-    let usedFile = sliceFile || fullFile;
-    try {
-      const sql = `SELECT * FROM read_csv('${sqlEscape(usedFile)}', ${buildCsvOpts(e)}) LIMIT 10`;
-      res = await conn.query(sql);
-    } catch (err) {
-      if (sliceFile && usedFile === sliceFile) {
-        // Slice failed — retry against the full file
-        console.warn('Preview slice failed, retrying full file:', err.message);
-        usedFile = fullFile;
+    if (isMultiFile()) {
+      // Combined read over all files (no head-slice optimisation).
+      res = await conn.query(`SELECT * FROM read_csv(${readPathArg()}, ${buildCsvOpts(e)}) LIMIT 10`);
+    } else {
+      let usedFile = sliceFile || fullFile;
+      try {
         const sql = `SELECT * FROM read_csv('${sqlEscape(usedFile)}', ${buildCsvOpts(e)}) LIMIT 10`;
         res = await conn.query(sql);
-      } else {
-        throw err;
+      } catch (err) {
+        if (sliceFile && usedFile === sliceFile) {
+          // Slice failed — retry against the full file
+          console.warn('Preview slice failed, retrying full file:', err.message);
+          usedFile = fullFile;
+          const sql = `SELECT * FROM read_csv('${sqlEscape(usedFile)}', ${buildCsvOpts(e)}) LIMIT 10`;
+          res = await conn.query(sql);
+        } else {
+          throw err;
+        }
       }
     }
     const fullSchema = arrowFields(res.schema);
@@ -2177,16 +2309,25 @@
       state.previewRows = fullRows;
     }
 
-    state.rowCountEstimate = await estimateCsvRows();
+    state.rowCountEstimate = isMultiFile() ? await countCombined() : await estimateCsvRows();
+  }
+  // Exact row count over the combined multi-file source.
+  async function countCombined() {
+    try {
+      const src = buildSourceSql(true);
+      if (!src) return null;
+      const r = await conn.query(`SELECT count(*) AS c FROM (${src})`);
+      return { value: Number(r.toArray()[0].c), exact: true };
+    } catch (_) { return null; }
   }
   async function previewParquet() {
-    const f = sqlEscape(state.duckFile);
-    const res = await conn.query(`SELECT * FROM read_parquet('${f}') LIMIT 10`);
+    const f = readPathArg();
+    const res = await conn.query(`SELECT * FROM read_parquet(${f}) LIMIT 10`);
     state.schema = arrowFields(res.schema);
     state.previewRows = arrowRows(res);
     // Exact row count from parquet metadata is fast
     try {
-      const cnt = await conn.query(`SELECT count(*) AS c FROM read_parquet('${f}')`);
+      const cnt = await conn.query(`SELECT count(*) AS c FROM read_parquet(${f})`);
       const c = cnt.toArray()[0].c;
       state.rowCountEstimate = { value: Number(c), exact: true };
     } catch (e) {
@@ -2214,22 +2355,26 @@
       // NDJSON is line-oriented like CSV — we can preview from the slice
       const sliceFile = state.duckPreviewFile;
       const fullFile  = state.duckFile;
-      let usedFile = sliceFile || fullFile;
       let res;
-      try {
-        res = await conn.query(`SELECT * FROM read_json('${sqlEscape(usedFile)}', format='newline_delimited', auto_detect=true) LIMIT 10`);
-      } catch (err) {
-        if (sliceFile && usedFile === sliceFile) {
-          console.warn('NDJSON preview slice failed, retrying full file:', err.message);
-          usedFile = fullFile;
+      if (isMultiFile()) {
+        res = await conn.query(`SELECT * FROM read_json(${readPathArg()}, format='newline_delimited', auto_detect=true) LIMIT 10`);
+      } else {
+        let usedFile = sliceFile || fullFile;
+        try {
           res = await conn.query(`SELECT * FROM read_json('${sqlEscape(usedFile)}', format='newline_delimited', auto_detect=true) LIMIT 10`);
-        } else {
-          throw err;
+        } catch (err) {
+          if (sliceFile && usedFile === sliceFile) {
+            console.warn('NDJSON preview slice failed, retrying full file:', err.message);
+            usedFile = fullFile;
+            res = await conn.query(`SELECT * FROM read_json('${sqlEscape(usedFile)}', format='newline_delimited', auto_detect=true) LIMIT 10`);
+          } else {
+            throw err;
+          }
         }
       }
       state.schema = arrowFields(res.schema);
       state.previewRows = arrowRows(res);
-      state.rowCountEstimate = await estimateNdjsonRows();
+      state.rowCountEstimate = isMultiFile() ? await countCombined() : await estimateNdjsonRows();
     } else if (e.mode === 'array' || !e.mode) {
       // JSON arrays must be parsed as a whole — use the full file
       const f = sqlEscape(state.duckFile);
@@ -3323,12 +3468,13 @@
   dropzone.addEventListener('drop', e => {
     e.preventDefault();
     dropzone.classList.remove('is-dragover');
-    const f = e.dataTransfer.files[0];
-    if (f) loadFile(f);
+    const fs = e.dataTransfer.files;
+    if (fs && fs.length) loadFiles(fs);
   });
   filePicker.addEventListener('change', e => {
-    const f = e.target.files[0];
-    if (f) loadFile(f);
+    const fs = e.target.files;
+    if (fs && fs.length) loadFiles(fs);
+    filePicker.value = '';   // allow re-selecting the same file(s)
   });
   resetFileBtn.addEventListener('click', resetFile);
 

@@ -8,7 +8,8 @@
 
     <h3>Workflow</h3>
     <ol>
-      <li>Drop a file onto the drop zone, or click to pick one.</li>
+      <li>Drop a file onto the drop zone, or click to pick one. You can also select
+          <strong>several files at once</strong> — see <em>Multiple files</em> below.</li>
       <li>The app detects format and parsing parameters from a small sample
           and shows a preview of the first 10 rows plus the schema.</li>
       <li>Adjust any parameter on the left panel — the preview re-runs live
@@ -37,6 +38,18 @@
       <li><strong>Export</strong> — always reads the <em>full</em> file; this is
           the only stage where the entire dataset is touched.</li>
     </ul>
+
+    <h3>Multiple files (combine)</h3>
+    <p>
+      Select or drop <strong>several files at once</strong> to stack them into a single table
+      (e.g. monthly CSV exports or a partitioned Parquet set). Supported for
+      <strong>CSV/TSV, Parquet, JSON and NDJSON</strong>; all files must be the
+      <strong>same type and have the same structure</strong> (identical columns &amp; types).
+      If a file's structure differs, the import stops with an error naming the file and the
+      mismatch. Detection (delimiter, header, …) runs on the first file and applies to all; the
+      combined data is read via DuckDB and behaves like one source for preview, filter and export.
+      Other formats (Excel/ODS/Numbers, SQLite, DuckDB, Markdown, HTML) are imported one at a time.
+    </p>
 
     <h3>Supported formats</h3>
     <ul>

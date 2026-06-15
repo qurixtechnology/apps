@@ -5,7 +5,8 @@
          aria-label="Drop a file here or click to pick one">
       <p class="dz-title">Drop a file here, or click to pick one</p>
       <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · up to ~1 GB</p>
-      <input type="file" id="filePicker" hidden
+      <p class="dz-sub">Multiple files of the same type &amp; structure (CSV / Parquet / JSON) are combined into one table.</p>
+      <input type="file" id="filePicker" hidden multiple
              accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.ods,.fods,.numbers,.duckdb,.ddb,.db,.sqlite,.sqlite3,.md,.markdown,.mdown,.mkd,.html,.htm">
       <div class="dz-actions">
         <button class="qrx-btn" id="pasteBtn" type="button"
