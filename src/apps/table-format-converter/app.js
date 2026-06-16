@@ -3955,6 +3955,8 @@
   if (sqlPrevBtn) sqlPrevBtn.addEventListener('click', () => gotoSqlPage(-1));
   if (sqlNextBtn) sqlNextBtn.addEventListener('click', () => gotoSqlPage(1));
   if (sqlExportBtn) sqlExportBtn.addEventListener('click', exportSqlResultParquet);
+  // The docs link sits inside the <summary> — don't toggle the panel when it's clicked.
+  { const dl = $('sqlDocLink'); if (dl) dl.addEventListener('click', e => e.stopPropagation()); }
 
   // ---------------------------------------------------------------- Paste import
   const pasteBtn       = $('pasteBtn');

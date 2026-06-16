@@ -1,5 +1,10 @@
   <div class="app-shell">
 
+    <!-- App attribution -->
+    <div class="app-attribution">
+      Powered by <a href="https://duckdb.org/" target="_blank" rel="noopener noreferrer">DuckDB</a>
+    </div>
+
     <!-- Drop zone (initial state) -->
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
          aria-label="Drop a file here or click to pick one">
@@ -118,39 +123,46 @@
           </div>
         </div>
 
-        <div class="qrx-card" id="sqlCard">
-          <h3 class="section-title">
-            SQL
-            <span class="section-title-right">
-              <span class="muted">query the source as <code>data</code></span>
+        <details class="qrx-card sql-panel" id="sqlCard">
+          <summary>
+            <span class="sql-summary-title">SQL</span>
+            <span class="sql-summary-hint">
+              query the source as <code>data</code> ·
+              <a href="https://duckdb.org/docs/1.3/sql/introduction" target="_blank"
+                 rel="noopener noreferrer" id="sqlDocLink">DuckDB SQL syntax (v1.3.2)</a>
             </span>
-          </h3>
-          <div class="sql-hint" id="sqlParquetHint" hidden>
-            <strong>Large file in a non-optimized format.</strong>
-            For complex or repeated analyses, export it to <strong>Parquet</strong> first
-            and run your queries on the Parquet file — that is far faster and much lighter on memory.
-          </div>
-          <textarea id="sqlEditor" class="sql-editor" spellcheck="false"
-                    autocomplete="off" autocorrect="off" autocapitalize="off"
-                    placeholder="SELECT * FROM data LIMIT 100"></textarea>
-          <div class="sql-actions">
-            <button class="qrx-btn qrx-btn-primary" id="sqlRunBtn" type="button">Run query</button>
-            <button class="qrx-btn" id="sqlExportBtn" type="button" disabled
-                    title="Export the full query result to Parquet">Export result → Parquet</button>
-            <span class="muted sql-run-hint">Ctrl / ⌘ + Enter · source is <code>data</code></span>
-            <span class="sql-status" id="sqlStatus"></span>
-          </div>
-          <div class="sql-result-wrap" id="sqlResultWrap" hidden>
-            <div class="preview-grid-wrap">
-              <div id="sqlResult"></div>
+            <svg class="heuristic-summary-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 4 10 8 6 12"/>
+            </svg>
+          </summary>
+          <div class="sql-body">
+            <div class="sql-hint" id="sqlParquetHint" hidden>
+              <strong>Large file in a non-optimized format.</strong>
+              For complex or repeated analyses, export it to <strong>Parquet</strong> first
+              and run your queries on the Parquet file — that is far faster and much lighter on memory.
             </div>
-            <div class="sql-pager" id="sqlPager" hidden>
-              <button class="qrx-btn" id="sqlPrevBtn" type="button">‹ Prev</button>
-              <span class="sql-page-info" id="sqlPageInfo"></span>
-              <button class="qrx-btn" id="sqlNextBtn" type="button">Next ›</button>
+            <textarea id="sqlEditor" class="sql-editor" spellcheck="false"
+                      autocomplete="off" autocorrect="off" autocapitalize="off"
+                      placeholder="SELECT * FROM data LIMIT 100"></textarea>
+            <div class="sql-actions">
+              <button class="qrx-btn qrx-btn-primary" id="sqlRunBtn" type="button">Run query</button>
+              <button class="qrx-btn" id="sqlExportBtn" type="button" disabled
+                      title="Export the full query result to Parquet">Export result → Parquet</button>
+              <span class="muted sql-run-hint">Ctrl / ⌘ + Enter · source is <code>data</code></span>
+              <span class="sql-status" id="sqlStatus"></span>
+            </div>
+            <div class="sql-result-wrap" id="sqlResultWrap" hidden>
+              <div class="preview-grid-wrap">
+                <div id="sqlResult"></div>
+              </div>
+              <div class="sql-pager" id="sqlPager" hidden>
+                <button class="qrx-btn" id="sqlPrevBtn" type="button">‹ Prev</button>
+                <span class="sql-page-info" id="sqlPageInfo"></span>
+                <button class="qrx-btn" id="sqlNextBtn" type="button">Next ›</button>
+              </div>
             </div>
           </div>
-        </div>
+        </details>
 
         <div class="qrx-card">
           <h3 class="section-title">Export</h3>

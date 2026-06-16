@@ -4,6 +4,16 @@
    shared shell default (1200px). */
 .qrx-shell-app { max-width: 1280px; }
 
+/* Powered-by attribution, top-right of the app content */
+.app-attribution {
+  text-align: right;
+  font-size: 0.8125rem;
+  color: var(--qrx-text-muted);
+  margin-bottom: var(--qrx-s-3);
+}
+.app-attribution a { color: var(--qrx-primary); text-decoration: none; font-weight: 500; }
+.app-attribution a:hover { text-decoration: underline; }
+
 .app-shell { display: flex; flex-direction: column; gap: var(--qrx-s-6); }
 
 /* Paste-from-clipboard */
@@ -44,6 +54,38 @@
 }
 .paste-editor:focus { outline: none; border-color: var(--qrx-primary);
                       box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
+
+/* SQL editor — collapsible card (mirrors .heuristic-panel) */
+.sql-panel {
+  padding: 0;                /* summary/body provide their own padding */
+  overflow: hidden;
+}
+.sql-panel > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex; align-items: center; gap: var(--qrx-s-3);
+  padding: var(--qrx-s-4) var(--qrx-s-6);
+  user-select: none;
+}
+.sql-panel > summary::-webkit-details-marker { display: none; }
+.sql-panel > summary::marker { content: ''; }
+.sql-panel > summary:hover { background: var(--qrx-bg-subtle); }
+.sql-summary-title { font-size: 1rem; font-weight: 600; color: var(--qrx-text); }
+.sql-summary-hint { font-size: 0.8125rem; color: var(--qrx-text-muted); flex: 1; }
+.sql-summary-hint a { color: var(--qrx-primary); text-decoration: none; }
+.sql-summary-hint a:hover { text-decoration: underline; }
+.sql-panel .heuristic-summary-chevron {
+  width: 16px; height: 16px;
+  transition: transform 0.15s ease;
+  color: var(--qrx-text-muted);
+  flex-shrink: 0;
+}
+.sql-panel[open] > summary .heuristic-summary-chevron { transform: rotate(90deg); }
+.sql-body {
+  padding: 0 var(--qrx-s-6) var(--qrx-s-6);
+  border-top: 1px solid var(--qrx-border);
+  padding-top: var(--qrx-s-5);
+}
 
 /* SQL editor */
 .sql-editor {
