@@ -87,9 +87,12 @@
     csvFullColumnNames: null, // full column names from unprojected CSV read
     duckdbAlias: null,    // ATTACH alias for DuckDB source files
     duckdbTables: [],     // [{schema, name, qualified}] from attached DB (also reused for SQLite)
-    sqliteDb: null,       // sql.js Database instance for SQLite sources
-    sqliteCsvName: null,  // VFS name of the table materialised as CSV for export
-    markdownTables: [],   // [{name, columns:[], rows:[[]]}] parsed from a Markdown file
+    sqliteDb: null,       // sql.js Database instance for SQLite sources (full in-memory load)
+    sqliteCsvName: null,  // VFS name of the table materialised as CSV for export (sql.js path)
+    sqliteLazy: false,    // true when SQLite is read lazily via DuckDB's sqlite scanner
+    sqliteAlias: null,    // ATTACH alias when read via DuckDB's sqlite scanner
+    markdownTables: [],   // [{name, columns:[], rows:[[]]}] parsed from a Markdown file (head slice)
+    mdSliced: false,      // true when only a head slice of the Markdown file was parsed
     mdCsvName: null,      // VFS name of the selected Markdown table materialised as CSV
     pasteSource: null,    // 'html' | 'text' — how the pasted clipboard data was parsed
     pasteText: null,      // raw plain-text payload (text source) for delimiter re-parse
@@ -323,10 +326,12 @@
       if (state.duckFile)        { try { await db.dropFile(state.duckFile); }        catch (_) {} }
       if (state.duckPreviewFile) { try { await db.dropFile(state.duckPreviewFile); } catch (_) {} }
       for (const n of state.duckFiles) { try { await db.dropFile(n); } catch (_) {} }
+      if (state._jsonPreviewName) { try { await db.dropFile(state._jsonPreviewName); } catch (_) {} }
     }
     state.duckFile = null;
     state.duckFiles = [];
     state.duckPreviewFile = null;
+    state._jsonPreviewName = null;
     state.sheets = [];
     state.excelBookSample = null;
     state.csvSampleText = null;
@@ -338,6 +343,9 @@
     state.duckdbAlias = null;
     state.duckdbTables = [];
     // Release any previously-opened SQLite database + its materialised CSV.
+    if (state.sqliteAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.sqliteAlias)}`); } catch (_) {} }
+    state.sqliteAlias = null;
+    state.sqliteLazy = false;
     if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
     state.sqliteDb = null;
     if (state.sqliteCsvName && db) { try { await db.dropFile(state.sqliteCsvName); } catch (_) {} }
@@ -345,6 +353,7 @@
     if (state.mdCsvName && db) { try { await db.dropFile(state.mdCsvName); } catch (_) {} }
     state.mdCsvName = null;
     state.markdownTables = [];
+    state.mdSliced = false;
     if (state.excelCsvName && db) { try { await db.dropFile(state.excelCsvName); } catch (_) {} }
     state.excelCsvName = null;
     resetSqlEditor();
@@ -458,11 +467,13 @@
         if (state.excelCsvName)    { try { await db.dropFile(state.excelCsvName); }    catch (_) {} }
       }
       if (state.duckdbAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.duckdbAlias)}`); } catch (_) {} }
+      if (state.sqliteAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.sqliteAlias)}`); } catch (_) {} }
       if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
       resetSqlEditor();
       Object.assign(state, {
         duckPreviewFile: null, duckdbAlias: null, duckdbTables: [],
-        sqliteDb: null, sqliteCsvName: null, mdCsvName: null, markdownTables: [],
+        sqliteDb: null, sqliteCsvName: null, sqliteLazy: false, sqliteAlias: null,
+        mdCsvName: null, markdownTables: [], mdSliced: false,
         pasteCsvName: null, pasteTables: [], pasteText: null, pasteSource: null,
         excelCsvName: null,
         sheets: [], excelBookSample: null, csvSampleText: null, csvFullColumnNames: null,
@@ -529,6 +540,9 @@
       // Best-effort detach; fire-and-forget since resetFile is sync
       try { conn.query(`DETACH ${sqlIdent(state.duckdbAlias)}`); } catch (_) {}
     }
+    if (state.sqliteAlias && conn) { try { conn.query(`DETACH ${sqlIdent(state.sqliteAlias)}`); } catch (_) {} }
+    state.sqliteAlias = null;
+    state.sqliteLazy = false;
     if (db) {
       if (state.duckFile)        { try { db.dropFile(state.duckFile); }        catch (_) {} }
       if (state.duckPreviewFile) { try { db.dropFile(state.duckPreviewFile); } catch (_) {} }
@@ -544,6 +558,7 @@
     state.sqliteCsvName = null;
     state.mdCsvName = null;
     state.markdownTables = [];
+    state.mdSliced = false;
     state.pasteCsvName = null;
     state.pasteTables = [];
     state.pasteText = null;
@@ -749,11 +764,44 @@
     state.detected = { table: state.duckdbTables[0].qualified };
   }
 
-  // ---------------------------------------------------------------- SQLite detection (sql.js)
-  // DuckDB-Wasm's sqlite extension can't reliably open files from its virtual
-  // filesystem (duckdb-wasm issues #1213 / #1972), so SQLite is read with sql.js
-  // instead. Preview runs directly against sql.js; export materialises the chosen
-  // table to an in-memory CSV that DuckDB then converts (same trick as Excel).
+  // ---------------------------------------------------------------- SQLite detection
+  // Preferred path (A): read the file LAZILY via DuckDB's sqlite scanner, so only
+  // the pages a query touches are read — the whole .db never enters memory. Older
+  // duckdb-wasm builds couldn't open VFS files via the sqlite extension
+  // (#1213 / #1972), so this is best-effort and falls back to sql.js (which loads
+  // the ENTIRE database into the heap). With sql.js, preview runs directly and
+  // export materialises the chosen table to an in-memory CSV (same trick as Excel).
+  async function loadSqliteLazy(file) {
+    await initDuckDB();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const vname = `sqlite_${Date.now()}_${safeName}`;
+    await registerFullFile(file, vname);   // lazy FileReader handle for big files
+    state.duckFile = vname;
+    try { await conn.query('INSTALL sqlite'); } catch (_) { /* may be bundled / offline */ }
+    await conn.query('LOAD sqlite');
+    const alias = `sqdb_${Date.now().toString(36)}`;
+    await conn.query(`ATTACH '${sqlEscape(vname)}' AS ${sqlIdent(alias)} (TYPE sqlite, READ_ONLY)`);
+    state.sqliteAlias = alias;
+    const aliasLit = sqlEscape(alias);
+    const res = await conn.query(`
+      SELECT schema_name AS table_schema, table_name
+      FROM duckdb_tables() WHERE database_name = '${aliasLit}' AND internal = false
+      UNION ALL
+      SELECT schema_name AS table_schema, view_name AS table_name
+      FROM duckdb_views()  WHERE database_name = '${aliasLit}' AND internal = false
+      ORDER BY table_schema, table_name
+    `);
+    const rows = res.toArray();
+    if (!rows.length) throw new Error('No tables found via the sqlite scanner.');
+    state.duckdbTables = rows.map(r => ({
+      schema: String(r.table_schema),
+      name:   String(r.table_name),
+      qualified: `${sqlIdent(alias)}.${sqlIdent(String(r.table_schema))}.${sqlIdent(String(r.table_name))}`,
+    }));
+    state.sqliteLazy = true;
+    state.detected = { table: state.duckdbTables[0].qualified };
+  }
+
   let sqlJsPromise = null;
   function loadSqlJs() {
     if (sqlJsPromise) return sqlJsPromise;
@@ -781,6 +829,18 @@
   }
 
   async function loadSqlite(file) {
+    // A) Try the lazy DuckDB path first; only fall back to the full sql.js load.
+    try {
+      setStatus('Opening SQLite (lazy)…');
+      await loadSqliteLazy(file);
+      return;
+    } catch (err) {
+      console.warn('Lazy SQLite via DuckDB unavailable, falling back to sql.js:', err && err.message);
+      // Roll back any partial lazy state before the full-load fallback.
+      if (state.sqliteAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.sqliteAlias)}`); } catch (_) {} }
+      if (state.duckFile && db) { try { await db.dropFile(state.duckFile); } catch (_) {} }
+      state.sqliteAlias = null; state.sqliteLazy = false; state.duckFile = null;
+    }
     setStatus('Loading SQLite engine…');
     const SQL = await loadSqlJs();
     const buf = await readAll(file);
@@ -797,6 +857,7 @@
   }
 
   async function previewSqlite() {
+    if (state.sqliteLazy) return previewDuckdb();   // read lazily via DuckDB
     const tbl = eff().table;
     if (!tbl || !state.sqliteDb) { state.schema = []; state.previewRows = []; state.rowCountEstimate = null; return; }
     // Schema from PRAGMA (reliable even for empty tables / views).
@@ -826,6 +887,7 @@
   // Read the selected SQLite table fully via sql.js and register it with DuckDB
   // as an in-memory CSV, so the standard SQL export path can convert it.
   async function materializeSqlite() {
+    if (state.sqliteLazy) return;   // already queryable via DuckDB — nothing to materialise
     if (!db) { exportProgress.textContent = 'Loading DuckDB engine…'; await initDuckDB(); }
     const tbl = eff().table;
     exportProgress.textContent = 'Reading SQLite table…';
@@ -899,20 +961,32 @@
     return tables;
   }
 
+  const MD_PREVIEW_SLICE_BYTES = 1024 * 1024;  // 1 MB head slice for table detection / preview
   async function loadMarkdown(file) {
     setStatus('Parsing Markdown tables…');
-    const text = await readSlice(file, 0, file.size);
+    // Parse only a head slice for detection/preview; the full file is re-parsed
+    // on export (materializeMarkdownCsv(true)) so big Markdown isn't held whole.
+    const sliceLen = Math.min(file.size, MD_PREVIEW_SLICE_BYTES);
+    const text = await readSlice(file, 0, sliceLen);
     const tables = parseMarkdownTables(text);
     if (!tables.length) throw new Error('No Markdown (pipe) table found in this file.');
     state.markdownTables = tables;
+    state.mdSliced = sliceLen < file.size;
     state.detected = { mdTable: 0 };
   }
 
   // Materialise the selected Markdown table to an in-memory CSV for DuckDB.
-  async function materializeMarkdownCsv() {
+  // `full` re-parses the whole file (export); otherwise uses the in-memory
+  // sliced tables (preview).
+  async function materializeMarkdownCsv(full) {
     if (!db) { await initDuckDB(); }
     const idx = Number(eff().mdTable) || 0;
-    const t = state.markdownTables[idx];
+    let tables = state.markdownTables;
+    if (full && state.mdSliced && state.file) {
+      const text = await readSlice(state.file, 0, state.fileSize);
+      tables = parseMarkdownTables(text);
+    }
+    const t = tables[idx];
     if (!t) throw new Error('No Markdown table selected.');
     const lines = [t.columns.map(csvEscape).join(',')];
     for (const row of t.rows) lines.push(t.columns.map((_, i) => csvEscape(row[i])).join(','));
@@ -935,7 +1009,9 @@
     state.previewRows = arrowRows(res);
     try {
       const cnt = await conn.query(`SELECT count(*) AS c FROM (${src})`);
-      state.rowCountEstimate = { value: Number(cnt.toArray()[0].c), exact: true };
+      // When only a head slice was parsed, the count covers the slice, not the
+      // whole file — mark it inexact rather than report a wrong total.
+      state.rowCountEstimate = { value: Number(cnt.toArray()[0].c), exact: !state.mdSliced };
     } catch (_) { state.rowCountEstimate = null; }
   }
 
@@ -1135,13 +1211,17 @@
       if (state.sqliteCsvName)   { try { await db.dropFile(state.sqliteCsvName); }   catch (_) {} }
       if (state.mdCsvName)       { try { await db.dropFile(state.mdCsvName); }       catch (_) {} }
       if (state.pasteCsvName)    { try { await db.dropFile(state.pasteCsvName); }    catch (_) {} }
+      if (state.excelCsvName)    { try { await db.dropFile(state.excelCsvName); }    catch (_) {} }
     }
     if (state.duckdbAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.duckdbAlias)}`); } catch (_) {} }
+    if (state.sqliteAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.sqliteAlias)}`); } catch (_) {} }
     if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
+    resetSqlEditor();
     Object.assign(state, {
       duckFile: null, duckPreviewFile: null, duckdbAlias: null, duckdbTables: [],
-      sqliteDb: null, sqliteCsvName: null, mdCsvName: null, markdownTables: [],
-      pasteCsvName: null, sheets: [], excelBookSample: null,
+      sqliteDb: null, sqliteCsvName: null, sqliteLazy: false, sqliteAlias: null,
+      mdCsvName: null, markdownTables: [], mdSliced: false,
+      pasteCsvName: null, excelCsvName: null, sheets: [], excelBookSample: null,
       csvSampleText: null, csvFullColumnNames: null, user: {},
     });
     state.format = 'paste';
@@ -1213,8 +1293,11 @@
   // ---------------------------------------------------------------- Excel handling
   async function loadExcel(file) {
     setStatus('Parsing Excel sample (first 100 rows)…');
-    const buf = await readAll(file);
-    const wb = XLSX.read(buf, { type: 'array', sheetRows: 100, cellDates: true });
+    let buf = await readAll(file);
+    // dense:true uses a compact array-of-arrays sheet model — far less memory on
+    // wide sheets; sheetRows:100 keeps only the sample needed for detection.
+    const wb = XLSX.read(buf, { type: 'array', sheetRows: 100, cellDates: true, dense: true });
+    buf = null;   // release raw file bytes; only the 100-row sample is kept
     state.excelBookSample = wb;
     state.sheets = wb.SheetNames.map(name => {
       const ws = wb.Sheets[name];
@@ -1419,10 +1502,13 @@
                value="${(e.jsonPath ?? '').replace(/"/g,'&quot;')}"
                placeholder="results.items">
       </div>`;
-      if (state.format === 'json' && state.fileSize > 100 * 1024 * 1024) {
+      if (state.format === 'json' && (eff().mode === 'array' || !eff().mode)
+          && state.fileSize > 50 * 1024 * 1024) {
         html += `<div class="warn-banner">
-          This JSON file is larger than 100&nbsp;MB. JSON arrays must be parsed in
-          full. Consider converting to NDJSON for streaming.
+          This JSON file is larger than 50&nbsp;MB. The preview reads only a small
+          head slice, but a JSON array must be parsed in full on <em>export</em>,
+          which loads the whole file into memory. Consider converting to
+          <strong>NDJSON</strong> (or Parquet) for streaming.
         </div>`;
       }
     }
@@ -1440,6 +1526,23 @@
         <input type="checkbox" id="h_header" ${e.header ? 'checked' : ''}>
         <span class="qrx-label" style="margin: 0;">First row is header</span>
       </label></div>`;
+      if (state.fileSize > 50 * 1024 * 1024) {
+        html += `<div class="warn-banner">
+          Spreadsheets can't be streamed — this file (${fmtBytes(state.fileSize)}) is read
+          and decompressed in full, which can use several times its size in memory.
+          For large datasets, export to <strong>Parquet</strong> and work from there.
+        </div>`;
+      }
+    }
+
+    // SQLite read via the full sql.js fallback (lazy DuckDB path unavailable):
+    // the entire database is held in memory. Flag it for large files.
+    if (state.format === 'sqlite' && !state.sqliteLazy && state.fileSize > 50 * 1024 * 1024) {
+      html += `<div class="warn-banner">
+        This SQLite database (${fmtBytes(state.fileSize)}) is loaded fully into memory.
+        For large databases, export the table you need to <strong>Parquet</strong> and
+        continue from there.
+      </div>`;
     }
 
     heuristicFields.innerHTML = html;
@@ -2118,9 +2221,14 @@
       // built it from sqlIdent in detectDuckDB).
       sql = `SELECT * FROM ${e.table}`;
     } else if (state.format === 'sqlite') {
-      // SQLite is read via sql.js and materialised to an in-memory CSV that
-      // DuckDB queries (see materializeSqlite, called before export).
-      sql = `SELECT * FROM read_csv('${sqlEscape(state.sqliteCsvName)}', delim=',', quote='"', header=true, auto_detect=true)`;
+      if (state.sqliteLazy) {
+        // Lazy path: query the attached SQLite table directly through DuckDB.
+        sql = `SELECT * FROM ${e.table}`;
+      } else {
+        // sql.js path: the table was materialised to an in-memory CSV that
+        // DuckDB queries (see materializeSqlite, called before export).
+        sql = `SELECT * FROM read_csv('${sqlEscape(state.sqliteCsvName)}', delim=',', quote='"', header=true, auto_detect=true)`;
+      }
     } else if (state.format === 'markdown') {
       // Markdown is parsed in JS and materialised to an in-memory CSV that DuckDB
       // queries (see materializeMarkdownCsv, called before export / preview).
@@ -2368,6 +2476,45 @@
       state.rowCountEstimate = null;
     }
   }
+  // Extract the first `max` complete top-level elements from the head of a JSON
+  // array (the text may be truncated mid-array). String-aware brace/bracket
+  // matching; stops at the first incomplete/unpar. able element.
+  function extractLeadingJsonValues(text, max) {
+    const start = text.indexOf('[');
+    if (start < 0) return [];
+    const out = [];
+    const n = text.length;
+    let i = start + 1;
+    while (i < n && out.length < max) {
+      while (i < n && (text[i] === ',' || /\s/.test(text[i]))) i++;   // skip separators
+      if (i >= n || text[i] === ']') break;
+      const valStart = i;
+      let depth = 0, inStr = false, esc = false;
+      for (; i < n; i++) {
+        const c = text[i];
+        if (inStr) {
+          if (esc) esc = false;
+          else if (c === '\\') esc = true;
+          else if (c === '"') inStr = false;
+          continue;
+        }
+        if (c === '"') { inStr = true; continue; }
+        if (c === '{' || c === '[') depth++;
+        else if (c === '}' || c === ']') {
+          if (depth === 0) break;            // closing ] of the array (scalar value ended)
+          depth--;
+          if (depth === 0) { i++; break; }   // balanced object/array element complete
+        } else if (depth === 0 && c === ',') break;   // scalar element terminated
+      }
+      let valStr = text.slice(valStart, i).trim();
+      if (valStr.endsWith(',')) valStr = valStr.slice(0, -1).trim();
+      if (!valStr) break;
+      try { out.push(JSON.parse(valStr)); }
+      catch (_) { break; }   // truncated final element — stop here
+    }
+    return out;
+  }
+
   async function previewJSON() {
     const e = eff();
     if (state.format === 'ndjson' || e.mode === 'ndjson') {
@@ -2395,12 +2542,37 @@
       state.previewRows = arrowRows(res);
       state.rowCountEstimate = isMultiFile() ? await countCombined() : await estimateNdjsonRows();
     } else if (e.mode === 'array' || !e.mode) {
-      // JSON arrays must be parsed as a whole — use the full file
-      const f = sqlEscape(state.duckFile);
-      const res = await conn.query(`SELECT * FROM read_json('${f}', format='array', auto_detect=true) LIMIT 10`);
-      state.schema = arrowFields(res.schema);
-      state.previewRows = arrowRows(res);
-      state.rowCountEstimate = null;
+      // A JSON array is a single value, so a full read_json('…', format='array')
+      // would pull the entire file into memory just to preview 10 rows. Instead
+      // we parse only a head slice in JS, extract the first complete elements, and
+      // register them as a tiny NDJSON buffer. The full array is only read on
+      // export (see buildSourceSql). Falls back to a full read if slicing fails.
+      let usedSlice = false;
+      try {
+        const sliceText = await readSlice(state.file, 0, Math.min(state.fileSize, PREVIEW_SLICE_BYTES));
+        const objs = extractLeadingJsonValues(sliceText, 10);
+        if (objs.length) {
+          const ndjson = objs.map(o => JSON.stringify(o)).join('\n');
+          if (state._jsonPreviewName) { try { await db.dropFile(state._jsonPreviewName); } catch (_) {} }
+          const tmpName = `json_preview_${Date.now()}.ndjson`;
+          await db.registerFileBuffer(tmpName, new TextEncoder().encode(ndjson));
+          state._jsonPreviewName = tmpName;
+          const res = await conn.query(`SELECT * FROM read_json('${sqlEscape(tmpName)}', format='newline_delimited', auto_detect=true) LIMIT 10`);
+          state.schema = arrowFields(res.schema);
+          state.previewRows = arrowRows(res);
+          state.rowCountEstimate = null;
+          usedSlice = true;
+        }
+      } catch (err) {
+        console.warn('JSON array slice preview failed, falling back to full read:', err && err.message);
+      }
+      if (!usedSlice) {
+        const f = sqlEscape(state.duckFile);
+        const res = await conn.query(`SELECT * FROM read_json('${f}', format='array', auto_detect=true) LIMIT 10`);
+        state.schema = arrowFields(res.schema);
+        state.previewRows = arrowRows(res);
+        state.rowCountEstimate = null;
+      }
     } else if (e.mode === 'nested') {
       // Parse the file in JS, navigate path, register a temporary NDJSON file
       const text = await readSlice(state.file, 0, state.fileSize);
@@ -2959,8 +3131,9 @@
   // (and the `data` view) can query the entire sheet, not just the preview sample.
   async function materializeExcelCsv() {
     if (!db) await initDuckDB();
-    const buf = await readAll(state.file);
-    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    let buf = await readAll(state.file);
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true, dense: true });
+    buf = null;   // release the raw file bytes before building the (large) AOA/CSV
     const e = eff();
     const ws = wb.Sheets[e.sheet];
     if (!ws) throw new Error('Sheet not found: ' + e.sheet);
@@ -2995,7 +3168,7 @@
     let src;
     if (state.format === 'xlsx')          src = await materializeExcelCsv();
     else if (state.format === 'sqlite')   { await materializeSqlite();     src = buildSourceSql(true); }
-    else if (state.format === 'markdown') { await materializeMarkdownCsv(); src = buildSourceSql(true); }
+    else if (state.format === 'markdown') { await materializeMarkdownCsv(true); src = buildSourceSql(true); }
     else if (state.format === 'paste')    { await materializePasteCsv();    src = buildSourceSql(true); }
     else                                  src = buildSourceSql(true);
     if (!src) throw new Error('SQL is not available for this source — export it to Parquet or CSV first, then open that file.');
@@ -3184,8 +3357,8 @@
         if (spreadsheet) await exportSqlToExcel(fmt);
         else await exportSqlToFile(fmt);
       } else if (state.format === 'markdown') {
-        // Re-materialise the selected table (CSV) so the normal SQL path applies.
-        await materializeMarkdownCsv();
+        // Re-materialise the selected table (full file) so the normal SQL path applies.
+        await materializeMarkdownCsv(true);
         if (spreadsheet) await exportSqlToExcel(fmt);
         else await exportSqlToFile(fmt);
       } else if (state.format === 'paste') {
@@ -3452,8 +3625,9 @@
     const bookType = fmt === 'ods' ? 'ods' : 'xlsx';
     // Read the original file fully with SheetJS, then re-write using selected sheet+range
     exportProgress.textContent = 'Reading Excel file (full)…';
-    const buf = await readAll(state.file);
-    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    let buf = await readAll(state.file);
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true, dense: true });
+    buf = null;   // release the raw file bytes before building the (large) AOA
     const e = eff();
     const ws = wb.Sheets[e.sheet];
     if (!ws) throw new Error('Sheet not found');
@@ -3515,8 +3689,9 @@
       await initDuckDB();
     }
     exportProgress.textContent = 'Reading Excel file (full)…';
-    const buf = await readAll(state.file);
-    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    let buf = await readAll(state.file);
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true, dense: true });
+    buf = null;   // release the raw file bytes before building the (large) AOA
     const e = eff();
     const ws = wb.Sheets[e.sheet];
     if (!ws) throw new Error('Sheet not found');

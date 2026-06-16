@@ -33,8 +33,19 @@
           once and reused for both preview and export.</li>
       <li><strong>Parquet</strong> — column-pruned + row-group-pruned by DuckDB,
           so even full reads only fetch what the query actually needs.</li>
-      <li><strong>Excel</strong> — must be loaded fully (SheetJS doesn't stream).
-          The heuristic peeks at only the first 100 rows per sheet.</li>
+      <li><strong>JSON (array)</strong> — a JSON array is one value, so a full read
+          would load the whole file. The <em>preview</em> instead parses only a
+          head slice and extracts the first complete elements; the full array is
+          read only on export.</li>
+      <li><strong>SQLite</strong> — opened lazily through DuckDB's SQLite scanner
+          where the build supports it (only the pages a query touches are read).
+          If unavailable, it falls back to sql.js, which loads the whole database
+          into memory.</li>
+      <li><strong>Excel / ODS / Numbers</strong> — must be loaded fully (SheetJS
+          doesn't stream), but parsed in a compact (<code>dense</code>) model and
+          the heuristic peeks at only the first 100 rows per sheet.</li>
+      <li><strong>Markdown</strong> — table detection / preview parse only a 1&nbsp;MB
+          head slice; the full file is re-parsed on export.</li>
       <li><strong>Export</strong> — always reads the <em>full</em> file; this is
           the only stage where the entire dataset is touched.</li>
     </ul>
@@ -91,10 +102,12 @@
       <li><strong>DuckDB (.duckdb / .ddb / .db)</strong> — attached read-only;
           pick which table to read from. Schema and types come straight from
           the file. Can also be produced as an export target.</li>
-      <li><strong>SQLite (.sqlite / .sqlite3 / .db)</strong> — attached read-only
-          via DuckDB's SQLite scanner; pick which table to read from, then convert
-          it to any supported export format. (<code>.db</code> is auto-detected as
-          SQLite or DuckDB from the file's magic bytes.)</li>
+      <li><strong>SQLite (.sqlite / .sqlite3 / .db)</strong> — read lazily via
+          DuckDB's SQLite scanner when the WASM build supports opening the file
+          (only the needed pages are read); otherwise it falls back to sql.js,
+          which loads the whole database into memory. Pick which table to read
+          from, then convert it to any supported export format. (<code>.db</code>
+          is auto-detected as SQLite or DuckDB from the file's magic bytes.)</li>
       <li><strong>Paste from clipboard</strong> — the <em>Paste table from clipboard</em> button
           imports a table copied from Excel/Sheets, a browser table, or CSV/TSV text. Rich HTML
           tables are read directly; for plain text the delimiter (tab / <code>;</code> /
@@ -125,4 +138,9 @@
       <li>External libs (DuckDB-WASM, SheetJS) are loaded from public CDNs. Internet
           access is therefore needed on first load; browsers cache aggressively
           afterwards.</li>
+      <li>Everything runs in a 32-bit WebAssembly heap (~2–4&nbsp;GB ceiling).
+          Formats that must be read in full — JSON arrays on export, Excel/ODS/Numbers,
+          and SQLite via the sql.js fallback — can hit that ceiling on very large
+          files. Converting to <strong>Parquet</strong> and continuing from there is
+          the most memory-efficient path.</li>
     </ul>
