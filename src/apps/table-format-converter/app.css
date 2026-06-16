@@ -78,6 +78,12 @@
   border-radius: var(--qrx-radius); white-space: pre-wrap;
 }
 .sql-result-trunc { margin-top: var(--qrx-s-2); font-size: 0.75rem; color: var(--qrx-text-muted); }
+.sql-pager {
+  display: flex; align-items: center; justify-content: center; gap: var(--qrx-s-3);
+  margin-top: var(--qrx-s-3);
+}
+.sql-pager .qrx-btn { padding: var(--qrx-s-1) var(--qrx-s-3); }
+.sql-page-info { font-size: 0.8125rem; color: var(--qrx-text-muted); min-width: 12rem; text-align: center; }
 
 /* Drop zone */
 .dropzone {

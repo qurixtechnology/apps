@@ -135,12 +135,19 @@
                     placeholder="SELECT * FROM data LIMIT 100"></textarea>
           <div class="sql-actions">
             <button class="qrx-btn qrx-btn-primary" id="sqlRunBtn" type="button">Run query</button>
-            <span class="muted sql-run-hint">Ctrl / ⌘ + Enter · the current source is exposed as <code>data</code></span>
+            <button class="qrx-btn" id="sqlExportBtn" type="button" disabled
+                    title="Export the full query result to Parquet">Export result → Parquet</button>
+            <span class="muted sql-run-hint">Ctrl / ⌘ + Enter · source is <code>data</code></span>
             <span class="sql-status" id="sqlStatus"></span>
           </div>
           <div class="sql-result-wrap" id="sqlResultWrap" hidden>
             <div class="preview-grid-wrap">
               <div id="sqlResult"></div>
+            </div>
+            <div class="sql-pager" id="sqlPager" hidden>
+              <button class="qrx-btn" id="sqlPrevBtn" type="button">‹ Prev</button>
+              <span class="sql-page-info" id="sqlPageInfo"></span>
+              <button class="qrx-btn" id="sqlNextBtn" type="button">Next ›</button>
             </div>
           </div>
         </div>

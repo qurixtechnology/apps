@@ -65,6 +65,11 @@
   const sqlResultWrap   = $('sqlResultWrap');
   const sqlResult       = $('sqlResult');
   const sqlParquetHint  = $('sqlParquetHint');
+  const sqlExportBtn    = $('sqlExportBtn');
+  const sqlPager        = $('sqlPager');
+  const sqlPrevBtn      = $('sqlPrevBtn');
+  const sqlNextBtn      = $('sqlNextBtn');
+  const sqlPageInfo     = $('sqlPageInfo');
 
   // ---------------------------------------------------------------- State
   const state = {
@@ -100,6 +105,9 @@
     pasteCsvName: null,   // VFS name of the selected pasted table materialised as CSV
     excelCsvName: null,   // VFS name of the full Excel/ODS/Numbers sheet materialised as CSV (for SQL)
     sqlDataViewSig: null, // signature of the source last bound to the `data` view (cache key)
+    sqlQuery: null,       // last successfully-run SQL editor query (raw, no trailing ;)
+    sqlPage: 0,           // current 0-based result page
+    sqlTotalRows: null,   // total rows of the current result (count, best-effort)
     snapshotMode: false,  // true when viewing a "with data" export (no live file)
     snapshotMeta: null,   // {fileName, fileSize} of the captured snapshot
   };
@@ -3225,7 +3233,7 @@
     state.sqlDataViewSig = sig;
   }
 
-  const SQL_MAX_DISPLAY_ROWS = 2000;
+  const SQL_PAGE_SIZE = 100;   // result rows fetched/displayed per page
   function fmtDuration(ms) {
     if (ms < 1) return '<1 ms';
     if (ms < 1000) return `${Math.round(ms)} ms`;
@@ -3243,10 +3251,10 @@
     else s = String(v);
     return escapeHtml(s);
   }
-  function renderSqlResult(res) {
+  // Render one page of an Arrow result; returns the number of rows rendered.
+  function renderSqlResultPage(res) {
     const fields = res.schema.fields.map(f => f.name);
     const rows = res.toArray();
-    const shown = Math.min(rows.length, SQL_MAX_DISPLAY_ROWS);
     let html = '<table class="preview-grid"><thead><tr>';
     if (!fields.length) html += '<th>—</th>';
     for (const f of fields) html += `<th>${escapeHtml(f)}</th>`;
@@ -3254,18 +3262,37 @@
     if (!rows.length) {
       html += `<tr><td class="muted" colspan="${Math.max(1, fields.length)}">No rows</td></tr>`;
     }
-    for (let i = 0; i < shown; i++) {
-      const r = rows[i];
+    for (const r of rows) {
       html += '<tr>';
       for (const f of fields) html += `<td>${sqlCellHtml(r[f])}</td>`;
       html += '</tr>';
     }
     html += '</tbody></table>';
-    if (rows.length > shown) {
-      html += `<div class="sql-result-trunc">Showing the first ${shown.toLocaleString()} rows. Refine with a tighter WHERE / LIMIT, or use the Export card for the full result.</div>`;
-    }
     sqlResult.innerHTML = html;
     sqlResultWrap.hidden = false;
+    return rows.length;
+  }
+
+  // Fetch + show a single page via LIMIT/OFFSET — only SQL_PAGE_SIZE rows ever
+  // enter the browser, so large result sets don't exhaust memory.
+  async function showSqlPage(page) {
+    const raw = state.sqlQuery;
+    if (!raw) return;
+    const total = state.sqlTotalRows;
+    const lastPage = (total != null && total > 0) ? Math.ceil(total / SQL_PAGE_SIZE) - 1 : null;
+    page = Math.max(0, page);
+    if (lastPage != null) page = Math.min(page, lastPage);
+    state.sqlPage = page;
+    const res = await conn.query(`SELECT * FROM (\n${raw}\n) AS _q LIMIT ${SQL_PAGE_SIZE} OFFSET ${page * SQL_PAGE_SIZE}`);
+    const got = renderSqlResultPage(res);
+    const start = (total === 0 || got === 0) ? 0 : page * SQL_PAGE_SIZE + 1;
+    const end = page * SQL_PAGE_SIZE + got;
+    sqlPageInfo.textContent = (total != null)
+      ? `Rows ${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()} · page ${page + 1}/${Math.max(1, (lastPage ?? 0) + 1)}`
+      : `Rows ${start.toLocaleString()}–${end.toLocaleString()} · page ${page + 1}`;
+    sqlPrevBtn.disabled = page <= 0;
+    sqlNextBtn.disabled = (lastPage != null) ? (page >= lastPage) : (got < SQL_PAGE_SIZE);
+    sqlPager.hidden = false;
   }
 
   let _sqlRunning = false;
@@ -3275,32 +3302,77 @@
     if (!raw) { sqlEditor.focus(); return; }
     _sqlRunning = true;
     sqlRunBtn.disabled = true;
+    sqlExportBtn.disabled = true;
     sqlStatus.className = 'sql-status';
     sqlStatus.textContent = 'Running…';
     const t0 = performance.now();
     try {
       await ensureDataView();
-      // Wrap as a subquery: restricts the editor to read queries and caps the
-      // rows materialised into the browser for display.
-      const wrapped = `SELECT * FROM (\n${raw}\n) AS _q LIMIT ${SQL_MAX_DISPLAY_ROWS + 1}`;
-      const res = await conn.query(wrapped);
+      state.sqlQuery = raw;
+      state.sqlPage = 0;
+      // Total row count — a single aggregate scan, no rows pulled into JS.
+      let total = null;
+      try {
+        const c = await conn.query(`SELECT count(*) AS c FROM (\n${raw}\n) AS _q`);
+        total = Number(c.toArray()[0].c);
+      } catch (_) { /* count optional — paginate via fetched-page size */ }
+      state.sqlTotalRows = total;
+      await showSqlPage(0);
       const elapsed = performance.now() - t0;
-      renderSqlResult(res);
-      const n = res.toArray().length;
-      const rows = n > SQL_MAX_DISPLAY_ROWS
-        ? `${SQL_MAX_DISPLAY_ROWS.toLocaleString()}+ rows`
-        : `${n.toLocaleString()} row${n === 1 ? '' : 's'}`;
       sqlStatus.className = 'sql-status is-ok';
-      sqlStatus.textContent = `${rows} · ${fmtDuration(elapsed)}`;
+      sqlStatus.textContent = (total != null ? `${total.toLocaleString()} row${total === 1 ? '' : 's'}` : 'done')
+        + ` · ${fmtDuration(elapsed)}`;
+      sqlExportBtn.disabled = (total === 0);
     } catch (err) {
       console.error(err);
+      state.sqlQuery = null;
       sqlResult.innerHTML = `<div class="sql-error">${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
       sqlResultWrap.hidden = false;
+      sqlPager.hidden = true;
       sqlStatus.className = 'sql-status is-error';
       sqlStatus.textContent = `Error · ${fmtDuration(performance.now() - t0)}`;
     } finally {
       _sqlRunning = false;
       sqlRunBtn.disabled = false;
+    }
+  }
+
+  async function gotoSqlPage(delta) {
+    if (_sqlRunning || !state.sqlQuery) return;
+    _sqlRunning = true;
+    sqlPrevBtn.disabled = sqlNextBtn.disabled = true;
+    try { await showSqlPage(state.sqlPage + delta); }
+    catch (err) { console.error(err); sqlStatus.className = 'sql-status is-error'; sqlStatus.textContent = 'Page failed: ' + (err && err.message ? err.message : String(err)); }
+    finally { _sqlRunning = false; }
+  }
+
+  // Export the FULL query result to Parquet via DuckDB COPY — streamed to a
+  // virtual file, so no full materialisation of rows in JS.
+  let _sqlExporting = false;
+  async function exportSqlResultParquet() {
+    if (_sqlExporting || !state.sqlQuery) return;
+    _sqlExporting = true;
+    sqlExportBtn.disabled = true;
+    sqlStatus.className = 'sql-status';
+    sqlStatus.textContent = 'Exporting Parquet…';
+    const t0 = performance.now();
+    const outName = `sqlresult_${Date.now()}.parquet`;
+    try {
+      await ensureDataView();
+      await conn.query(`COPY (\n${state.sqlQuery}\n) TO '${sqlEscape(outName)}' (FORMAT PARQUET, COMPRESSION 'zstd')`);
+      const buf = await db.copyFileToBuffer(outName);
+      const base = (state.file && state.file.name) ? state.file.name.replace(/\.[^.]+$/, '') : 'query';
+      triggerDownload(buf, `${base}.query-result.parquet`, mimeFor('parquet'));
+      sqlStatus.className = 'sql-status is-ok';
+      sqlStatus.textContent = `Parquet exported · ${fmtDuration(performance.now() - t0)}`;
+    } catch (err) {
+      console.error(err);
+      sqlStatus.className = 'sql-status is-error';
+      sqlStatus.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
+    } finally {
+      try { await db.dropFile(outName); } catch (_) {}
+      _sqlExporting = false;
+      sqlExportBtn.disabled = !state.sqlQuery;
     }
   }
 
@@ -3318,9 +3390,14 @@
   }
   function resetSqlEditor() {
     state.sqlDataViewSig = null;
+    state.sqlQuery = null;
+    state.sqlPage = 0;
+    state.sqlTotalRows = null;
     if (db && conn) { try { conn.query('DROP VIEW IF EXISTS data'); } catch (_) {} }
     if (sqlResult) sqlResult.innerHTML = '';
     if (sqlResultWrap) sqlResultWrap.hidden = true;
+    if (sqlPager) sqlPager.hidden = true;
+    if (sqlExportBtn) sqlExportBtn.disabled = true;
     if (sqlStatus) { sqlStatus.textContent = ''; sqlStatus.className = 'sql-status'; }
   }
 
@@ -3875,6 +3952,9 @@
   if (sqlEditor) sqlEditor.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runSqlEditor(); }
   });
+  if (sqlPrevBtn) sqlPrevBtn.addEventListener('click', () => gotoSqlPage(-1));
+  if (sqlNextBtn) sqlNextBtn.addEventListener('click', () => gotoSqlPage(1));
+  if (sqlExportBtn) sqlExportBtn.addEventListener('click', exportSqlResultParquet);
 
   // ---------------------------------------------------------------- Paste import
   const pasteBtn       = $('pasteBtn');

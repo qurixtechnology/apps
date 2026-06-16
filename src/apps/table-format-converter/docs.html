@@ -72,8 +72,14 @@
       heuristic (delimiter, header, selected sheet/table, multi-file combine), and works for every
       source — CSV, Parquet, JSON/NDJSON, Excel/ODS/Numbers, SQLite, DuckDB, Markdown and pasted data
       (non-DuckDB sources are materialized once for querying). Queries are wrapped as a sub-select, so
-      only reads are possible; the result view is capped at the first 2,000 rows for display — use the
-      <em>Export</em> card to write the full result.
+      only reads are possible.
+    </p>
+    <p>
+      Results are <strong>paginated at 100 rows per page</strong> (Prev / Next): each page is fetched
+      with <code>LIMIT/OFFSET</code>, so only 100 rows ever enter the browser — large result sets won't
+      exhaust memory. <strong>Export result → Parquet</strong> writes the <em>full</em> query result
+      (all rows, not just the current page) straight to a Parquet file via DuckDB <code>COPY</code>
+      (zstd-compressed), without materializing every row in the page.
     </p>
     <p>
       For large files in a <strong>row-oriented</strong> format (CSV, JSON, Excel — or several combined
