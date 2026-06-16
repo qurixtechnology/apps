@@ -777,8 +777,17 @@
     const vname = `sqlite_${Date.now()}_${safeName}`;
     await registerFullFile(file, vname);   // lazy FileReader handle for big files
     state.duckFile = vname;
-    try { await conn.query('INSTALL sqlite'); } catch (_) { /* may be bundled / offline */ }
-    await conn.query('LOAD sqlite');
+    // Ensure the sqlite scanner is available. The extension is named
+    // 'sqlite_scanner' with 'sqlite' as an alias — which one resolves depends on
+    // the build, so try both (LOAD first in case autoload already has it, then
+    // INSTALL+LOAD). With autoinstall enabled the ATTACH below also triggers
+    // loading, so failure here isn't fatal.
+    let extLoaded = false;
+    for (const ext of ['sqlite', 'sqlite_scanner']) {
+      try { await conn.query(`LOAD ${ext}`); extLoaded = true; break; } catch (_) {}
+      try { await conn.query(`INSTALL ${ext}`); await conn.query(`LOAD ${ext}`); extLoaded = true; break; } catch (_) {}
+    }
+    if (!extLoaded) console.warn('Could not preload sqlite extension; relying on ATTACH autoload.');
     const alias = `sqdb_${Date.now().toString(36)}`;
     await conn.query(`ATTACH '${sqlEscape(vname)}' AS ${sqlIdent(alias)} (TYPE sqlite, READ_ONLY)`);
     state.sqliteAlias = alias;
@@ -828,22 +837,51 @@
     return { label: t || 'TEXT', cls: 't-string' };
   }
 
+  // ~1 GB ceiling for the sql.js fallback, which must hold the whole database in
+  // memory (FileReader / ArrayBuffer top out around 2 GB; allocation fails sooner).
+  const SQLJS_MAX_BYTES = 1024 * 1024 * 1024;
   async function loadSqlite(file) {
     // A) Try the lazy DuckDB path first; only fall back to the full sql.js load.
+    let lazyErr = null;
     try {
       setStatus('Opening SQLite (lazy)…');
       await loadSqliteLazy(file);
       return;
     } catch (err) {
+      lazyErr = err;
       console.warn('Lazy SQLite via DuckDB unavailable, falling back to sql.js:', err && err.message);
       // Roll back any partial lazy state before the full-load fallback.
       if (state.sqliteAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.sqliteAlias)}`); } catch (_) {} }
       if (state.duckFile && db) { try { await db.dropFile(state.duckFile); } catch (_) {} }
       state.sqliteAlias = null; state.sqliteLazy = false; state.duckFile = null;
     }
+    // B) sql.js fallback — loads the ENTIRE database into memory. Refuse up front
+    //    for files too large to read fully, with actionable guidance instead of a
+    //    cryptic DOMException from FileReader.
+    if (file.size > SQLJS_MAX_BYTES) {
+      throw new Error(
+        `This SQLite database is ${fmtBytes(file.size)}. The fast lazy reader ` +
+        `(DuckDB's sqlite extension) couldn't be loaded here` +
+        (lazyErr && lazyErr.message ? ` — ${lazyErr.message}` : '') +
+        `, and the file is too large to load fully into memory as a fallback. ` +
+        `Open the app over http(s) (not file://) so the extension can load, or ` +
+        `pre-convert the table you need to Parquet (e.g. with the DuckDB or sqlite CLI).`
+      );
+    }
     setStatus('Loading SQLite engine…');
     const SQL = await loadSqlJs();
-    const buf = await readAll(file);
+    let buf;
+    try {
+      buf = await readAll(file);
+    } catch (err) {
+      throw new Error(
+        `Could not read the SQLite file (${fmtBytes(file.size)}) into memory` +
+        (err && err.name ? ` — ${err.name}` : '') +
+        `. It is likely too large for the in-memory fallback. Open the app over ` +
+        `http(s) so the lazy DuckDB sqlite reader can stream it, or convert the ` +
+        `table to Parquet first.`
+      );
+    }
     state.sqliteDb = new SQL.Database(new Uint8Array(buf));
     setStatus('Reading tables…');
     const res = state.sqliteDb.exec(
