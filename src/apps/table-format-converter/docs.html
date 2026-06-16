@@ -51,6 +51,25 @@
       Other formats (Excel/ODS/Numbers, SQLite, DuckDB, Markdown, HTML) are imported one at a time.
     </p>
 
+    <h3>SQL editor</h3>
+    <p>
+      The <strong>SQL</strong> card lets you run read queries against the current source, which is
+      exposed as a view named <code>data</code> — e.g.
+      <code>SELECT region, sum(revenue) FROM data GROUP BY region ORDER BY 2 DESC</code>.
+      Run with the button or <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd>. It honours the parsing
+      heuristic (delimiter, header, selected sheet/table, multi-file combine), and works for every
+      source — CSV, Parquet, JSON/NDJSON, Excel/ODS/Numbers, SQLite, DuckDB, Markdown and pasted data
+      (non-DuckDB sources are materialized once for querying). Queries are wrapped as a sub-select, so
+      only reads are possible; the result view is capped at the first 2,000 rows for display — use the
+      <em>Export</em> card to write the full result.
+    </p>
+    <p>
+      For large files in a <strong>row-oriented</strong> format (CSV, JSON, Excel — or several combined
+      files), a hint appears: each query re-scans the whole file. For complex or repeated analysis,
+      <strong>export to Parquet first</strong> and run your queries on the Parquet file — it is columnar
+      and pruned, so analysis is dramatically faster and lighter on memory.
+    </p>
+
     <h3>Supported formats</h3>
     <ul>
       <li><strong>CSV / TSV</strong> — auto-detects encoding, BOM, line ending,

@@ -58,6 +58,13 @@
   const exportOptions   = $('exportOptions');
   const exportBtn       = $('exportBtn');
   const exportProgress  = $('exportProgress');
+  const sqlCard         = $('sqlCard');
+  const sqlEditor       = $('sqlEditor');
+  const sqlRunBtn       = $('sqlRunBtn');
+  const sqlStatus       = $('sqlStatus');
+  const sqlResultWrap   = $('sqlResultWrap');
+  const sqlResult       = $('sqlResult');
+  const sqlParquetHint  = $('sqlParquetHint');
 
   // ---------------------------------------------------------------- State
   const state = {
@@ -88,6 +95,8 @@
     pasteText: null,      // raw plain-text payload (text source) for delimiter re-parse
     pasteTables: [],      // [{name, matrix:[[...]]}] parsed from pasted clipboard data
     pasteCsvName: null,   // VFS name of the selected pasted table materialised as CSV
+    excelCsvName: null,   // VFS name of the full Excel/ODS/Numbers sheet materialised as CSV (for SQL)
+    sqlDataViewSig: null, // signature of the source last bound to the `data` view (cache key)
     snapshotMode: false,  // true when viewing a "with data" export (no live file)
     snapshotMeta: null,   // {fileName, fileSize} of the captured snapshot
   };
@@ -336,6 +345,9 @@
     if (state.mdCsvName && db) { try { await db.dropFile(state.mdCsvName); } catch (_) {} }
     state.mdCsvName = null;
     state.markdownTables = [];
+    if (state.excelCsvName && db) { try { await db.dropFile(state.excelCsvName); } catch (_) {} }
+    state.excelCsvName = null;
+    resetSqlEditor();
 
     try {
       setStatus('Detecting format…');
@@ -443,13 +455,16 @@
         if (state.sqliteCsvName)   { try { await db.dropFile(state.sqliteCsvName); }   catch (_) {} }
         if (state.mdCsvName)       { try { await db.dropFile(state.mdCsvName); }       catch (_) {} }
         if (state.pasteCsvName)    { try { await db.dropFile(state.pasteCsvName); }    catch (_) {} }
+        if (state.excelCsvName)    { try { await db.dropFile(state.excelCsvName); }    catch (_) {} }
       }
       if (state.duckdbAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.duckdbAlias)}`); } catch (_) {} }
       if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
+      resetSqlEditor();
       Object.assign(state, {
         duckPreviewFile: null, duckdbAlias: null, duckdbTables: [],
         sqliteDb: null, sqliteCsvName: null, mdCsvName: null, markdownTables: [],
         pasteCsvName: null, pasteTables: [], pasteText: null, pasteSource: null,
+        excelCsvName: null,
         sheets: [], excelBookSample: null, csvSampleText: null, csvFullColumnNames: null,
         user: {}, detected: {},
       });
@@ -521,8 +536,10 @@
       if (state.sqliteCsvName)   { try { db.dropFile(state.sqliteCsvName); }   catch (_) {} }
       if (state.mdCsvName)       { try { db.dropFile(state.mdCsvName); }       catch (_) {} }
       if (state.pasteCsvName)    { try { db.dropFile(state.pasteCsvName); }    catch (_) {} }
+      if (state.excelCsvName)    { try { db.dropFile(state.excelCsvName); }    catch (_) {} }
     }
     if (state.sqliteDb) { try { state.sqliteDb.close(); } catch (_) {} }
+    resetSqlEditor();
     state.sqliteDb = null;
     state.sqliteCsvName = null;
     state.mdCsvName = null;
@@ -531,6 +548,7 @@
     state.pasteTables = [];
     state.pasteText = null;
     state.pasteSource = null;
+    state.excelCsvName = null;
     { const ec = $('editorCard'); if (ec) ec.hidden = true; const pe = $('pasteEditor'); if (pe) pe.value = ''; }
     state.file = null;
     state.format = null;
@@ -1982,6 +2000,7 @@
       pruneColumnEdits();
       renderPreviewStats();
       renderPreviewGrid();
+      updateParquetHint();
       setStatus('');
     } catch (err) {
       console.error(err);
@@ -2935,6 +2954,154 @@
     });
   }
 
+  // ---------------------------------------------------------------- SQL editor
+  // Full Excel/ODS/Numbers sheet → in-memory CSV registered with DuckDB, so SQL
+  // (and the `data` view) can query the entire sheet, not just the preview sample.
+  async function materializeExcelCsv() {
+    if (!db) await initDuckDB();
+    const buf = await readAll(state.file);
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    const e = eff();
+    const ws = wb.Sheets[e.sheet];
+    if (!ws) throw new Error('Sheet not found: ' + e.sheet);
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, range: e.range || undefined, defval: null, blankrows: false });
+    let header, dataRows;
+    if (e.header) {
+      header = aoa.length ? aoa[0].map((h, i) => (h != null && String(h).trim() !== '') ? String(h) : `col${i+1}`) : [];
+      dataRows = aoa.slice(1);
+    } else {
+      header = aoa.length ? aoa[0].map((_, i) => `col${i+1}`) : [];
+      dataRows = aoa;
+    }
+    const lines = [header.map(csvEscape).join(',')];
+    for (const r of dataRows) lines.push(header.map((_, i) => csvEscape(r[i])).join(','));
+    if (state.excelCsvName) { try { await db.dropFile(state.excelCsvName); } catch (_) {} }
+    const name = `xlsx_sql_${Date.now()}.csv`;
+    await db.registerFileBuffer(name, new TextEncoder().encode(lines.join('\n')));
+    state.excelCsvName = name;
+    return `SELECT * FROM read_csv('${sqlEscape(name)}', delim=',', quote='"', header=true, auto_detect=true)`;
+  }
+
+  function sqlSourceSig() {
+    return JSON.stringify({ f: state.format, df: state.duckFile, fs: state.duckFiles, e: eff() });
+  }
+  // (Re)bind the current source to a view named `data` for the SQL editor.
+  async function ensureDataView() {
+    await initDuckDB();
+    const sig = sqlSourceSig();
+    if (sig === state.sqlDataViewSig) {
+      try { await conn.query('SELECT 1 FROM data LIMIT 0'); return; } catch (_) { /* fall through, rebuild */ }
+    }
+    let src;
+    if (state.format === 'xlsx')          src = await materializeExcelCsv();
+    else if (state.format === 'sqlite')   { await materializeSqlite();     src = buildSourceSql(true); }
+    else if (state.format === 'markdown') { await materializeMarkdownCsv(); src = buildSourceSql(true); }
+    else if (state.format === 'paste')    { await materializePasteCsv();    src = buildSourceSql(true); }
+    else                                  src = buildSourceSql(true);
+    if (!src) throw new Error('SQL is not available for this source — export it to Parquet or CSV first, then open that file.');
+    await conn.query(`CREATE OR REPLACE VIEW data AS ${src}`);
+    state.sqlDataViewSig = sig;
+  }
+
+  const SQL_MAX_DISPLAY_ROWS = 2000;
+  function fmtDuration(ms) {
+    if (ms < 1) return '<1 ms';
+    if (ms < 1000) return `${Math.round(ms)} ms`;
+    return `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s`;
+  }
+  function sqlCellHtml(v) {
+    if (v == null) return '<span class="null-val">null</span>';
+    if (typeof v === 'object' && !(v instanceof Date)) {
+      let txt; try { txt = JSON.stringify(v); } catch (_) { txt = String(v); }
+      return escapeHtml(txt);
+    }
+    let s;
+    if (v instanceof Date) s = v.toISOString().replace('T', ' ').replace('Z', '');
+    else if (typeof v === 'bigint') s = v.toString();
+    else s = String(v);
+    return escapeHtml(s);
+  }
+  function renderSqlResult(res) {
+    const fields = res.schema.fields.map(f => f.name);
+    const rows = res.toArray();
+    const shown = Math.min(rows.length, SQL_MAX_DISPLAY_ROWS);
+    let html = '<table class="preview-grid"><thead><tr>';
+    if (!fields.length) html += '<th>—</th>';
+    for (const f of fields) html += `<th>${escapeHtml(f)}</th>`;
+    html += '</tr></thead><tbody>';
+    if (!rows.length) {
+      html += `<tr><td class="muted" colspan="${Math.max(1, fields.length)}">No rows</td></tr>`;
+    }
+    for (let i = 0; i < shown; i++) {
+      const r = rows[i];
+      html += '<tr>';
+      for (const f of fields) html += `<td>${sqlCellHtml(r[f])}</td>`;
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    if (rows.length > shown) {
+      html += `<div class="sql-result-trunc">Showing the first ${shown.toLocaleString()} rows. Refine with a tighter WHERE / LIMIT, or use the Export card for the full result.</div>`;
+    }
+    sqlResult.innerHTML = html;
+    sqlResultWrap.hidden = false;
+  }
+
+  let _sqlRunning = false;
+  async function runSqlEditor() {
+    if (_sqlRunning) return;
+    const raw = (sqlEditor.value || '').trim().replace(/;\s*$/, '');
+    if (!raw) { sqlEditor.focus(); return; }
+    _sqlRunning = true;
+    sqlRunBtn.disabled = true;
+    sqlStatus.className = 'sql-status';
+    sqlStatus.textContent = 'Running…';
+    const t0 = performance.now();
+    try {
+      await ensureDataView();
+      // Wrap as a subquery: restricts the editor to read queries and caps the
+      // rows materialised into the browser for display.
+      const wrapped = `SELECT * FROM (\n${raw}\n) AS _q LIMIT ${SQL_MAX_DISPLAY_ROWS + 1}`;
+      const res = await conn.query(wrapped);
+      const elapsed = performance.now() - t0;
+      renderSqlResult(res);
+      const n = res.toArray().length;
+      const rows = n > SQL_MAX_DISPLAY_ROWS
+        ? `${SQL_MAX_DISPLAY_ROWS.toLocaleString()}+ rows`
+        : `${n.toLocaleString()} row${n === 1 ? '' : 's'}`;
+      sqlStatus.className = 'sql-status is-ok';
+      sqlStatus.textContent = `${rows} · ${fmtDuration(elapsed)}`;
+    } catch (err) {
+      console.error(err);
+      sqlResult.innerHTML = `<div class="sql-error">${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+      sqlResultWrap.hidden = false;
+      sqlStatus.className = 'sql-status is-error';
+      sqlStatus.textContent = `Error · ${fmtDuration(performance.now() - t0)}`;
+    } finally {
+      _sqlRunning = false;
+      sqlRunBtn.disabled = false;
+    }
+  }
+
+  // Suggest converting to Parquet when the source is large and row-oriented:
+  // each SQL run re-scans CSV/JSON/Excel, whereas Parquet/DuckDB are columnar
+  // and pruned, so repeated analysis is dramatically faster.
+  function updateParquetHint() {
+    if (!sqlParquetHint) return;
+    const optimized = state.format === 'parquet' || state.format === 'duckdb';
+    const LARGE_BYTES = 25 * 1024 * 1024;
+    const big = (state.fileSize || 0) > LARGE_BYTES
+      || (state.duckFiles && state.duckFiles.length > 1)
+      || (state.rowCountEstimate && state.rowCountEstimate.value > 1000000);
+    sqlParquetHint.hidden = optimized || !big;
+  }
+  function resetSqlEditor() {
+    state.sqlDataViewSig = null;
+    if (db && conn) { try { conn.query('DROP VIEW IF EXISTS data'); } catch (_) {} }
+    if (sqlResult) sqlResult.innerHTML = '';
+    if (sqlResultWrap) sqlResultWrap.hidden = true;
+    if (sqlStatus) { sqlStatus.textContent = ''; sqlStatus.className = 'sql-status'; }
+  }
+
   // ---------------------------------------------------------------- Export
   function renderExportOptions() {
     const fmt = targetFormat.value;
@@ -3477,6 +3644,13 @@
     filePicker.value = '';   // allow re-selecting the same file(s)
   });
   resetFileBtn.addEventListener('click', resetFile);
+
+  // ---------------------------------------------------------------- SQL editor wiring
+  if (sqlEditor && !sqlEditor.value) sqlEditor.value = 'SELECT * FROM data\nLIMIT 100';
+  if (sqlRunBtn) sqlRunBtn.addEventListener('click', runSqlEditor);
+  if (sqlEditor) sqlEditor.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runSqlEditor(); }
+  });
 
   // ---------------------------------------------------------------- Paste import
   const pasteBtn       = $('pasteBtn');

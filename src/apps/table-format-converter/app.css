@@ -45,6 +45,40 @@
 .paste-editor:focus { outline: none; border-color: var(--qrx-primary);
                       box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
 
+/* SQL editor */
+.sql-editor {
+  width: 100%; min-height: 110px; resize: vertical;
+  padding: var(--qrx-s-3);
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius);
+  background: var(--qrx-bg-subtle); color: var(--qrx-text);
+  font-family: var(--qrx-font-mono); font-size: 0.8125rem; line-height: 1.5;
+  white-space: pre; tab-size: 2;
+}
+.sql-editor:focus { outline: none; border-color: var(--qrx-primary);
+                    box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
+.sql-hint {
+  margin-bottom: var(--qrx-s-3); padding: var(--qrx-s-3) var(--qrx-s-4);
+  border: 1px solid var(--qrx-warning); border-radius: var(--qrx-radius);
+  background: rgba(232,163,23,0.10); font-size: 0.8125rem; color: var(--qrx-text);
+}
+.sql-hint strong { color: var(--qrx-warning); }
+.sql-actions {
+  display: flex; align-items: center; gap: var(--qrx-s-3);
+  margin-top: var(--qrx-s-3); flex-wrap: wrap;
+}
+.sql-run-hint { font-size: 0.75rem; }
+.sql-status { font-size: 0.8125rem; color: var(--qrx-text-muted); }
+.sql-status.is-error { color: var(--qrx-danger); }
+.sql-status.is-ok { color: var(--qrx-primary); }
+.sql-result-wrap { margin-top: var(--qrx-s-3); }
+.sql-result-wrap .sql-error {
+  padding: var(--qrx-s-3) var(--qrx-s-4); font-family: var(--qrx-font-mono);
+  font-size: 0.8125rem; color: var(--qrx-danger);
+  background: #fdecea; border: 1px solid var(--qrx-danger);
+  border-radius: var(--qrx-radius); white-space: pre-wrap;
+}
+.sql-result-trunc { margin-top: var(--qrx-s-2); font-size: 0.75rem; color: var(--qrx-text-muted); }
+
 /* Drop zone */
 .dropzone {
   border: 2px dashed var(--qrx-border-strong);
@@ -74,6 +108,7 @@
 .snapshot-banner strong { color: var(--qrx-warning); }
 /* Neutralise live controls that need the source file; preview stays browsable */
 .workspace.is-snapshot .heuristic-panel,
+.workspace.is-snapshot #sqlCard,
 .workspace.is-snapshot .export-section { pointer-events: none; opacity: 0.55; }
 
 /* The HTML [hidden] attribute must beat any author-set display value. */

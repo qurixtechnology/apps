@@ -118,6 +118,33 @@
           </div>
         </div>
 
+        <div class="qrx-card" id="sqlCard">
+          <h3 class="section-title">
+            SQL
+            <span class="section-title-right">
+              <span class="muted">query the source as <code>data</code></span>
+            </span>
+          </h3>
+          <div class="sql-hint" id="sqlParquetHint" hidden>
+            <strong>Large file in a non-optimized format.</strong>
+            For complex or repeated analyses, export it to <strong>Parquet</strong> first
+            and run your queries on the Parquet file — that is far faster and much lighter on memory.
+          </div>
+          <textarea id="sqlEditor" class="sql-editor" spellcheck="false"
+                    autocomplete="off" autocorrect="off" autocapitalize="off"
+                    placeholder="SELECT * FROM data LIMIT 100"></textarea>
+          <div class="sql-actions">
+            <button class="qrx-btn qrx-btn-primary" id="sqlRunBtn" type="button">Run query</button>
+            <span class="muted sql-run-hint">Ctrl / ⌘ + Enter · the current source is exposed as <code>data</code></span>
+            <span class="sql-status" id="sqlStatus"></span>
+          </div>
+          <div class="sql-result-wrap" id="sqlResultWrap" hidden>
+            <div class="preview-grid-wrap">
+              <div id="sqlResult"></div>
+            </div>
+          </div>
+        </div>
+
         <div class="qrx-card">
           <h3 class="section-title">Export</h3>
 
