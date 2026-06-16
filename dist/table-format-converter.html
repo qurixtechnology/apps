@@ -1384,7 +1384,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260616-212240</span>
+    &middot; v<span data-build-version>260616-212842</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2866,9 +2866,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   async function loadExcel(file) {
     setStatus('Parsing Excel sample (first 100 rows)…');
     let buf = await readAll(file);
-    // dense:true uses a compact array-of-arrays sheet model — far less memory on
-    // wide sheets; sheetRows:100 keeps only the sample needed for detection.
-    const wb = XLSX.read(buf, { type: 'array', sheetRows: 100, cellDates: true, dense: true });
+    // NOTE: NOT dense here — the data-block detection and range picker read cells
+    // by A1 address (ws["A1"]), which only exist in the default (sparse) model.
+    // sheetRows:100 keeps the sample tiny anyway. (The full export/materialize
+    // reads use dense:true, where only sheet_to_json is used.)
+    const wb = XLSX.read(buf, { type: 'array', sheetRows: 100, cellDates: true });
     buf = null;   // release raw file bytes; only the 100-row sample is kept
     state.excelBookSample = wb;
     state.sheets = wb.SheetNames.map(name => {
