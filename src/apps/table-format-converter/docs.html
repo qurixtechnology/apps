@@ -37,10 +37,11 @@
           would load the whole file. The <em>preview</em> instead parses only a
           head slice and extracts the first complete elements; the full array is
           read only on export.</li>
-      <li><strong>SQLite</strong> — opened lazily through DuckDB's SQLite scanner
-          where the build supports it (only the pages a query touches are read).
-          If unavailable, it falls back to sql.js, which loads the whole database
-          into memory.</li>
+      <li><strong>SQLite</strong> — read with sql.js, which loads the whole
+          database into memory (practical up to ~1&nbsp;GB). DuckDB-WASM's sqlite
+          scanner can't open a lazily-registered browser file, so larger databases
+          can't be opened in-browser — convert the needed table to Parquet first
+          (see below).</li>
       <li><strong>Excel / ODS / Numbers</strong> — must be loaded fully (SheetJS
           doesn't stream), but parsed in a compact (<code>dense</code>) model and
           the heuristic peeks at only the first 100 rows per sheet.</li>
@@ -102,12 +103,15 @@
       <li><strong>DuckDB (.duckdb / .ddb / .db)</strong> — attached read-only;
           pick which table to read from. Schema and types come straight from
           the file. Can also be produced as an export target.</li>
-      <li><strong>SQLite (.sqlite / .sqlite3 / .db)</strong> — read lazily via
-          DuckDB's SQLite scanner when the WASM build supports opening the file
-          (only the needed pages are read); otherwise it falls back to sql.js,
-          which loads the whole database into memory. Pick which table to read
-          from, then convert it to any supported export format. (<code>.db</code>
-          is auto-detected as SQLite or DuckDB from the file's magic bytes.)</li>
+      <li><strong>SQLite (.sqlite / .sqlite3 / .db)</strong> — read via sql.js,
+          which loads the whole database into memory (practical up to ~1&nbsp;GB);
+          pick which table to read from, then convert it to any supported export
+          format. Larger databases can't be opened in-browser (DuckDB-WASM's sqlite
+          scanner can't open a lazily-registered file) — convert the table you need
+          to Parquet with the DuckDB CLI first, e.g.
+          <code>duckdb -c "INSTALL sqlite; LOAD sqlite; COPY (SELECT * FROM sqlite_scan('db.sqlite','mytable')) TO 'mytable.parquet' (FORMAT parquet);"</code>,
+          then import the Parquet here. (<code>.db</code> is auto-detected as SQLite
+          or DuckDB from the file's magic bytes.)</li>
       <li><strong>Paste from clipboard</strong> — the <em>Paste table from clipboard</em> button
           imports a table copied from Excel/Sheets, a browser table, or CSV/TSV text. Rich HTML
           tables are read directly; for plain text the delimiter (tab / <code>;</code> /

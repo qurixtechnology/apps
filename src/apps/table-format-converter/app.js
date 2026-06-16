@@ -840,34 +840,46 @@
   // ~1 GB ceiling for the sql.js fallback, which must hold the whole database in
   // memory (FileReader / ArrayBuffer top out around 2 GB; allocation fails sooner).
   const SQLJS_MAX_BYTES = 1024 * 1024 * 1024;
+  // Concrete recipe shown when a SQLite DB can't be opened in the browser.
+  function sqliteTooBigMessage(file, lazyErr) {
+    const tbl = '<table>';
+    const out = (file.name || 'data.db').replace(/\.[^.]+$/, '') + `.${tbl}.parquet`;
+    return (
+      `This SQLite database is ${fmtBytes(file.size)} — too large to open in the browser. ` +
+      `DuckDB-WASM's sqlite reader can't open a file this big without loading it fully into ` +
+      `memory` + (lazyErr && lazyErr.message ? ` (${lazyErr.message})` : '') + `, and the ` +
+      `browser caps in-memory reads near 2 GB.\n\n` +
+      `Convert the table(s) you need to Parquet first, then import the Parquet here ` +
+      `(the app reads multi-GB Parquet lazily). With the DuckDB CLI:\n` +
+      `  duckdb -c "INSTALL sqlite; LOAD sqlite; ` +
+      `COPY (SELECT * FROM sqlite_scan('${file.name || 'data.db'}', '${tbl}')) ` +
+      `TO '${out}' (FORMAT parquet);"`
+    );
+  }
+
   async function loadSqlite(file) {
-    // A) Try the lazy DuckDB path first; only fall back to the full sql.js load.
-    let lazyErr = null;
-    try {
-      setStatus('Opening SQLite (lazy)…');
-      await loadSqliteLazy(file);
-      return;
-    } catch (err) {
-      lazyErr = err;
-      console.warn('Lazy SQLite via DuckDB unavailable, falling back to sql.js:', err && err.message);
-      // Roll back any partial lazy state before the full-load fallback.
-      if (state.sqliteAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.sqliteAlias)}`); } catch (_) {} }
-      if (state.duckFile && db) { try { await db.dropFile(state.duckFile); } catch (_) {} }
-      state.sqliteAlias = null; state.sqliteLazy = false; state.duckFile = null;
-    }
-    // B) sql.js fallback — loads the ENTIRE database into memory. Refuse up front
-    //    for files too large to read fully, with actionable guidance instead of a
-    //    cryptic DOMException from FileReader.
+    // The DuckDB-WASM sqlite scanner can't open a file registered via a lazy
+    // FileReader handle (it needs the bytes in the in-memory FS — see
+    // duckdb-wasm #1213/#1972), so the only reliable path is sql.js, which loads
+    // the WHOLE database into memory. For normal-sized files that's fine. For
+    // very large files sql.js isn't viable, so we make a best-effort lazy attempt
+    // (in case a future build supports it) and otherwise give a concrete recipe.
     if (file.size > SQLJS_MAX_BYTES) {
-      throw new Error(
-        `This SQLite database is ${fmtBytes(file.size)}. The fast lazy reader ` +
-        `(DuckDB's sqlite extension) couldn't be loaded here` +
-        (lazyErr && lazyErr.message ? ` — ${lazyErr.message}` : '') +
-        `, and the file is too large to load fully into memory as a fallback. ` +
-        `Open the app over http(s) (not file://) so the extension can load, or ` +
-        `pre-convert the table you need to Parquet (e.g. with the DuckDB or sqlite CLI).`
-      );
+      let lazyErr = null;
+      try {
+        setStatus('Opening large SQLite (lazy)…');
+        await loadSqliteLazy(file);
+        return;
+      } catch (err) {
+        lazyErr = err;
+        console.warn('Lazy SQLite via DuckDB failed:', err && err.message);
+        if (state.sqliteAlias && conn) { try { await conn.query(`DETACH ${sqlIdent(state.sqliteAlias)}`); } catch (_) {} }
+        if (state.duckFile && db) { try { await db.dropFile(state.duckFile); } catch (_) {} }
+        state.sqliteAlias = null; state.sqliteLazy = false; state.duckFile = null;
+      }
+      throw new Error(sqliteTooBigMessage(file, lazyErr));
     }
+
     setStatus('Loading SQLite engine…');
     const SQL = await loadSqlJs();
     let buf;
@@ -877,9 +889,8 @@
       throw new Error(
         `Could not read the SQLite file (${fmtBytes(file.size)}) into memory` +
         (err && err.name ? ` — ${err.name}` : '') +
-        `. It is likely too large for the in-memory fallback. Open the app over ` +
-        `http(s) so the lazy DuckDB sqlite reader can stream it, or convert the ` +
-        `table to Parquet first.`
+        `. It may be too large for the browser. Convert the table you need to ` +
+        `Parquet first, then import the Parquet here.`
       );
     }
     state.sqliteDb = new SQL.Database(new Uint8Array(buf));
