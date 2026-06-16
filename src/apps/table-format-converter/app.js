@@ -174,6 +174,21 @@
       r.readAsArrayBuffer(file);
     });
   }
+  // Best-effort text-encoding sniff from a head-slice byte buffer. Returns one of
+  // 'utf-8' | 'utf-16' | 'latin-1'. Non-UTF-8 bytes (e.g. German umlauts in a
+  // Windows-1252/Latin-1 export) would otherwise be rejected by DuckDB's CSV
+  // reader and those rows silently dropped under ignore_errors.
+  function detectEncodingFromBytes(bytes) {
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) return 'utf-8';
+    if (bytes.length >= 2 && ((bytes[0] === 0xFF && bytes[1] === 0xFE) || (bytes[0] === 0xFE && bytes[1] === 0xFF))) return 'utf-16';
+    // A multi-byte UTF-8 char may be split by the slice boundary — trim a partial
+    // trailing sequence before the strict (fatal) decode so it isn't a false miss.
+    let end = bytes.length, k = 0;
+    while (end > 0 && k < 3 && (bytes[end - 1] & 0xC0) === 0x80) { end--; k++; }
+    if (end > 0 && (bytes[end - 1] & 0x80) !== 0) end--;
+    try { new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, end)); return 'utf-8'; }
+    catch (_) { return 'latin-1'; }
+  }
 
   // Map DuckDB / Arrow type strings to friendly category for badge color
   function typeClass(t) {
@@ -600,9 +615,14 @@
   async function detectCSV() {
     // DuckDB-WASM 1.28.0 does not expose sniff_csv as a table function,
     // so we run the heuristic directly on a sample slice.
-    const sample = await readSlice(state.file, 0, Math.min(state.file.size, 64 * 1024));
+    const sliceLen = Math.min(state.file.size, 64 * 1024);
+    const bytes = await readSliceAB(state.file, 0, sliceLen);
+    const encoding = detectEncodingFromBytes(bytes);
+    // Decode the sample with the sniffed encoding so the heuristics (and any
+    // umlauts in headers) see correct text — not mojibake.
+    const decLabel = encoding === 'utf-16' ? 'utf-16' : (encoding === 'latin-1' ? 'iso-8859-1' : 'utf-8');
     let bom = false;
-    let txt = sample;
+    let txt = new TextDecoder(decLabel).decode(bytes);
     if (txt.charCodeAt(0) === 0xFEFF) { bom = true; txt = txt.slice(1); }
 
     let lineEnding = 'LF';
@@ -620,7 +640,7 @@
       escape:   '"',
       skip,
       header,
-      encoding: 'utf-8',
+      encoding,
       decimal:  '.',
       nulls:    ['', 'NULL'],
       dateformat,            // '' = let DuckDB auto-detect
@@ -1452,8 +1472,8 @@
       ], e.quote, true), e, 'quote');
       html += renderField('Encoding', selectMarkup('h_enc', [
         { v: 'utf-8', label: 'utf-8' },
-        { v: 'latin-1', label: 'latin-1' },
-        { v: 'windows-1252', label: 'windows-1252' },
+        { v: 'latin-1', label: 'latin-1 (ISO-8859-1 / Windows-1252)' },
+        { v: 'utf-16', label: 'utf-16' },
       ], e.encoding, false), e, 'encoding');
       html += renderField('Skip rows', `<input class="qrx-input" id="h_skip" type="number" min="0" value="${e.skip ?? 0}">`, e, 'skip');
       html += `<div class="qrx-form-group"><label class="checkbox-row">
@@ -2223,7 +2243,11 @@
     }
     if (e.decimal === ',') opts.push(`decimal_separator=','`);
     if (e.encoding && e.encoding !== 'utf-8') {
-      opts.push(`encoding='${sqlEscape(e.encoding)}'`);
+      // DuckDB-WASM ships only utf-8 / utf-16 / latin-1. Map windows-1252 to
+      // latin-1 (identical for the common Western-European range) so a stray
+      // selection doesn't error out.
+      const enc = (e.encoding === 'windows-1252') ? 'latin-1' : e.encoding;
+      opts.push(`encoding='${sqlEscape(enc)}'`);
     }
     if (e.dateformat) {
       opts.push(`dateformat='${sqlEscape(e.dateformat)}'`);
