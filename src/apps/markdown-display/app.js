@@ -11,6 +11,7 @@
   const sampleBtn   = document.querySelector('[data-action="load-sample"]');
   const clearBtn    = document.querySelector('[data-action="clear"]');
   const pdfBtn      = document.querySelector('[data-action="export-pdf"]');
+  const wordBtn     = document.querySelector('[data-action="export-word"]');
   const sourceBtn   = document.querySelector('[data-action="toggle-source"]');
   const pasteBtns   = document.querySelectorAll('[data-action="paste"]');
   const writeBtns   = document.querySelectorAll('[data-action="write-new"]');
@@ -247,6 +248,7 @@
       output.removeAttribute('hidden');
       dropzone.setAttribute('hidden', '');
       pdfBtn.disabled = false;
+      if (wordBtn) wordBtn.disabled = false;
       clearBtn.removeAttribute('hidden');
       sourceBtn.removeAttribute('hidden');
 
@@ -460,6 +462,7 @@
     clearOutline();
     dropzone.removeAttribute('hidden');
     pdfBtn.disabled = true;
+    if (wordBtn) wordBtn.disabled = true;
     clearBtn.setAttribute('hidden', '');
     sourceBtn.setAttribute('hidden', '');
     filenameEl.textContent = '';
@@ -501,6 +504,302 @@
     }
     window.print();
   });
+
+  // ----- Word export (.doc) -----
+  // Wrap the rendered HTML in a Word-compatible (Office HTML) document. No
+  // dependency: Word/LibreOffice open .doc-flavoured HTML natively. To match the
+  // on-screen paper / PDF design, the actually-rendered styles are copied from
+  // the live DOM via getComputedStyle and inlined (this resolves the qurix design
+  // tokens to concrete values and even preserves syntax-highlight colours).
+  // Mermaid diagrams (SVG) are rasterised to PNG so they appear in the document.
+
+  // Curated set of properties to carry over — typography + box model + borders +
+  // lists/tables. Deliberately excludes layout (display/flex/position/shadow).
+  const WORD_STYLE_PROPS = [
+    'font-family', 'font-size', 'font-weight', 'font-style', 'color', 'background-color',
+    'line-height', 'text-align', 'letter-spacing', 'white-space', 'vertical-align',
+    'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border-top-width', 'border-top-style', 'border-top-color',
+    'border-right-width', 'border-right-style', 'border-right-color',
+    'border-bottom-width', 'border-bottom-style', 'border-bottom-color',
+    'border-left-width', 'border-left-style', 'border-left-color',
+    'border-radius', 'border-collapse', 'list-style-type',
+  ];
+  // INLINE elements get only inline-relevant properties. Putting block props
+  // (margin/border/list-style/…) on inline <code>/<strong>/… makes Word drop the
+  // PARENT paragraph's spacing (verified via Word COM) — so the document looked
+  // too tight. Keep it to font/colour only.
+  const WORD_INLINE_PROPS = [
+    'font-family', 'font-size', 'font-weight', 'font-style', 'color', 'background-color',
+  ];
+  const INLINE_TAGS = new Set([
+    'A', 'CODE', 'STRONG', 'EM', 'B', 'I', 'U', 'S', 'SMALL', 'SUB', 'SUP', 'MARK',
+    'KBD', 'SAMP', 'ABBR', 'CITE', 'Q', 'SPAN', 'DEL', 'INS', 'VAR', 'TIME', 'BDI', 'BDO',
+  ]);
+  function computedStyleCss(el) {
+    const cs = getComputedStyle(el);
+    const inline = INLINE_TAGS.has(el.tagName) || cs.display === 'inline';
+    const props = inline ? WORD_INLINE_PROPS : WORD_STYLE_PROPS;
+    let css = '';
+    for (const p of props) {
+      const v = cs.getPropertyValue(p);
+      if (!v) continue;
+      if (p === 'background-color' && (v === 'rgba(0, 0, 0, 0)' || v === 'transparent')) continue;
+      css += p + ':' + v + ';';
+    }
+    const td = cs.getPropertyValue('text-decoration-line');
+    if (td && td !== 'none') css += 'text-decoration:' + td + ';';
+    return css;
+  }
+  // Walk live + clone in lockstep (identical structure before any edits) and
+  // copy the rendered styles onto the clone. Skips diagram/toolbar subtrees.
+  function inlineStylesLockstep(liveEl, cloneEl) {
+    if (cloneEl.nodeType !== 1) return;
+    let css = computedStyleCss(liveEl);
+    // Word has no horizontal scroll: force wide content to fit the page and wrap,
+    // otherwise tables / code blocks get cut off at the page edge.
+    const tag = cloneEl.tagName;
+    if (tag === 'TABLE') css += 'width:100%;table-layout:fixed;';
+    else if (tag === 'TD' || tag === 'TH') css += 'word-wrap:break-word;overflow-wrap:break-word;';
+    else if (tag === 'PRE') css += 'white-space:pre-wrap;word-wrap:break-word;';
+    cloneEl.setAttribute('style', css);
+    const lc = liveEl.children, cc = cloneEl.children;
+    for (let i = 0; i < lc.length && i < cc.length; i++) {
+      const cls = lc[i].classList;
+      if (cls && (cls.contains('mermaid') || cls.contains('md-fig-tools') || cls.contains('md-tbl-bar'))) continue;
+      inlineStylesLockstep(lc[i], cc[i]);
+    }
+  }
+  function bodyContextCss(el) {
+    const cs = getComputedStyle(el);
+    return 'font-family:' + cs.fontFamily + ';font-size:' + cs.fontSize
+      + ';color:' + cs.color + ';line-height:' + cs.lineHeight + ';background:#ffffff;';
+  }
+
+  // Insert zero-width-space break opportunities into long unbreakable runs so Word
+  // (which ignores overflow-wrap/word-break and sizes table columns to content)
+  // can wrap them — without this, wide tables overflow the page no matter what
+  // width hints are set (verified via Word COM testing).
+  function addBreakOpportunities(root) {
+    const ZWSP = '​';
+    const SEP = /([\/\\_.:\-{}()\[\],;=&|@?])/g;
+    // Hard-break any run still longer than 14 chars (e.g. a long word with no
+    // separators) by inserting a ZWSP every 14 chars.
+    const hardChop = (s) => s.split(ZWSP).map((seg) => seg.replace(/(.{14})/g, '$1' + ZWSP)).join(ZWSP);
+    // Aggressive context: inside table cells or code — long paths there must wrap,
+    // and they often span multiple inline <code> elements joined by "/" text
+    // nodes, so we break short separator-only nodes too (not just long runs).
+    const isAggressive = (node) => {
+      let el = node.parentElement;
+      while (el && el !== root) {
+        const tag = el.tagName;
+        if (tag === 'TD' || tag === 'TH' || tag === 'CODE' || tag === 'PRE') return true;
+        el = el.parentElement;
+      }
+      return false;
+    };
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      let v = node.nodeValue;
+      if (!v) continue;
+      if (isAggressive(node)) {
+        v = hardChop(v.replace(SEP, '$1' + ZWSP));
+        node.nodeValue = v;
+      } else if (/\S{20,}/.test(v)) {
+        node.nodeValue = v.replace(/\S{20,}/g, (run) => hardChop(run.replace(SEP, '$1' + ZWSP)));
+      }
+    }
+  }
+
+  function mermaidToPngDataUrl(node) {
+    return new Promise((resolve) => {
+      const s = serializeMermaidSvg(node);
+      if (!s) { resolve(null); return; }
+      const MIN_LONG = 1600;
+      const longSide = Math.max(s.w, s.h);
+      let scale = Math.max(2, MIN_LONG / longSide);
+      scale = Math.min(scale, 8);
+      const img = new Image();
+      img.onload = function () {
+        try {
+          const c = document.createElement('canvas');
+          c.width = s.w * scale; c.height = s.h * scale;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height);
+          ctx.setTransform(scale, 0, 0, scale, 0, 0);
+          ctx.drawImage(img, 0, 0, s.w, s.h);
+          // Return the PNG plus the diagram's intrinsic size so the caller can
+          // set an explicit display width/height (Word ignores max-width).
+          resolve({ dataUrl: c.toDataURL('image/png'), w: s.w, h: s.h });
+        } catch (_) { resolve(null); }
+      };
+      img.onerror = function () { resolve(null); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.xml);
+    });
+  }
+
+  // Word ignores base64 data-URI <img> in HTML .doc files, so when the document
+  // contains diagrams we package it as MHTML (multipart/related): the PNGs become
+  // separate MIME parts referenced by Content-Location, which Word renders.
+  const WORD_DOC_BASE = 'file:///C:/qurix-word-export/';
+  function utf8ToBase64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin);
+  }
+  function wrap76(b64) { return b64.replace(/(.{76})/g, '$1\r\n'); }
+  function buildMhtmlDoc(htmlString, images) {
+    const B = '----=_NextPart_qurix_word';
+    const CRLF = '\r\n';
+    let o = '';
+    o += 'MIME-Version: 1.0' + CRLF;
+    o += 'Content-Type: multipart/related; type="text/html"; boundary="' + B + '"' + CRLF + CRLF;
+    o += '--' + B + CRLF;
+    o += 'Content-Type: text/html; charset="utf-8"' + CRLF;
+    o += 'Content-Transfer-Encoding: base64' + CRLF;
+    o += 'Content-Location: ' + WORD_DOC_BASE + 'document.html' + CRLF + CRLF;
+    o += wrap76(utf8ToBase64(htmlString)) + CRLF;
+    for (const im of images) {
+      o += '--' + B + CRLF;
+      o += 'Content-Type: image/png' + CRLF;
+      o += 'Content-Transfer-Encoding: base64' + CRLF;
+      o += 'Content-Location: ' + im.url + CRLF + CRLF;
+      o += wrap76(im.b64) + CRLF;
+    }
+    o += '--' + B + '--' + CRLF;
+    return o;
+  }
+
+  function buildWordHtml(bodyHtml) {
+    const title = escapeHtml(pdfBaseName());
+    return '<!DOCTYPE html>'
+      + '<html xmlns:o="urn:schemas-microsoft-com:office:office" '
+      +   'xmlns:w="urn:schemas-microsoft-com:office:word" '
+      +   'xmlns="http://www.w3.org/1999/xhtml">'
+      + '<head><meta charset="utf-8"><title>' + title + '</title>'
+      + '<style>@page{margin:2cm;}body{margin:0;background:#ffffff;}'
+      +   'img{max-width:100%;height:auto;}table{border-collapse:collapse;}</style></head>'
+      + '<body>' + bodyHtml + '</body></html>';
+  }
+
+  async function exportWord() {
+    if (output.hasAttribute('hidden') || !output.innerHTML.trim()) {
+      showToast('Nothing to export yet.', 'error');
+      return;
+    }
+    if (wordBtn) wordBtn.disabled = true;
+    showToast('Building Word document…');
+    // Page content width (A4/Letter with 2cm margins ≈ 17cm ≈ 630px @96dpi).
+    const PAGE_CONTENT_PX = 630;
+    try {
+      const clone = output.cloneNode(true);
+      // Copy the on-screen rendered styles onto the clone (structures are still
+      // identical at this point), so the .doc matches the paper/PDF design.
+      inlineStylesLockstep(output, clone);
+      // Drop interactive chrome (table/diagram toolbars) from the copy.
+      clone.querySelectorAll('.md-tbl-bar, .md-fig-tools').forEach((el) => el.remove());
+      // Tested against real Word (COM): width hints alone do NOT fit wide tables —
+      // Word sizes columns to the *unbreakable* content. The fix is two-fold:
+      //   (1) insert break opportunities (U+200B) into long tokens (done below), and
+      //   (2) table width:100% + table-layout:fixed + proportional PERCENT columns.
+      // With (1) Word can wrap, so it honours the 100% width and fits the page.
+      const liveTables = output.querySelectorAll('table');
+      const cloneTables = clone.querySelectorAll('table');
+      for (let t = 0; t < cloneTables.length; t++) {
+        const ctbl = cloneTables[t], ltbl = liveTables[t];
+        const firstRow = ltbl && ltbl.querySelector('tr');
+        let widths = firstRow ? Array.from(firstRow.children).map((c) => c.offsetWidth || 1) : [];
+        if (!widths.length) {
+          let n = 0;
+          ctbl.querySelectorAll('tr').forEach((tr) => { n = Math.max(n, tr.children.length); });
+          widths = new Array(n).fill(1);
+        }
+        const total = widths.reduce((a, b) => a + b, 0) || widths.length || 1;
+        const pct = widths.map((w) => Math.max(3, Math.round(100 * w / total)) + '%');
+        const cg = document.createElement('colgroup');
+        pct.forEach((p) => {
+          const col = document.createElement('col');
+          col.setAttribute('width', p);
+          col.setAttribute('style', 'width:' + p);
+          cg.appendChild(col);
+        });
+        ctbl.insertBefore(cg, ctbl.firstChild);
+        ctbl.setAttribute('width', '100%');
+        ctbl.setAttribute('style', (ctbl.getAttribute('style') || '') + ';width:100%;table-layout:fixed');
+        const headRow = ctbl.querySelector('tr');
+        if (headRow) {
+          Array.from(headRow.children).forEach((cell, i) => {
+            if (pct[i]) {
+              cell.setAttribute('width', pct[i]);
+              cell.setAttribute('style', (cell.getAttribute('style') || '') + ';width:' + pct[i]);
+            }
+          });
+        }
+      }
+      // (1) Insert zero-width-space break opportunities into long unbreakable runs
+      // (paths, IBANs, inline code) so Word can wrap them — verified essential via
+      // Word COM testing; without it, no width hint prevents the overflow.
+      addBreakOpportunities(clone);
+      // Rasterise mermaid diagrams to PNG. They're embedded as MHTML parts
+      // (referenced by Content-Location) because Word ignores data-URI <img>.
+      // Word ignores max-width, so each image gets an explicit width/height
+      // capped to the page; the high-res PNG is scaled down crisply to fit.
+      const images = [];
+      const live = output.querySelectorAll('.mermaid');
+      const copies = clone.querySelectorAll('.mermaid');
+      for (let i = 0; i < live.length; i++) {
+        if (!copies[i]) continue;
+        const png = await mermaidToPngDataUrl(live[i]);
+        if (png) {
+          const url = WORD_DOC_BASE + 'diagram' + (images.length + 1) + '.png';
+          images.push({ url, b64: png.dataUrl.replace(/^data:image\/png;base64,/, '') });
+          const dispW = Math.min(png.w, PAGE_CONTENT_PX);
+          const dispH = Math.round(dispW * png.h / png.w);
+          const img = document.createElement('img');
+          img.setAttribute('src', url);
+          img.setAttribute('width', String(dispW));
+          img.setAttribute('height', String(dispH));
+          img.setAttribute('style', 'width:' + dispW + 'px;height:' + dispH + 'px;');
+          // Word honours block spacing on a <p> that contains an image, but NOT
+          // on a <div> or a display:block <img> (verified via Word COM). So wrap
+          // the diagram in a paragraph and replace the whole figure container.
+          const wrapP = document.createElement('p');
+          wrapP.setAttribute('style', 'margin:0 0 14pt;');
+          wrapP.appendChild(img);
+          (copies[i].closest('.md-fig') || copies[i]).replaceWith(wrapP);
+        } else {
+          const note = document.createElement('p');
+          note.setAttribute('style', 'margin:0 0 14pt;');
+          note.textContent = '[diagram could not be rendered]';
+          (copies[i].closest('.md-fig') || copies[i]).replaceWith(note);
+        }
+      }
+      // Wrap the content in a div carrying the paper's font context.
+      const wrapper = document.createElement('div');
+      wrapper.setAttribute('style', bodyContextCss(output));
+      wrapper.innerHTML = clone.innerHTML;
+      const html = buildWordHtml(wrapper.outerHTML);
+      // With diagrams → MHTML (so images render); otherwise plain Office-HTML.
+      const blob = images.length
+        ? new Blob([buildMhtmlDoc(html, images)], { type: 'application/msword' })
+        : new Blob(['﻿', html], { type: 'application/msword' });
+      downloadBlob(blob, pdfBaseName() + '.doc');
+      showToast('Word document saved as ' + pdfBaseName() + '.doc', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Word export failed: ' + (err && err.message ? err.message : err), 'error');
+    } finally {
+      if (wordBtn) wordBtn.disabled = false;
+    }
+  }
+
+  if (wordBtn) wordBtn.addEventListener('click', exportWord);
 
   // ----- Document outline (left sidebar) -----
   // Built from the rendered content: headings (indented by level) plus tables

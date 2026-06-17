@@ -273,6 +273,10 @@
   padding: var(--qrx-s-2) var(--qrx-s-3);
   text-align: left;
   border-bottom: 1px solid var(--qrx-border);
+  /* Break long unbreakable content (paths, IBANs, inline code) so wide tables
+     wrap to the page instead of overflowing / being clipped. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .md-paper th { font-weight: 600; color: var(--qrx-text); }
 .md-paper tr:last-child td { border-bottom: none; }

@@ -18,6 +18,10 @@
       <li>Once a document is loaded, click <strong>Export as PDF</strong> to open your
           browser's print dialog — choose <em>Save as PDF</em> to get a clean copy of the
           rendered document (not the surrounding app shell).</li>
+      <li>Click <strong>Export as Word</strong> to download the rendered document as a
+          <code>.doc</code> file that Word and LibreOffice open natively — headings, lists,
+          tables, code blocks and diagrams included (Mermaid diagrams are embedded as images).
+          It is generated locally with no upload and no extra library.</li>
     </ul>
 
     <h3>What it renders</h3>
@@ -85,6 +89,10 @@ flowchart LR
           (A4, 12&nbsp;mm margin). The result is vector — crisp diagrams, selectable / searchable
           text and small files. Enable <em>Background graphics</em> in the print dialog to include
           code-block and table shading.</li>
+      <li><strong>Export as Word</strong> produces a <code>.doc</code> (Office-HTML) file — no
+          dependency, fully offline. The on-screen styling is copied into the document (fonts,
+          headings, tables, code blocks incl. syntax-highlight colours) so it matches the paper
+          view / PDF. Mermaid diagrams are rasterised to PNG so they render in Word.</li>
       <li><strong>Export with data</strong> (footer) saves a self-contained copy that reopens
           with the current document already rendered; <strong>Export blank</strong> gives a
           clean copy.</li>
