@@ -38,6 +38,9 @@
   const pageInfo     = $('pageInfo');
   const exportBtn    = $('exportBtn');
   const exportStatus = $('exportStatus');
+  const analyzeCol     = $('analyzeCol');
+  const analyzeBtn     = $('analyzeBtn');
+  const analyzeResults = $('analyzeResults');
 
   // ---- State ----
   const state = {
@@ -725,6 +728,8 @@
       await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM read_parquet('${sqlEscape(vname)}')`);
       state.schema = arrowFields((await conn.query('SELECT * FROM original LIMIT 0')).schema);
       state.rowCountOriginal = Number((await conn.query('SELECT count(*) AS c FROM original')).toArray()[0].c);
+      analyzeCol.innerHTML = state.schema.map(c => `<option value="${escapeAttr(c.name)}">${escapeHtml(c.name)}</option>`).join('');
+      analyzeResults.innerHTML = '';
       fileIcon.textContent = 'PRQ';
       fileName.textContent = file.name;
       fileMeta.textContent = `Parquet · ${fmtBytes(file.size)} · ${fmtN(state.schema.length)} cols · ${fmtN(state.rowCountOriginal)} rows`;
@@ -744,6 +749,7 @@
     state.file = null; state.duckFile = null; state.schema = []; state.pipeline = [];
     state.editingStepId = null; state.page = 0; state.cleanedSig = null;
     dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
+    if (analyzeResults) analyzeResults.innerHTML = '';
     filePicker.value = '';
     setStatus('');
   }
@@ -778,6 +784,70 @@
       exportBtn.disabled = false;
     }
   }
+  // ---- Pattern analysis (assistance) ----
+  // Mask each value: \p{Lu}->A, \p{Ll}->a, [0-9]->9, other chars kept literal.
+  function maskedExpr(col) {
+    const c = `CAST(${id(col)} AS VARCHAR)`;
+    return `regexp_replace(regexp_replace(regexp_replace(${c}, '\\p{Lu}', 'A', 'g'), '\\p{Ll}', 'a', 'g'), '[0-9]', '9', 'g')`;
+  }
+  // Translate a mask (e.g. "+99 99 9999") into an anchored regex.
+  function maskToRegex(mask) {
+    let out = '^', i = 0;
+    while (i < mask.length) {
+      const ch = mask[i];
+      const cls = ch === 'A' ? '\\p{Lu}' : ch === 'a' ? '\\p{Ll}' : ch === '9' ? '\\d' : null;
+      if (cls) {
+        let n = 1; while (i + n < mask.length && mask[i + n] === ch) n++;
+        out += cls + (n > 1 ? `{${n}}` : ''); i += n;
+      } else {
+        out += /[.*+?^${}()|[\]\\]/.test(ch) ? '\\' + ch : ch; i++;
+      }
+    }
+    return out + '$';
+  }
+  async function runAnalyze() {
+    const col = analyzeCol.value;
+    if (!col || !conn) return;
+    analyzeBtn.disabled = true;
+    analyzeResults.innerHTML = '<p class="pc-diff-note">Analyzing…</p>';
+    try {
+      const c = id(col), m = maskedExpr(col);
+      const res = await conn.query(`WITH m AS (SELECT ${m} AS pat, CAST(${c} AS VARCHAR) AS ex FROM original WHERE ${c} IS NOT NULL)
+        SELECT pat, count(*)::BIGINT AS c, min(ex) AS example FROM m GROUP BY pat ORDER BY c DESC LIMIT 30`);
+      const rows = res.toArray();
+      const nulls = Number((await conn.query(`SELECT count(*)::BIGINT AS c FROM original WHERE ${c} IS NULL`)).toArray()[0].c);
+      const distinct = Number((await conn.query(`SELECT count(DISTINCT ${m})::BIGINT AS c FROM original WHERE ${c} IS NOT NULL`)).toArray()[0].c);
+      renderAnalyze(col, rows, nulls, distinct);
+    } catch (err) {
+      console.error(err);
+      analyzeResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Analysis failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`;
+    } finally {
+      analyzeBtn.disabled = false;
+    }
+  }
+  function renderAnalyze(col, rows, nulls, distinct) {
+    const total = state.rowCountOriginal || 1;
+    const top = rows.reduce((s, r) => s + Number(r.c), 0);
+    let html = `<div class="pc-pat-meta">Column <strong>${escapeHtml(col)}</strong> · ${fmtN(distinct)} distinct pattern(s)`
+      + (distinct > rows.length ? ` (showing top ${rows.length})` : '') + ` · ${fmtN(nulls)} null</div>`;
+    html += '<table class="pc-pat-table"><thead><tr><th>Pattern</th><th>Count</th><th>Share</th><th>Example</th><th>Regex</th></tr></thead><tbody>';
+    for (const r of rows) {
+      const cnt = Number(r.c), share = cnt / total * 100;
+      const isEmpty = r.pat === '';
+      const mask = isEmpty ? '∅ (empty)' : r.pat;
+      const rx = isEmpty ? '^$' : maskToRegex(r.pat);
+      html += `<tr><td class="pc-pat-mask">${escapeHtml(mask)}</td>`
+        + `<td>${fmtN(cnt)}</td>`
+        + `<td><div class="pc-pat-share"><span class="pc-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
+        + `<td class="pc-pat-ex" title="${escapeAttr(r.example == null ? '' : String(r.example))}">${escapeHtml(r.example == null ? '' : String(r.example))}</td>`
+        + `<td class="pc-pat-rx">${escapeHtml(rx)} <button type="button" class="pc-copy" data-copy="${escapeAttr(rx)}" title="Copy regex">copy</button></td></tr>`;
+    }
+    if (nulls) html += `<tr class="pc-pat-muted"><td>(null)</td><td>${fmtN(nulls)}</td><td>${(nulls / total * 100).toFixed(1)}%</td><td></td><td></td></tr>`;
+    html += '</tbody></table>';
+    html += `<div class="pc-diff-note">Mask: <code>A</code> uppercase · <code>a</code> lowercase · <code>9</code> digit · other characters kept literally (Unicode letters incl. umlauts). The derived regex can be pasted into a Regex step.</div>`;
+    analyzeResults.innerHTML = html;
+  }
+
   function triggerDownload(buf, name, mime) {
     const blob = new Blob([buf], { type: mime });
     const url = URL.createObjectURL(blob);
@@ -807,6 +877,14 @@
   prevBtn.addEventListener('click', () => { state.page--; renderPreview().catch(e => console.error(e)); });
   nextBtn.addEventListener('click', () => { state.page++; renderPreview().catch(e => console.error(e)); });
   exportBtn.addEventListener('click', exportCleaned);
+  if (analyzeBtn) analyzeBtn.addEventListener('click', runAnalyze);
+  if (analyzeResults) analyzeResults.addEventListener('click', e => {
+    const b = e.target.closest('[data-copy]'); if (!b) return;
+    const txt = b.getAttribute('data-copy');
+    const done = () => { b.classList.add('is-copied'); b.textContent = 'copied'; setTimeout(() => { b.classList.remove('is-copied'); b.textContent = 'copy'; }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(done);
+    else { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (_) {} t.remove(); done(); }
+  });
 
   // Step list delegation
   stepsList.addEventListener('click', e => {

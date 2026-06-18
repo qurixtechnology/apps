@@ -34,6 +34,18 @@
           were removed.</li>
     </ul>
 
+    <h3>Column structure — pattern analysis</h3>
+    <p>
+      To understand a messy column before cleaning it, open <strong>Column structure — pattern
+      analysis</strong>, pick a column and click <em>Analyze patterns</em>. Each value is reduced to a
+      mask — <code>A</code> = uppercase letter, <code>a</code> = lowercase letter, <code>9</code> =
+      digit, every other character kept literally (Unicode letters incl. umlauts are recognized). The
+      most frequent masks are listed with their count, share and an example, plus a <strong>derived
+      regex</strong> you can copy straight into a <em>Regex replace/extract</em> step. Example:
+      <code>+49 89 1234</code> → mask <code>+99 99 9999</code> → regex
+      <code>^\+\d{2} \d{2} \d{4}$</code>.
+    </p>
+
     <h3>Cleaning steps</h3>
     <p><strong>Row-based</strong></p>
     <ul>

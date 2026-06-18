@@ -45,6 +45,22 @@
         <div class="pc-kpi"><div class="pc-kpi-label">Anonymized cols</div><div class="pc-kpi-value" id="sumAnon">—</div></div>
       </div>
 
+      <!-- Column structure / pattern analysis (assistance) -->
+      <details class="qrx-card pc-analyze" id="analyzeCard">
+        <summary>
+          <span class="pc-analyze-title">Column structure — pattern analysis</span>
+          <span class="pc-analyze-hint">A = uppercase · a = lowercase · 9 = digit · other chars kept</span>
+          <svg class="pc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>
+        </summary>
+        <div class="pc-analyze-body">
+          <div class="pc-add">
+            <select class="qrx-select" id="analyzeCol" aria-label="Column to analyze"></select>
+            <button class="qrx-btn qrx-btn-primary" id="analyzeBtn" type="button">Analyze patterns</button>
+          </div>
+          <div id="analyzeResults"></div>
+        </div>
+      </details>
+
       <div class="pc-layout">
 
         <!-- Pipeline panel -->
