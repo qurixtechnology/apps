@@ -1,0 +1,76 @@
+    <h2>Parquet Cleaner</h2>
+    <p>
+      A browser-only tool to <strong>clean and anonymize a Parquet file</strong>. You build an
+      ordered <strong>cleaning pipeline</strong> of small, composable steps; a live preview shows —
+      with full transparency — where each transform <em>succeeds</em>, <em>fails</em>, or has
+      <em>no effect</em>. <strong>Your data never leaves the browser</strong> — everything runs
+      locally on DuckDB-WASM.
+    </p>
+
+    <h3>Workflow</h3>
+    <ol>
+      <li>Drop a <code>.parquet</code> file onto the drop zone, or click to pick one. The file is
+          read lazily (range reads), so even large files open instantly.</li>
+      <li>Add cleaning steps from the <em>Cleaning pipeline</em> panel. Steps run top-to-bottom; each
+          one transforms the output of the one above. Toggle, reorder (▲ ▼) or remove steps anytime.</li>
+      <li>Watch the impact badges on each step and the colored before → after sample. Switch the
+          preview between <strong>Original</strong> and <strong>Cleaned</strong>.</li>
+      <li>Click <strong>Export cleaned Parquet</strong> to download the result. Only at this point is
+          the full file written end-to-end.</li>
+    </ol>
+
+    <h3>Transparency — OK / failed / no-effect</h3>
+    <p>
+      For the step you are editing, the badges show exact counts over the <em>whole</em> file and the
+      sample table colors each row:
+    </p>
+    <ul>
+      <li><strong>Type conversion:</strong> <span style="color:#1FA888">green = converted</span>,
+          <span style="color:#C8362A">red = could not convert → becomes NULL</span>,
+          grey = value was already NULL (no effect). The three counts always sum to the row total.</li>
+      <li><strong>Trim / case / empty→NULL / hashing:</strong> how many cells <em>changed</em> vs.
+          stayed <em>unchanged</em>.</li>
+      <li><strong>Row operations (dedup, drop-null, filter):</strong> rows in → rows out, and how many
+          were removed.</li>
+    </ul>
+
+    <h3>Cleaning steps</h3>
+    <p><strong>Row-based</strong></p>
+    <ul>
+      <li><strong>Remove exact duplicates</strong> — drops rows that are identical across all columns
+          (<code>SELECT DISTINCT *</code>).</li>
+      <li><strong>Remove duplicates by key columns</strong> — a duplicate = same values in the chosen
+          key columns; keeps the first or last per group (optionally ordered by a column).</li>
+      <li><strong>Drop null / empty rows</strong> — drops a row if any selected column is NULL (and,
+          optionally, empty / whitespace).</li>
+      <li><strong>Filter rows</strong> — a free SQL <code>WHERE</code> expression over the original
+          column names.</li>
+    </ul>
+    <p><strong>Column-based</strong></p>
+    <ul>
+      <li><strong>Convert type</strong> — safe <code>TRY_CAST</code>; values that don't fit become
+          NULL (and are counted as failures).</li>
+      <li><strong>Trim &amp; collapse whitespace</strong>, <strong>Change case</strong> (UPPER/lower),
+          <strong>Empty → NULL</strong>.</li>
+      <li><strong>Rename</strong> / <strong>Drop</strong> column.</li>
+    </ul>
+    <p><strong>Anonymization</strong></p>
+    <ul>
+      <li><strong>Hash / pseudonymize</strong> — replaces values with <code>sha256(value + salt)</code>.
+          NULLs stay NULL. Set a shared <em>salt</em> so the same input maps to the same pseudonym
+          across columns and runs; keep the salt secret to prevent re-identification.</li>
+    </ul>
+
+    <h3>Notes &amp; limitations (v1)</h3>
+    <ul>
+      <li>Column pickers list the file's <em>original</em> columns. If you <em>rename</em> or
+          <em>drop</em> a column early and a later step still references the old name, that step will
+          error — reorder so renames/drops come last, or adjust the reference.</li>
+      <li>Exact-duplicate removal compares all columns; nested types (LIST/STRUCT/MAP) may not be
+          comparable and can cause an error — drop or convert them first.</li>
+      <li>Hashing is <em>pseudonymization</em>, not guaranteed anonymity: with a known salt and small
+          value space, values can be brute-forced. Combine with generalization for stronger privacy
+          (planned).</li>
+      <li>DuckDB-WASM is loaded from a public CDN, so internet access is needed on first load; the
+          file itself is never uploaded.</li>
+    </ul>

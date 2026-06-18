@@ -1,0 +1,126 @@
+  <div class="app-shell">
+
+    <!-- App attribution -->
+    <div class="app-attribution">
+      Powered by <a href="https://duckdb.org/" target="_blank" rel="noopener noreferrer">DuckDB</a>
+    </div>
+
+    <!-- Drop zone (initial state) -->
+    <div id="dropzone" class="dropzone" tabindex="0" role="button"
+         aria-label="Drop a Parquet file here or click to pick one">
+      <p class="dz-title">Drop a Parquet file here, or click to pick one</p>
+      <p class="dz-sub">Parquet (.parquet / .pq) · everything runs locally in your browser — no upload</p>
+      <input type="file" id="filePicker" hidden accept=".parquet,.pq">
+    </div>
+
+    <!-- File info bar (after load) -->
+    <div id="fileInfo" class="file-info" hidden>
+      <div class="file-info-left">
+        <div class="file-icon" id="fileIcon">PRQ</div>
+        <div style="min-width: 0;">
+          <div class="file-name" id="fileName">—</div>
+          <div class="file-meta" id="fileMeta">—</div>
+        </div>
+      </div>
+      <div>
+        <button class="qrx-btn" id="resetFileBtn">Load another file</button>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div id="statusBar" class="status-bar" hidden>
+      <span class="spinner" id="statusSpinner"></span>
+      <span id="statusText">Working…</span>
+    </div>
+
+    <!-- Workspace -->
+    <div id="workspace" class="workspace" hidden>
+
+      <!-- Summary KPIs -->
+      <div class="qrx-card pc-summary" id="summaryCard">
+        <div class="pc-kpi"><div class="pc-kpi-label">Rows</div><div class="pc-kpi-value" id="sumRows">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label">Columns</div><div class="pc-kpi-value" id="sumCols">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label">Duplicates removed</div><div class="pc-kpi-value" id="sumDupes">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label">Conversion failures</div><div class="pc-kpi-value" id="sumFails">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label">Anonymized cols</div><div class="pc-kpi-value" id="sumAnon">—</div></div>
+      </div>
+
+      <div class="pc-layout">
+
+        <!-- Pipeline panel -->
+        <div class="qrx-card pc-pipeline">
+          <h3 class="section-title">
+            Cleaning pipeline
+            <span class="section-title-right"><span class="muted" id="pipelineCount">0 steps</span></span>
+          </h3>
+
+          <div class="pc-add">
+            <select class="qrx-select" id="addStepSelect" aria-label="Choose a cleaning step">
+              <optgroup label="Row-based">
+                <option value="dedupExact">Remove exact duplicates</option>
+                <option value="dedupKeys">Remove duplicates by key columns</option>
+                <option value="dropNulls">Drop rows with null / empty values</option>
+                <option value="filter">Filter rows (SQL WHERE)</option>
+              </optgroup>
+              <optgroup label="Column-based">
+                <option value="cast">Convert type</option>
+                <option value="trim">Trim &amp; collapse whitespace</option>
+                <option value="case">Change case (UPPER / lower)</option>
+                <option value="emptyToNull">Empty → NULL</option>
+                <option value="rename">Rename column</option>
+                <option value="drop">Drop column</option>
+              </optgroup>
+              <optgroup label="Anonymization">
+                <option value="hash">Hash / pseudonymize (salted)</option>
+              </optgroup>
+            </select>
+            <button class="qrx-btn qrx-btn-primary" id="addStepBtn" type="button">Add step</button>
+          </div>
+
+          <div class="pc-salt">
+            <label class="qrx-label" for="saltInput">Salt for pseudonymization</label>
+            <input class="qrx-input" id="saltInput" type="text" spellcheck="false"
+                   placeholder="optional — same salt ⇒ same pseudonym across columns/runs">
+          </div>
+
+          <div id="stepsList" class="pc-steps"></div>
+          <p class="pc-empty muted" id="stepsEmpty">No steps yet. Add one above to start cleaning — the preview updates live.</p>
+        </div>
+
+        <!-- Preview panel -->
+        <div class="qrx-card pc-preview">
+          <h3 class="section-title">
+            Preview
+            <span class="section-title-right">
+              <span class="pc-toggle" role="tablist" aria-label="Original or cleaned data">
+                <button class="qrx-btn qrx-btn-sm is-active" id="viewOriginalBtn" type="button" role="tab">Original</button>
+                <button class="qrx-btn qrx-btn-sm" id="viewCleanedBtn" type="button" role="tab">Cleaned</button>
+              </span>
+            </span>
+          </h3>
+          <div class="preview-stats" id="previewStats"></div>
+          <div class="preview-grid-wrap" id="previewWrap">
+            <table class="preview-grid" id="previewGrid"><thead></thead><tbody></tbody></table>
+          </div>
+          <p class="pc-preview-hint" id="previewHint"></p>
+          <div class="sql-pager" id="pager" hidden>
+            <button class="qrx-btn" id="prevBtn" type="button">‹ Prev</button>
+            <span class="sql-page-info" id="pageInfo"></span>
+            <button class="qrx-btn" id="nextBtn" type="button">Next ›</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Export -->
+      <div class="qrx-card">
+        <h3 class="section-title">Export</h3>
+        <div class="pc-export">
+          <button class="qrx-btn qrx-btn-primary" id="exportBtn" type="button">Export cleaned Parquet</button>
+          <span class="sql-status" id="exportStatus"></span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
