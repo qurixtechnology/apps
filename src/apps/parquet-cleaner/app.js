@@ -169,13 +169,44 @@
   function firstCol() { return state.schema.length ? state.schema[0].name : ''; }
   function colReplace(src, col, expr) { return `SELECT * REPLACE (${expr} AS ${id(col)}) FROM (${src})`; }
 
+  // ---- Date/time pattern support ----
+  function isTemporalType(t) { return t === 'DATE' || t === 'TIMESTAMP' || t === 'TIME'; }
+  // Translate a human pattern (DD.MM.YYYY) to a DuckDB strptime format (%d.%m.%Y).
+  // Raw strptime (anything containing '%') is passed through unchanged.
+  // Note: MM = month, mm/MI = minutes, HH = 24h, hh = 12h.
+  function humanToStrptime(s) {
+    s = String(s).trim();
+    if (!s) return '';
+    if (s.indexOf('%') >= 0) return s;
+    const map = { YYYY: '%Y', YY: '%y', MM: '%m', DD: '%d', HH: '%H', hh: '%I', mm: '%M', MI: '%M', SS: '%S', ss: '%S' };
+    return s.replace(/YYYY|YY|MM|DD|HH|hh|mm|MI|SS|ss/g, m => map[m]);
+  }
+  // Parse a multi-pattern field (newline / comma / semicolon separated) → strptime list.
+  function parseFormats(text) {
+    return String(text || '').split(/[\n,;]+/).map(humanToStrptime).filter(Boolean);
+  }
+
   const STEP_DEFS = {
     cast: {
       label: 'Convert type', group: 'col', impact: 'cast',
       complete: p => !!p.column && !!p.toType,
-      defaults: () => ({ column: firstCol(), toType: 'BIGINT' }),
-      cellExpr: p => `TRY_CAST(${id(p.column)} AS ${p.toType})`,
-      compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.cellExpr(p)) : src; },
+      defaults: () => ({ column: firstCol(), toType: 'BIGINT', formats: '' }),
+      // NULL-on-failure conversion expression (used by compile, impact and diff).
+      // For temporal targets with one or more patterns, try_strptime tries each
+      // format in order per value → mixed spellings (DE + US) in one column work.
+      safeExpr(p) {
+        const c = id(p.column);
+        if (isTemporalType(p.toType)) {
+          const fmts = parseFormats(p.formats);
+          if (fmts.length) {
+            const list = '[' + fmts.map(f => `'${sqlEscape(f)}'`).join(', ') + ']';
+            const parsed = `try_strptime(CAST(${c} AS VARCHAR), ${list})`;
+            return p.toType === 'TIMESTAMP' ? parsed : `CAST(${parsed} AS ${p.toType})`;
+          }
+        }
+        return `TRY_CAST(${c} AS ${p.toType})`;
+      },
+      compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p)) : src; },
       title: p => `Convert type → ${p.toType || '?'}`,
     },
     trim: {
@@ -191,6 +222,48 @@
       cellExpr: p => `${p.mode === 'lower' ? 'lower' : 'upper'}(CAST(${id(p.column)} AS VARCHAR))`,
       compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.cellExpr(p)) : src; },
       title: p => `Change case → ${p.mode || 'upper'}`,
+    },
+    regexReplace: {
+      label: 'Regex replace', group: 'col', impact: 'cell',
+      complete: p => !!p.column && !!p.pattern,
+      defaults: () => ({ column: firstCol(), pattern: '', replacement: '', global: true, icase: false }),
+      cellExpr(p) {
+        const flags = (p.global !== false ? 'g' : '') + (p.icase ? 'i' : '');
+        return `regexp_replace(CAST(${id(p.column)} AS VARCHAR), '${sqlEscape(p.pattern)}', '${sqlEscape(p.replacement || '')}', '${flags}')`;
+      },
+      compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.cellExpr(p)) : src; },
+      title: () => 'Regex replace',
+    },
+    regexExtract: {
+      label: 'Regex extract', group: 'col', impact: 'extract',
+      complete: p => !!p.column && !!p.pattern,
+      defaults: () => ({ column: firstCol(), pattern: '', group: '0', icase: false }),
+      safeExpr(p) {
+        const c = `CAST(${id(p.column)} AS VARCHAR)`;
+        const opt = p.icase ? `, 'i'` : '';
+        const g = Number(p.group) || 0;
+        return `CASE WHEN regexp_matches(${c}, '${sqlEscape(p.pattern)}'${opt}) THEN regexp_extract(${c}, '${sqlEscape(p.pattern)}', ${g}) ELSE NULL END`;
+      },
+      compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p)) : src; },
+      title: () => 'Regex extract',
+    },
+    parseNumber: {
+      label: 'Parse number', group: 'col', impact: 'cast',
+      complete: p => !!p.column && !!p.target,
+      defaults: () => ({ column: firstCol(), decimal: ',', target: 'DOUBLE' }),
+      // Strip everything except digits, sign and the decimal separator, then
+      // normalise the decimal to '.' and TRY_CAST. Removes thousand separators,
+      // spaces and currency symbols automatically.
+      safeExpr(p) {
+        const c = id(p.column);
+        const dec = p.decimal === ',' ? ',' : '.';
+        const cls = dec === ',' ? '[^0-9,-]' : '[^0-9.-]';
+        let e = `regexp_replace(trim(CAST(${c} AS VARCHAR)), '${cls}', '', 'g')`;
+        if (dec === ',') e = `replace(${e}, ',', '.')`;
+        return `TRY_CAST(NULLIF(${e}, '') AS ${p.target})`;
+      },
+      compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p)) : src; },
+      title: p => `Parse number → ${p.target || '?'}`,
     },
     emptyToNull: {
       label: 'Empty → NULL', group: 'col', impact: 'cell',
@@ -281,14 +354,14 @@
   async function computeImpact(step, index) {
     const def = STEP_DEFS[step.kind];
     const inputSql = compilePipeline(index);
-    if (def.impact === 'cast') {
-      const c = id(step.params.column), T = step.params.toType;
+    if (def.impact === 'cast' || def.impact === 'extract') {
+      const c = id(step.params.column), expr = def.safeExpr(step.params);
       const r = (await conn.query(`SELECT
-        SUM(CASE WHEN ${c} IS NOT NULL AND TRY_CAST(${c} AS ${T}) IS NOT NULL THEN 1 ELSE 0 END) AS ok,
-        SUM(CASE WHEN ${c} IS NOT NULL AND TRY_CAST(${c} AS ${T}) IS NULL THEN 1 ELSE 0 END) AS failed,
+        SUM(CASE WHEN ${c} IS NOT NULL AND (${expr}) IS NOT NULL THEN 1 ELSE 0 END) AS ok,
+        SUM(CASE WHEN ${c} IS NOT NULL AND (${expr}) IS NULL THEN 1 ELSE 0 END) AS failed,
         SUM(CASE WHEN ${c} IS NULL THEN 1 ELSE 0 END) AS noeffect,
         COUNT(*) AS total FROM (${inputSql})`)).toArray()[0];
-      return { kind: 'cast', ok: Number(r.ok || 0), failed: Number(r.failed || 0), noEffect: Number(r.noeffect || 0), total: Number(r.total || 0) };
+      return { kind: def.impact, ok: Number(r.ok || 0), failed: Number(r.failed || 0), noEffect: Number(r.noeffect || 0), total: Number(r.total || 0) };
     }
     if (def.impact === 'cell') {
       const c = id(step.params.column), expr = def.cellExpr(step.params, ctx());
@@ -308,9 +381,11 @@
 
   function impactBadges(imp) {
     if (!imp) return '<span class="pc-badge is-pending">computing…</span>';
-    if (imp.kind === 'cast') {
-      let h = `<span class="pc-badge is-ok">✓ ${fmtN(imp.ok)} converted</span>`;
-      if (imp.failed) h += `<span class="pc-badge is-fail">⚠ ${fmtN(imp.failed)} failed → NULL</span>`;
+    if (imp.kind === 'cast' || imp.kind === 'extract') {
+      const okWord = imp.kind === 'extract' ? 'matched' : 'converted';
+      const failWord = imp.kind === 'extract' ? 'no match → NULL' : 'failed → NULL';
+      let h = `<span class="pc-badge is-ok">✓ ${fmtN(imp.ok)} ${okWord}</span>`;
+      if (imp.failed) h += `<span class="pc-badge is-fail">⚠ ${fmtN(imp.failed)} ${failWord}</span>`;
       if (imp.noEffect) h += `<span class="pc-badge">• ${fmtN(imp.noEffect)} null</span>`;
       return h;
     }
@@ -331,12 +406,12 @@
   async function buildDiffHtml(step, index) {
     const def = STEP_DEFS[step.kind];
     const c = id(step.params.column), inputSql = compilePipeline(index);
-    if (def.impact === 'cast' || def.impact === 'cell') {
+    if (def.impact === 'cast' || def.impact === 'extract' || def.impact === 'cell') {
       let q;
-      if (def.impact === 'cast') {
-        const T = step.params.toType;
-        q = `SELECT CAST(${c} AS VARCHAR) AS b, CAST(TRY_CAST(${c} AS ${T}) AS VARCHAR) AS a,
-             CASE WHEN ${c} IS NULL THEN 'noeffect' WHEN TRY_CAST(${c} AS ${T}) IS NULL THEN 'failed' ELSE 'ok' END AS cls
+      if (def.impact === 'cast' || def.impact === 'extract') {
+        const expr = def.safeExpr(step.params);
+        q = `SELECT CAST(${c} AS VARCHAR) AS b, CAST((${expr}) AS VARCHAR) AS a,
+             CASE WHEN ${c} IS NULL THEN 'noeffect' WHEN (${expr}) IS NULL THEN 'failed' ELSE 'ok' END AS cls
              FROM (${inputSql}) LIMIT 60`;
       } else {
         const expr = def.cellExpr(step.params, ctx());
@@ -377,17 +452,59 @@
     return `<div class="pc-checks">${state.schema.map(c =>
       `<label class="pc-check"><input type="checkbox" data-step="${sid}" data-multi="${multi}" value="${escapeAttr(c.name)}" ${set.has(c.name) ? 'checked' : ''}> ${escapeHtml(c.name)}</label>`).join('')}</div>`;
   }
+  const REGEX_NOTE = '<div class="pc-diff-note">Operates on the text form (cast to VARCHAR); for already-typed columns the result becomes VARCHAR — best run <strong>before</strong> a type conversion.</div>';
   function buildConfig(step) {
     const sid = step.id, p = step.params;
     switch (step.kind) {
-      case 'cast':
+      case 'cast': {
+        const presets = [
+          ['DE date', 'DD.MM.YYYY'], ['US date', 'MM/DD/YYYY'], ['ISO date', 'YYYY-MM-DD'],
+          ['ISO timestamp', 'YYYY-MM-DD HH:mm:ss'],
+        ];
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>Target type</label><select class="qrx-select" data-step="${sid}" data-field="toType">`
-          + TYPE_OPTIONS.map(t => `<option ${t === p.toType ? 'selected' : ''}>${t}</option>`).join('') + `</select></div></div>`;
+          + TYPE_OPTIONS.map(t => `<option ${t === p.toType ? 'selected' : ''}>${t}</option>`).join('') + `</select></div></div>`
+          + `<div class="pc-field" id="fmtwrap-${sid}" ${isTemporalType(p.toType) ? '' : 'hidden'}>`
+          + `<label>Date/time pattern(s) — one per line; mixed spellings are tried in order</label>`
+          + `<textarea class="qrx-input" data-step="${sid}" data-field="formats" rows="2" spellcheck="false" placeholder="DD.MM.YYYY&#10;MM/DD/YYYY">${escapeHtml(p.formats || '')}</textarea>`
+          + `<div class="pc-presets">` + presets.map(([lbl, pat]) => `<button type="button" class="pc-preset" data-preset="${escapeAttr(pat)}" data-step="${sid}">+ ${escapeHtml(lbl)}</button>`).join('') + `</div>`
+          + `<div class="pc-diff-note">Tokens: YYYY YY · MM (month) DD · HH (24h) hh (12h) mm (min) SS — or raw strptime like <code>%d.%m.%Y</code>. Empty = automatic ISO.</div>`
+          + `</div>`;
+      }
       case 'case':
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>Mode</label><select class="qrx-select" data-step="${sid}" data-field="mode">`
           + `<option value="upper" ${p.mode !== 'lower' ? 'selected' : ''}>UPPER</option><option value="lower" ${p.mode === 'lower' ? 'selected' : ''}>lower</option></select></div></div>`;
+      case 'regexReplace': {
+        const presets = [
+          ['Collapse spaces', '\\s+', ' '], ['Digits only', '[^0-9]', ''],
+          ['Strip [..] tags', '\\[[^\\]]*\\]', ''], ['Letters only', '[^A-Za-zÀ-ÿ ]', ''],
+        ];
+        return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + REGEX_NOTE
+          + `<div class="pc-row"><div class="pc-field"><label>Pattern (regex)</label><input class="qrx-input" data-step="${sid}" data-field="pattern" type="text" spellcheck="false" value="${escapeAttr(p.pattern || '')}" placeholder="\\s+"></div>`
+          + `<div class="pc-field"><label>Replacement (use \\1 for groups)</label><input class="qrx-input" data-step="${sid}" data-field="replacement" type="text" spellcheck="false" value="${escapeAttr(p.replacement || '')}" placeholder="(empty = remove)"></div></div>`
+          + `<div class="pc-flags"><label class="pc-check"><input type="checkbox" data-step="${sid}" data-bool="global" ${p.global !== false ? 'checked' : ''}> global (all matches)</label>`
+          + `<label class="pc-check"><input type="checkbox" data-step="${sid}" data-bool="icase" ${p.icase ? 'checked' : ''}> case-insensitive</label></div>`
+          + `<div class="pc-presets">` + presets.map(([l, pat, rep]) => `<button type="button" class="pc-preset" data-rxpreset="1" data-step="${sid}" data-pat="${escapeAttr(pat)}" data-repl="${escapeAttr(rep)}">+ ${escapeHtml(l)}</button>`).join('') + `</div>`;
+      }
+      case 'regexExtract': {
+        const presets = [['Email domain', '@(.*)$', '1'], ['First number', '[0-9]+([.,][0-9]+)?', '0'], ['Letters', '[A-Za-zÀ-ÿ]+', '0']];
+        return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + REGEX_NOTE
+          + `<div class="pc-row"><div class="pc-field"><label>Pattern (regex)</label><input class="qrx-input" data-step="${sid}" data-field="pattern" type="text" spellcheck="false" value="${escapeAttr(p.pattern || '')}" placeholder="@(.*)$"></div>`
+          + `<div class="pc-field"><label>Group (0 = whole match)</label><input class="qrx-input" data-step="${sid}" data-field="group" type="number" min="0" value="${escapeAttr(p.group != null ? p.group : '0')}"></div></div>`
+          + `<label class="pc-check"><input type="checkbox" data-step="${sid}" data-bool="icase" ${p.icase ? 'checked' : ''}> case-insensitive</label>`
+          + `<div class="pc-presets">` + presets.map(([l, pat, g]) => `<button type="button" class="pc-preset" data-rxpreset="1" data-step="${sid}" data-pat="${escapeAttr(pat)}" data-grp="${escapeAttr(g)}">+ ${escapeHtml(l)}</button>`).join('') + `</div>`
+          + `<div class="pc-diff-note">Rows where the pattern doesn't match become NULL.</div>`;
+      }
+      case 'parseNumber':
+        return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + `<div class="pc-field"><label>Decimal separator</label><select class="qrx-select" data-step="${sid}" data-field="decimal">`
+          + `<option value="," ${p.decimal !== '.' ? 'selected' : ''}>, (German: 1.234,56)</option><option value="." ${p.decimal === '.' ? 'selected' : ''}>. (US: 1,234.56)</option></select></div>`
+          + `<div class="pc-field"><label>Target type</label><select class="qrx-select" data-step="${sid}" data-field="target">`
+          + ['DOUBLE', 'DECIMAL(18,2)', 'BIGINT', 'INTEGER'].map(t => `<option ${t === p.target ? 'selected' : ''}>${t}</option>`).join('') + `</select></div></div>`
+          + `<div class="pc-diff-note">Removes thousand separators, spaces and currency symbols, normalizes the decimal, then converts. Non-numbers become NULL (counted as failures).</div>`;
       case 'trim': case 'emptyToNull': case 'drop':
         return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`;
       case 'hash':
@@ -693,6 +810,34 @@
 
   // Step list delegation
   stepsList.addEventListener('click', e => {
+    const rx = e.target.closest('[data-rxpreset]');
+    if (rx) {
+      const sid = rx.getAttribute('data-step'); const step = getStep(sid); if (!step) return;
+      const setF = (f, v) => {
+        if (v == null) return;
+        step.params[f] = v;
+        const inp = document.querySelector(`.pc-step[data-card="${sid}"] [data-field="${f}"]`);
+        if (inp) inp.value = v;
+      };
+      setF('pattern', rx.getAttribute('data-pat'));
+      if (rx.hasAttribute('data-repl')) setF('replacement', rx.getAttribute('data-repl'));
+      if (rx.hasAttribute('data-grp')) setF('group', rx.getAttribute('data-grp'));
+      setEditing(sid); scheduleRecompute();
+      return;
+    }
+    const pre = e.target.closest('[data-preset]');
+    if (pre) {
+      const sid = pre.getAttribute('data-step'); const step = getStep(sid); if (!step) return;
+      const pat = pre.getAttribute('data-preset');
+      const cur = (step.params.formats || '').trim();
+      const lines = cur ? cur.split(/\n/) : [];
+      if (!lines.includes(pat)) lines.push(pat);
+      step.params.formats = lines.join('\n');
+      const ta = document.querySelector(`.pc-step[data-card="${sid}"] textarea[data-field="formats"]`);
+      if (ta) ta.value = step.params.formats;
+      setEditing(sid); scheduleRecompute();
+      return;
+    }
     const btn = e.target.closest('[data-act]');
     if (btn) {
       const sid = btn.getAttribute('data-step'), act = btn.dataset.act;
@@ -720,6 +865,11 @@
       // keep the header title in sync without rebuilding (preserves input focus)
       const titleEl = document.querySelector(`.pc-step[data-card="${sid}"] .pc-step-title`);
       if (titleEl) titleEl.innerHTML = stepTitle(step);
+      // show/hide the date/time pattern field when the target type changes
+      if (el.dataset.field === 'toType') {
+        const fw = $(`fmtwrap-${sid}`);
+        if (fw) fw.hidden = !isTemporalType(el.value);
+      }
     }
     setEditing(sid);
     scheduleRecompute();

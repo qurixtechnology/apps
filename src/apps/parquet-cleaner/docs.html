@@ -48,8 +48,27 @@
     </ul>
     <p><strong>Column-based</strong></p>
     <ul>
-      <li><strong>Convert type</strong> — safe <code>TRY_CAST</code>; values that don't fit become
-          NULL (and are counted as failures).</li>
+      <li><strong>Convert type</strong> — safe conversion; values that don't fit become NULL (and are
+          counted as failures). For <strong>DATE / TIMESTAMP / TIME</strong> targets you can enter one
+          or more <strong>date/time patterns</strong> (e.g. <code>DD.MM.YYYY</code>). Several patterns
+          (one per line) are tried in order, so a column that mixes spellings —
+          <code>DD.MM.YYYY</code> and <code>MM/DD/YYYY</code> — is parsed correctly per value.
+          Tokens: <code>YYYY YY</code> · <code>MM</code> (month) <code>DD</code> ·
+          <code>HH</code> (24h) <code>hh</code> (12h) <code>mm</code> (minutes) <code>SS</code>;
+          or paste a raw strptime format like <code>%d.%m.%Y</code>. Leave empty for automatic ISO
+          parsing. (Implemented with DuckDB <code>try_strptime</code>.)</li>
+      <li><strong>Parse number (locale)</strong> — for numbers stored as text. Pick the decimal
+          separator (German <code>1.234,56</code> or US <code>1,234.56</code>); thousand separators,
+          spaces and currency symbols are stripped automatically, then the value is converted to
+          DOUBLE / DECIMAL / INTEGER. Non-numbers become NULL (counted as failures).</li>
+      <li><strong>Regex replace (search &amp; replace)</strong> — DuckDB <code>regexp_replace</code>
+          with a regex pattern and a replacement (use <code>\1</code> for capture groups); flags for
+          <em>global</em> and <em>case-insensitive</em>. Presets cover common cleanups (collapse
+          spaces, digits only, strip <code>[..]</code> tags). The headline use case for VARCHAR
+          cleaning.</li>
+      <li><strong>Regex extract</strong> — pull out a match or capture group
+          (<code>regexp_extract</code>), e.g. the domain from an email (<code>@(.*)$</code>, group 1).
+          Rows that don't match become NULL.</li>
       <li><strong>Trim &amp; collapse whitespace</strong>, <strong>Change case</strong> (UPPER/lower),
           <strong>Empty → NULL</strong>.</li>
       <li><strong>Rename</strong> / <strong>Drop</strong> column.</li>
@@ -66,6 +85,10 @@
       <li>Column pickers list the file's <em>original</em> columns. If you <em>rename</em> or
           <em>drop</em> a column early and a later step still references the old name, that step will
           error — reorder so renames/drops come last, or adjust the reference.</li>
+      <li>Regex and number-parsing steps operate on the column's <em>text</em> form. On an
+          already-typed column the result becomes VARCHAR — run them <strong>before</strong> a type
+          conversion (the pipeline order is up to you). For parsing dates use the
+          <em>Convert type</em> patterns rather than regex.</li>
       <li>Exact-duplicate removal compares all columns; nested types (LIST/STRUCT/MAP) may not be
           comparable and can cause an error — drop or convert them first.</li>
       <li>Hashing is <em>pseudonymization</em>, not guaranteed anonymity: with a known salt and small

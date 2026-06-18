@@ -116,6 +116,14 @@
 .pc-check { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8125rem; font-family: var(--qrx-font-mono); }
 .pc-row { display: flex; gap: var(--qrx-s-2); flex-wrap: wrap; }
 .pc-row > * { flex: 1; min-width: 0; }
+.pc-field textarea.qrx-input { font-family: var(--qrx-font-mono); font-size: 0.8125rem; resize: vertical; width: 100%; }
+.pc-flags { display: flex; flex-wrap: wrap; gap: var(--qrx-s-3); }
+.pc-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.pc-preset {
+  font-size: 0.72rem; padding: 1px 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--qrx-border); background: var(--qrx-bg-subtle); color: var(--qrx-text-muted);
+}
+.pc-preset:hover { border-color: var(--qrx-primary); color: var(--qrx-primary); }
 
 /* Impact badges + summary */
 .pc-impact { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); font-size: 0.75rem; }
