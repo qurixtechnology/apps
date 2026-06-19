@@ -404,6 +404,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .pc-analyze-body { padding: 0 var(--qrx-s-6) var(--qrx-s-6); border-top: 1px solid var(--qrx-border); padding-top: var(--qrx-s-5); }
 .pc-analyze-body .pc-add { max-width: 520px; }
 
+.pc-pat-toggle { margin-bottom: var(--qrx-s-3); }
 .pc-pat-meta { font-size: 0.8125rem; color: var(--qrx-text-muted); margin-bottom: var(--qrx-s-3); }
 .pc-pat-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 .pc-pat-table th, .pc-pat-table td { text-align: left; padding: 5px var(--qrx-s-3); border-bottom: 1px solid var(--qrx-border); vertical-align: middle; }
@@ -489,6 +490,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       regex</strong> you can copy straight into a <em>Regex replace/extract</em> step. Example:
       <code>+49 89 1234</code> → mask <code>+99 99 9999</code> → regex
       <code>^\+\d{2} \d{2} \d{4}$</code>.
+      Two views: <strong>Exact length</strong> keeps the run length (<code>999</code> ⇒
+      <code>\d{3}</code>), while <strong>Compact</strong> collapses any run to <code>9+</code>
+      (regex <code>\d+</code>) — so <code>9</code>, <code>99</code>, <code>999</code> … fold into one
+      pattern. Toggle between them; null and empty values are reported separately.
     </p>
 
     <h3>Cleaning steps</h3>
@@ -711,7 +716,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260618-172604</span>
+    &middot; v<span data-build-version>260618-174032</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1632,20 +1637,37 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const c = `CAST(${id(col)} AS VARCHAR)`;
     return `regexp_replace(regexp_replace(regexp_replace(${c}, '\\p{Lu}', 'A', 'g'), '\\p{Ll}', 'a', 'g'), '[0-9]', '9', 'g')`;
   }
-  // Translate a mask (e.g. "+99 99 9999") into an anchored regex.
-  function maskToRegex(mask) {
+  // Compact variant: collapse each run of a class to one symbol, so 9/99/999 all
+  // become a single "9" (displayed as "9+", regex \d+). Groups variable lengths.
+  function compactMaskedExpr(col) {
+    const c = `CAST(${id(col)} AS VARCHAR)`;
+    return `regexp_replace(regexp_replace(regexp_replace(${c}, '\\p{Lu}+', 'A', 'g'), '\\p{Ll}+', 'a', 'g'), '[0-9]+', '9', 'g')`;
+  }
+  function compactDisplay(mask) {
+    let s = ''; for (const ch of mask) s += (ch === 'A' || ch === 'a' || ch === '9') ? ch + '+' : ch; return s;
+  }
+  // Exact: run-length → {n}. Compact: every class symbol → "+".
+  function maskToRegex(mask, compact) {
     let out = '^', i = 0;
     while (i < mask.length) {
       const ch = mask[i];
       const cls = ch === 'A' ? '\\p{Lu}' : ch === 'a' ? '\\p{Ll}' : ch === '9' ? '\\d' : null;
       if (cls) {
         let n = 1; while (i + n < mask.length && mask[i + n] === ch) n++;
-        out += cls + (n > 1 ? `{${n}}` : ''); i += n;
+        out += cls + (compact ? '+' : (n > 1 ? `{${n}}` : '')); i += n;
       } else {
         out += /[.*+?^${}()|[\]\\]/.test(ch) ? '\\' + ch : ch; i++;
       }
     }
     return out + '$';
+  }
+
+  let lastAnalyze = null, analyzeMode = 'exact';
+  async function groupPatterns(c, expr) {
+    const res = await conn.query(`WITH m AS (SELECT ${expr} AS pat, CAST(${c} AS VARCHAR) AS ex FROM original WHERE ${c} IS NOT NULL)
+      SELECT pat, count(*)::BIGINT AS c, min(ex) AS example FROM m GROUP BY pat ORDER BY c DESC LIMIT 30`);
+    const distinct = Number((await conn.query(`SELECT count(DISTINCT ${expr})::BIGINT AS c FROM original WHERE ${c} IS NOT NULL`)).toArray()[0].c);
+    return { rows: res.toArray().map(r => ({ pat: r.pat, c: Number(r.c), example: r.example == null ? '' : String(r.example) })), distinct };
   }
   async function runAnalyze() {
     const col = analyzeCol.value;
@@ -1653,40 +1675,46 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     analyzeBtn.disabled = true;
     analyzeResults.innerHTML = '<p class="pc-diff-note">Analyzing…</p>';
     try {
-      const c = id(col), m = maskedExpr(col);
-      const res = await conn.query(`WITH m AS (SELECT ${m} AS pat, CAST(${c} AS VARCHAR) AS ex FROM original WHERE ${c} IS NOT NULL)
-        SELECT pat, count(*)::BIGINT AS c, min(ex) AS example FROM m GROUP BY pat ORDER BY c DESC LIMIT 30`);
-      const rows = res.toArray();
+      const c = id(col);
+      const exact = await groupPatterns(c, maskedExpr(col));
+      const compact = await groupPatterns(c, compactMaskedExpr(col));
       const nulls = Number((await conn.query(`SELECT count(*)::BIGINT AS c FROM original WHERE ${c} IS NULL`)).toArray()[0].c);
-      const distinct = Number((await conn.query(`SELECT count(DISTINCT ${m})::BIGINT AS c FROM original WHERE ${c} IS NOT NULL`)).toArray()[0].c);
-      renderAnalyze(col, rows, nulls, distinct);
+      lastAnalyze = { col, exact, compact, nulls, total: state.rowCountOriginal || 1 };
+      renderAnalyze();
     } catch (err) {
       console.error(err);
+      lastAnalyze = null;
       analyzeResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Analysis failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`;
     } finally {
       analyzeBtn.disabled = false;
     }
   }
-  function renderAnalyze(col, rows, nulls, distinct) {
-    const total = state.rowCountOriginal || 1;
-    const top = rows.reduce((s, r) => s + Number(r.c), 0);
-    let html = `<div class="pc-pat-meta">Column <strong>${escapeHtml(col)}</strong> · ${fmtN(distinct)} distinct pattern(s)`
-      + (distinct > rows.length ? ` (showing top ${rows.length})` : '') + ` · ${fmtN(nulls)} null</div>`;
+  function renderAnalyze() {
+    if (!lastAnalyze) { analyzeResults.innerHTML = ''; return; }
+    const { col, nulls, total } = lastAnalyze;
+    const compact = analyzeMode === 'compact';
+    const data = compact ? lastAnalyze.compact : lastAnalyze.exact;
+    let html = `<div class="pc-toggle pc-pat-toggle">`
+      + `<button type="button" class="qrx-btn qrx-btn-sm ${!compact ? 'is-active' : ''}" data-mode="exact">Exact length</button>`
+      + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? 'is-active' : ''}" data-mode="compact">Compact (\\d+)</button></div>`;
+    html += `<div class="pc-pat-meta">Column <strong>${escapeHtml(col)}</strong> · ${fmtN(data.distinct)} distinct ${compact ? 'compact ' : ''}pattern(s)`
+      + (data.distinct > data.rows.length ? ` (showing top ${data.rows.length})` : '') + ` · ${fmtN(nulls)} null</div>`;
     html += '<table class="pc-pat-table"><thead><tr><th>Pattern</th><th>Count</th><th>Share</th><th>Example</th><th>Regex</th></tr></thead><tbody>';
-    for (const r of rows) {
-      const cnt = Number(r.c), share = cnt / total * 100;
+    for (const r of data.rows) {
+      const share = r.c / total * 100;
       const isEmpty = r.pat === '';
-      const mask = isEmpty ? '∅ (empty)' : r.pat;
-      const rx = isEmpty ? '^$' : maskToRegex(r.pat);
+      const mask = isEmpty ? '∅ (empty)' : (compact ? compactDisplay(r.pat) : r.pat);
+      const rx = isEmpty ? '^$' : maskToRegex(r.pat, compact);
       html += `<tr><td class="pc-pat-mask">${escapeHtml(mask)}</td>`
-        + `<td>${fmtN(cnt)}</td>`
+        + `<td>${fmtN(r.c)}</td>`
         + `<td><div class="pc-pat-share"><span class="pc-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
-        + `<td class="pc-pat-ex" title="${escapeAttr(r.example == null ? '' : String(r.example))}">${escapeHtml(r.example == null ? '' : String(r.example))}</td>`
+        + `<td class="pc-pat-ex" title="${escapeAttr(r.example)}">${escapeHtml(r.example)}</td>`
         + `<td class="pc-pat-rx">${escapeHtml(rx)} <button type="button" class="pc-copy" data-copy="${escapeAttr(rx)}" title="Copy regex">copy</button></td></tr>`;
     }
     if (nulls) html += `<tr class="pc-pat-muted"><td>(null)</td><td>${fmtN(nulls)}</td><td>${(nulls / total * 100).toFixed(1)}%</td><td></td><td></td></tr>`;
     html += '</tbody></table>';
-    html += `<div class="pc-diff-note">Mask: <code>A</code> uppercase · <code>a</code> lowercase · <code>9</code> digit · other characters kept literally (Unicode letters incl. umlauts). The derived regex can be pasted into a Regex step.</div>`;
+    html += `<div class="pc-diff-note">Mask: <code>A</code> uppercase · <code>a</code> lowercase · <code>9</code> digit · other characters kept literally (Unicode letters incl. umlauts). `
+      + `<strong>Exact length</strong> keeps the run length (<code>999</code> ⇒ <code>\\d{3}</code>); <strong>Compact</strong> collapses any run (<code>9+</code> ⇒ <code>\\d+</code>). Copy the derived regex into a Regex step.</div>`;
     analyzeResults.innerHTML = html;
   }
 
@@ -1721,6 +1749,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   exportBtn.addEventListener('click', exportCleaned);
   if (analyzeBtn) analyzeBtn.addEventListener('click', runAnalyze);
   if (analyzeResults) analyzeResults.addEventListener('click', e => {
+    const mb = e.target.closest('[data-mode]');
+    if (mb) { analyzeMode = mb.getAttribute('data-mode'); renderAnalyze(); return; }
     const b = e.target.closest('[data-copy]'); if (!b) return;
     const txt = b.getAttribute('data-copy');
     const done = () => { b.classList.add('is-copied'); b.textContent = 'copied'; setTimeout(() => { b.classList.remove('is-copied'); b.textContent = 'copy'; }, 1200); };

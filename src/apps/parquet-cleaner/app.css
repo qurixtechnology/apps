@@ -230,6 +230,7 @@
 .pc-analyze-body { padding: 0 var(--qrx-s-6) var(--qrx-s-6); border-top: 1px solid var(--qrx-border); padding-top: var(--qrx-s-5); }
 .pc-analyze-body .pc-add { max-width: 520px; }
 
+.pc-pat-toggle { margin-bottom: var(--qrx-s-3); }
 .pc-pat-meta { font-size: 0.8125rem; color: var(--qrx-text-muted); margin-bottom: var(--qrx-s-3); }
 .pc-pat-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 .pc-pat-table th, .pc-pat-table td { text-align: left; padding: 5px var(--qrx-s-3); border-bottom: 1px solid var(--qrx-border); vertical-align: middle; }

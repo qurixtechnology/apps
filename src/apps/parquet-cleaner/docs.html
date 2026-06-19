@@ -44,6 +44,10 @@
       regex</strong> you can copy straight into a <em>Regex replace/extract</em> step. Example:
       <code>+49 89 1234</code> → mask <code>+99 99 9999</code> → regex
       <code>^\+\d{2} \d{2} \d{4}$</code>.
+      Two views: <strong>Exact length</strong> keeps the run length (<code>999</code> ⇒
+      <code>\d{3}</code>), while <strong>Compact</strong> collapses any run to <code>9+</code>
+      (regex <code>\d+</code>) — so <code>9</code>, <code>99</code>, <code>999</code> … fold into one
+      pattern. Toggle between them; null and empty values are reported separately.
     </p>
 
     <h3>Cleaning steps</h3>
