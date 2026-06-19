@@ -246,13 +246,26 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .pc-kpi-value.is-warn { color: var(--qrx-warning); }
 @media (max-width: 900px) { .pc-summary { grid-template-columns: repeat(2, 1fr); } }
 
+/* Layout switcher bar */
+.pc-layoutbar { display: flex; align-items: center; gap: var(--qrx-s-3); }
+.pc-layoutbar-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--qrx-text-muted); font-weight: 600; }
+
 /* Two-column layout. min-width:0 on the tracks is essential — otherwise the
    wide preview table forces the grid wider than the viewport (instead of
-   scrolling inside its card). */
-.pc-layout { display: grid; grid-template-columns: minmax(300px, 340px) minmax(0, 1fr); gap: var(--qrx-s-6); align-items: start; }
+   scrolling inside its card). The layout modes are driven by a class. */
+.pc-layout { display: grid; gap: var(--qrx-s-6); align-items: start; }
 .pc-layout > * { min-width: 0; }
 .pc-pipeline, .pc-preview { min-width: 0; }
-@media (max-width: 980px) { .pc-layout { grid-template-columns: 1fr; } }
+.pc-layout.is-default  { grid-template-columns: minmax(300px, 340px) minmax(0, 1fr); }
+.pc-layout.is-split    { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.pc-layout.is-pipeline { grid-template-columns: minmax(0, 1fr); }
+.pc-layout.is-pipeline .pc-preview { display: none; }
+.pc-layout.is-preview  { grid-template-columns: minmax(0, 1fr); }
+.pc-layout.is-preview .pc-pipeline { display: none; }
+@media (max-width: 980px) {
+  .pc-layout, .pc-layout.is-default, .pc-layout.is-split, .pc-layout.is-pipeline, .pc-layout.is-preview { grid-template-columns: 1fr; }
+  .pc-layout.is-pipeline .pc-preview, .pc-layout.is-preview .pc-pipeline { display: block; }
+}
 
 /* Pipeline panel */
 .pc-add { display: flex; gap: var(--qrx-s-2); margin-bottom: var(--qrx-s-4); }
@@ -273,6 +286,15 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   padding: var(--qrx-s-2) var(--qrx-s-3); background: var(--qrx-bg-subtle);
   border-bottom: 1px solid var(--qrx-border); cursor: pointer;
 }
+.pc-step.is-collapsed .pc-step-head { border-bottom: none; }
+.pc-step.is-collapsed .pc-step-body { display: none; }
+.pc-step-chev { color: var(--qrx-text-subtle); font-size: 0.8125rem; transition: transform 0.15s ease; flex-shrink: 0; }
+.pc-step:not(.is-collapsed) .pc-step-chev { transform: rotate(90deg); }
+.pc-step-mini { font-size: 0.72rem; font-weight: 600; color: var(--qrx-text-muted); white-space: nowrap; margin-right: var(--qrx-s-1); }
+.pc-step-mini.is-ok { color: var(--qrx-success); }
+.pc-step-mini.is-fail { color: var(--qrx-danger); }
+.pc-step-mini.is-change { color: #0e4d67; }
+.pc-step-mini.is-pending { color: var(--qrx-text-subtle); font-style: italic; font-weight: 400; }
 .pc-step-grip { color: var(--qrx-text-subtle); font-size: 0.8125rem; }
 .pc-step-title { flex: 1; font-weight: 600; font-size: 0.875rem; color: var(--qrx-text); min-width: 0; }
 .pc-step-title .pc-step-col { color: var(--qrx-primary); font-family: var(--qrx-font-mono); font-size: 0.8125rem; }
@@ -369,8 +391,32 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   padding: var(--qrx-s-2) var(--qrx-s-3); border-bottom: 1px solid var(--qrx-border); border-right: 1px solid var(--qrx-border);
   font-weight: 600; color: var(--qrx-text); vertical-align: top;
 }
-.preview-grid thead th .col-name-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-grid thead th .col-name-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .preview-grid thead th .col-type { display: block; font-weight: 400; font-size: 0.6875rem; margin-top: 2px; }
+/* Clickable column header → add a column rule */
+.pc-col-btn {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 220px;
+  background: none; border: 1px solid transparent; border-radius: 4px; padding: 1px 4px;
+  font: inherit; font-weight: 600; color: var(--qrx-text); cursor: pointer;
+}
+.pc-col-btn:hover { background: var(--qrx-bg-muted); border-color: var(--qrx-border); }
+.pc-col-caret { color: var(--qrx-text-subtle); font-size: 0.7rem; flex-shrink: 0; }
+.pc-col-btn:hover .pc-col-caret { color: var(--qrx-primary); }
+.pc-col-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--qrx-accent); flex-shrink: 0; }
+.preview-grid thead th.has-steps { box-shadow: inset 0 -3px 0 var(--qrx-accent); }
+.preview-grid thead th.has-steps .pc-col-btn { color: var(--qrx-primary); }
+/* Column rule menu (popover) */
+.pc-colmenu {
+  position: absolute; z-index: 200; min-width: 200px; max-height: 60vh; overflow: auto;
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius);
+  box-shadow: var(--qrx-shadow-lg); padding: var(--qrx-s-2);
+}
+.pc-colmenu-title { font-size: 0.72rem; color: var(--qrx-text-muted); padding: 4px 8px 6px; }
+.pc-colmenu-item {
+  display: block; width: 100%; text-align: left; background: transparent; border: none; border-radius: 4px;
+  padding: 6px 10px; font: inherit; font-size: 0.8125rem; color: var(--qrx-text); cursor: pointer;
+}
+.pc-colmenu-item:hover { background: var(--qrx-bg-subtle); color: var(--qrx-primary); }
 .preview-grid tbody td {
   padding: var(--qrx-s-2) var(--qrx-s-3); border-bottom: 1px solid var(--qrx-border); border-right: 1px solid var(--qrx-border);
   max-width: 220px; overflow: hidden; text-overflow: ellipsis;
@@ -464,6 +510,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       <li>Click <strong>Export cleaned Parquet</strong> to download the result. Only at this point is
           the full file written end-to-end.</li>
     </ol>
+    <p>
+      <strong>Layout &amp; navigation:</strong> the <em>Layout</em> bar switches between Default,
+      <em>50 / 50</em>, and full-width <em>Pipeline</em> or <em>Preview</em>. Pipeline steps are
+      collapsible — click a step header to expand/collapse it (the step you just added is opened, the
+      rest collapse); use <em>Expand all</em> / <em>Collapse all</em>. In the preview, click a
+      <strong>column header</strong> to add a column rule with that column pre-selected; columns that
+      already have a step are marked (green underline + dot, with a tooltip listing the steps).
+    </p>
 
     <h3>Transparency — OK / failed / no-effect</h3>
     <p>
@@ -626,13 +680,28 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         </div>
       </details>
 
-      <div class="pc-layout">
+      <!-- Layout switcher -->
+      <div class="pc-layoutbar">
+        <span class="pc-layoutbar-label">Layout</span>
+        <div class="pc-toggle" role="group" aria-label="Layout">
+          <button class="qrx-btn qrx-btn-sm is-active" data-layout="default" type="button">Default</button>
+          <button class="qrx-btn qrx-btn-sm" data-layout="split" type="button">50 / 50</button>
+          <button class="qrx-btn qrx-btn-sm" data-layout="pipeline" type="button" title="Pipeline full width">Pipeline ⤢</button>
+          <button class="qrx-btn qrx-btn-sm" data-layout="preview" type="button" title="Preview full width">Preview ⤢</button>
+        </div>
+      </div>
+
+      <div class="pc-layout is-default" id="pcLayout">
 
         <!-- Pipeline panel -->
         <div class="qrx-card pc-pipeline">
           <h3 class="section-title">
             Cleaning pipeline
-            <span class="section-title-right"><span class="muted" id="pipelineCount">0 steps</span></span>
+            <span class="section-title-right">
+              <button class="qrx-btn qrx-btn-sm" id="expandAllBtn" type="button" title="Expand all steps">Expand all</button>
+              <button class="qrx-btn qrx-btn-sm" id="collapseAllBtn" type="button" title="Collapse all steps">Collapse all</button>
+              <span class="muted" id="pipelineCount">0 steps</span>
+            </span>
           </h3>
 
           <div class="pc-add">
@@ -716,7 +785,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260618-174032</span>
+    &middot; v<span data-build-version>260619-144124</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -888,6 +957,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   const analyzeCol     = $('analyzeCol');
   const analyzeBtn     = $('analyzeBtn');
   const analyzeResults = $('analyzeResults');
+  const pcLayout       = $('pcLayout');
+  const expandAllBtn   = $('expandAllBtn');
+  const collapseAllBtn = $('collapseAllBtn');
 
   // ---- State ----
   const state = {
@@ -898,7 +970,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     pipeline: [],          // [{id, kind, enabled, params, impact}]
     view: 'original',
     page: 0,
-    editingStepId: null,
+    layout: 'default',
     salt: '',
     seq: 0,
     cleanedSig: null,
@@ -1388,10 +1460,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
   function buildStepCard(step, index) {
     const last = state.pipeline.length - 1;
-    return `<div class="pc-step ${step.enabled ? '' : 'is-disabled'} ${step.id === state.editingStepId ? 'is-editing' : ''}" data-card="${step.id}">
-      <div class="pc-step-head" data-step="${step.id}">
-        <span class="pc-step-grip" title="${escapeAttr(STEP_DEFS[step.kind].label)}">⋮⋮</span>
+    return `<div class="pc-step ${step.enabled ? '' : 'is-disabled'} ${step._open ? '' : 'is-collapsed'}" data-card="${step.id}">
+      <div class="pc-step-head" data-step="${step.id}" title="Click to expand / collapse">
+        <span class="pc-step-chev" aria-hidden="true">▸</span>
         <span class="pc-step-title">${stepTitle(step)}</span>
+        <span class="pc-step-mini" id="impmini-${step.id}"></span>
         <button class="pc-step-btn" data-act="up" data-step="${step.id}" title="Move up" ${index === 0 ? 'disabled' : ''}>▲</button>
         <button class="pc-step-btn" data-act="down" data-step="${step.id}" title="Move down" ${index === last ? 'disabled' : ''}>▼</button>
         <label class="pc-step-btn" title="Enable / disable" style="cursor:pointer;"><input type="checkbox" data-toggle="1" data-step="${step.id}" ${step.enabled ? 'checked' : ''}></label>
@@ -1441,14 +1514,15 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       const badges = $(`imp-badges-${step.id}`), diff = $(`imp-diff-${step.id}`);
       if (!badges) continue;
       const def = STEP_DEFS[step.kind];
-      if (!step.enabled) { badges.innerHTML = '<span class="pc-badge">disabled</span>'; if (diff) diff.innerHTML = ''; step.impact = null; continue; }
-      if (!def.complete(step.params)) { badges.innerHTML = '<span class="pc-badge is-pending">needs configuration</span>'; if (diff) diff.innerHTML = ''; step.impact = null; continue; }
+      if (!step.enabled) { badges.innerHTML = '<span class="pc-badge">disabled</span>'; if (diff) diff.innerHTML = ''; step.impact = null; setMini(step); continue; }
+      if (!def.complete(step.params)) { badges.innerHTML = '<span class="pc-badge is-pending">needs configuration</span>'; if (diff) diff.innerHTML = ''; step.impact = null; setMini(step); continue; }
       try {
         const imp = await computeImpact(step, i);
         if (seq !== state.seq) return;
         step.impact = imp;
         badges.innerHTML = impactBadges(imp);
-        if (diff) diff.innerHTML = (step.id === state.editingStepId) ? await buildDiffHtml(step, i) : '';
+        setMini(step);
+        if (diff) diff.innerHTML = step._open ? await buildDiffHtml(step, i) : '';
       } catch (err) {
         console.error(err);
         badges.innerHTML = `<span class="pc-badge is-fail">error: ${escapeHtml(err && err.message ? err.message : String(err))}</span>`;
@@ -1490,10 +1564,31 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     prevBtn.disabled = state.page <= 0;
     nextBtn.disabled = state.page >= pages - 1;
   }
+  // Which displayed columns are touched by an enabled column-based step → labels.
+  function columnStepMap() {
+    const m = new Map();
+    const add = (name, label) => { if (!name) return; if (!m.has(name)) m.set(name, []); m.get(name).push(label); };
+    for (const s of state.pipeline) {
+      if (!s.enabled) continue;
+      const def = STEP_DEFS[s.kind];
+      if (def.group !== 'col' && def.group !== 'anon') continue;
+      add(s.params && s.params.column, def.label);
+      if (s.kind === 'rename' && s.params.newName) add(s.params.newName.trim(), 'renamed');
+    }
+    return m;
+  }
   function renderGrid(res) {
     const fields = arrowFields(res.schema), rows = arrowRows(res);
+    const stepMap = columnStepMap();
     let h = '<tr>'; if (!fields.length) h += '<th>—</th>';
-    for (const f of fields) h += `<th title="${escapeAttr(f.name)}"><div class="col-name-cell">${escapeHtml(f.name)}</div><span class="col-type"><span class="type-badge ${f.typeClass}">${escapeHtml(f.type)}</span></span></th>`;
+    for (const f of fields) {
+      const labels = stepMap.get(f.name);
+      const has = labels && labels.length;
+      const tip = has ? `${f.name}\nSteps: ${labels.join(', ')}\n(click to add another rule)` : `${f.name}\nClick to add a column rule`;
+      h += `<th class="${has ? 'has-steps' : ''}" title="${escapeAttr(tip)}">`
+        + `<button type="button" class="pc-col-btn" data-col="${escapeAttr(f.name)}"><span class="col-name-cell">${escapeHtml(f.name)}</span>${has ? '<span class="pc-col-dot" aria-hidden="true"></span>' : ''}<span class="pc-col-caret" aria-hidden="true">▾</span></button>`
+        + `<span class="col-type"><span class="type-badge ${f.typeClass}">${escapeHtml(f.type)}</span></span></th>`;
+    }
     previewGrid.querySelector('thead').innerHTML = h + '</tr>';
     let b = ''; if (!rows.length) b = `<tr><td class="muted" colspan="${Math.max(1, fields.length)}">No rows</td></tr>`;
     for (const r of rows) {
@@ -1524,22 +1619,53 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
 
   // ---- Step actions ----
-  function setEditing(sid) {
-    state.editingStepId = sid;
-    document.querySelectorAll('.pc-step').forEach(el => el.classList.toggle('is-editing', el.getAttribute('data-card') === sid));
-    const step = getStep(sid); const index = state.pipeline.indexOf(step);
-    if (step && step.enabled && STEP_DEFS[step.kind].complete(step.params)) {
-      const diff = $(`imp-diff-${sid}`);
-      if (diff) buildDiffHtml(step, index).then(html => { if (state.editingStepId === sid) diff.innerHTML = html; }).catch(() => {});
+  function setMini(step) {
+    const el = $(`impmini-${step.id}`); if (!el) return;
+    let t = '', cls = '';
+    if (!step.enabled) t = 'off';
+    else if (!STEP_DEFS[step.kind].complete(step.params)) { t = 'setup'; cls = 'is-pending'; }
+    else {
+      const imp = step.impact;
+      if (imp) {
+        if (imp.kind === 'cast' || imp.kind === 'extract') { t = imp.failed ? `⚠ ${fmtN(imp.failed)}` : `✓ ${fmtN(imp.ok)}`; cls = imp.failed ? 'is-fail' : 'is-ok'; }
+        else if (imp.kind === 'cell') { t = `✎ ${fmtN(imp.changed)}`; cls = 'is-change'; }
+        else if (imp.kind === 'rows') { t = imp.removed ? `− ${fmtN(imp.removed)}` : '0'; cls = imp.removed ? 'is-fail' : ''; }
+        else t = '≈';
+      }
     }
+    el.textContent = t;
+    el.className = 'pc-step-mini ' + cls;
   }
-  function addStep(kind) {
+  // Render the before→after diff for one (open, complete) step.
+  function renderStepDiff(step) {
+    const d = $(`imp-diff-${step.id}`); if (!d) return;
+    const i = state.pipeline.indexOf(step);
+    if (!step._open || !step.enabled || !STEP_DEFS[step.kind].complete(step.params)) { d.innerHTML = ''; return; }
+    buildDiffHtml(step, i).then(html => { if (step._open) d.innerHTML = html; }).catch(() => {});
+  }
+  // Toggle a single step's collapsed state (DOM-only, no recompute).
+  function toggleStep(sid) {
+    const step = getStep(sid); if (!step) return;
+    step._open = !step._open;
+    const card = document.querySelector(`.pc-step[data-card="${sid}"]`);
+    if (card) card.classList.toggle('is-collapsed', !step._open);
+    if (step._open) renderStepDiff(step); else { const d = $(`imp-diff-${sid}`); if (d) d.innerHTML = ''; }
+  }
+  function setAllOpen(open) {
+    state.pipeline.forEach(s => s._open = open);
+    document.querySelectorAll('.pc-step').forEach(card => card.classList.toggle('is-collapsed', !open));
+    if (open) state.pipeline.forEach(renderStepDiff);
+    else document.querySelectorAll('[id^="imp-diff-"]').forEach(d => { d.innerHTML = ''; });
+  }
+  function addStep(kind, preset) {
     const def = STEP_DEFS[kind]; if (!def) return;
-    const step = { id: uid(), kind, enabled: true, params: def.defaults(), impact: null };
+    state.pipeline.forEach(s => s._open = false);   // collapse the rest
+    const step = { id: uid(), kind, enabled: true, params: Object.assign(def.defaults(), preset || {}), impact: null, _open: true };
     state.pipeline.push(step);
-    state.editingStepId = step.id;
     renderSteps();
     scheduleRecompute();
+    const card = document.querySelector(`.pc-step[data-card="${step.id}"]`);
+    if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   function moveStep(sid, dir) {
     const i = state.pipeline.findIndex(s => s.id === sid);
@@ -1551,9 +1677,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
   function removeStep(sid) {
     state.pipeline = state.pipeline.filter(s => s.id !== sid);
-    if (state.editingStepId === sid) state.editingStepId = null;
     renderSteps();
     scheduleRecompute();
+  }
+  function setLayout(mode) {
+    state.layout = mode;
+    if (pcLayout) pcLayout.className = 'pc-layout is-' + mode;
+    document.querySelectorAll('.pc-layoutbar [data-layout]').forEach(b => b.classList.toggle('is-active', b.getAttribute('data-layout') === mode));
   }
 
   // ---- Load / reset ----
@@ -1566,7 +1696,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       try { await conn.query('DROP VIEW IF EXISTS original'); } catch (_) {}
       if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
       state.file = file; state.fileSize = file.size;
-      state.pipeline = []; state.editingStepId = null; state.page = 0; state.view = 'original'; state.cleanedSig = null;
+      state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null;
       const vname = `input_${Date.now()}_` + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       state.duckFile = vname;
       setStatus('Registering file…');
@@ -1582,6 +1712,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       fileMeta.textContent = `Parquet · ${fmtBytes(file.size)} · ${fmtN(state.schema.length)} cols · ${fmtN(state.rowCountOriginal)} rows`;
       dropzone.hidden = true; fileInfo.hidden = false; workspace.hidden = false;
       setView('original');
+      setLayout('default');
       renderSteps();
       await recompute();
       setStatus('');
@@ -1594,7 +1725,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     try { if (conn) { conn.query('DROP VIEW IF EXISTS cleaned'); conn.query('DROP VIEW IF EXISTS original'); } } catch (_) {}
     if (state.duckFile && db) { try { db.dropFile(state.duckFile); } catch (_) {} }
     state.file = null; state.duckFile = null; state.schema = []; state.pipeline = [];
-    state.editingStepId = null; state.page = 0; state.cleanedSig = null;
+    state.page = 0; state.cleanedSig = null;
     dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
     if (analyzeResults) analyzeResults.innerHTML = '';
     filePicker.value = '';
@@ -1772,7 +1903,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       setF('pattern', rx.getAttribute('data-pat'));
       if (rx.hasAttribute('data-repl')) setF('replacement', rx.getAttribute('data-repl'));
       if (rx.hasAttribute('data-grp')) setF('group', rx.getAttribute('data-grp'));
-      setEditing(sid); scheduleRecompute();
+      scheduleRecompute();
       return;
     }
     const pre = e.target.closest('[data-preset]');
@@ -1785,7 +1916,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       step.params.formats = lines.join('\n');
       const ta = document.querySelector(`.pc-step[data-card="${sid}"] textarea[data-field="formats"]`);
       if (ta) ta.value = step.params.formats;
-      setEditing(sid); scheduleRecompute();
+      scheduleRecompute();
       return;
     }
     const btn = e.target.closest('[data-act]');
@@ -1798,7 +1929,46 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     }
     if (e.target.closest('input,select,button,label')) return;
     const head = e.target.closest('.pc-step-head');
-    if (head) setEditing(head.getAttribute('data-step'));
+    if (head) toggleStep(head.getAttribute('data-step'));
+  });
+
+  // Expand / collapse all
+  if (expandAllBtn) expandAllBtn.addEventListener('click', () => setAllOpen(true));
+  if (collapseAllBtn) collapseAllBtn.addEventListener('click', () => setAllOpen(false));
+
+  // Layout switcher
+  document.querySelectorAll('.pc-layoutbar [data-layout]').forEach(b =>
+    b.addEventListener('click', () => setLayout(b.getAttribute('data-layout'))));
+
+  // ---- Add a column rule straight from the preview header ----
+  let colMenuEl = null;
+  function closeColMenu() { if (colMenuEl) { colMenuEl.remove(); colMenuEl = null; document.removeEventListener('click', onDocClick, true); } }
+  function onDocClick(e) { if (colMenuEl && !colMenuEl.contains(e.target) && !e.target.closest('.pc-col-btn')) closeColMenu(); }
+  function openColMenu(anchor, col) {
+    closeColMenu();
+    const kinds = Object.keys(STEP_DEFS).filter(k => STEP_DEFS[k].group === 'col' || STEP_DEFS[k].group === 'anon');
+    const el = document.createElement('div');
+    el.className = 'pc-colmenu';
+    el.innerHTML = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div>`
+      + kinds.map(k => `<button type="button" class="pc-colmenu-item" data-kind="${k}">${escapeHtml(STEP_DEFS[k].label)}</button>`).join('');
+    document.body.appendChild(el);
+    const r = anchor.getBoundingClientRect();
+    const w = el.offsetWidth || 220;
+    el.style.top = (r.bottom + 4 + window.scrollY) + 'px';
+    el.style.left = (Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - w - 8)) + 'px';
+    el.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-kind]'); if (!b) return;
+      const kind = b.getAttribute('data-kind');
+      closeColMenu();
+      if (state.layout === 'preview') setLayout('split');   // make the pipeline visible
+      addStep(kind, { column: col });
+    });
+    colMenuEl = el;
+    setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+  }
+  previewGrid.addEventListener('click', e => {
+    const b = e.target.closest('.pc-col-btn');
+    if (b) { e.stopPropagation(); openColMenu(b, b.getAttribute('data-col')); }
   });
   function onField(e) {
     const el = e.target; const sid = el.getAttribute('data-step'); if (!sid) return;
@@ -1821,7 +1991,6 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         if (fw) fw.hidden = !isTemporalType(el.value);
       }
     }
-    setEditing(sid);
     scheduleRecompute();
   }
   stepsList.addEventListener('change', onField);

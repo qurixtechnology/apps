@@ -41,6 +41,9 @@
   const analyzeCol     = $('analyzeCol');
   const analyzeBtn     = $('analyzeBtn');
   const analyzeResults = $('analyzeResults');
+  const pcLayout       = $('pcLayout');
+  const expandAllBtn   = $('expandAllBtn');
+  const collapseAllBtn = $('collapseAllBtn');
 
   // ---- State ----
   const state = {
@@ -51,7 +54,7 @@
     pipeline: [],          // [{id, kind, enabled, params, impact}]
     view: 'original',
     page: 0,
-    editingStepId: null,
+    layout: 'default',
     salt: '',
     seq: 0,
     cleanedSig: null,
@@ -541,10 +544,11 @@
   }
   function buildStepCard(step, index) {
     const last = state.pipeline.length - 1;
-    return `<div class="pc-step ${step.enabled ? '' : 'is-disabled'} ${step.id === state.editingStepId ? 'is-editing' : ''}" data-card="${step.id}">
-      <div class="pc-step-head" data-step="${step.id}">
-        <span class="pc-step-grip" title="${escapeAttr(STEP_DEFS[step.kind].label)}">⋮⋮</span>
+    return `<div class="pc-step ${step.enabled ? '' : 'is-disabled'} ${step._open ? '' : 'is-collapsed'}" data-card="${step.id}">
+      <div class="pc-step-head" data-step="${step.id}" title="Click to expand / collapse">
+        <span class="pc-step-chev" aria-hidden="true">▸</span>
         <span class="pc-step-title">${stepTitle(step)}</span>
+        <span class="pc-step-mini" id="impmini-${step.id}"></span>
         <button class="pc-step-btn" data-act="up" data-step="${step.id}" title="Move up" ${index === 0 ? 'disabled' : ''}>▲</button>
         <button class="pc-step-btn" data-act="down" data-step="${step.id}" title="Move down" ${index === last ? 'disabled' : ''}>▼</button>
         <label class="pc-step-btn" title="Enable / disable" style="cursor:pointer;"><input type="checkbox" data-toggle="1" data-step="${step.id}" ${step.enabled ? 'checked' : ''}></label>
@@ -594,14 +598,15 @@
       const badges = $(`imp-badges-${step.id}`), diff = $(`imp-diff-${step.id}`);
       if (!badges) continue;
       const def = STEP_DEFS[step.kind];
-      if (!step.enabled) { badges.innerHTML = '<span class="pc-badge">disabled</span>'; if (diff) diff.innerHTML = ''; step.impact = null; continue; }
-      if (!def.complete(step.params)) { badges.innerHTML = '<span class="pc-badge is-pending">needs configuration</span>'; if (diff) diff.innerHTML = ''; step.impact = null; continue; }
+      if (!step.enabled) { badges.innerHTML = '<span class="pc-badge">disabled</span>'; if (diff) diff.innerHTML = ''; step.impact = null; setMini(step); continue; }
+      if (!def.complete(step.params)) { badges.innerHTML = '<span class="pc-badge is-pending">needs configuration</span>'; if (diff) diff.innerHTML = ''; step.impact = null; setMini(step); continue; }
       try {
         const imp = await computeImpact(step, i);
         if (seq !== state.seq) return;
         step.impact = imp;
         badges.innerHTML = impactBadges(imp);
-        if (diff) diff.innerHTML = (step.id === state.editingStepId) ? await buildDiffHtml(step, i) : '';
+        setMini(step);
+        if (diff) diff.innerHTML = step._open ? await buildDiffHtml(step, i) : '';
       } catch (err) {
         console.error(err);
         badges.innerHTML = `<span class="pc-badge is-fail">error: ${escapeHtml(err && err.message ? err.message : String(err))}</span>`;
@@ -643,10 +648,31 @@
     prevBtn.disabled = state.page <= 0;
     nextBtn.disabled = state.page >= pages - 1;
   }
+  // Which displayed columns are touched by an enabled column-based step → labels.
+  function columnStepMap() {
+    const m = new Map();
+    const add = (name, label) => { if (!name) return; if (!m.has(name)) m.set(name, []); m.get(name).push(label); };
+    for (const s of state.pipeline) {
+      if (!s.enabled) continue;
+      const def = STEP_DEFS[s.kind];
+      if (def.group !== 'col' && def.group !== 'anon') continue;
+      add(s.params && s.params.column, def.label);
+      if (s.kind === 'rename' && s.params.newName) add(s.params.newName.trim(), 'renamed');
+    }
+    return m;
+  }
   function renderGrid(res) {
     const fields = arrowFields(res.schema), rows = arrowRows(res);
+    const stepMap = columnStepMap();
     let h = '<tr>'; if (!fields.length) h += '<th>—</th>';
-    for (const f of fields) h += `<th title="${escapeAttr(f.name)}"><div class="col-name-cell">${escapeHtml(f.name)}</div><span class="col-type"><span class="type-badge ${f.typeClass}">${escapeHtml(f.type)}</span></span></th>`;
+    for (const f of fields) {
+      const labels = stepMap.get(f.name);
+      const has = labels && labels.length;
+      const tip = has ? `${f.name}\nSteps: ${labels.join(', ')}\n(click to add another rule)` : `${f.name}\nClick to add a column rule`;
+      h += `<th class="${has ? 'has-steps' : ''}" title="${escapeAttr(tip)}">`
+        + `<button type="button" class="pc-col-btn" data-col="${escapeAttr(f.name)}"><span class="col-name-cell">${escapeHtml(f.name)}</span>${has ? '<span class="pc-col-dot" aria-hidden="true"></span>' : ''}<span class="pc-col-caret" aria-hidden="true">▾</span></button>`
+        + `<span class="col-type"><span class="type-badge ${f.typeClass}">${escapeHtml(f.type)}</span></span></th>`;
+    }
     previewGrid.querySelector('thead').innerHTML = h + '</tr>';
     let b = ''; if (!rows.length) b = `<tr><td class="muted" colspan="${Math.max(1, fields.length)}">No rows</td></tr>`;
     for (const r of rows) {
@@ -677,22 +703,53 @@
   }
 
   // ---- Step actions ----
-  function setEditing(sid) {
-    state.editingStepId = sid;
-    document.querySelectorAll('.pc-step').forEach(el => el.classList.toggle('is-editing', el.getAttribute('data-card') === sid));
-    const step = getStep(sid); const index = state.pipeline.indexOf(step);
-    if (step && step.enabled && STEP_DEFS[step.kind].complete(step.params)) {
-      const diff = $(`imp-diff-${sid}`);
-      if (diff) buildDiffHtml(step, index).then(html => { if (state.editingStepId === sid) diff.innerHTML = html; }).catch(() => {});
+  function setMini(step) {
+    const el = $(`impmini-${step.id}`); if (!el) return;
+    let t = '', cls = '';
+    if (!step.enabled) t = 'off';
+    else if (!STEP_DEFS[step.kind].complete(step.params)) { t = 'setup'; cls = 'is-pending'; }
+    else {
+      const imp = step.impact;
+      if (imp) {
+        if (imp.kind === 'cast' || imp.kind === 'extract') { t = imp.failed ? `⚠ ${fmtN(imp.failed)}` : `✓ ${fmtN(imp.ok)}`; cls = imp.failed ? 'is-fail' : 'is-ok'; }
+        else if (imp.kind === 'cell') { t = `✎ ${fmtN(imp.changed)}`; cls = 'is-change'; }
+        else if (imp.kind === 'rows') { t = imp.removed ? `− ${fmtN(imp.removed)}` : '0'; cls = imp.removed ? 'is-fail' : ''; }
+        else t = '≈';
+      }
     }
+    el.textContent = t;
+    el.className = 'pc-step-mini ' + cls;
   }
-  function addStep(kind) {
+  // Render the before→after diff for one (open, complete) step.
+  function renderStepDiff(step) {
+    const d = $(`imp-diff-${step.id}`); if (!d) return;
+    const i = state.pipeline.indexOf(step);
+    if (!step._open || !step.enabled || !STEP_DEFS[step.kind].complete(step.params)) { d.innerHTML = ''; return; }
+    buildDiffHtml(step, i).then(html => { if (step._open) d.innerHTML = html; }).catch(() => {});
+  }
+  // Toggle a single step's collapsed state (DOM-only, no recompute).
+  function toggleStep(sid) {
+    const step = getStep(sid); if (!step) return;
+    step._open = !step._open;
+    const card = document.querySelector(`.pc-step[data-card="${sid}"]`);
+    if (card) card.classList.toggle('is-collapsed', !step._open);
+    if (step._open) renderStepDiff(step); else { const d = $(`imp-diff-${sid}`); if (d) d.innerHTML = ''; }
+  }
+  function setAllOpen(open) {
+    state.pipeline.forEach(s => s._open = open);
+    document.querySelectorAll('.pc-step').forEach(card => card.classList.toggle('is-collapsed', !open));
+    if (open) state.pipeline.forEach(renderStepDiff);
+    else document.querySelectorAll('[id^="imp-diff-"]').forEach(d => { d.innerHTML = ''; });
+  }
+  function addStep(kind, preset) {
     const def = STEP_DEFS[kind]; if (!def) return;
-    const step = { id: uid(), kind, enabled: true, params: def.defaults(), impact: null };
+    state.pipeline.forEach(s => s._open = false);   // collapse the rest
+    const step = { id: uid(), kind, enabled: true, params: Object.assign(def.defaults(), preset || {}), impact: null, _open: true };
     state.pipeline.push(step);
-    state.editingStepId = step.id;
     renderSteps();
     scheduleRecompute();
+    const card = document.querySelector(`.pc-step[data-card="${step.id}"]`);
+    if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   function moveStep(sid, dir) {
     const i = state.pipeline.findIndex(s => s.id === sid);
@@ -704,9 +761,13 @@
   }
   function removeStep(sid) {
     state.pipeline = state.pipeline.filter(s => s.id !== sid);
-    if (state.editingStepId === sid) state.editingStepId = null;
     renderSteps();
     scheduleRecompute();
+  }
+  function setLayout(mode) {
+    state.layout = mode;
+    if (pcLayout) pcLayout.className = 'pc-layout is-' + mode;
+    document.querySelectorAll('.pc-layoutbar [data-layout]').forEach(b => b.classList.toggle('is-active', b.getAttribute('data-layout') === mode));
   }
 
   // ---- Load / reset ----
@@ -719,7 +780,7 @@
       try { await conn.query('DROP VIEW IF EXISTS original'); } catch (_) {}
       if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
       state.file = file; state.fileSize = file.size;
-      state.pipeline = []; state.editingStepId = null; state.page = 0; state.view = 'original'; state.cleanedSig = null;
+      state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null;
       const vname = `input_${Date.now()}_` + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       state.duckFile = vname;
       setStatus('Registering file…');
@@ -735,6 +796,7 @@
       fileMeta.textContent = `Parquet · ${fmtBytes(file.size)} · ${fmtN(state.schema.length)} cols · ${fmtN(state.rowCountOriginal)} rows`;
       dropzone.hidden = true; fileInfo.hidden = false; workspace.hidden = false;
       setView('original');
+      setLayout('default');
       renderSteps();
       await recompute();
       setStatus('');
@@ -747,7 +809,7 @@
     try { if (conn) { conn.query('DROP VIEW IF EXISTS cleaned'); conn.query('DROP VIEW IF EXISTS original'); } } catch (_) {}
     if (state.duckFile && db) { try { db.dropFile(state.duckFile); } catch (_) {} }
     state.file = null; state.duckFile = null; state.schema = []; state.pipeline = [];
-    state.editingStepId = null; state.page = 0; state.cleanedSig = null;
+    state.page = 0; state.cleanedSig = null;
     dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
     if (analyzeResults) analyzeResults.innerHTML = '';
     filePicker.value = '';
@@ -925,7 +987,7 @@
       setF('pattern', rx.getAttribute('data-pat'));
       if (rx.hasAttribute('data-repl')) setF('replacement', rx.getAttribute('data-repl'));
       if (rx.hasAttribute('data-grp')) setF('group', rx.getAttribute('data-grp'));
-      setEditing(sid); scheduleRecompute();
+      scheduleRecompute();
       return;
     }
     const pre = e.target.closest('[data-preset]');
@@ -938,7 +1000,7 @@
       step.params.formats = lines.join('\n');
       const ta = document.querySelector(`.pc-step[data-card="${sid}"] textarea[data-field="formats"]`);
       if (ta) ta.value = step.params.formats;
-      setEditing(sid); scheduleRecompute();
+      scheduleRecompute();
       return;
     }
     const btn = e.target.closest('[data-act]');
@@ -951,7 +1013,46 @@
     }
     if (e.target.closest('input,select,button,label')) return;
     const head = e.target.closest('.pc-step-head');
-    if (head) setEditing(head.getAttribute('data-step'));
+    if (head) toggleStep(head.getAttribute('data-step'));
+  });
+
+  // Expand / collapse all
+  if (expandAllBtn) expandAllBtn.addEventListener('click', () => setAllOpen(true));
+  if (collapseAllBtn) collapseAllBtn.addEventListener('click', () => setAllOpen(false));
+
+  // Layout switcher
+  document.querySelectorAll('.pc-layoutbar [data-layout]').forEach(b =>
+    b.addEventListener('click', () => setLayout(b.getAttribute('data-layout'))));
+
+  // ---- Add a column rule straight from the preview header ----
+  let colMenuEl = null;
+  function closeColMenu() { if (colMenuEl) { colMenuEl.remove(); colMenuEl = null; document.removeEventListener('click', onDocClick, true); } }
+  function onDocClick(e) { if (colMenuEl && !colMenuEl.contains(e.target) && !e.target.closest('.pc-col-btn')) closeColMenu(); }
+  function openColMenu(anchor, col) {
+    closeColMenu();
+    const kinds = Object.keys(STEP_DEFS).filter(k => STEP_DEFS[k].group === 'col' || STEP_DEFS[k].group === 'anon');
+    const el = document.createElement('div');
+    el.className = 'pc-colmenu';
+    el.innerHTML = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div>`
+      + kinds.map(k => `<button type="button" class="pc-colmenu-item" data-kind="${k}">${escapeHtml(STEP_DEFS[k].label)}</button>`).join('');
+    document.body.appendChild(el);
+    const r = anchor.getBoundingClientRect();
+    const w = el.offsetWidth || 220;
+    el.style.top = (r.bottom + 4 + window.scrollY) + 'px';
+    el.style.left = (Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - w - 8)) + 'px';
+    el.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-kind]'); if (!b) return;
+      const kind = b.getAttribute('data-kind');
+      closeColMenu();
+      if (state.layout === 'preview') setLayout('split');   // make the pipeline visible
+      addStep(kind, { column: col });
+    });
+    colMenuEl = el;
+    setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+  }
+  previewGrid.addEventListener('click', e => {
+    const b = e.target.closest('.pc-col-btn');
+    if (b) { e.stopPropagation(); openColMenu(b, b.getAttribute('data-col')); }
   });
   function onField(e) {
     const el = e.target; const sid = el.getAttribute('data-step'); if (!sid) return;
@@ -974,7 +1075,6 @@
         if (fw) fw.hidden = !isTemporalType(el.value);
       }
     }
-    setEditing(sid);
     scheduleRecompute();
   }
   stepsList.addEventListener('change', onField);

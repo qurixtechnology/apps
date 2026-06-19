@@ -61,13 +61,28 @@
         </div>
       </details>
 
-      <div class="pc-layout">
+      <!-- Layout switcher -->
+      <div class="pc-layoutbar">
+        <span class="pc-layoutbar-label">Layout</span>
+        <div class="pc-toggle" role="group" aria-label="Layout">
+          <button class="qrx-btn qrx-btn-sm is-active" data-layout="default" type="button">Default</button>
+          <button class="qrx-btn qrx-btn-sm" data-layout="split" type="button">50 / 50</button>
+          <button class="qrx-btn qrx-btn-sm" data-layout="pipeline" type="button" title="Pipeline full width">Pipeline ⤢</button>
+          <button class="qrx-btn qrx-btn-sm" data-layout="preview" type="button" title="Preview full width">Preview ⤢</button>
+        </div>
+      </div>
+
+      <div class="pc-layout is-default" id="pcLayout">
 
         <!-- Pipeline panel -->
         <div class="qrx-card pc-pipeline">
           <h3 class="section-title">
             Cleaning pipeline
-            <span class="section-title-right"><span class="muted" id="pipelineCount">0 steps</span></span>
+            <span class="section-title-right">
+              <button class="qrx-btn qrx-btn-sm" id="expandAllBtn" type="button" title="Expand all steps">Expand all</button>
+              <button class="qrx-btn qrx-btn-sm" id="collapseAllBtn" type="button" title="Collapse all steps">Collapse all</button>
+              <span class="muted" id="pipelineCount">0 steps</span>
+            </span>
           </h3>
 
           <div class="pc-add">
