@@ -97,12 +97,36 @@
           <strong>Empty → NULL</strong>.</li>
       <li><strong>Rename</strong> / <strong>Drop</strong> column.</li>
     </ul>
-    <p><strong>Anonymization</strong></p>
+    <p><strong>Anonymization &amp; pseudonymization</strong></p>
+    <p>
+      Two general modes (selectable per step): <strong>Deterministic</strong> — the same input always
+      yields the same output, so joins and repeated-value consistency are kept (but the repeated
+      pseudonym can still be linked via other attributes); <strong>Random</strong> — every row is
+      independent, which breaks that linkage but destroys consistency. Determinism is derived from
+      <code>hash(value + salt)</code>; randomness from a fresh draw per row (so each run differs).
+    </p>
     <ul>
-      <li><strong>Hash / pseudonymize</strong> — replaces values with <code>sha256(value + salt)</code>.
-          NULLs stay NULL. Set a shared <em>salt</em> so the same input maps to the same pseudonym
-          across columns and runs; keep the salt secret to prevent re-identification.</li>
+      <li><strong>Hash / pseudonymize</strong> — <code>sha256(value + salt)</code> (deterministic).
+          Keep the salt secret; weak for small value ranges (e.g. gender) — use generalization there.</li>
+      <li><strong>Faker — synthetic values</strong> — replaces text with realistic fakes while keeping
+          the structure: categories <em>Full/First/Last name, City, Country, Street, Company</em> and
+          structure templates for <em>Email, Phone, ZIP</em>. Deterministic or random.
+          Example: <code>Thomas Müller → Fritz Schmidt</code>.</li>
+      <li><strong>Shuffle / bootstrap</strong> — replaces each value with another value drawn from the
+          same column. The column's distribution is preserved exactly; the row link is broken.
+          Deterministic = stable mapping, Random = bootstrap. Works for numbers, dates and categories
+          (loads the column into memory).</li>
+      <li><strong>Round / bucket</strong> (number) — coarsens to a multiple (microaggregation);
+          deterministic, keeps aggregates roughly and yields k-anonymity. <strong>Add noise</strong>
+          (number) — zero-centred jitter, stays a number (deterministic or random).
+          <strong>Generalize date</strong> — reduce to month / quarter / year.</li>
     </ul>
+    <p class="muted">
+      Note: pseudonymized data is still personal data. For real anonymity combine techniques (e.g.
+      faker for direct identifiers + generalization for quasi-identifiers like ZIP/birth date) and
+      check the column structure / k-anonymity. Differential privacy (calibrated noise with formal
+      guarantees) is a possible future addition.
+    </p>
 
     <h3>Notes &amp; limitations (v1)</h3>
     <ul>

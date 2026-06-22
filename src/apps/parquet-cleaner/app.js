@@ -192,6 +192,35 @@
     return String(text || '').split(/[\n,;]+/).map(humanToStrptime).filter(Boolean);
   }
 
+  // ---- Anonymization helpers ----
+  // Small curated dictionaries for the Faker step (synthetic, structure-preserving).
+  const FK = {
+    firstName: ['Anna', 'Lena', 'Sophie', 'Maria', 'Julia', 'Laura', 'Sarah', 'Lisa', 'Katharina', 'Nina', 'Thomas', 'Michael', 'Andreas', 'Stefan', 'Markus', 'Daniel', 'Christian', 'Martin', 'Peter', 'Tobias', 'Jonas', 'Lukas', 'Felix', 'David', 'Jan', 'Paul', 'Fritz', 'Hans', 'Klaus', 'Werner'],
+    lastName: ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner', 'Becker', 'Schulz', 'Hoffmann', 'Koch', 'Bauer', 'Richter', 'Klein', 'Wolf', 'Schröder', 'Neumann', 'Schwarz', 'Zimmermann', 'Braun', 'Krüger', 'Hofmann', 'Hartmann', 'Lange', 'Krause', 'Lehmann', 'Schmid', 'Schulze', 'Maier', 'Köhler'],
+    city: ['Berlin', 'Hamburg', 'München', 'Köln', 'Frankfurt', 'Stuttgart', 'Düsseldorf', 'Leipzig', 'Dortmund', 'Essen', 'Bremen', 'Dresden', 'Hannover', 'Nürnberg', 'Wien', 'Zürich', 'Basel', 'Graz', 'Linz', 'Salzburg'],
+    country: ['Deutschland', 'Österreich', 'Schweiz', 'Frankreich', 'Italien', 'Spanien', 'Niederlande', 'Belgien', 'Polen', 'Tschechien', 'Dänemark', 'Schweden', 'Norwegen', 'Portugal', 'Irland'],
+    street: ['Hauptstraße', 'Bahnhofstraße', 'Gartenstraße', 'Schulstraße', 'Dorfstraße', 'Lindenstraße', 'Bergstraße', 'Birkenweg', 'Kirchgasse', 'Ringstraße', 'Am Markt', 'Parkweg', 'Wiesenweg', 'Mühlweg', 'Goethestraße'],
+    company: ['Nordwind GmbH', 'Alpenbau AG', 'Rheindata GmbH', 'Seestern KG', 'Blautech GmbH', 'Mustermann AG', 'Sonnenhof GmbH', 'Brückner & Co', 'Kontor 7 GmbH', 'Vento Solutions'],
+    domain: ['example.org', 'example.com', 'mail.example', 'test.example', 'demo.example'],
+  };
+  function listLit(arr) { return '[' + arr.map(x => `'${sqlEscape(x)}'`).join(', ') + ']'; }
+  // 0..mod-1 integer: deterministic from the value (+salt+suffix) or random per row.
+  function rndIdx(colId, salt, suffix, mod, mode) {
+    return mode === 'rand'
+      ? `CAST(floor(random() * ${mod}) AS BIGINT)`
+      : `CAST(hash(CAST(${colId} AS VARCHAR) || '${salt}${suffix}') % ${mod} AS BIGINT)`;
+  }
+  // Shuffle/bootstrap: map each value to a value drawn from the column's own pool.
+  function shufFrom(inputSql, col) {
+    return `(${inputSql}) s, (SELECT array_agg(${col}) FILTER (WHERE ${col} IS NOT NULL) AS _a, count(${col})::BIGINT AS _n FROM (${inputSql})) p`;
+  }
+  function shufRepl(col, mode, salt) {
+    const idx = mode === 'rand'
+      ? `CAST(floor(random() * p._n) AS BIGINT)`
+      : `CAST(hash(CAST(s.${col} AS VARCHAR) || '${salt}') % p._n AS BIGINT)`;
+    return `CASE WHEN s.${col} IS NULL OR p._n = 0 THEN s.${col} ELSE p._a[${idx} + 1] END`;
+  }
+
   const STEP_DEFS = {
     cast: {
       label: 'Convert type', group: 'col', impact: 'cast',
@@ -288,6 +317,72 @@
       compile(src, p, c) { return this.complete(p) ? colReplace(src, p.column, this.cellExpr(p, c)) : src; },
       title: () => 'Hash / pseudonymize',
     },
+    faker: {
+      label: 'Faker — synthetic value', group: 'anon', impact: 'cell',
+      complete: p => !!p.column && !!p.category,
+      defaults: () => ({ column: firstCol(), category: 'fullName', mode: 'det' }),
+      cellExpr(p, c) {
+        const col = id(p.column), salt = sqlEscape((c && c.salt) || ''), mode = p.mode === 'rand' ? 'rand' : 'det';
+        const pick = (suf, arr) => `${listLit(arr)}[${rndIdx(col, salt, suf, arr.length, mode)} + 1]`;
+        let v;
+        switch (p.category) {
+          case 'firstName': v = pick('', FK.firstName); break;
+          case 'lastName': v = pick('', FK.lastName); break;
+          case 'city': v = pick('', FK.city); break;
+          case 'country': v = pick('', FK.country); break;
+          case 'company': v = pick('', FK.company); break;
+          case 'street': v = `${pick('S', FK.street)} || ' ' || CAST(${rndIdx(col, salt, 'N', 150, mode)} + 1 AS VARCHAR)`; break;
+          case 'email': v = `lower(${pick('F', FK.firstName)}) || '.' || lower(${pick('L', FK.lastName)}) || '@' || ${pick('D', FK.domain)}`; break;
+          case 'phone': v = `'+49 ' || lpad(CAST(${rndIdx(col, salt, 'P1', 900, mode)} + 100 AS VARCHAR), 3, '0') || ' ' || lpad(CAST(${rndIdx(col, salt, 'P2', 10000000, mode)} AS VARCHAR), 7, '0')`; break;
+          case 'zip': v = `lpad(CAST(${rndIdx(col, salt, 'Z', 100000, mode)} AS VARCHAR), 5, '0')`; break;
+          case 'fullName': default: v = `${pick('F', FK.firstName)} || ' ' || ${pick('L', FK.lastName)}`; break;
+        }
+        return `CASE WHEN ${col} IS NULL THEN NULL ELSE ${v} END`;
+      },
+      compile(src, p, c) { return this.complete(p) ? colReplace(src, p.column, this.cellExpr(p, c)) : src; },
+      title: p => `Faker · ${p.category || ''}`,
+    },
+    shuffle: {
+      label: 'Shuffle / bootstrap', group: 'anon', impact: 'shuffle',
+      complete: p => !!p.column, defaults: () => ({ column: firstCol(), mode: 'det' }),
+      compile(src, p, c) {
+        if (!this.complete(p)) return src;
+        const col = id(p.column);
+        return `SELECT s.* REPLACE (${shufRepl(col, p.mode, sqlEscape((c && c.salt) || ''))} AS ${col}) FROM ${shufFrom(src, col)}`;
+      },
+      title: () => 'Shuffle / bootstrap',
+    },
+    numRound: {
+      label: 'Round / bucket (number)', group: 'col', impact: 'cast',
+      complete: p => !!p.column && Number(p.step) > 0,
+      defaults: () => ({ column: firstCol(), step: '100' }),
+      safeExpr(p) { const k = Number(p.step) || 1; return `round(TRY_CAST(${id(p.column)} AS DOUBLE) / ${k}) * ${k}`; },
+      compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p)) : src; },
+      title: p => `Round → ${p.step || '?'}`,
+    },
+    numNoise: {
+      label: 'Add noise (number)', group: 'col', impact: 'cast',
+      complete: p => !!p.column && Number(p.amount) > 0,
+      defaults: () => ({ column: firstCol(), amount: '1', mode: 'det' }),
+      safeExpr(p, c) {
+        const col = id(p.column), amt = Number(p.amount) || 0, base = `TRY_CAST(${col} AS DOUBLE)`;
+        const salt = sqlEscape((c && c.salt) || '');
+        const noise = p.mode === 'rand'
+          ? `(random() * 2 - 1) * ${amt}`
+          : `(((hash(CAST(${col} AS VARCHAR) || '${salt}') % 2001)) / 1000.0 - 1.0) * ${amt}`;
+        return `CASE WHEN ${base} IS NULL THEN NULL ELSE ${base} + ${noise} END`;
+      },
+      compile(src, p, c) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p, c)) : src; },
+      title: p => `Add noise ±${p.amount || '?'}`,
+    },
+    dateGen: {
+      label: 'Generalize date', group: 'col', impact: 'cast',
+      complete: p => !!p.column && !!p.unit,
+      defaults: () => ({ column: firstCol(), unit: 'month' }),
+      safeExpr(p) { return `CAST(date_trunc('${p.unit || 'month'}', TRY_CAST(${id(p.column)} AS TIMESTAMP)) AS DATE)`; },
+      compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p)) : src; },
+      title: p => `Generalize date → ${p.unit || ''}`,
+    },
     rename: {
       label: 'Rename column', group: 'col', impact: 'struct',
       complete: p => !!p.column && !!(p.newName && p.newName.trim()),
@@ -382,6 +477,15 @@
       const [ri, ro] = await Promise.all([countRows(inputSql), countRows(stepSql)]);
       return { kind: 'rows', rowsIn: ri, rowsOut: ro, removed: ri - ro };
     }
+    if (def.impact === 'shuffle') {
+      const col = id(step.params.column), repl = shufRepl(col, step.params.mode, sqlEscape(ctx().salt || ''));
+      const r = (await conn.query(`SELECT
+        SUM(CASE WHEN s.${col} IS NULL THEN 1 ELSE 0 END) AS noeffect,
+        SUM(CASE WHEN s.${col} IS NOT NULL AND (${repl}) IS DISTINCT FROM s.${col} THEN 1 ELSE 0 END) AS changed,
+        COUNT(*) AS total FROM ${shufFrom(inputSql, col)}`)).toArray()[0];
+      const total = Number(r.total || 0), changed = Number(r.changed || 0);
+      return { kind: 'shuffle', changed, noEffect: Number(r.noeffect || 0), total };
+    }
     return { kind: 'struct' };
   }
 
@@ -398,6 +502,9 @@
     if (imp.kind === 'cell') {
       return `<span class="pc-badge is-change">${fmtN(imp.changed)} changed</span><span class="pc-badge">• ${fmtN(imp.noEffect)} unchanged</span>`;
     }
+    if (imp.kind === 'shuffle') {
+      return `<span class="pc-badge is-change">↻ ${fmtN(imp.changed)} reassigned</span><span class="pc-badge">• ${fmtN(imp.noEffect)} unchanged / null</span>`;
+    }
     if (imp.kind === 'rows') {
       return `<span class="pc-badge">${fmtN(imp.rowsIn)} → ${fmtN(imp.rowsOut)} rows</span>` +
         (imp.removed ? `<span class="pc-badge is-fail">− ${fmtN(imp.removed)} removed</span>` : `<span class="pc-badge is-ok">0 removed</span>`);
@@ -412,13 +519,18 @@
   async function buildDiffHtml(step, index) {
     const def = STEP_DEFS[step.kind];
     const c = id(step.params.column), inputSql = compilePipeline(index);
-    if (def.impact === 'cast' || def.impact === 'extract' || def.impact === 'cell') {
+    if (def.impact === 'cast' || def.impact === 'extract' || def.impact === 'cell' || def.impact === 'shuffle') {
       let q;
       if (def.impact === 'cast' || def.impact === 'extract') {
         const expr = def.safeExpr(step.params);
         q = `SELECT CAST(${c} AS VARCHAR) AS b, CAST((${expr}) AS VARCHAR) AS a,
              CASE WHEN ${c} IS NULL THEN 'noeffect' WHEN (${expr}) IS NULL THEN 'failed' ELSE 'ok' END AS cls
              FROM (${inputSql}) LIMIT 60`;
+      } else if (def.impact === 'shuffle') {
+        const repl = shufRepl(c, step.params.mode, sqlEscape(ctx().salt || ''));
+        q = `SELECT CAST(s.${c} AS VARCHAR) AS b, CAST((${repl}) AS VARCHAR) AS a,
+             CASE WHEN s.${c} IS NULL THEN 'noeffect' WHEN (${repl}) IS DISTINCT FROM s.${c} THEN 'ok' ELSE 'noeffect' END AS cls
+             FROM ${shufFrom(inputSql, c)} LIMIT 60`;
       } else {
         const expr = def.cellExpr(step.params, ctx());
         q = `SELECT CAST(${c} AS VARCHAR) AS b, CAST((${expr}) AS VARCHAR) AS a,
@@ -459,6 +571,11 @@
       `<label class="pc-check"><input type="checkbox" data-step="${sid}" data-multi="${multi}" value="${escapeAttr(c.name)}" ${set.has(c.name) ? 'checked' : ''}> ${escapeHtml(c.name)}</label>`).join('')}</div>`;
   }
   const REGEX_NOTE = '<div class="pc-diff-note">Operates on the text form (cast to VARCHAR); for already-typed columns the result becomes VARCHAR — best run <strong>before</strong> a type conversion.</div>';
+  function modeSelect(sid, mode) {
+    return `<div class="pc-field"><label>Mode</label><select class="qrx-select" data-step="${sid}" data-field="mode">`
+      + `<option value="det" ${mode !== 'rand' ? 'selected' : ''}>Deterministic — same input → same output</option>`
+      + `<option value="rand" ${mode === 'rand' ? 'selected' : ''}>Random — every row independent</option></select></div>`;
+  }
   function buildConfig(step) {
     const sid = step.id, p = step.params;
     switch (step.kind) {
@@ -515,7 +632,33 @@
         return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`;
       case 'hash':
         return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
-          + `<div class="pc-diff-note">Replaces values with <code>sha256(value + salt)</code>. NULLs stay NULL. Set a shared salt above for consistent pseudonyms.</div>`;
+          + `<div class="pc-diff-note">Replaces values with <code>sha256(value + salt)</code> (deterministic). NULLs stay NULL. Set a shared salt above for consistent pseudonyms.</div>`;
+      case 'faker':
+        return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + `<div class="pc-field"><label>Category</label><select class="qrx-select" data-step="${sid}" data-field="category">`
+          + [['fullName', 'Full name'], ['firstName', 'First name'], ['lastName', 'Last name'], ['city', 'City'], ['country', 'Country'], ['street', 'Street + no.'], ['company', 'Company'], ['email', 'Email (structure)'], ['phone', 'Phone (structure)'], ['zip', 'ZIP (structure)']].map(([v, l]) => `<option value="${v}" ${p.category === v ? 'selected' : ''}>${l}</option>`).join('')
+          + `</select></div></div>`
+          + modeSelect(sid, p.mode)
+          + `<div class="pc-diff-note">Replaces values with realistic synthetic data, keeping the structure. <strong>Deterministic</strong>: same input → same fake value (joins kept). <strong>Random</strong>: every row independent (breaks linkage). NULLs stay NULL.</div>`;
+      case 'shuffle':
+        return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + modeSelect(sid, p.mode)
+          + `<div class="pc-diff-note">Replaces each value with another value drawn from <em>this column</em> — the overall distribution is preserved, the row link is broken. <strong>Deterministic</strong> = stable mapping; <strong>Random</strong> = bootstrap (fresh per run). Loads the column into memory.</div>`;
+      case 'numRound':
+        return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + `<div class="pc-field"><label>Round to multiple of</label><input class="qrx-input" data-step="${sid}" data-field="step" type="number" min="0" step="any" value="${escapeAttr(p.step || '100')}"></div></div>`
+          + `<div class="pc-diff-note">Coarsens numbers to a multiple (e.g. 100 → 0, 100, 200 …). Deterministic; keeps aggregates roughly and gives k-anonymity. Non-numbers become NULL.</div>`;
+      case 'numNoise':
+        return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + `<div class="pc-field"><label>Noise amount (±)</label><input class="qrx-input" data-step="${sid}" data-field="amount" type="number" min="0" step="any" value="${escapeAttr(p.amount || '1')}"></div></div>`
+          + modeSelect(sid, p.mode)
+          + `<div class="pc-diff-note">Adds zero-centred noise; stays a number. <strong>Deterministic</strong> = stable per value; <strong>Random</strong> = fresh per run. Non-numbers become NULL.</div>`;
+      case 'dateGen':
+        return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + `<div class="pc-field"><label>Generalize to</label><select class="qrx-select" data-step="${sid}" data-field="unit">`
+          + [['month', 'Month'], ['quarter', 'Quarter'], ['year', 'Year']].map(([v, l]) => `<option value="${v}" ${p.unit === v ? 'selected' : ''}>${l}</option>`).join('')
+          + `</select></div></div>`
+          + `<div class="pc-diff-note">Reduces a date to the start of the month/quarter/year. Parse text dates to a real date first (Convert type) for best results.</div>`;
       case 'rename':
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>New name</label><input class="qrx-input" data-step="${sid}" data-field="newName" type="text" spellcheck="false" value="${escapeAttr(p.newName || '')}" placeholder="new_name"></div></div>`;
@@ -625,7 +768,7 @@
       if (!s.enabled || !s.impact) continue;
       if ((s.kind === 'dedupExact' || s.kind === 'dedupKeys') && s.impact.kind === 'rows') dupes += s.impact.removed;
       if (s.kind === 'cast' && s.impact.kind === 'cast') fails += s.impact.failed;
-      if (s.kind === 'hash' && STEP_DEFS.hash.complete(s.params)) anon.add(s.params.column);
+      if (['hash', 'faker', 'shuffle', 'numNoise', 'numRound', 'dateGen'].includes(s.kind) && STEP_DEFS[s.kind].complete(s.params)) anon.add(s.params.column);
     }
     $('sumRows').innerHTML = `${fmtN(state.rowCountOriginal)} <span class="pc-arrow">→</span> ${fmtN(rowsCleaned)}`;
     $('sumCols').innerHTML = `${fmtN(state.schema.length)} <span class="pc-arrow">→</span> ${fmtN(cols)}`;
@@ -713,6 +856,7 @@
       if (imp) {
         if (imp.kind === 'cast' || imp.kind === 'extract') { t = imp.failed ? `⚠ ${fmtN(imp.failed)}` : `✓ ${fmtN(imp.ok)}`; cls = imp.failed ? 'is-fail' : 'is-ok'; }
         else if (imp.kind === 'cell') { t = `✎ ${fmtN(imp.changed)}`; cls = 'is-change'; }
+        else if (imp.kind === 'shuffle') { t = `↻ ${fmtN(imp.changed)}`; cls = 'is-change'; }
         else if (imp.kind === 'rows') { t = imp.removed ? `− ${fmtN(imp.removed)}` : '0'; cls = imp.removed ? 'is-fail' : ''; }
         else t = '≈';
       }
