@@ -105,12 +105,15 @@
                 <option value="drop">Drop column</option>
               </optgroup>
               <optgroup label="Anonymization">
-                <option value="hash">Hash / pseudonymize (salted)</option>
+                <option value="pseudoEntity">Pseudonymize entity (consistent, k-anon)</option>
                 <option value="faker">Faker — synthetic values</option>
+                <option value="hash">Hash / pseudonymize (salted)</option>
                 <option value="shuffle">Shuffle / bootstrap</option>
                 <option value="numRound">Round / bucket (number)</option>
                 <option value="numNoise">Add noise (number)</option>
+                <option value="coarsen">Coarsen amounts (sum-preserving)</option>
                 <option value="dateGen">Generalize date</option>
+                <option value="recalcSaldo">Recompute running balance</option>
               </optgroup>
             </select>
             <button class="qrx-btn qrx-btn-primary" id="addStepBtn" type="button">Add step</button>

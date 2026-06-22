@@ -173,6 +173,7 @@
   // ---- Step registry: kind -> { label, group, impact, complete, defaults, compile, title, cellExpr? } ----
   const TYPE_OPTIONS = ['VARCHAR', 'BIGINT', 'INTEGER', 'DOUBLE', 'DECIMAL(18,2)', 'BOOLEAN', 'DATE', 'TIMESTAMP', 'TIME'];
   function firstCol() { return state.schema.length ? state.schema[0].name : ''; }
+  function colOr(name) { return state.schema.some(c => c.name === name) ? name : firstCol(); }
   function colReplace(src, col, expr) { return `SELECT * REPLACE (${expr} AS ${id(col)}) FROM (${src})`; }
 
   // ---- Date/time pattern support ----
@@ -219,6 +220,49 @@
       ? `CAST(floor(random() * p._n) AS BIGINT)`
       : `CAST(hash(CAST(s.${col} AS VARCHAR) || '${salt}') % p._n AS BIGINT)`;
     return `CASE WHEN s.${col} IS NULL OR p._n = 0 THEN s.${col} ELSE p._a[${idx} + 1] END`;
+  }
+
+  // ---- Consistent, type-aware entity pseudonymization (analytics-preserving) ----
+  const ORGN = ['Nordwind', 'Alpenbau', 'Rheindata', 'Seestern', 'Blautech', 'Sonnenhof', 'Brückner',
+    'Kontor', 'Vento', 'Maintal', 'Hanse', 'Donau', 'Spree', 'Isar', 'Elbtal', 'Taunus', 'Westfalen',
+    'Allgäu', 'Saturn', 'Merkur', 'Atlas', 'Orbit', 'Delta', 'Vertex', 'Pioneer', 'Horizont', 'Fokus',
+    'Prime', 'Synergie', 'Matrix'];
+  const FORMS = ['GmbH', 'AG', 'GmbH & Co. KG', 'KG', 'SE', 'mbH', 'UG'];
+  const ORG_RE = '(GmbH|AG|KG|e\\.?V\\.?|SE|mbB|mbH|UG|gGmbH|& Co|Inc\\.?|Ltd|SARL|Pty|s\\.r\\.o)';
+  const AUTH_RE = '(?i)(finanzamt|krankenkasse|AOK|sozialvers|\\bkasse\\b|stadt |gemeinde|bundes|zoll|berufsgenossenschaft)';
+  function personLabel(rk) {
+    const F = listLit(FK.firstName), L = listLit(FK.lastName), nf = FK.firstName.length, nl = FK.lastName.length, cap = nf * nl;
+    return `${F}[((${rk} - 1) % ${nf}) + 1] || ' ' || ${L}[(CAST(floor((${rk} - 1) / ${nf}) AS BIGINT) % ${nl}) + 1]`
+      + ` || CASE WHEN ${rk} > ${cap} THEN ' ' || CAST(${rk} AS VARCHAR) ELSE '' END`;
+  }
+  function orgLabel(rk) {
+    const N = listLit(ORGN), Fo = listLit(FORMS), nn = ORGN.length, nfm = FORMS.length, cap = nn * nfm;
+    return `${N}[((${rk} - 1) % ${nn}) + 1] || ' ' || ${Fo}[(CAST(floor((${rk} - 1) / ${nn}) AS BIGINT) % ${nfm}) + 1]`
+      + ` || CASE WHEN ${rk} > ${cap} THEN ' ' || CAST(${rk} AS VARCHAR) ELSE '' END`;
+  }
+  function pseudCase(type, k) {
+    const person = personLabel('rk'), org = orgLabel('rk');
+    const isOrg = `regexp_matches(v, '${ORG_RE}')`, isAuth = `regexp_matches(v, '${AUTH_RE}')`;
+    if (type === 'authority') return `v`;
+    if (type === 'person') return `CASE ${k > 0 ? `WHEN cnt < ${k} THEN 'Weitere Personen (Sammel)' ` : ''}ELSE ${person} END`;
+    if (type === 'org') return `CASE ${k > 0 ? `WHEN cnt < ${k} THEN 'Weitere Organisationen (Sammel)' ` : ''}ELSE ${org} END`;
+    // auto
+    const collapse = k > 0 ? `WHEN NOT ${isAuth} AND cnt < ${k} THEN (CASE WHEN ${isOrg} THEN 'Weitere Organisationen (Sammel)' ELSE 'Weitere Personen (Sammel)' END) ` : '';
+    return `CASE WHEN ${isAuth} THEN v ${collapse}WHEN ${isOrg} THEN ${org} ELSE ${person} END`;
+  }
+  // Build the full SQL for compile / count / sample. A salted dense_rank gives a
+  // stable, non-guessable, collision-free mapping per distinct value → analytics
+  // (GROUP BY partner) are preserved exactly; rare entities (< k) collapse.
+  function pseudoBuild(inputSql, p, salt, what) {
+    const col = id(p.column), k = Number(p.k) || 0, type = p.entityType || 'auto';
+    const cte = `WITH __map AS (SELECT v, cnt, rk, ${pseudCase(type, k)} AS pseud FROM (`
+      + `SELECT ${col} AS v, count(*) AS cnt, dense_rank() OVER (ORDER BY hash(CAST(${col} AS VARCHAR) || '${salt}')) AS rk`
+      + ` FROM (${inputSql}) WHERE ${col} IS NOT NULL GROUP BY ${col}))`;
+    if (what === 'compile')
+      return `${cte} SELECT s.* REPLACE (CASE WHEN s.${col} IS NULL THEN NULL ELSE m.pseud END AS ${col}) FROM (${inputSql}) s LEFT JOIN __map m ON s.${col} = m.v`;
+    if (what === 'count')
+      return `${cte} SELECT (SELECT count(*) FROM __map) AS entities, (SELECT count(*) FROM __map WHERE pseud LIKE 'Weitere %(Sammel)') AS collapsed, SUM(CASE WHEN s.${col} IS NOT NULL AND m.pseud IS DISTINCT FROM s.${col} THEN 1 ELSE 0 END) AS changed, COUNT(*) AS total FROM (${inputSql}) s LEFT JOIN __map m ON s.${col} = m.v`;
+    return `${cte} SELECT CAST(s.${col} AS VARCHAR) AS b, CAST(m.pseud AS VARCHAR) AS a, CASE WHEN s.${col} IS NULL THEN 'noeffect' WHEN m.pseud IS DISTINCT FROM s.${col} THEN 'ok' ELSE 'noeffect' END AS cls FROM (${inputSql}) s LEFT JOIN __map m ON s.${col} = m.v LIMIT 60`;
   }
 
   const STEP_DEFS = {
@@ -383,6 +427,44 @@
       compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p)) : src; },
       title: p => `Generalize date → ${p.unit || ''}`,
     },
+    pseudoEntity: {
+      label: 'Pseudonymize entity (consistent)', group: 'anon', impact: 'pseudo',
+      complete: p => !!p.column,
+      defaults: () => ({ column: firstCol(), entityType: 'auto', k: '5' }),
+      compile(src, p, c) { return this.complete(p) ? pseudoBuild(src, p, sqlEscape((c && c.salt) || ''), 'compile') : src; },
+      title: p => `Pseudonymize · ${p.entityType || 'auto'}`,
+    },
+    coarsen: {
+      label: 'Coarsen amounts (sum-preserving)', group: 'anon', impact: 'coarsen',
+      complete: p => !!p.column && Number(p.step) > 0,
+      defaults: () => ({ column: colOr('betrag'), step: '100', groupBy: colOr('kategorie') }),
+      compile(src, p) {
+        if (!this.complete(p)) return src;
+        const col = id(p.column), k = Number(p.step) || 1;
+        const grp = (p.groupBy && p.groupBy !== 'none') ? id(p.groupBy) : '1';
+        const base = `TRY_CAST(${col} AS DOUBLE)`;
+        const inner = `SELECT *, round(${base}/${k})*${k} AS _rx,`
+          + ` sum(${base}) OVER (PARTITION BY ${grp}) AS _gx,`
+          + ` sum(round(${base}/${k})*${k}) OVER (PARTITION BY ${grp}) AS _grx,`
+          + ` row_number() OVER (PARTITION BY ${grp} ORDER BY abs(${base}) DESC NULLS LAST) AS _rn FROM (${src})`;
+        return `SELECT t.* EXCLUDE (_rx, _gx, _grx, _rn) REPLACE (`
+          + `CASE WHEN t._rx IS NULL THEN NULL`
+          + ` WHEN t._rn = 1 THEN round(t._rx + (t._gx - t._grx), 2) ELSE round(t._rx, 2) END AS ${col}) FROM (${inner}) t`;
+      },
+      title: p => `Coarsen → ${p.step || '?'} (sum-preserving)`,
+    },
+    recalcSaldo: {
+      label: 'Recompute running balance', group: 'col', impact: 'struct',
+      complete: p => !!p.column && !!p.amountCol,
+      defaults: () => ({ column: colOr('saldo'), amountCol: colOr('betrag'), orderByCol: colOr('buchungstag'), opening: '0' }),
+      compile(src, p) {
+        if (!this.complete(p)) return src;
+        const sc = id(p.column), ac = id(p.amountCol), oc = id(p.orderByCol || 'buchungstag'), open = Number(p.opening) || 0;
+        const inner = `SELECT *, (${open} + sum(${ac}) OVER (ORDER BY ${oc} ROWS UNBOUNDED PRECEDING)) AS _sd FROM (${src})`;
+        return `SELECT t.* EXCLUDE (_sd) REPLACE (round(t._sd, 2) AS ${sc}) FROM (${inner}) t`;
+      },
+      title: () => 'Recompute running balance',
+    },
     rename: {
       label: 'Rename column', group: 'col', impact: 'struct',
       complete: p => !!p.column && !!(p.newName && p.newName.trim()),
@@ -486,6 +568,19 @@
       const total = Number(r.total || 0), changed = Number(r.changed || 0);
       return { kind: 'shuffle', changed, noEffect: Number(r.noeffect || 0), total };
     }
+    if (def.impact === 'pseudo') {
+      const r = (await conn.query(pseudoBuild(inputSql, step.params, sqlEscape(ctx().salt || ''), 'count'))).toArray()[0];
+      return { kind: 'pseudo', entities: Number(r.entities || 0), collapsed: Number(r.collapsed || 0), changed: Number(r.changed || 0), total: Number(r.total || 0) };
+    }
+    if (def.impact === 'coarsen') {
+      const col = id(step.params.column), k = Number(step.params.step) || 1, base = `TRY_CAST(${col} AS DOUBLE)`;
+      const r = (await conn.query(`SELECT
+        SUM(CASE WHEN ${base} IS NOT NULL AND round(${base}/${k})*${k} IS DISTINCT FROM ${base} THEN 1 ELSE 0 END) AS changed,
+        SUM(CASE WHEN ${base} IS NULL THEN 1 ELSE 0 END) AS noeffect,
+        COUNT(*) AS total FROM (${inputSql})`)).toArray()[0];
+      const total = Number(r.total || 0), changed = Number(r.changed || 0);
+      return { kind: 'coarsen', changed, noEffect: Number(r.noeffect || 0), total };
+    }
     return { kind: 'struct' };
   }
 
@@ -505,6 +600,14 @@
     if (imp.kind === 'shuffle') {
       return `<span class="pc-badge is-change">↻ ${fmtN(imp.changed)} reassigned</span><span class="pc-badge">• ${fmtN(imp.noEffect)} unchanged / null</span>`;
     }
+    if (imp.kind === 'pseudo') {
+      return `<span class="pc-badge is-change">🔒 ${fmtN(imp.entities)} entities</span>`
+        + `<span class="pc-badge">${fmtN(imp.changed)} pseudonymized</span>`
+        + (imp.collapsed ? `<span class="pc-badge is-fail">${fmtN(imp.collapsed)} collapsed (k)</span>` : '');
+    }
+    if (imp.kind === 'coarsen') {
+      return `<span class="pc-badge is-change">${fmtN(imp.changed)} coarsened</span><span class="pc-badge is-ok">sum preserved</span>`;
+    }
     if (imp.kind === 'rows') {
       return `<span class="pc-badge">${fmtN(imp.rowsIn)} → ${fmtN(imp.rowsOut)} rows</span>` +
         (imp.removed ? `<span class="pc-badge is-fail">− ${fmtN(imp.removed)} removed</span>` : `<span class="pc-badge is-ok">0 removed</span>`);
@@ -519,7 +622,7 @@
   async function buildDiffHtml(step, index) {
     const def = STEP_DEFS[step.kind];
     const c = id(step.params.column), inputSql = compilePipeline(index);
-    if (def.impact === 'cast' || def.impact === 'extract' || def.impact === 'cell' || def.impact === 'shuffle') {
+    if (def.impact === 'cast' || def.impact === 'extract' || def.impact === 'cell' || def.impact === 'shuffle' || def.impact === 'pseudo') {
       let q;
       if (def.impact === 'cast' || def.impact === 'extract') {
         const expr = def.safeExpr(step.params);
@@ -531,6 +634,8 @@
         q = `SELECT CAST(s.${c} AS VARCHAR) AS b, CAST((${repl}) AS VARCHAR) AS a,
              CASE WHEN s.${c} IS NULL THEN 'noeffect' WHEN (${repl}) IS DISTINCT FROM s.${c} THEN 'ok' ELSE 'noeffect' END AS cls
              FROM ${shufFrom(inputSql, c)} LIMIT 60`;
+      } else if (def.impact === 'pseudo') {
+        q = pseudoBuild(inputSql, step.params, sqlEscape(ctx().salt || ''), 'sample');
       } else {
         const expr = def.cellExpr(step.params, ctx());
         q = `SELECT CAST(${c} AS VARCHAR) AS b, CAST((${expr}) AS VARCHAR) AS a,
@@ -554,6 +659,8 @@
     if (step.kind === 'dedupExact') return `<div class="pc-diff-note">Collapses fully identical rows. See removed count above.</div>`;
     if (step.kind === 'rename') return `<div class="pc-diff-note">Renames column <code>${escapeHtml(step.params.column || '')}</code> → <code>${escapeHtml((step.params.newName || '').trim())}</code>.</div>`;
     if (step.kind === 'drop') return `<div class="pc-diff-note">Removes column <code>${escapeHtml(step.params.column || '')}</code>.</div>`;
+    if (step.kind === 'coarsen') return `<div class="pc-diff-note">Rounds <code>${escapeHtml(step.params.column || '')}</code> to multiples of ${escapeHtml(step.params.step || '')}, preserving the exact sum within each <code>${escapeHtml(step.params.groupBy || 'group')}</code>.</div>`;
+    if (step.kind === 'recalcSaldo') return `<div class="pc-diff-note">Recomputes <code>${escapeHtml(step.params.column || '')}</code> as opening + running sum of <code>${escapeHtml(step.params.amountCol || '')}</code> ordered by <code>${escapeHtml(step.params.orderByCol || '')}</code>.</div>`;
     return '';
   }
 
@@ -659,6 +766,24 @@
           + [['month', 'Month'], ['quarter', 'Quarter'], ['year', 'Year']].map(([v, l]) => `<option value="${v}" ${p.unit === v ? 'selected' : ''}>${l}</option>`).join('')
           + `</select></div></div>`
           + `<div class="pc-diff-note">Reduces a date to the start of the month/quarter/year. Parse text dates to a real date first (Convert type) for best results.</div>`;
+      case 'pseudoEntity':
+        return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + `<div class="pc-field"><label>Entity type</label><select class="qrx-select" data-step="${sid}" data-field="entityType">`
+          + [['auto', 'Auto-detect'], ['person', 'Person'], ['org', 'Organization'], ['authority', 'Authority (keep)']].map(([v, l]) => `<option value="${v}" ${p.entityType === v ? 'selected' : ''}>${l}</option>`).join('')
+          + `</select></div>`
+          + `<div class="pc-field"><label>Collapse rare (&lt; k, 0 = off)</label><input class="qrx-input" data-step="${sid}" data-field="k" type="number" min="0" value="${escapeAttr(p.k != null ? p.k : '5')}"></div></div>`
+          + `<div class="pc-diff-note">Consistent, collision-free pseudonyms (same entity → same value), so per-partner totals stay exact. Type-aware (Person/Organization keep their shape; Authorities kept). <strong>k</strong>: entities with fewer than k transactions are merged into a “Weitere … (Sammel)” bucket to prevent singling-out. Uses the salt above.</div>`;
+      case 'coarsen':
+        return `<div class="pc-row"><div class="pc-field"><label>Amount column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + `<div class="pc-field"><label>Round to multiple of</label><input class="qrx-input" data-step="${sid}" data-field="step" type="number" min="0" step="any" value="${escapeAttr(p.step || '100')}"></div>`
+          + `<div class="pc-field"><label>Preserve sum within</label><select class="qrx-select" data-step="${sid}" data-field="groupBy"><option value="none" ${p.groupBy === 'none' ? 'selected' : ''}>(whole column)</option>${colOptions(p.groupBy)}</select></div></div>`
+          + `<div class="pc-diff-note">Rounds amounts to remove unique fingerprints, but keeps the <strong>exact sum</strong> within each group (e.g. per category) — category/monthly totals stay. Run <em>Recompute running balance</em> afterwards so the saldo matches.</div>`;
+      case 'recalcSaldo':
+        return `<div class="pc-row"><div class="pc-field"><label>Balance column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + `<div class="pc-field"><label>Amount column</label>${colSelect(sid, 'amountCol', p.amountCol)}</div></div>`
+          + `<div class="pc-row"><div class="pc-field"><label>Order by</label>${colSelect(sid, 'orderByCol', p.orderByCol)}</div>`
+          + `<div class="pc-field"><label>Opening balance</label><input class="qrx-input" data-step="${sid}" data-field="opening" type="number" step="any" value="${escapeAttr(p.opening || '0')}"></div></div>`
+          + `<div class="pc-diff-note">Rebuilds the running balance = opening + cumulative sum of the amount column. Use after coarsening amounts.</div>`;
       case 'rename':
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>New name</label><input class="qrx-input" data-step="${sid}" data-field="newName" type="text" spellcheck="false" value="${escapeAttr(p.newName || '')}" placeholder="new_name"></div></div>`;
@@ -768,7 +893,7 @@
       if (!s.enabled || !s.impact) continue;
       if ((s.kind === 'dedupExact' || s.kind === 'dedupKeys') && s.impact.kind === 'rows') dupes += s.impact.removed;
       if (s.kind === 'cast' && s.impact.kind === 'cast') fails += s.impact.failed;
-      if (['hash', 'faker', 'shuffle', 'numNoise', 'numRound', 'dateGen'].includes(s.kind) && STEP_DEFS[s.kind].complete(s.params)) anon.add(s.params.column);
+      if (['hash', 'faker', 'shuffle', 'numNoise', 'numRound', 'dateGen', 'pseudoEntity', 'coarsen'].includes(s.kind) && STEP_DEFS[s.kind].complete(s.params)) anon.add(s.params.column);
     }
     $('sumRows').innerHTML = `${fmtN(state.rowCountOriginal)} <span class="pc-arrow">→</span> ${fmtN(rowsCleaned)}`;
     $('sumCols').innerHTML = `${fmtN(state.schema.length)} <span class="pc-arrow">→</span> ${fmtN(cols)}`;
@@ -857,6 +982,8 @@
         if (imp.kind === 'cast' || imp.kind === 'extract') { t = imp.failed ? `⚠ ${fmtN(imp.failed)}` : `✓ ${fmtN(imp.ok)}`; cls = imp.failed ? 'is-fail' : 'is-ok'; }
         else if (imp.kind === 'cell') { t = `✎ ${fmtN(imp.changed)}`; cls = 'is-change'; }
         else if (imp.kind === 'shuffle') { t = `↻ ${fmtN(imp.changed)}`; cls = 'is-change'; }
+        else if (imp.kind === 'pseudo') { t = `🔒 ${fmtN(imp.entities)}${imp.collapsed ? ' · k' + fmtN(imp.collapsed) : ''}`; cls = 'is-change'; }
+        else if (imp.kind === 'coarsen') { t = `≈ ${fmtN(imp.changed)}`; cls = 'is-change'; }
         else if (imp.kind === 'rows') { t = imp.removed ? `− ${fmtN(imp.removed)}` : '0'; cls = imp.removed ? 'is-fail' : ''; }
         else t = '≈';
       }
