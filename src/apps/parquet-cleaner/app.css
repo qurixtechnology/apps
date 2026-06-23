@@ -238,6 +238,12 @@
   box-shadow: var(--qrx-shadow-lg); padding: var(--qrx-s-2);
 }
 .pc-colmenu-title { font-size: 0.72rem; color: var(--qrx-text-muted); padding: 4px 8px 6px; }
+.pc-colmenu-sec {
+  font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+  color: var(--qrx-text-subtle); padding: 8px 10px 2px; margin-top: 2px;
+  border-top: 1px solid var(--qrx-border);
+}
+.pc-colmenu-sec:first-of-type { border-top: none; margin-top: 0; }
 .pc-colmenu-item {
   display: block; width: 100%; text-align: left; background: transparent; border: none; border-radius: 4px;
   padding: 6px 10px; font: inherit; font-size: 0.8125rem; color: var(--qrx-text); cursor: pointer;

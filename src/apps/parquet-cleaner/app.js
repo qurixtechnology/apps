@@ -1299,13 +1299,25 @@
   let colMenuEl = null;
   function closeColMenu() { if (colMenuEl) { colMenuEl.remove(); colMenuEl = null; document.removeEventListener('click', onDocClick, true); } }
   function onDocClick(e) { if (colMenuEl && !colMenuEl.contains(e.target) && !e.target.closest('.pc-col-btn')) closeColMenu(); }
+  // Grouped rules for the per-column popover (sensible intent-based sections).
+  const COL_MENU_GROUPS = [
+    ['Convert / parse', ['cast', 'parseNumber', 'dateGen']],
+    ['Clean text', ['trim', 'case', 'emptyToNull', 'regexReplace', 'regexExtract']],
+    ['Anonymize / pseudonymize', ['pseudoEntity', 'faker', 'hash', 'shuffle', 'numRound', 'numNoise', 'coarsen']],
+    ['Column / structure', ['rename', 'drop', 'recalcSaldo']],
+  ];
   function openColMenu(anchor, col) {
     closeColMenu();
-    const kinds = Object.keys(STEP_DEFS).filter(k => STEP_DEFS[k].group === 'col' || STEP_DEFS[k].group === 'anon');
     const el = document.createElement('div');
     el.className = 'pc-colmenu';
-    el.innerHTML = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div>`
-      + kinds.map(k => `<button type="button" class="pc-colmenu-item" data-kind="${k}">${escapeHtml(STEP_DEFS[k].label)}</button>`).join('');
+    let html = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div>`;
+    for (const [label, kinds] of COL_MENU_GROUPS) {
+      const avail = kinds.filter(k => STEP_DEFS[k]);
+      if (!avail.length) continue;
+      html += `<div class="pc-colmenu-sec">${escapeHtml(label)}</div>`
+        + avail.map(k => `<button type="button" class="pc-colmenu-item" data-kind="${k}">${escapeHtml(STEP_DEFS[k].label)}</button>`).join('');
+    }
+    el.innerHTML = html;
     document.body.appendChild(el);
     const r = anchor.getBoundingClientRect();
     const w = el.offsetWidth || 220;

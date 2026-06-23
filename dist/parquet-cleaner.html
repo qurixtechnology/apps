@@ -412,6 +412,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   box-shadow: var(--qrx-shadow-lg); padding: var(--qrx-s-2);
 }
 .pc-colmenu-title { font-size: 0.72rem; color: var(--qrx-text-muted); padding: 4px 8px 6px; }
+.pc-colmenu-sec {
+  font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+  color: var(--qrx-text-subtle); padding: 8px 10px 2px; margin-top: 2px;
+  border-top: 1px solid var(--qrx-border);
+}
+.pc-colmenu-sec:first-of-type { border-top: none; margin-top: 0; }
 .pc-colmenu-item {
   display: block; width: 100%; text-align: left; background: transparent; border: none; border-radius: 4px;
   padding: 6px 10px; font: inherit; font-size: 0.8125rem; color: var(--qrx-text); cursor: pointer;
@@ -828,7 +834,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260622-163409</span>
+    &middot; v<span data-build-version>260622-171019</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2258,13 +2264,25 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   let colMenuEl = null;
   function closeColMenu() { if (colMenuEl) { colMenuEl.remove(); colMenuEl = null; document.removeEventListener('click', onDocClick, true); } }
   function onDocClick(e) { if (colMenuEl && !colMenuEl.contains(e.target) && !e.target.closest('.pc-col-btn')) closeColMenu(); }
+  // Grouped rules for the per-column popover (sensible intent-based sections).
+  const COL_MENU_GROUPS = [
+    ['Convert / parse', ['cast', 'parseNumber', 'dateGen']],
+    ['Clean text', ['trim', 'case', 'emptyToNull', 'regexReplace', 'regexExtract']],
+    ['Anonymize / pseudonymize', ['pseudoEntity', 'faker', 'hash', 'shuffle', 'numRound', 'numNoise', 'coarsen']],
+    ['Column / structure', ['rename', 'drop', 'recalcSaldo']],
+  ];
   function openColMenu(anchor, col) {
     closeColMenu();
-    const kinds = Object.keys(STEP_DEFS).filter(k => STEP_DEFS[k].group === 'col' || STEP_DEFS[k].group === 'anon');
     const el = document.createElement('div');
     el.className = 'pc-colmenu';
-    el.innerHTML = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div>`
-      + kinds.map(k => `<button type="button" class="pc-colmenu-item" data-kind="${k}">${escapeHtml(STEP_DEFS[k].label)}</button>`).join('');
+    let html = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div>`;
+    for (const [label, kinds] of COL_MENU_GROUPS) {
+      const avail = kinds.filter(k => STEP_DEFS[k]);
+      if (!avail.length) continue;
+      html += `<div class="pc-colmenu-sec">${escapeHtml(label)}</div>`
+        + avail.map(k => `<button type="button" class="pc-colmenu-item" data-kind="${k}">${escapeHtml(STEP_DEFS[k].label)}</button>`).join('');
+    }
+    el.innerHTML = html;
     document.body.appendChild(el);
     const r = anchor.getBoundingClientRect();
     const w = el.offsetWidth || 220;
