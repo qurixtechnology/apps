@@ -85,6 +85,15 @@
           separator (German <code>1.234,56</code> or US <code>1,234.56</code>); thousand separators,
           spaces and currency symbols are stripped automatically, then the value is converted to
           DOUBLE / DECIMAL / INTEGER. Non-numbers become NULL (counted as failures).</li>
+      <li><strong>Parse date</strong> — for dates stored as text. Choose the target type
+          (<strong>Date / Timestamp / Time</strong>) and enter one or more <strong>date/time
+          patterns</strong>, or pick a preset (DE <code>DD.MM.YYYY</code>, US <code>MM/DD/YYYY</code>,
+          ISO, …). Several patterns (one per line) are tried in order, so a column mixing spellings is
+          parsed correctly per value; leave empty for automatic ISO parsing. Unparseable values become
+          NULL (counted as failures). The <strong>Generalize</strong> option reduces the parsed date to
+          the start of the <em>month / quarter / year</em> (a privacy-friendly way to coarsen
+          quasi-identifiers like a birth date). Implemented with DuckDB <code>try_strptime</code> +
+          <code>date_trunc</code>.</li>
       <li><strong>Regex replace (search &amp; replace)</strong> — DuckDB <code>regexp_replace</code>
           with a regex pattern and a replacement (use <code>\1</code> for capture groups); flags for
           <em>global</em> and <em>case-insensitive</em>. Presets cover common cleanups (collapse
@@ -130,7 +139,8 @@
       <li><strong>Round / bucket</strong> (number) — coarsens to a multiple (microaggregation);
           deterministic, keeps aggregates roughly and yields k-anonymity. <strong>Add noise</strong>
           (number) — zero-centred jitter, stays a number (deterministic or random).
-          <strong>Generalize date</strong> — reduce to month / quarter / year.</li>
+          To generalize dates to month / quarter / year, use the <strong>Generalize</strong> option of
+          <strong>Parse date</strong> above.</li>
     </ul>
     <p class="muted">
       Note: pseudonymized data is still personal data. For real anonymity combine techniques (e.g.

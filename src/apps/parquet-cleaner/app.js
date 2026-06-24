@@ -419,13 +419,23 @@
       compile(src, p, c) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p, c)) : src; },
       title: p => `Add noise ±${p.amount || '?'}`,
     },
-    dateGen: {
-      label: 'Generalize date', group: 'col', impact: 'cast',
-      complete: p => !!p.column && !!p.unit,
-      defaults: () => ({ column: firstCol(), unit: 'month' }),
-      safeExpr(p) { return `CAST(date_trunc('${p.unit || 'month'}', TRY_CAST(${id(p.column)} AS TIMESTAMP)) AS DATE)`; },
+    parseDate: {
+      label: 'Parse date', group: 'col', impact: 'cast',
+      complete: p => !!p.column && !!p.target,
+      defaults: () => ({ column: firstCol(), formats: '', target: 'DATE', generalize: 'none' }),
+      // Parse text → date/time with one or more (mixed) patterns, then optionally
+      // generalize to month/quarter/year (the former "Generalize date").
+      safeExpr(p) {
+        const c = id(p.column), target = p.target || 'DATE';
+        const fmts = parseFormats(p.formats);
+        const parsed = fmts.length
+          ? `try_strptime(CAST(${c} AS VARCHAR), [${fmts.map(f => `'${sqlEscape(f)}'`).join(', ')}])`
+          : `TRY_CAST(${c} AS TIMESTAMP)`;
+        const g = (p.generalize && p.generalize !== 'none') ? `date_trunc('${p.generalize}', ${parsed})` : parsed;
+        return `CAST(${g} AS ${target})`;
+      },
       compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p)) : src; },
-      title: p => `Generalize date → ${p.unit || ''}`,
+      title: p => `Parse date → ${p.target || 'DATE'}${p.generalize && p.generalize !== 'none' ? ' · ' + p.generalize : ''}`,
     },
     pseudoEntity: {
       label: 'Pseudonymize entity (consistent)', group: 'anon', impact: 'pseudo',
@@ -760,12 +770,24 @@
           + `<div class="pc-field"><label>Noise amount (±)</label><input class="qrx-input" data-step="${sid}" data-field="amount" type="number" min="0" step="any" value="${escapeAttr(p.amount || '1')}"></div></div>`
           + modeSelect(sid, p.mode)
           + `<div class="pc-diff-note">Adds zero-centred noise; stays a number. <strong>Deterministic</strong> = stable per value; <strong>Random</strong> = fresh per run. Non-numbers become NULL.</div>`;
-      case 'dateGen':
+      case 'parseDate': {
+        const presets = [
+          ['DE date', 'DD.MM.YYYY'], ['US date', 'MM/DD/YYYY'], ['ISO date', 'YYYY-MM-DD'],
+          ['ISO timestamp', 'YYYY-MM-DD HH:mm:ss'], ['DE date+time', 'DD.MM.YYYY HH:mm:ss'],
+        ];
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
-          + `<div class="pc-field"><label>Generalize to</label><select class="qrx-select" data-step="${sid}" data-field="unit">`
-          + [['month', 'Month'], ['quarter', 'Quarter'], ['year', 'Year']].map(([v, l]) => `<option value="${v}" ${p.unit === v ? 'selected' : ''}>${l}</option>`).join('')
+          + `<div class="pc-field"><label>Target type</label><select class="qrx-select" data-step="${sid}" data-field="target">`
+          + [['DATE', 'Date'], ['TIMESTAMP', 'Timestamp (date + time)'], ['TIME', 'Time']].map(([v, l]) => `<option value="${v}" ${(p.target || 'DATE') === v ? 'selected' : ''}>${l}</option>`).join('')
+          + `</select></div>`
+          + `<div class="pc-field"><label>Generalize to</label><select class="qrx-select" data-step="${sid}" data-field="generalize">`
+          + [['none', '— (keep exact)'], ['month', 'Month'], ['quarter', 'Quarter'], ['year', 'Year']].map(([v, l]) => `<option value="${v}" ${(p.generalize || 'none') === v ? 'selected' : ''}>${l}</option>`).join('')
           + `</select></div></div>`
-          + `<div class="pc-diff-note">Reduces a date to the start of the month/quarter/year. Parse text dates to a real date first (Convert type) for best results.</div>`;
+          + `<div class="pc-field"><label>Date/time pattern(s) — one per line; mixed spellings are tried in order</label>`
+          + `<textarea class="qrx-input" data-step="${sid}" data-field="formats" rows="2" spellcheck="false" placeholder="DD.MM.YYYY&#10;MM/DD/YYYY">${escapeHtml(p.formats || '')}</textarea>`
+          + `<div class="pc-presets">` + presets.map(([lbl, pat]) => `<button type="button" class="pc-preset" data-preset="${escapeAttr(pat)}" data-step="${sid}">+ ${escapeHtml(lbl)}</button>`).join('') + `</div>`
+          + `<div class="pc-diff-note">Tokens: YYYY YY · MM (month) DD · HH (24h) hh (12h) mm (min) SS — or raw strptime like <code>%d.%m.%Y</code>. Empty = automatic ISO. Unparseable values become NULL (counted as failures). <strong>Generalize</strong> reduces the parsed date to the start of the month/quarter/year.</div>`
+          + `</div>`;
+      }
       case 'pseudoEntity':
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>Entity type</label><select class="qrx-select" data-step="${sid}" data-field="entityType">`
@@ -893,7 +915,8 @@
       if (!s.enabled || !s.impact) continue;
       if ((s.kind === 'dedupExact' || s.kind === 'dedupKeys') && s.impact.kind === 'rows') dupes += s.impact.removed;
       if (s.kind === 'cast' && s.impact.kind === 'cast') fails += s.impact.failed;
-      if (['hash', 'faker', 'shuffle', 'numNoise', 'numRound', 'dateGen', 'pseudoEntity', 'coarsen'].includes(s.kind) && STEP_DEFS[s.kind].complete(s.params)) anon.add(s.params.column);
+      if (['hash', 'faker', 'shuffle', 'numNoise', 'numRound', 'pseudoEntity', 'coarsen'].includes(s.kind) && STEP_DEFS[s.kind].complete(s.params)) anon.add(s.params.column);
+      if (s.kind === 'parseDate' && s.params.generalize && s.params.generalize !== 'none' && STEP_DEFS.parseDate.complete(s.params)) anon.add(s.params.column);
     }
     $('sumRows').innerHTML = `${fmtN(state.rowCountOriginal)} <span class="pc-arrow">→</span> ${fmtN(rowsCleaned)}`;
     $('sumCols').innerHTML = `${fmtN(state.schema.length)} <span class="pc-arrow">→</span> ${fmtN(cols)}`;
@@ -1301,7 +1324,7 @@
   function onDocClick(e) { if (colMenuEl && !colMenuEl.contains(e.target) && !e.target.closest('.pc-col-btn')) closeColMenu(); }
   // Grouped rules for the per-column popover (sensible intent-based sections).
   const COL_MENU_GROUPS = [
-    ['Convert / parse', ['cast', 'parseNumber', 'dateGen']],
+    ['Convert / parse', ['cast', 'parseNumber', 'parseDate']],
     ['Clean text', ['trim', 'case', 'emptyToNull', 'regexReplace', 'regexExtract']],
     ['Anonymize / pseudonymize', ['pseudoEntity', 'faker', 'hash', 'shuffle', 'numRound', 'numNoise', 'coarsen']],
     ['Column / structure', ['rename', 'drop', 'recalcSaldo']],
