@@ -171,8 +171,9 @@
     <ul>
       <li><strong>Replace with synthetic data (Faker / consistent)</strong> — replaces values with
           realistic synthetic data while keeping the structure; NULLs stay NULL. Pick <em>what to
-          generate</em> (Full/First/Last name, Company, Email, Phone, City, Country, Street, ZIP, or
-          <em>Auto entity</em>) and a <em>method</em>:
+          generate</em> (Full/First/Last name, Company, Email, Phone, City, Country, Street, ZIP,
+          <em>IBAN</em> (German, with a valid mod-97 check digit), <em>BIC</em>, <em>Text / notes</em>
+          (lorem ipsum), or <em>Auto entity</em>) and a <em>method</em>:
           <ul>
             <li><strong>Consistent &amp; collision-free (k-anon)</strong> — the analytics-preserving
                 choice. Each distinct value maps to <em>one</em> stable, collision-free pseudonym (via a
@@ -188,8 +189,8 @@
                 <code>Thomas Müller → Fritz Schmidt</code>.</li>
           </ul>
           Consistent mode needs a large enough value space, so it is offered for Full name, Company,
-          Auto entity, Email, Phone, ZIP and Street; First/Last name, City and Country use
-          deterministic.</li>
+          Auto entity, Email, Phone, ZIP, Street and IBAN; BIC, Text/notes and First/Last name, City,
+          Country use deterministic.</li>
       <li><strong>Coarsen amounts (sum-preserving)</strong> — rounds an amount column to remove unique
           value fingerprints (e.g. exact salaries) while keeping the <strong>exact sum within each
           group</strong> (default: per category) — so category/monthly totals are unchanged. Run

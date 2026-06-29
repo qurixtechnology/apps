@@ -210,6 +210,8 @@
     street: ['Hauptstraße', 'Bahnhofstraße', 'Gartenstraße', 'Schulstraße', 'Dorfstraße', 'Lindenstraße', 'Bergstraße', 'Birkenweg', 'Kirchgasse', 'Ringstraße', 'Am Markt', 'Parkweg', 'Wiesenweg', 'Mühlweg', 'Goethestraße'],
     company: ['Nordwind GmbH', 'Alpenbau AG', 'Rheindata GmbH', 'Seestern KG', 'Blautech GmbH', 'Mustermann AG', 'Sonnenhof GmbH', 'Brückner & Co', 'Kontor 7 GmbH', 'Vento Solutions'],
     domain: ['example.org', 'example.com', 'mail.example', 'test.example', 'demo.example'],
+    bic: ['NORDDEFFXXX', 'MUSTDEFF', 'RHEIDEFFXXX', 'SEESDEFF', 'BLAUDEFFXXX', 'SONNDEFF', 'KONTDEFFXXX', 'VENTDEFF', 'ALPEDEFFXXX', 'MAINDEFF', 'HANSDEFFXXX', 'DONADEFF'],
+    lorem: ['lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing', 'elit', 'sed', 'eiusmod', 'tempor', 'incididunt', 'labore', 'dolore', 'magna', 'aliqua', 'enim', 'veniam', 'quis', 'nostrud', 'aute', 'irure', 'reprehenderit', 'voluptate'],
   };
   function listLit(arr) { return '[' + arr.map(x => `'${sqlEscape(x)}'`).join(', ') + ']'; }
   // 0..mod-1 integer: deterministic from the value (+salt+suffix) or random per row.
@@ -249,9 +251,15 @@
   }
   // Collision-free generators for structural categories (injective in rk → distinct
   // entity → distinct value), so the consistent engine can also handle email/phone/zip/street.
-  const STRUCT_CATS = ['email', 'phone', 'zip', 'street'];
-  const STRUCT_BUCKET = { email: 'weitere@example.org', phone: '+49 000 0000000', zip: '00000', street: 'Sammelstraße 0' };
+  const STRUCT_CATS = ['email', 'phone', 'zip', 'street', 'iban'];
+  const STRUCT_BUCKET = { email: 'weitere@example.org', phone: '+49 000 0000000', zip: '00000', street: 'Sammelstraße 0', iban: 'DE36000000000000000000' };
+  // German IBAN with a valid mod-97 check digit from an 18-digit BBAN expression.
+  // (move 'DE00' to the end → letters D=13,E=14, '00' placeholder → check = 98 - n mod 97.)
+  function ibanFromBban(bban) {
+    return `'DE' || lpad(CAST(98 - (CAST((${bban}) || '131400' AS HUGEINT) % 97) AS VARCHAR), 2, '0') || (${bban})`;
+  }
   const STRUCT_LABEL = {
+    iban(rk) { return ibanFromBban(`lpad(CAST(${rk} AS VARCHAR), 18, '0')`); },
     email(rk) {
       const F = listLit(FK.firstName), L = listLit(FK.lastName), D = listLit(FK.domain);
       const nf = FK.firstName.length, nl = FK.lastName.length, nd = FK.domain.length, cap = nf * nl;
@@ -299,7 +307,14 @@
   // The merged "synthetic data" rule has two engines. The consistent (collision-free,
   // k-anon, group-preserving) engine applies only to entity-style categories; everything
   // else uses the per-value Faker engine.
-  const SYNTH_CONSISTENT_CATS = ['fullName', 'company', 'autoEntity', 'email', 'phone', 'zip', 'street'];
+  const SYNTH_CONSISTENT_CATS = ['fullName', 'company', 'autoEntity', 'email', 'phone', 'zip', 'street', 'iban'];
+  // Per-value lorem-ipsum sentence (6 words, capitalised, period) for free-text columns.
+  function loremExpr(col, salt, mode) {
+    const n = FK.lorem.length, word = suf => `${listLit(FK.lorem)}[${rndIdx(col, salt, suf, n, mode)} + 1]`;
+    const ws = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6'].map(word);
+    const first = `upper(substr(${ws[0]}, 1, 1)) || substr(${ws[0]}, 2)`;
+    return `${first} || ' ' || ${ws.slice(1).join(" || ' ' || ")} || '.'`;
+  }
   function synthEngine(p) {
     if (p.category === 'autoEntity') return 'consistent';
     return (p.method === 'consistent' && SYNTH_CONSISTENT_CATS.includes(p.category)) ? 'consistent' : 'faker';
@@ -441,6 +456,9 @@
           case 'email': v = `lower(${pick('F', FK.firstName)}) || '.' || lower(${pick('L', FK.lastName)}) || '@' || ${pick('D', FK.domain)}`; break;
           case 'phone': v = `'+49 ' || lpad(CAST(${rndIdx(col, salt, 'P1', 900, mode)} + 100 AS VARCHAR), 3, '0') || ' ' || lpad(CAST(${rndIdx(col, salt, 'P2', 10000000, mode)} AS VARCHAR), 7, '0')`; break;
           case 'zip': v = `lpad(CAST(${rndIdx(col, salt, 'Z', 100000, mode)} AS VARCHAR), 5, '0')`; break;
+          case 'iban': v = ibanFromBban(`lpad(CAST(${rndIdx(col, salt, 'IB', 1000000000000000000, mode)} AS VARCHAR), 18, '0')`); break;
+          case 'bic': v = pick('B', FK.bic); break;
+          case 'text': v = loremExpr(col, salt, mode); break;
           case 'fullName': default: v = `${pick('F', FK.firstName)} || ' ' || ${pick('L', FK.lastName)}`; break;
         }
         return `CASE WHEN ${col} IS NULL THEN NULL ELSE ${v} END`;
@@ -818,7 +836,7 @@
         return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-diff-note">Replaces values with <code>sha256(value + salt)</code> (deterministic). NULLs stay NULL. Set a shared salt above for consistent pseudonyms.</div>`;
       case 'synth': {
-        const cats = [['fullName', 'Full name'], ['firstName', 'First name'], ['lastName', 'Last name'], ['company', 'Company'], ['email', 'Email (structure)'], ['phone', 'Phone (structure)'], ['city', 'City'], ['country', 'Country'], ['street', 'Street + no.'], ['zip', 'ZIP (structure)'], ['autoEntity', 'Auto entity (person / org)']];
+        const cats = [['fullName', 'Full name'], ['firstName', 'First name'], ['lastName', 'Last name'], ['company', 'Company'], ['email', 'Email (structure)'], ['phone', 'Phone (structure)'], ['city', 'City'], ['country', 'Country'], ['street', 'Street + no.'], ['zip', 'ZIP (structure)'], ['iban', 'IBAN (DE, valid check digit)'], ['bic', 'BIC'], ['text', 'Text / notes (lorem ipsum)'], ['autoEntity', 'Auto entity (person / org)']];
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>What to generate</label><select class="qrx-select" data-step="${sid}" data-field="category">`
           + cats.map(([v, l]) => `<option value="${v}" ${p.category === v ? 'selected' : ''}>${l}</option>`).join('')
@@ -1429,7 +1447,7 @@
     { key: 'iban', label: 'IBAN / bank account', level: 'direct',
       name: /\biban\b|\bbic\b|kontonummer|konto[\W_]?nr|account[\W_]?(no|number|nr)/i,
       content: s => /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s.replace(/\s+/g, '').toUpperCase()),
-      suggest: c => ({ kind: 'hash', params: { column: c } }) },
+      suggest: c => ({ kind: 'synth', params: { column: c, category: 'iban', method: 'det' } }) },
     { key: 'phone', label: 'Phone number', level: 'direct',
       name: /telefon|\btel\b|\bfon\b|phone|mobil|handy|\bfax\b/i,
       content: s => {
