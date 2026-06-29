@@ -407,10 +407,24 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .preview-grid thead th.has-steps .pc-col-btn { color: var(--qrx-primary); }
 /* Column rule menu (popover) */
 .pc-colmenu {
-  position: absolute; z-index: 200; min-width: 200px; max-height: 60vh; overflow: auto;
+  position: absolute; z-index: 200; min-width: 240px; max-width: 320px; max-height: 74vh;
+  display: flex; flex-direction: column; overflow: hidden;
   background: var(--qrx-surface); border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius);
   box-shadow: var(--qrx-shadow-lg); padding: var(--qrx-s-2);
 }
+.pc-colmenu-body { overflow: auto; flex: 1 1 auto; }
+.pc-colmenu-item.is-hover { background: var(--qrx-bg-subtle); color: var(--qrx-primary); }
+.pc-colmenu-ex {
+  flex-shrink: 0; margin-top: 4px; padding: 8px 10px; border-top: 1px solid var(--qrx-border);
+  background: var(--qrx-bg-subtle); border-radius: 0 0 6px 6px; min-height: 2.4em;
+}
+.pc-colmenu-ex-hint { font-size: 0.72rem; color: var(--qrx-text-subtle); font-style: italic; }
+.pc-colmenu-ex-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; color: var(--qrx-text-muted); margin-bottom: 4px; }
+.pc-colmenu-ex-note { font-size: 0.75rem; color: var(--qrx-text-muted); }
+.pc-colmenu-ex-tbl { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-family: var(--qrx-font-mono); }
+.pc-colmenu-ex-tbl td { padding: 1px 2px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.pc-colmenu-ex-tbl td:first-child { color: var(--qrx-text-muted); }
+.pc-colmenu-ex-tbl .pc-arrow-cell { color: var(--qrx-text-subtle); padding: 0 5px; width: 1em; text-align: center; }
 .pc-colmenu-title { font-size: 0.72rem; color: var(--qrx-text-muted); padding: 4px 8px 6px; }
 .pc-colmenu-sec {
   font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
@@ -988,7 +1002,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260629-153602</span>
+    &middot; v<span data-build-version>260629-155646</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1504,7 +1518,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     synth: {
       label: 'Replace with synthetic data', group: 'anon', impact: 'cell',
       complete: p => !!p.column && !!p.category,
-      defaults: () => ({ column: firstCol(), category: 'fullName', method: 'consistent', k: '5' }),
+      defaults: () => ({ column: firstCol(), category: 'fullName', method: 'det', k: '5' }),
       cellExpr(p, c) {
         const col = id(p.column), salt = sqlEscape((c && c.salt) || ''), mode = p.method === 'rand' ? 'rand' : 'det';
         const pick = (suf, arr) => `${listLit(arr)}[${rndIdx(col, salt, suf, arr.length, mode)} + 1]`;
@@ -2644,6 +2658,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
   function resetReview() {
     state.clean = null; state.pii = null;
+    if (typeof exampleCache !== 'undefined') exampleCache.clear();
     if (reviewResults) reviewResults.innerHTML = '';
     if (reviewSummary) reviewSummary.textContent = '';
     if (reviewApplyAllBtn) reviewApplyAllBtn.hidden = true;
@@ -2819,21 +2834,80 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     ['Anonymize / pseudonymize', ['synth', 'hash', 'shuffle', 'numRound', 'numNoise', 'coarsen']],
     ['Column / structure', ['rename', 'drop', 'recalcSaldo']],
   ];
+  // Live before→after examples for the column popover (transparency: show what a rule does).
+  const exampleCache = new Map();
+  function ruleNote(kind) {
+    switch (kind) {
+      case 'rename': return 'Renames the column — values are unchanged.';
+      case 'drop': return 'Removes the whole column from the output.';
+      case 'recalcSaldo': return 'Rebuilds a running balance = opening + cumulative amount.';
+      case 'coarsen': return 'Rounds the amount but keeps the exact sum within each group.';
+      default: return 'Adds this step to the pipeline.';
+    }
+  }
+  async function ruleExample(kind, col) {
+    const key = col + '|' + kind + '|' + (state.cleanedSig || '');
+    if (exampleCache.has(key)) return exampleCache.get(key);
+    const def = STEP_DEFS[kind], c = id(col), params = Object.assign(def.defaults(), { column: col });
+    const result = { note: null, pairs: null };
+    try {
+      // For parse rules, derive a demo config from the column so the example actually parses.
+      if (kind === 'parseDate' || kind === 'parseNumber') {
+        const vals = (await conn.query(`SELECT CAST(${c} AS VARCHAR) AS v FROM cleaned WHERE ${c} IS NOT NULL LIMIT 30`)).toArray().map(r => r.v).filter(v => v && v.trim() !== '');
+        if (kind === 'parseDate') {
+          const fc = {}; for (const v of vals) { const f = dateFormatOf(v.trim()); if (f) fc[f] = (fc[f] || 0) + 1; }
+          const best = Object.entries(fc).sort((a, b) => b[1] - a[1]).map(([f]) => f);
+          if (best.length) { params.formats = best.slice(0, 2).join('\n'); if (best.some(f => /HH/.test(f))) params.target = 'TIMESTAMP'; }
+        } else {
+          const nums = vals.filter(looksNumericStr); if (nums.length) params.decimal = decimalSepOf(nums);
+        }
+      }
+      let q = null;
+      if (kind === 'synth' && synthEngine(params) === 'consistent') {
+        q = pseudoBuild('SELECT * FROM cleaned', pseudoParams(params), sqlEscape(ctx().salt || ''), 'sample');
+      } else if (kind === 'shuffle') {
+        const repl = shufRepl(c, params.mode, sqlEscape(ctx().salt || ''));
+        q = `SELECT CAST(s.${c} AS VARCHAR) AS b, CAST((${repl}) AS VARCHAR) AS a FROM ${shufFrom('SELECT * FROM cleaned', c)} WHERE s.${c} IS NOT NULL LIMIT 4`;
+      } else if (def.safeExpr || def.cellExpr) {
+        const expr = def.safeExpr ? def.safeExpr(params, ctx()) : def.cellExpr(params, ctx());
+        q = `SELECT DISTINCT CAST(${c} AS VARCHAR) AS b, CAST((${expr}) AS VARCHAR) AS a FROM cleaned WHERE ${c} IS NOT NULL LIMIT 4`;
+      } else {
+        result.note = ruleNote(kind);
+      }
+      if (q) result.pairs = (await conn.query(q)).toArray().slice(0, 4).map(r => ({ b: r.b, a: r.a }));
+    } catch (_) { result.note = 'Example not available for this column.'; }
+    exampleCache.set(key, result);
+    return result;
+  }
+  function renderColMenuEx(footer, kind, ex) {
+    const def = STEP_DEFS[kind];
+    let h = `<div class="pc-colmenu-ex-title">${escapeHtml(def.label)}</div>`;
+    if (ex.pairs && ex.pairs.length) {
+      h += '<table class="pc-colmenu-ex-tbl"><tbody>' + ex.pairs.map(p =>
+        `<tr><td>${diffCell(p.b)}</td><td class="pc-arrow-cell">→</td><td>${diffCell(p.a)}</td></tr>`).join('') + '</tbody></table>';
+    } else if (ex.pairs) {
+      h += '<div class="pc-colmenu-ex-note">No sample values to show.</div>';
+    } else {
+      h += `<div class="pc-colmenu-ex-note">${escapeHtml(ex.note || '')}</div>`;
+    }
+    footer.innerHTML = h;
+  }
   function openColMenu(anchor, col) {
     closeColMenu();
     const el = document.createElement('div');
     el.className = 'pc-colmenu';
-    let html = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div>`;
+    let html = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div><div class="pc-colmenu-body">`;
     for (const [label, kinds] of COL_MENU_GROUPS) {
       const avail = kinds.filter(k => STEP_DEFS[k]);
       if (!avail.length) continue;
       html += `<div class="pc-colmenu-sec">${escapeHtml(label)}</div>`
         + avail.map(k => `<button type="button" class="pc-colmenu-item" data-kind="${k}">${escapeHtml(STEP_DEFS[k].label)}</button>`).join('');
     }
+    html += `</div><div class="pc-colmenu-ex"><span class="pc-colmenu-ex-hint">Hover a rule to preview an example on this column</span></div>`;
     el.innerHTML = html;
     document.body.appendChild(el);
     const r = anchor.getBoundingClientRect();
-    const w = el.offsetWidth || 220;
+    const w = el.offsetWidth || 240;
     el.style.top = (r.bottom + 4 + window.scrollY) + 'px';
     el.style.left = (Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - w - 8)) + 'px';
     el.addEventListener('click', ev => {
@@ -2842,6 +2916,17 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       closeColMenu();
       if (state.layout === 'preview') setLayout('split');   // make the pipeline visible
       addStep(kind, { column: col });
+    });
+    let exSeq = 0;
+    el.addEventListener('mouseover', async ev => {
+      const item = ev.target.closest('.pc-colmenu-item'); if (!item) return;
+      const kind = item.getAttribute('data-kind');
+      el.querySelectorAll('.pc-colmenu-item').forEach(b => b.classList.toggle('is-hover', b === item));
+      const footer = el.querySelector('.pc-colmenu-ex');
+      footer.innerHTML = `<div class="pc-colmenu-ex-title">${escapeHtml(STEP_DEFS[kind].label)}</div><div class="pc-colmenu-ex-note">computing…</div>`;
+      const seq = ++exSeq;
+      const ex = await ruleExample(kind, col);
+      if (seq === exSeq && colMenuEl === el) renderColMenuEx(footer, kind, ex);
     });
     colMenuEl = el;
     setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
