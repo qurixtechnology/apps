@@ -43,7 +43,25 @@
         <div class="pc-kpi"><div class="pc-kpi-label">Duplicates removed</div><div class="pc-kpi-value" id="sumDupes">—</div></div>
         <div class="pc-kpi"><div class="pc-kpi-label">Conversion failures</div><div class="pc-kpi-value" id="sumFails">—</div></div>
         <div class="pc-kpi"><div class="pc-kpi-label">Anonymized cols</div><div class="pc-kpi-value" id="sumAnon">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label">PII columns</div><div class="pc-kpi-value" id="sumPii">—</div></div>
       </div>
+
+      <!-- PII / sensitive-data detection -->
+      <details class="qrx-card pc-analyze pc-pii" id="piiCard">
+        <summary>
+          <span class="pc-analyze-title">PII &amp; sensitive data</span>
+          <span class="pc-analyze-hint">scan columns by name + content, classify by sensitivity, apply suggested anonymization</span>
+          <svg class="pc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>
+        </summary>
+        <div class="pc-analyze-body">
+          <div class="pc-add">
+            <button class="qrx-btn qrx-btn-primary" id="piiScanBtn" type="button">Scan for PII</button>
+            <button class="qrx-btn" id="piiApplyAllBtn" type="button" hidden>Apply all suggestions</button>
+            <span class="muted" id="piiSummary"></span>
+          </div>
+          <div id="piiResults"></div>
+        </div>
+      </details>
 
       <!-- Column structure / pattern analysis (assistance) -->
       <details class="qrx-card pc-analyze" id="analyzeCard">

@@ -297,5 +297,38 @@
 .pc-copy:hover { border-color: var(--qrx-primary); color: var(--qrx-primary); }
 .pc-copy.is-copied { border-color: var(--qrx-success); color: var(--qrx-success); }
 
+/* PII / sensitive-data detection */
+.pii-badge { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; line-height: 1.4; }
+.pii-badge.pii-direct    { background: #fdecea; color: var(--qrx-danger); }
+.pii-badge.pii-quasi     { background: #fdf3e0; color: #b45f00; }
+.pii-badge.pii-sensitive { background: #f0e9fb; color: #6b34c0; }
+@media (prefers-color-scheme: dark) {
+  .pii-badge.pii-direct    { background: #4a1f1b; color: #f0a59b; }
+  .pii-badge.pii-quasi     { background: #4a2e10; color: #f5c98a; }
+  .pii-badge.pii-sensitive { background: #2c1f4a; color: #cdb6f5; }
+}
+.pc-pii-group { margin-top: var(--qrx-s-4); }
+.pc-pii-grouphead { display: flex; align-items: center; gap: var(--qrx-s-2); margin-bottom: var(--qrx-s-2); }
+.pc-pii-row { display: flex; align-items: center; justify-content: space-between; gap: var(--qrx-s-3); padding: 6px var(--qrx-s-3); border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius); margin-bottom: 5px; flex-wrap: wrap; }
+.pc-pii-row.is-handled { opacity: 0.6; }
+.pc-pii-col { display: flex; align-items: baseline; gap: var(--qrx-s-3); flex-wrap: wrap; min-width: 0; }
+.pc-pii-name { font-family: var(--qrx-font-mono); font-weight: 600; color: var(--qrx-text); }
+.pc-pii-type { font-size: 0.8125rem; color: var(--qrx-text-muted); }
+.pc-pii-via { font-size: 0.72rem; color: var(--qrx-text-subtle); }
+.pc-pii-action { display: flex; align-items: center; gap: var(--qrx-s-3); }
+.pc-pii-suggest { font-size: 0.8125rem; color: var(--qrx-text-muted); }
+.pc-pii-done { font-size: 0.8125rem; color: var(--qrx-success); font-weight: 600; }
+
+/* PII tag in the preview column header */
+.preview-grid thead th .col-type .pii-tag { margin-left: 6px; font-size: 0.62rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; letter-spacing: 0.03em; vertical-align: middle; }
+.pii-tag.pii-direct    { background: #fdecea; color: var(--qrx-danger); }
+.pii-tag.pii-quasi     { background: #fdf3e0; color: #b45f00; }
+.pii-tag.pii-sensitive { background: #f0e9fb; color: #6b34c0; }
+@media (prefers-color-scheme: dark) {
+  .pii-tag.pii-direct    { background: #4a1f1b; color: #f0a59b; }
+  .pii-tag.pii-quasi     { background: #4a2e10; color: #f5c98a; }
+  .pii-tag.pii-sensitive { background: #2c1f4a; color: #cdb6f5; }
+}
+
 /* Export */
 .pc-export { display: flex; align-items: center; gap: var(--qrx-s-3); flex-wrap: wrap; }

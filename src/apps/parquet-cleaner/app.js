@@ -44,6 +44,10 @@
   const pcLayout       = $('pcLayout');
   const expandAllBtn   = $('expandAllBtn');
   const collapseAllBtn = $('collapseAllBtn');
+  const piiScanBtn     = $('piiScanBtn');
+  const piiApplyAllBtn = $('piiApplyAllBtn');
+  const piiResults     = $('piiResults');
+  const piiSummary     = $('piiSummary');
 
   // ---- State ----
   const state = {
@@ -58,6 +62,7 @@
     salt: '',
     seq: 0,
     cleanedSig: null,
+    pii: null,             // { colName: { type, via:'name'|'content', conf } } after a scan
   };
   let stepSeq = 0;
   const uid = () => 's' + (++stepSeq);
@@ -875,6 +880,7 @@
       await renderSummary(seq);
       if (seq !== state.seq) return;
       await renderPreview();
+      if (state.pii) renderPii();
       setStatus('');
     } catch (err) {
       console.error(err);
@@ -959,10 +965,14 @@
     for (const f of fields) {
       const labels = stepMap.get(f.name);
       const has = labels && labels.length;
+      const pii = state.pii && state.pii[f.name];
+      const piiTag = pii
+        ? `<span class="pii-tag ${PII_LEVELS[pii.type.level].cls}" title="${escapeAttr(pii.type.label + ' — ' + PII_LEVELS[pii.type.level].label + ' (detected ' + (pii.via === 'content' ? 'by content' : 'by name') + ')')}">PII</span>`
+        : '';
       const tip = has ? `${f.name}\nSteps: ${labels.join(', ')}\n(click to add another rule)` : `${f.name}\nClick to add a column rule`;
       h += `<th class="${has ? 'has-steps' : ''}" title="${escapeAttr(tip)}">`
         + `<button type="button" class="pc-col-btn" data-col="${escapeAttr(f.name)}"><span class="col-name-cell">${escapeHtml(f.name)}</span>${has ? '<span class="pc-col-dot" aria-hidden="true"></span>' : ''}<span class="pc-col-caret" aria-hidden="true">▾</span></button>`
-        + `<span class="col-type"><span class="type-badge ${f.typeClass}">${escapeHtml(f.type)}</span></span></th>`;
+        + `<span class="col-type"><span class="type-badge ${f.typeClass}">${escapeHtml(f.type)}</span>${piiTag}</span></th>`;
     }
     previewGrid.querySelector('thead').innerHTML = h + '</tr>';
     let b = ''; if (!rows.length) b = `<tr><td class="muted" colspan="${Math.max(1, fields.length)}">No rows</td></tr>`;
@@ -1075,6 +1085,7 @@
       if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
       state.file = file; state.fileSize = file.size;
       state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null;
+      resetPii();
       const vname = `input_${Date.now()}_` + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       state.duckFile = vname;
       setStatus('Registering file…');
@@ -1106,6 +1117,7 @@
     state.page = 0; state.cleanedSig = null;
     dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
     if (analyzeResults) analyzeResults.innerHTML = '';
+    resetPii();
     filePicker.value = '';
     setStatus('');
   }
@@ -1227,6 +1239,202 @@
     analyzeResults.innerHTML = html;
   }
 
+  // ---- PII / sensitive-data detection (heuristic: column name + content sample) ----
+  const PII_LEVELS = {
+    direct:    { label: 'Direct identifier', cls: 'pii-direct' },
+    quasi:     { label: 'Quasi-identifier',  cls: 'pii-quasi' },
+    sensitive: { label: 'Sensitive (special category)', cls: 'pii-sensitive' },
+  };
+  function luhn(s) {
+    s = s.replace(/\D/g, ''); if (s.length < 13) return false;
+    let sum = 0, alt = false;
+    for (let i = s.length - 1; i >= 0; i--) { let n = +s[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
+    return sum % 10 === 0;
+  }
+  // Each type: name (regex on lowercased column name), optional content (value→bool),
+  // level, and a suggested anonymization step. Content match (≥60% of sampled values) wins over name.
+  const PII_TYPES = [
+    // -- content-detectable (strong signal) --
+    { key: 'email', label: 'Email address', level: 'direct',
+      name: /e[\W_]?mail/i, content: s => /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(s),
+      suggest: c => ({ kind: 'faker', params: { column: c, category: 'email', mode: 'det' } }) },
+    { key: 'iban', label: 'IBAN / bank account', level: 'direct',
+      name: /\biban\b|\bbic\b|kontonummer|konto[\W_]?nr|account[\W_]?(no|number|nr)/i,
+      content: s => /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s.replace(/\s+/g, '').toUpperCase()),
+      suggest: c => ({ kind: 'hash', params: { column: c } }) },
+    { key: 'phone', label: 'Phone number', level: 'direct',
+      name: /telefon|\btel\b|\bfon\b|phone|mobil|handy|\bfax\b/i,
+      content: s => {
+        const t = s.trim();
+        // exclude date / datetime strings that also consist of digits + separators
+        if (/^\d{4}-\d{1,2}-\d{1,2}([ T]\d{1,2}:\d{2}.*)?$/.test(t)) return false;
+        if (/^\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4}$/.test(t)) return false;
+        if (/^\d{4}[.\/]\d{1,2}[.\/]\d{1,2}$/.test(t)) return false;
+        if (!/^[+(]?\d[\d\s()\/.\-]{6,}$/.test(t)) return false;
+        const d = t.replace(/\D/g, '');
+        return d.length >= 7 && d.length <= 15 && (/[+()\/\-\s]/.test(t) || t[0] === '0' || t[0] === '+');
+      },
+      suggest: c => ({ kind: 'faker', params: { column: c, category: 'phone', mode: 'det' } }) },
+    { key: 'creditcard', label: 'Credit card number', level: 'direct',
+      name: /kreditkart|credit[\W_]?card|card[\W_]?(no|number)|kartennummer/i,
+      content: s => { const d = s.replace(/[\s\-]/g, ''); return /^\d{13,19}$/.test(d) && luhn(d); },
+      suggest: c => ({ kind: 'hash', params: { column: c } }) },
+    { key: 'uuid', label: 'Unique identifier (UUID)', level: 'direct',
+      name: /\buuid\b|\bguid\b/i, content: s => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.trim()),
+      suggest: c => ({ kind: 'hash', params: { column: c } }) },
+    { key: 'ip', label: 'IP address', level: 'quasi',
+      name: /\bip[\W_]?(addr|adresse|address)?\b/i,
+      content: s => /^(\d{1,3}\.){3}\d{1,3}$/.test(s.trim()) && s.trim().split('.').every(o => +o <= 255),
+      suggest: c => ({ kind: 'hash', params: { column: c } }) },
+    // -- name-only direct identifiers --
+    // Recurring business party (partner/recipient): pseudonymize keeps per-entity
+    // aggregates exact while bucketing the rare long tail (k-anonymity). Checked first.
+    { key: 'partyname', label: 'Business party / recipient', level: 'direct',
+      name: /beg[uü]nstigt|empf[aä]nger|zahlungspflicht|\bpartner\b|inhaber|kontoinhaber|holder|lieferant|vendor|supplier|debitor|kreditor/i,
+      suggest: c => ({ kind: 'pseudoEntity', params: { column: c, entityType: 'auto', k: '5' } }) },
+    // Plain person/customer name (mostly unique) → realistic fake name, deterministic.
+    { key: 'personname', label: 'Person / customer name', level: 'direct',
+      name: /(vor|nach|nick|spitz|familien)[\W_]?name|first[\W_]?name|last[\W_]?name|sur[\W_]?name|full[\W_]?name|name\b|kunde|customer[\W_]?name|ansprechpartner|kontaktperson/i,
+      suggest: c => {
+        const l = c.toLowerCase();
+        const cat = /vor|first/.test(l) ? 'firstName' : (/nach|last|sur|familien/.test(l) ? 'lastName' : 'fullName');
+        return { kind: 'faker', params: { column: c, category: cat, mode: 'det' } };
+      } },
+    { key: 'govid', label: 'Government / tax ID', level: 'direct',
+      name: /\bssn\b|sozialvers|steuer[\W_]?(id|nr|nummer)|tax[\W_]?id|\bvat\b|ust[\W_]?id|personalausweis|\bausweis\b|reisepass|passport|\bnino\b/i,
+      suggest: c => ({ kind: 'hash', params: { column: c } }) },
+    { key: 'address', label: 'Street address', level: 'direct',
+      name: /stra(ss|ß)e\b|\bstreet\b|adresse|address|anschrift|hausnummer/i,
+      suggest: c => ({ kind: 'faker', params: { column: c, category: 'street', mode: 'det' } }) },
+    { key: 'customerid', label: 'Customer / personal ID', level: 'direct',
+      name: /^id$|kunden[\W_]?(id|nummer|nr)|customer[\W_]?(id|no|number)|personal[\W_]?nr|mitarbeiter[\W_]?(id|nr)|user[\W_]?id|benutzer[\W_]?id|patient[\W_]?(id|nr)/i,
+      suggest: c => ({ kind: 'hash', params: { column: c } }) },
+    // -- quasi-identifiers --
+    { key: 'birthdate', label: 'Date of birth', level: 'quasi',
+      name: /geb(urts)?[\W_]?(datum|tag)?|\bdob\b|date[\W_]?of[\W_]?birth|birth[\W_]?date|geboren/i,
+      suggest: c => ({ kind: 'parseDate', params: { column: c, target: 'DATE', generalize: 'year', formats: '' } }) },
+    { key: 'zip', label: 'Postal code', level: 'quasi',
+      name: /\bplz\b|postleitzahl|\bzip\b|postal[\W_]?code/i,
+      suggest: c => ({ kind: 'faker', params: { column: c, category: 'zip', mode: 'det' } }) },
+    { key: 'city', label: 'City / place', level: 'quasi',
+      name: /\bort\b|wohnort|\bstadt\b|\bcity\b|gemeinde|\btown\b/i,
+      suggest: c => ({ kind: 'faker', params: { column: c, category: 'city', mode: 'det' } }) },
+    { key: 'gender', label: 'Gender / salutation', level: 'quasi',
+      name: /geschlecht|gender|\bsex\b|anrede|salutation/i,
+      suggest: c => ({ kind: 'shuffle', params: { column: c, mode: 'det' } }) },
+    { key: 'age', label: 'Age', level: 'quasi',
+      name: /\balter\b|\bage\b|jahrgang/i,
+      suggest: c => ({ kind: 'numRound', params: { column: c, step: '5' } }) },
+    { key: 'nationality', label: 'Nationality / origin', level: 'quasi',
+      name: /nationalit|staatsang|staatsb[uü]rger|\bcountry\b|herkunft|ethni/i,
+      suggest: c => ({ kind: 'faker', params: { column: c, category: 'country', mode: 'det' } }) },
+    { key: 'marital', label: 'Marital status', level: 'quasi',
+      name: /familienstand|marital/i,
+      suggest: c => ({ kind: 'shuffle', params: { column: c, mode: 'det' } }) },
+    // -- sensitive / special categories --
+    { key: 'health', label: 'Health data', level: 'sensitive',
+      name: /diagnos|krankheit|\bkrank\b|health|gesundheit|medik|behandlung|\bicd\b|allerg|disab|behinder|\bpfleg/i,
+      suggest: c => ({ kind: 'hash', params: { column: c } }) },
+    { key: 'religion', label: 'Religion / belief', level: 'sensitive',
+      name: /religion|konfession|glaube/i,
+      suggest: c => ({ kind: 'shuffle', params: { column: c, mode: 'det' } }) },
+    { key: 'political', label: 'Political / union', level: 'sensitive',
+      name: /\bpartei\b|politic|gewerkschaft/i,
+      suggest: c => ({ kind: 'shuffle', params: { column: c, mode: 'det' } }) },
+    { key: 'income', label: 'Income / salary', level: 'sensitive',
+      name: /gehalt|salary|einkommen|income|\blohn\b|verdienst|bonus/i,
+      suggest: c => ({ kind: 'numRound', params: { column: c, step: '1000' } }) },
+  ];
+  function resetPii() {
+    state.pii = null;
+    if (piiResults) piiResults.innerHTML = '';
+    if (piiSummary) piiSummary.textContent = '';
+    if (piiApplyAllBtn) piiApplyAllBtn.hidden = true;
+    const k = $('sumPii'); if (k) k.textContent = '—';
+  }
+  async function scanPII() {
+    if (!conn || !state.schema.length) return;
+    piiScanBtn.disabled = true;
+    piiResults.innerHTML = '<p class="pc-diff-note">Scanning columns…</p>';
+    try {
+      let sample;
+      try { sample = arrowRows(await conn.query('SELECT * FROM original USING SAMPLE 200 ROWS')); }
+      catch (_) { sample = arrowRows(await conn.query('SELECT * FROM original LIMIT 200')); }
+      const det = {};
+      for (const col of state.schema) {
+        const name = col.name, lname = name.toLowerCase();
+        const vals = sample.map(r => r[name]).filter(v => v != null).map(v => cellText(v, col.type).trim()).filter(v => v !== '');
+        let found = null, via = null, conf = 0;
+        if (vals.length >= 5) {
+          let bestRatio = 0;
+          for (const t of PII_TYPES) {
+            if (!t.content) continue;
+            let m = 0; for (const v of vals) if (t.content(v)) m++;
+            const ratio = m / vals.length;
+            if (ratio >= 0.6 && ratio > bestRatio) { found = t; via = 'content'; conf = ratio; bestRatio = ratio; }
+          }
+        }
+        if (!found) {
+          for (const t of PII_TYPES) { if (t.name && t.name.test(lname)) { found = t; via = 'name'; conf = 1; break; } }
+        }
+        if (found) det[name] = { type: found, via, conf };
+      }
+      state.pii = det;
+      renderPii();
+      renderPreview().catch(e => console.error(e));
+    } catch (err) {
+      console.error(err);
+      piiResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Scan failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`;
+    } finally {
+      piiScanBtn.disabled = false;
+    }
+  }
+  function renderPii() {
+    const det = state.pii;
+    const k = $('sumPii');
+    if (!det) { piiResults.innerHTML = ''; piiSummary.textContent = ''; piiApplyAllBtn.hidden = true; if (k) k.textContent = '—'; return; }
+    const entries = Object.entries(det);
+    if (k) k.textContent = fmtN(entries.length);
+    if (!entries.length) {
+      piiResults.innerHTML = '<p class="pc-diff-note">No PII-looking columns detected. This is a heuristic — always sanity-check manually.</p>';
+      piiSummary.textContent = ''; piiApplyAllBtn.hidden = true; return;
+    }
+    const stepMap = columnStepMap();
+    const byLevel = { direct: [], quasi: [], sensitive: [] };
+    for (const [col, d] of entries) byLevel[d.type.level].push([col, d]);
+    let html = '', pending = 0;
+    for (const lvl of ['direct', 'quasi', 'sensitive']) {
+      const list = byLevel[lvl]; if (!list.length) continue;
+      const L = PII_LEVELS[lvl];
+      html += `<div class="pc-pii-group"><div class="pc-pii-grouphead"><span class="pii-badge ${L.cls}">${escapeHtml(L.label)}</span> <span class="muted">${list.length} column(s)</span></div>`;
+      for (const [col, d] of list) {
+        const handled = stepMap.has(col);
+        if (!handled) pending++;
+        const sug = d.type.suggest(col), sdef = STEP_DEFS[sug.kind];
+        html += `<div class="pc-pii-row ${handled ? 'is-handled' : ''}">`
+          + `<div class="pc-pii-col"><span class="pc-pii-name">${escapeHtml(col)}</span>`
+          + `<span class="pc-pii-type">${escapeHtml(d.type.label)}</span>`
+          + `<span class="pc-pii-via">${d.via === 'content' ? 'by content · ' + Math.round(d.conf * 100) + '%' : 'by name'}</span></div>`
+          + `<div class="pc-pii-action">`
+          + (handled
+            ? `<span class="pc-pii-done">✓ rule added</span>`
+            : `<span class="pc-pii-suggest" title="Suggested rule">→ ${escapeHtml(sdef.label)}</span><button type="button" class="qrx-btn qrx-btn-sm" data-pii-apply="${escapeAttr(col)}">Apply</button>`)
+          + `</div></div>`;
+      }
+      html += `</div>`;
+    }
+    piiResults.innerHTML = html;
+    piiSummary.textContent = `${entries.length} PII column(s) · ${pending} without a rule`;
+    piiApplyAllBtn.hidden = pending === 0;
+  }
+  function applyPiiSuggestion(col) {
+    const d = state.pii && state.pii[col]; if (!d) return;
+    const sug = d.type.suggest(col);
+    if (state.layout === 'preview') setLayout('split');
+    addStep(sug.kind, sug.params);
+    renderPii();
+  }
+
   function triggerDownload(buf, name, mime) {
     const blob = new Blob([buf], { type: mime });
     const url = URL.createObjectURL(blob);
@@ -1257,6 +1465,21 @@
   nextBtn.addEventListener('click', () => { state.page++; renderPreview().catch(e => console.error(e)); });
   exportBtn.addEventListener('click', exportCleaned);
   if (analyzeBtn) analyzeBtn.addEventListener('click', runAnalyze);
+  if (piiScanBtn) piiScanBtn.addEventListener('click', scanPII);
+  if (piiResults) piiResults.addEventListener('click', e => {
+    const b = e.target.closest('[data-pii-apply]'); if (!b) return;
+    applyPiiSuggestion(b.getAttribute('data-pii-apply'));
+  });
+  if (piiApplyAllBtn) piiApplyAllBtn.addEventListener('click', () => {
+    if (!state.pii) return;
+    const stepMap = columnStepMap();
+    for (const [col, d] of Object.entries(state.pii)) {
+      if (stepMap.has(col)) continue;
+      const sug = d.type.suggest(col);
+      addStep(sug.kind, sug.params);
+    }
+    renderPii();
+  });
   if (analyzeResults) analyzeResults.addEventListener('click', e => {
     const mb = e.target.closest('[data-mode]');
     if (mb) { analyzeMode = mb.getAttribute('data-mode'); renderAnalyze(); return; }
