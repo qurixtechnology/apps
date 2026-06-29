@@ -58,28 +58,34 @@
       pattern. Toggle between them; null and empty values are reported separately.
     </p>
 
-    <h3>Clean data (heuristic suggestions)</h3>
+    <h3>Clean &amp; anonymize (heuristic suggestions)</h3>
     <p>
-      Open <strong>Clean data</strong> and click <em>Suggest cleaning</em> to scan the data for common
-      quality issues and get ready-made cleaning steps. Detection runs locally on a sample plus a few
+      Open <strong>Clean &amp; anonymize</strong> and click <em>Scan data</em>. A single scan checks the
+      data for quality issues <em>and</em> for PII, and presents everything in one table — one row per
+      <strong>attribute (column)</strong>, with a <strong>Cleaning</strong> column and a
+      <strong>PII / sensitivity</strong> column, so you see all suggested rules at a glance and can
+      <em>Apply</em> them individually, or <em>Apply all suggestions</em> at once (cleaning first, then
+      anonymization). Whole-table fixes (e.g. exact duplicates) appear as a banner above the table.
+    </p>
+    <p>
+      The <strong>Cleaning</strong> suggestions run locally on a sample plus a few
       full-table aggregates and covers: <strong>stray whitespace</strong> (→ Trim),
       <strong>empty strings</strong> that should be NULL (→ Empty → NULL), <strong>numbers stored as
       text</strong> (→ Parse number, with the decimal separator auto-detected),
       <strong>dates stored as text</strong> (→ Parse date, with the format auto-detected),
       <strong>boolean-looking</strong> columns (→ Convert type), <strong>entirely empty
       columns</strong> (→ Drop column) and <strong>exact duplicate rows</strong> (→ Remove duplicates).
-      Each suggestion shows a <strong>confidence</strong> and a short reason. Click <em>Apply</em> for a
-      single step or <em>Apply all suggestions</em> to add them in a sensible order
-      (trim → empty→null → parse/convert → de-duplicate → drop). The live preview and per-step impact
-      panel show exactly what each step does — review before exporting.
+      Each suggestion shows a <strong>confidence</strong> and a short reason; <em>Apply all</em> adds
+      them in a sensible order (trim → empty→null → parse/convert → de-duplicate → drop). The live
+      preview and per-step impact panel show exactly what each step does — review before exporting.
     </p>
 
-    <h3>Scan for PII</h3>
+    <h3>PII detection</h3>
     <p>
-      <strong>Scan for PII</strong> builds on top of the cleaning: by default it samples the
-      <strong>cleaned</strong> data (toggle <em>Original / Cleaned</em>), so parsed dates, trimmed
-      strings and <code>'' → NULL</code> conversions make detection cleaner. Click <em>Scan for PII</em>
-      to find columns
+      The <strong>PII / sensitivity</strong> column builds on top of the cleaning: by default it samples
+      the <strong>cleaned</strong> data (toggle <em>Original / Cleaned</em> in the PII source switch), so
+      parsed dates, trimmed strings and <code>'' → NULL</code> conversions make detection cleaner. It
+      finds columns
       that likely contain personal data. Detection is two-stage and runs entirely locally: by
       <strong>column name</strong> (e.g. <code>email</code>, <code>telefon</code>, <code>iban</code>,
       <code>geburtsdatum</code>, <code>plz</code>) and by <strong>content</strong> — a sample of values

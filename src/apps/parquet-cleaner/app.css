@@ -340,7 +340,23 @@
   .pc-clean-conf.conf-medium { background: #4a2e10; color: #f5c98a; }
 }
 .pc-pii-source { flex-shrink: 0; }
-.pc-pii .pc-analyze-body .pc-add, .pc-clean .pc-analyze-body .pc-add { max-width: none; flex-wrap: wrap; align-items: center; }
+.pc-pii-srclabel { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.pc-review .pc-analyze-body .pc-add { max-width: none; flex-wrap: wrap; align-items: center; }
+
+/* Combined cleaning + PII review table */
+.rv-banner { display: flex; flex-wrap: wrap; gap: var(--qrx-s-3); margin-bottom: var(--qrx-s-3); }
+.rv-banner-item { font-size: 0.8125rem; display: inline-flex; align-items: center; gap: var(--qrx-s-2); }
+.rv-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.rv-table th, .rv-table td { text-align: left; padding: 6px var(--qrx-s-3); border-bottom: 1px solid var(--qrx-border); vertical-align: middle; }
+.rv-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--qrx-text-muted); }
+.rv-table tbody tr:hover { background: var(--qrx-bg-subtle); }
+.rv-col { font-family: var(--qrx-font-mono); font-weight: 600; color: var(--qrx-text); white-space: nowrap; }
+.rv-ty { white-space: nowrap; }
+.rv-none { color: var(--qrx-text-subtle); }
+.rv-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px; border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius); margin: 2px 4px 2px 0; white-space: nowrap; }
+.rv-chip.is-done { color: var(--qrx-success); border-color: transparent; background: transparent; font-weight: 600; }
+.rv-apply { padding: 1px 8px; }
+.rv-via { font-size: 0.7rem; color: var(--qrx-text-subtle); margin: 0 6px; }
 
 /* Export */
 .pc-export { display: flex; align-items: center; gap: var(--qrx-s-3); flex-wrap: wrap; }

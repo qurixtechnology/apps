@@ -44,14 +44,10 @@
   const pcLayout       = $('pcLayout');
   const expandAllBtn   = $('expandAllBtn');
   const collapseAllBtn = $('collapseAllBtn');
-  const piiScanBtn     = $('piiScanBtn');
-  const piiApplyAllBtn = $('piiApplyAllBtn');
-  const piiResults     = $('piiResults');
-  const piiSummary     = $('piiSummary');
-  const cleanScanBtn     = $('cleanScanBtn');
-  const cleanApplyAllBtn = $('cleanApplyAllBtn');
-  const cleanResults     = $('cleanResults');
-  const cleanSummary     = $('cleanSummary');
+  const reviewScanBtn     = $('reviewScanBtn');
+  const reviewApplyAllBtn = $('reviewApplyAllBtn');
+  const reviewResults     = $('reviewResults');
+  const reviewSummary     = $('reviewSummary');
 
   // ---- State ----
   const state = {
@@ -886,8 +882,7 @@
       await renderSummary(seq);
       if (seq !== state.seq) return;
       await renderPreview();
-      if (state.pii) renderPii();
-      if (state.clean) renderClean();
+      if (state.pii || state.clean) renderReview();
       setStatus('');
     } catch (err) {
       console.error(err);
@@ -1100,7 +1095,7 @@
       if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
       state.file = file; state.fileSize = file.size;
       state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null;
-      resetPii(); resetClean();
+      resetReview();
       const vname = `input_${Date.now()}_` + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       state.duckFile = vname;
       setStatus('Registering file…');
@@ -1132,7 +1127,7 @@
     state.page = 0; state.cleanedSig = null;
     dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
     if (analyzeResults) analyzeResults.innerHTML = '';
-    resetPii(); resetClean();
+    resetReview();
     filePicker.value = '';
     setStatus('');
   }
@@ -1281,10 +1276,8 @@
     for (const v of vals) { const t = v.replace(/[\s€$£%]/g, ''); const lc = t.lastIndexOf(','), ld = t.lastIndexOf('.'); if (lc < 0 && ld < 0) continue; if (lc > ld) g++; else u++; }
     return g >= u ? ',' : '.';
   }
-  async function cleanScan() {
-    if (!conn || !state.schema.length) return;
-    cleanScanBtn.disabled = true;
-    cleanResults.innerHTML = '<p class="pc-diff-note">Scanning columns…</p>';
+  async function computeClean() {
+    if (!conn || !state.schema.length) { state.clean = null; return; }
     try {
       let sample;
       try { sample = arrowRows(await conn.query('SELECT * FROM original USING SAMPLE 400 ROWS')); }
@@ -1342,54 +1335,18 @@
         }
       }
       state.clean = sugg;
-      renderClean();
     } catch (err) {
-      console.error(err);
-      cleanResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Scan failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`;
-    } finally {
-      cleanScanBtn.disabled = false;
+      console.error(err); state.clean = [];
     }
   }
   function cleanHandled(s) {
     return state.pipeline.some(st => st.kind === s.kind && (s.kind === 'dedupExact' || st.params.column === s.params.column));
   }
-  function resetClean() {
-    state.clean = null;
-    if (cleanResults) cleanResults.innerHTML = '';
-    if (cleanSummary) cleanSummary.textContent = '';
-    if (cleanApplyAllBtn) cleanApplyAllBtn.hidden = true;
-  }
-  function renderClean() {
-    const list = state.clean;
-    if (!list) { cleanResults.innerHTML = ''; cleanSummary.textContent = ''; cleanApplyAllBtn.hidden = true; return; }
-    if (!list.length) {
-      cleanResults.innerHTML = '<p class="pc-diff-note">No obvious cleaning issues found. This is a heuristic — review the data yourself too.</p>';
-      cleanSummary.textContent = ''; cleanApplyAllBtn.hidden = true; return;
-    }
-    let html = '', pending = 0;
-    for (const s of list) {
-      const handled = cleanHandled(s);
-      if (!handled) pending++;
-      const sdef = STEP_DEFS[s.kind];
-      html += `<div class="pc-pii-row ${handled ? 'is-handled' : ''}">`
-        + `<div class="pc-pii-col"><span class="pc-pii-name">${escapeHtml(s.target)}</span>`
-        + `<span class="pc-clean-conf conf-${s.confidence}">${CLEAN_CONF[s.confidence]}</span>`
-        + `<span class="pc-pii-type">${escapeHtml(s.reason)}</span></div>`
-        + `<div class="pc-pii-action">`
-        + (handled
-          ? `<span class="pc-pii-done">✓ added</span>`
-          : `<span class="pc-pii-suggest" title="Suggested step">→ ${escapeHtml(sdef.label)}</span><button type="button" class="qrx-btn qrx-btn-sm" data-clean-apply="${escapeAttr(s.key)}">Apply</button>`)
-        + `</div></div>`;
-    }
-    cleanResults.innerHTML = html;
-    cleanSummary.textContent = `${list.length} suggestion(s) · ${pending} not yet applied`;
-    cleanApplyAllBtn.hidden = pending === 0;
-  }
   function applyCleanSuggestion(key) {
     const s = state.clean && state.clean.find(x => x.key === key); if (!s) return;
     if (state.layout === 'preview') setLayout('split');
     addStep(s.kind, s.params);
-    renderClean();
+    renderReview();
   }
 
   // ---- PII / sensitive-data detection (heuristic: column name + content sample) ----
@@ -1498,17 +1455,8 @@
       name: /gehalt|salary|einkommen|income|\blohn\b|verdienst|bonus/i,
       suggest: c => ({ kind: 'numRound', params: { column: c, step: '1000' } }) },
   ];
-  function resetPii() {
-    state.pii = null;
-    if (piiResults) piiResults.innerHTML = '';
-    if (piiSummary) piiSummary.textContent = '';
-    if (piiApplyAllBtn) piiApplyAllBtn.hidden = true;
-    const k = $('sumPii'); if (k) k.textContent = '—';
-  }
-  async function scanPII() {
-    if (!conn || !state.schema.length) return;
-    piiScanBtn.disabled = true;
-    piiResults.innerHTML = '<p class="pc-diff-note">Scanning columns…</p>';
+  async function computePii() {
+    if (!conn || !state.schema.length) { state.pii = null; return; }
     try {
       const src = state.piiSource === 'original' ? 'original' : 'cleaned';
       const cols = arrowFields((await conn.query(`SELECT * FROM ${src} LIMIT 0`)).schema);
@@ -1535,58 +1483,85 @@
         if (found) det[name] = { type: found, via, conf };
       }
       state.pii = det;
-      renderPii();
       renderPreview().catch(e => console.error(e));
     } catch (err) {
-      console.error(err);
-      piiResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Scan failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`;
-    } finally {
-      piiScanBtn.disabled = false;
+      console.error(err); state.pii = {};
     }
-  }
-  function renderPii() {
-    const det = state.pii;
-    const k = $('sumPii');
-    if (!det) { piiResults.innerHTML = ''; piiSummary.textContent = ''; piiApplyAllBtn.hidden = true; if (k) k.textContent = '—'; return; }
-    const entries = Object.entries(det);
-    if (k) k.textContent = fmtN(entries.length);
-    if (!entries.length) {
-      piiResults.innerHTML = '<p class="pc-diff-note">No PII-looking columns detected. This is a heuristic — always sanity-check manually.</p>';
-      piiSummary.textContent = ''; piiApplyAllBtn.hidden = true; return;
-    }
-    const byLevel = { direct: [], quasi: [], sensitive: [] };
-    for (const [col, d] of entries) byLevel[d.type.level].push([col, d]);
-    let html = '', pending = 0;
-    for (const lvl of ['direct', 'quasi', 'sensitive']) {
-      const list = byLevel[lvl]; if (!list.length) continue;
-      const L = PII_LEVELS[lvl];
-      html += `<div class="pc-pii-group"><div class="pc-pii-grouphead"><span class="pii-badge ${L.cls}">${escapeHtml(L.label)}</span> <span class="muted">${list.length} column(s)</span></div>`;
-      for (const [col, d] of list) {
-        const handled = columnAnonymized(col);
-        if (!handled) pending++;
-        const sug = d.type.suggest(col), sdef = STEP_DEFS[sug.kind];
-        html += `<div class="pc-pii-row ${handled ? 'is-handled' : ''}">`
-          + `<div class="pc-pii-col"><span class="pc-pii-name">${escapeHtml(col)}</span>`
-          + `<span class="pc-pii-type">${escapeHtml(d.type.label)}</span>`
-          + `<span class="pc-pii-via">${d.via === 'content' ? 'by content · ' + Math.round(d.conf * 100) + '%' : 'by name'}</span></div>`
-          + `<div class="pc-pii-action">`
-          + (handled
-            ? `<span class="pc-pii-done">✓ rule added</span>`
-            : `<span class="pc-pii-suggest" title="Suggested rule">→ ${escapeHtml(sdef.label)}</span><button type="button" class="qrx-btn qrx-btn-sm" data-pii-apply="${escapeAttr(col)}">Apply</button>`)
-          + `</div></div>`;
-      }
-      html += `</div>`;
-    }
-    piiResults.innerHTML = html;
-    piiSummary.textContent = `${entries.length} PII column(s) · ${pending} without a rule`;
-    piiApplyAllBtn.hidden = pending === 0;
   }
   function applyPiiSuggestion(col) {
     const d = state.pii && state.pii[col]; if (!d) return;
     const sug = d.type.suggest(col);
     if (state.layout === 'preview') setLayout('split');
     addStep(sug.kind, sug.params);
-    renderPii();
+    renderReview();
+  }
+  // ---- Combined cleaning + PII review table ----
+  async function scanData() {
+    if (!conn || !state.schema.length) return;
+    reviewScanBtn.disabled = true;
+    reviewResults.innerHTML = '<p class="pc-diff-note">Scanning data…</p>';
+    try { await computeClean(); await computePii(); renderReview(); }
+    catch (err) { console.error(err); reviewResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Scan failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`; }
+    finally { reviewScanBtn.disabled = false; }
+  }
+  function resetReview() {
+    state.clean = null; state.pii = null;
+    if (reviewResults) reviewResults.innerHTML = '';
+    if (reviewSummary) reviewSummary.textContent = '';
+    if (reviewApplyAllBtn) reviewApplyAllBtn.hidden = true;
+    const k = $('sumPii'); if (k) k.textContent = '—';
+  }
+  function renderReview() {
+    const k = $('sumPii');
+    if (!state.clean && !state.pii) { reviewResults.innerHTML = ''; reviewSummary.textContent = ''; reviewApplyAllBtn.hidden = true; if (k) k.textContent = '—'; return; }
+    const clean = state.clean || [], pii = state.pii || {};
+    const tableSugs = clean.filter(s => s.target === '(all rows)');
+    const colClean = new Map();
+    for (const s of clean) { if (s.target === '(all rows)') continue; if (!colClean.has(s.target)) colClean.set(s.target, []); colClean.get(s.target).push(s); }
+    const piiCols = Object.keys(pii);
+    if (k) k.textContent = fmtN(piiCols.length);
+    const names = new Set([...colClean.keys(), ...piiCols]);
+    const ordered = state.schema.map(c => c.name).filter(n => names.has(n));
+    for (const n of names) if (!ordered.includes(n)) ordered.push(n);
+    const schemaCol = name => state.schema.find(x => x.name === name);
+    let pending = 0;
+    const cleanChip = s => {
+      const handled = cleanHandled(s); if (!handled) pending++;
+      const sdef = STEP_DEFS[s.kind];
+      return handled
+        ? `<span class="rv-chip is-done" title="${escapeAttr(s.reason)}">✓ ${escapeHtml(sdef.label)}</span>`
+        : `<span class="rv-chip" title="${escapeAttr(s.reason)}"><span class="pc-clean-conf conf-${s.confidence}">${CLEAN_CONF[s.confidence]}</span>${escapeHtml(sdef.label)} <button type="button" class="qrx-btn qrx-btn-sm rv-apply" data-clean-apply="${escapeAttr(s.key)}">Apply</button></span>`;
+    };
+    const piiCellHtml = (col, d) => {
+      const handled = columnAnonymized(col); if (!handled) pending++;
+      const L = PII_LEVELS[d.type.level], sug = d.type.suggest(col), sdef = STEP_DEFS[sug.kind];
+      const tag = `<span class="pii-tag ${L.cls}" title="${escapeAttr(L.label + ' · detected ' + (d.via === 'content' ? 'by content' : 'by name'))}">${escapeHtml(d.type.label)}</span>`;
+      const via = `<span class="rv-via">${d.via === 'content' ? Math.round(d.conf * 100) + '%' : 'name'}</span>`;
+      return handled
+        ? `${tag}${via} <span class="rv-chip is-done">✓ ${escapeHtml(sdef.label)}</span>`
+        : `${tag}${via} <span class="rv-chip"><button type="button" class="qrx-btn qrx-btn-sm rv-apply" data-pii-apply="${escapeAttr(col)}">${escapeHtml(sdef.label)}</button></span>`;
+    };
+    let body = '';
+    for (const col of ordered) {
+      const sc = schemaCol(col);
+      const tyBadge = sc ? `<span class="type-badge ${sc.typeClass}">${escapeHtml(sc.type)}</span>` : '';
+      const cc = (colClean.get(col) || []).map(cleanChip).join(' ') || '<span class="rv-none">—</span>';
+      const d = pii[col];
+      const pc = d ? piiCellHtml(col, d) : '<span class="rv-none">—</span>';
+      body += `<tr><td class="rv-col">${escapeHtml(col)}</td><td class="rv-ty">${tyBadge}</td><td>${cc}</td><td>${pc}</td></tr>`;
+    }
+    const banner = tableSugs.length
+      ? `<div class="rv-banner">${tableSugs.map(s => `<span class="rv-banner-item"><strong>Whole table:</strong> ${cleanChip(s)}</span>`).join('')}</div>`
+      : '';
+    if (!ordered.length && !tableSugs.length) {
+      reviewResults.innerHTML = '<p class="pc-diff-note">No cleaning issues or PII detected. This is a heuristic — review the data yourself too.</p>';
+      reviewSummary.textContent = ''; reviewApplyAllBtn.hidden = true; return;
+    }
+    reviewResults.innerHTML = banner
+      + `<table class="rv-table"><thead><tr><th>Attribute</th><th>Type</th><th>Cleaning</th><th>PII / sensitivity</th></tr></thead><tbody>${body}</tbody></table>`;
+    const totalSug = clean.length + piiCols.length;
+    reviewSummary.textContent = `${totalSug} suggestion(s) · ${pending} not yet applied`;
+    reviewApplyAllBtn.hidden = pending === 0;
   }
 
   function triggerDownload(buf, name, mime) {
@@ -1619,38 +1594,21 @@
   nextBtn.addEventListener('click', () => { state.page++; renderPreview().catch(e => console.error(e)); });
   exportBtn.addEventListener('click', exportCleaned);
   if (analyzeBtn) analyzeBtn.addEventListener('click', runAnalyze);
-  if (cleanScanBtn) cleanScanBtn.addEventListener('click', cleanScan);
-  if (cleanResults) cleanResults.addEventListener('click', e => {
-    const b = e.target.closest('[data-clean-apply]'); if (!b) return;
-    applyCleanSuggestion(b.getAttribute('data-clean-apply'));
+  if (reviewScanBtn) reviewScanBtn.addEventListener('click', scanData);
+  if (reviewResults) reviewResults.addEventListener('click', e => {
+    const ca = e.target.closest('[data-clean-apply]'); if (ca) { applyCleanSuggestion(ca.getAttribute('data-clean-apply')); return; }
+    const pa = e.target.closest('[data-pii-apply]'); if (pa) { applyPiiSuggestion(pa.getAttribute('data-pii-apply')); return; }
   });
-  if (cleanApplyAllBtn) cleanApplyAllBtn.addEventListener('click', () => {
-    if (!state.clean) return;
-    for (const s of [...state.clean].sort((a, b) => a.order - b.order)) {
-      if (cleanHandled(s)) continue;
-      addStep(s.kind, s.params);
-    }
-    renderClean();
+  if (reviewApplyAllBtn) reviewApplyAllBtn.addEventListener('click', () => {
+    if (state.clean) for (const s of [...state.clean].sort((a, b) => a.order - b.order)) { if (!cleanHandled(s)) addStep(s.kind, s.params); }
+    if (state.pii) for (const [col, d] of Object.entries(state.pii)) { if (!columnAnonymized(col)) { const sug = d.type.suggest(col); addStep(sug.kind, sug.params); } }
+    renderReview();
   });
-  document.querySelectorAll('.pc-pii-source [data-pii-src]').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.pc-pii-source [data-pii-src]').forEach(btn => btn.addEventListener('click', async () => {
     state.piiSource = btn.getAttribute('data-pii-src');
     document.querySelectorAll('.pc-pii-source [data-pii-src]').forEach(b => b.classList.toggle('is-active', b === btn));
-    if (state.pii) scanPII();
+    if (state.pii) { await computePii(); renderReview(); }
   }));
-  if (piiScanBtn) piiScanBtn.addEventListener('click', scanPII);
-  if (piiResults) piiResults.addEventListener('click', e => {
-    const b = e.target.closest('[data-pii-apply]'); if (!b) return;
-    applyPiiSuggestion(b.getAttribute('data-pii-apply'));
-  });
-  if (piiApplyAllBtn) piiApplyAllBtn.addEventListener('click', () => {
-    if (!state.pii) return;
-    for (const [col, d] of Object.entries(state.pii)) {
-      if (columnAnonymized(col)) continue;
-      const sug = d.type.suggest(col);
-      addStep(sug.kind, sug.params);
-    }
-    renderPii();
-  });
   if (analyzeResults) analyzeResults.addEventListener('click', e => {
     const mb = e.target.closest('[data-mode]');
     if (mb) { analyzeMode = mb.getAttribute('data-mode'); renderAnalyze(); return; }
