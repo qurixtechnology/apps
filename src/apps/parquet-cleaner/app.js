@@ -247,6 +247,28 @@
     return `${N}[((${rk} - 1) % ${nn}) + 1] || ' ' || ${Fo}[(CAST(floor((${rk} - 1) / ${nn}) AS BIGINT) % ${nfm}) + 1]`
       + ` || CASE WHEN ${rk} > ${cap} THEN ' ' || CAST(${rk} AS VARCHAR) ELSE '' END`;
   }
+  // Collision-free generators for structural categories (injective in rk → distinct
+  // entity → distinct value), so the consistent engine can also handle email/phone/zip/street.
+  const STRUCT_CATS = ['email', 'phone', 'zip', 'street'];
+  const STRUCT_BUCKET = { email: 'weitere@example.org', phone: '+49 000 0000000', zip: '00000', street: 'Sammelstraße 0' };
+  const STRUCT_LABEL = {
+    email(rk) {
+      const F = listLit(FK.firstName), L = listLit(FK.lastName), D = listLit(FK.domain);
+      const nf = FK.firstName.length, nl = FK.lastName.length, nd = FK.domain.length, cap = nf * nl;
+      return `lower(${F}[((${rk} - 1) % ${nf}) + 1]) || '.' || lower(${L}[(CAST(floor((${rk} - 1) / ${nf}) AS BIGINT) % ${nl}) + 1])`
+        + ` || CASE WHEN ${rk} > ${cap} THEN CAST(${rk} AS VARCHAR) ELSE '' END || '@' || ${D}[((${rk} - 1) % ${nd}) + 1]`;
+    },
+    phone(rk) { return `'+49 ' || lpad(CAST(100 + ((${rk} - 1) % 900) AS VARCHAR), 3, '0') || ' ' || lpad(CAST(${rk} AS VARCHAR), 7, '0')`; },
+    zip(rk) { return `lpad(CAST(${rk} AS VARCHAR), 5, '0')`; },
+    street(rk) {
+      const S = listLit(FK.street), ns = FK.street.length;
+      return `${S}[((${rk} - 1) % ${ns}) + 1] || ' ' || CAST(CAST(floor((${rk} - 1) / ${ns}) AS BIGINT) + 1 AS VARCHAR)`;
+    },
+  };
+  function structLabelCase(category, k) {
+    const label = STRUCT_LABEL[category]('rk');
+    return k > 0 ? `CASE WHEN cnt < ${k} THEN '${sqlEscape(STRUCT_BUCKET[category])}' ELSE ${label} END` : label;
+  }
   function pseudCase(type, k) {
     const person = personLabel('rk'), org = orgLabel('rk');
     const isOrg = `regexp_matches(v, '${ORG_RE}')`, isAuth = `regexp_matches(v, '${AUTH_RE}')`;
@@ -262,26 +284,45 @@
   // (GROUP BY partner) are preserved exactly; rare entities (< k) collapse.
   function pseudoBuild(inputSql, p, salt, what) {
     const col = id(p.column), k = Number(p.k) || 0, type = p.entityType || 'auto';
-    const cte = `WITH __map AS (SELECT v, cnt, rk, ${pseudCase(type, k)} AS pseud FROM (`
+    const struct = STRUCT_CATS.includes(p.category);
+    const labelCase = struct ? structLabelCase(p.category, k) : pseudCase(type, k);
+    const collapsedCond = struct ? `pseud = '${sqlEscape(STRUCT_BUCKET[p.category])}'` : `pseud LIKE 'Weitere %(Sammel)'`;
+    const cte = `WITH __map AS (SELECT v, cnt, rk, ${labelCase} AS pseud FROM (`
       + `SELECT ${col} AS v, count(*) AS cnt, dense_rank() OVER (ORDER BY hash(CAST(${col} AS VARCHAR) || '${salt}')) AS rk`
       + ` FROM (${inputSql}) WHERE ${col} IS NOT NULL GROUP BY ${col}))`;
     if (what === 'compile')
       return `${cte} SELECT s.* REPLACE (CASE WHEN s.${col} IS NULL THEN NULL ELSE m.pseud END AS ${col}) FROM (${inputSql}) s LEFT JOIN __map m ON s.${col} = m.v`;
     if (what === 'count')
-      return `${cte} SELECT (SELECT count(*) FROM __map) AS entities, (SELECT count(*) FROM __map WHERE pseud LIKE 'Weitere %(Sammel)') AS collapsed, SUM(CASE WHEN s.${col} IS NOT NULL AND m.pseud IS DISTINCT FROM s.${col} THEN 1 ELSE 0 END) AS changed, COUNT(*) AS total FROM (${inputSql}) s LEFT JOIN __map m ON s.${col} = m.v`;
+      return `${cte} SELECT (SELECT count(*) FROM __map) AS entities, (SELECT count(*) FROM __map WHERE ${collapsedCond}) AS collapsed, SUM(CASE WHEN s.${col} IS NOT NULL AND m.pseud IS DISTINCT FROM s.${col} THEN 1 ELSE 0 END) AS changed, COUNT(*) AS total FROM (${inputSql}) s LEFT JOIN __map m ON s.${col} = m.v`;
     return `${cte} SELECT CAST(s.${col} AS VARCHAR) AS b, CAST(m.pseud AS VARCHAR) AS a, CASE WHEN s.${col} IS NULL THEN 'noeffect' WHEN m.pseud IS DISTINCT FROM s.${col} THEN 'ok' ELSE 'noeffect' END AS cls FROM (${inputSql}) s LEFT JOIN __map m ON s.${col} = m.v LIMIT 60`;
   }
   // The merged "synthetic data" rule has two engines. The consistent (collision-free,
   // k-anon, group-preserving) engine applies only to entity-style categories; everything
   // else uses the per-value Faker engine.
-  const SYNTH_CONSISTENT_CATS = ['fullName', 'company', 'autoEntity'];
+  const SYNTH_CONSISTENT_CATS = ['fullName', 'company', 'autoEntity', 'email', 'phone', 'zip', 'street'];
   function synthEngine(p) {
     if (p.category === 'autoEntity') return 'consistent';
     return (p.method === 'consistent' && SYNTH_CONSISTENT_CATS.includes(p.category)) ? 'consistent' : 'faker';
   }
   function pseudoParams(p) {
     const entityType = p.category === 'company' ? 'org' : (p.category === 'autoEntity' ? 'auto' : 'person');
-    return { column: p.column, entityType, k: p.k != null ? p.k : '5' };
+    return { column: p.column, entityType, k: p.k != null ? p.k : '5', category: p.category };
+  }
+  // Method options depend on the category: the consistent (collision-free, k-anon)
+  // engine only generates entity names, so it is offered only for those categories.
+  function synthMethods(category) {
+    // Auto entity has no per-value Faker generator → only the consistent engine applies.
+    if (category === 'autoEntity') return [['consistent', 'Consistent & collision-free (k-anon)']];
+    const opts = [];
+    if (SYNTH_CONSISTENT_CATS.includes(category)) opts.push(['consistent', 'Consistent & collision-free (k-anon)']);
+    opts.push(['det', 'Deterministic (per value)'], ['rand', 'Random (per value)']);
+    return opts;
+  }
+  function synthMethodsHtml(p) {
+    const opts = synthMethods(p.category);
+    let meth = p.method;
+    if (!opts.some(([v]) => v === meth)) meth = opts[0][0];
+    return opts.map(([v, l]) => `<option value="${v}" ${meth === v ? 'selected' : ''}>${l}</option>`).join('');
   }
 
   const STEP_DEFS = {
@@ -778,17 +819,15 @@
           + `<div class="pc-diff-note">Replaces values with <code>sha256(value + salt)</code> (deterministic). NULLs stay NULL. Set a shared salt above for consistent pseudonyms.</div>`;
       case 'synth': {
         const cats = [['fullName', 'Full name'], ['firstName', 'First name'], ['lastName', 'Last name'], ['company', 'Company'], ['email', 'Email (structure)'], ['phone', 'Phone (structure)'], ['city', 'City'], ['country', 'Country'], ['street', 'Street + no.'], ['zip', 'ZIP (structure)'], ['autoEntity', 'Auto entity (person / org)']];
-        const methods = [['consistent', 'Consistent & collision-free (k-anon)'], ['det', 'Deterministic (per value)'], ['rand', 'Random (per value)']];
-        const meth = p.method || 'consistent';
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>What to generate</label><select class="qrx-select" data-step="${sid}" data-field="category">`
           + cats.map(([v, l]) => `<option value="${v}" ${p.category === v ? 'selected' : ''}>${l}</option>`).join('')
           + `</select></div></div>`
           + `<div class="pc-row"><div class="pc-field"><label>Method</label><select class="qrx-select" data-step="${sid}" data-field="method">`
-          + methods.map(([v, l]) => `<option value="${v}" ${meth === v ? 'selected' : ''}>${l}</option>`).join('')
+          + synthMethodsHtml(p)
           + `</select></div>`
           + `<div class="pc-field" id="kwrap-${sid}" ${synthEngine(p) === 'consistent' ? '' : 'hidden'}><label>Collapse rare (&lt; k, 0 = off)</label><input class="qrx-input" data-step="${sid}" data-field="k" type="number" min="0" value="${escapeAttr(p.k != null ? p.k : '5')}"></div></div>`
-          + `<div class="pc-diff-note">Replaces values with realistic synthetic data; NULLs stay NULL. <strong>Consistent &amp; collision-free</strong> (Full name / Company / Auto entity): each distinct entity → one unique pseudonym, so <code>GROUP BY</code> totals stay exact; entities seen fewer than <strong>k</strong> times collapse into a “Weitere … (Sammel)” bucket. <strong>Deterministic</strong>: same input → same fake (per value, may collide). <strong>Random</strong>: every row independent. Consistent mode applies to Full name / Company / Auto entity only — other categories use deterministic.</div>`;
+          + `<div class="pc-diff-note">Replaces values with realistic synthetic data; NULLs stay NULL. <strong>Consistent &amp; collision-free</strong>: each distinct value → one unique pseudonym, so <code>GROUP BY</code> totals stay exact; values seen fewer than <strong>k</strong> times collapse into a shared bucket. <strong>Deterministic</strong>: same input → same fake (per value, may collide). <strong>Random</strong>: every row independent. Consistent mode is available for Full name, Company, Auto entity, Email, Phone, ZIP and Street (it needs a large enough value space); First/Last name, City and Country use deterministic.</div>`;
       }
       case 'shuffle':
         return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
@@ -1822,7 +1861,15 @@
         const fw = $(`fmtwrap-${sid}`);
         if (fw) fw.hidden = !isTemporalType(el.value);
       }
-      // show/hide the k field for the synth rule (only the consistent engine uses it)
+      // synth: rebuild the method list when the category changes (consistent is only
+      // offered for entity categories), keep a valid method, and toggle the k field.
+      if (step.kind === 'synth' && el.dataset.field === 'category') {
+        const opts = synthMethods(el.value);
+        if (!opts.some(([v]) => v === step.params.method)) step.params.method = opts[0][0];
+        const msel = document.querySelector(`.pc-step[data-card="${sid}"] [data-field="method"]`);
+        if (msel) msel.innerHTML = synthMethodsHtml(step.params);
+        if (titleEl) titleEl.innerHTML = stepTitle(step);
+      }
       if (step.kind === 'synth' && (el.dataset.field === 'method' || el.dataset.field === 'category')) {
         const kw = $(`kwrap-${sid}`);
         if (kw) kw.hidden = synthEngine(step.params) !== 'consistent';

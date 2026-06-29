@@ -175,17 +175,20 @@
           <em>Auto entity</em>) and a <em>method</em>:
           <ul>
             <li><strong>Consistent &amp; collision-free (k-anon)</strong> — the analytics-preserving
-                choice for entity columns (Full name / Company / Auto entity). Each distinct entity maps
-                to <em>one</em> stable, collision-free pseudonym, so <code>GROUP BY</code> partner totals
-                stay exact; type-aware (Person → person name, Organization → “… GmbH/AG”, Authority kept
-                as-is). The <strong>k</strong> parameter merges entities seen fewer than k times into a
-                “Weitere … (Sammel)” bucket so no individual is singled out; a salted ordering makes the
-                mapping non-guessable.</li>
+                choice. Each distinct value maps to <em>one</em> stable, collision-free pseudonym (via a
+                salted <code>dense_rank</code>), so <code>GROUP BY</code> totals stay exact and join keys
+                are preserved. For Full name / Company / Auto entity it is type-aware (Person → person
+                name, Organization → “… GmbH/AG”, Authority kept as-is); for <em>Email, Phone, ZIP,
+                Street</em> it generates collision-free values of that shape (e.g.
+                <code>anna.mueller@example.org</code>, <code>00001</code>). The <strong>k</strong>
+                parameter merges values seen fewer than k times into a shared “Sammel” bucket so no
+                individual is singled out; <code>k = 0</code> (or <code>1</code>) disables bucketing.</li>
             <li><strong>Deterministic</strong> — per value, same input → same fake (joins kept, but two
                 different values may collide). <strong>Random</strong> — every row independent. Example:
                 <code>Thomas Müller → Fritz Schmidt</code>.</li>
           </ul>
-          Consistent mode applies to Full name / Company / Auto entity; other categories use
+          Consistent mode needs a large enough value space, so it is offered for Full name, Company,
+          Auto entity, Email, Phone, ZIP and Street; First/Last name, City and Country use
           deterministic.</li>
       <li><strong>Coarsen amounts (sum-preserving)</strong> — rounds an amount column to remove unique
           value fingerprints (e.g. exact salaries) while keeping the <strong>exact sum within each
