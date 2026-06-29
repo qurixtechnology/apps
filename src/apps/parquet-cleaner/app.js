@@ -271,6 +271,18 @@
       return `${cte} SELECT (SELECT count(*) FROM __map) AS entities, (SELECT count(*) FROM __map WHERE pseud LIKE 'Weitere %(Sammel)') AS collapsed, SUM(CASE WHEN s.${col} IS NOT NULL AND m.pseud IS DISTINCT FROM s.${col} THEN 1 ELSE 0 END) AS changed, COUNT(*) AS total FROM (${inputSql}) s LEFT JOIN __map m ON s.${col} = m.v`;
     return `${cte} SELECT CAST(s.${col} AS VARCHAR) AS b, CAST(m.pseud AS VARCHAR) AS a, CASE WHEN s.${col} IS NULL THEN 'noeffect' WHEN m.pseud IS DISTINCT FROM s.${col} THEN 'ok' ELSE 'noeffect' END AS cls FROM (${inputSql}) s LEFT JOIN __map m ON s.${col} = m.v LIMIT 60`;
   }
+  // The merged "synthetic data" rule has two engines. The consistent (collision-free,
+  // k-anon, group-preserving) engine applies only to entity-style categories; everything
+  // else uses the per-value Faker engine.
+  const SYNTH_CONSISTENT_CATS = ['fullName', 'company', 'autoEntity'];
+  function synthEngine(p) {
+    if (p.category === 'autoEntity') return 'consistent';
+    return (p.method === 'consistent' && SYNTH_CONSISTENT_CATS.includes(p.category)) ? 'consistent' : 'faker';
+  }
+  function pseudoParams(p) {
+    const entityType = p.category === 'company' ? 'org' : (p.category === 'autoEntity' ? 'auto' : 'person');
+    return { column: p.column, entityType, k: p.k != null ? p.k : '5' };
+  }
 
   const STEP_DEFS = {
     cast: {
@@ -368,12 +380,14 @@
       compile(src, p, c) { return this.complete(p) ? colReplace(src, p.column, this.cellExpr(p, c)) : src; },
       title: () => 'Hash / pseudonymize',
     },
-    faker: {
-      label: 'Faker — synthetic value', group: 'anon', impact: 'cell',
+    // Merged "synthetic data" rule: Faker (per-value) + consistent entity pseudonym
+    // (collision-free, k-anon) engines behind one category + method selector.
+    synth: {
+      label: 'Replace with synthetic data', group: 'anon', impact: 'cell',
       complete: p => !!p.column && !!p.category,
-      defaults: () => ({ column: firstCol(), category: 'fullName', mode: 'det' }),
+      defaults: () => ({ column: firstCol(), category: 'fullName', method: 'consistent', k: '5' }),
       cellExpr(p, c) {
-        const col = id(p.column), salt = sqlEscape((c && c.salt) || ''), mode = p.mode === 'rand' ? 'rand' : 'det';
+        const col = id(p.column), salt = sqlEscape((c && c.salt) || ''), mode = p.method === 'rand' ? 'rand' : 'det';
         const pick = (suf, arr) => `${listLit(arr)}[${rndIdx(col, salt, suf, arr.length, mode)} + 1]`;
         let v;
         switch (p.category) {
@@ -390,8 +404,14 @@
         }
         return `CASE WHEN ${col} IS NULL THEN NULL ELSE ${v} END`;
       },
-      compile(src, p, c) { return this.complete(p) ? colReplace(src, p.column, this.cellExpr(p, c)) : src; },
-      title: p => `Faker · ${p.category || ''}`,
+      compile(src, p, c) {
+        if (!this.complete(p)) return src;
+        if (synthEngine(p) === 'consistent') return pseudoBuild(src, pseudoParams(p), sqlEscape((c && c.salt) || ''), 'compile');
+        return colReplace(src, p.column, this.cellExpr(p, c));
+      },
+      title: p => synthEngine(p) === 'consistent'
+        ? `Pseudonymize · ${pseudoParams(p).entityType}`
+        : `Synthetic · ${p.category || ''}`,
     },
     shuffle: {
       label: 'Shuffle / bootstrap', group: 'anon', impact: 'shuffle',
@@ -443,13 +463,6 @@
       },
       compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p)) : src; },
       title: p => `Parse date → ${p.target || 'DATE'}${p.generalize && p.generalize !== 'none' ? ' · ' + p.generalize : ''}`,
-    },
-    pseudoEntity: {
-      label: 'Pseudonymize entity (consistent)', group: 'anon', impact: 'pseudo',
-      complete: p => !!p.column,
-      defaults: () => ({ column: firstCol(), entityType: 'auto', k: '5' }),
-      compile(src, p, c) { return this.complete(p) ? pseudoBuild(src, p, sqlEscape((c && c.salt) || ''), 'compile') : src; },
-      title: p => `Pseudonymize · ${p.entityType || 'auto'}`,
     },
     coarsen: {
       label: 'Coarsen amounts (sum-preserving)', group: 'anon', impact: 'coarsen',
@@ -554,6 +567,11 @@
   async function computeImpact(step, index) {
     const def = STEP_DEFS[step.kind];
     const inputSql = compilePipeline(index);
+    // merged synth rule using the consistent (pseudonym) engine → pseudo impact
+    if (step.kind === 'synth' && synthEngine(step.params) === 'consistent') {
+      const r = (await conn.query(pseudoBuild(inputSql, pseudoParams(step.params), sqlEscape(ctx().salt || ''), 'count'))).toArray()[0];
+      return { kind: 'pseudo', entities: Number(r.entities || 0), collapsed: Number(r.collapsed || 0), changed: Number(r.changed || 0), total: Number(r.total || 0) };
+    }
     if (def.impact === 'cast' || def.impact === 'extract') {
       const c = id(step.params.column), expr = def.safeExpr(step.params);
       const r = (await conn.query(`SELECT
@@ -651,8 +669,9 @@
         q = `SELECT CAST(s.${c} AS VARCHAR) AS b, CAST((${repl}) AS VARCHAR) AS a,
              CASE WHEN s.${c} IS NULL THEN 'noeffect' WHEN (${repl}) IS DISTINCT FROM s.${c} THEN 'ok' ELSE 'noeffect' END AS cls
              FROM ${shufFrom(inputSql, c)} LIMIT 60`;
-      } else if (def.impact === 'pseudo') {
-        q = pseudoBuild(inputSql, step.params, sqlEscape(ctx().salt || ''), 'sample');
+      } else if (def.impact === 'pseudo' || (step.kind === 'synth' && synthEngine(step.params) === 'consistent')) {
+        const pp = step.kind === 'synth' ? pseudoParams(step.params) : step.params;
+        q = pseudoBuild(inputSql, pp, sqlEscape(ctx().salt || ''), 'sample');
       } else {
         const expr = def.cellExpr(step.params, ctx());
         q = `SELECT CAST(${c} AS VARCHAR) AS b, CAST((${expr}) AS VARCHAR) AS a,
@@ -757,13 +776,20 @@
       case 'hash':
         return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-diff-note">Replaces values with <code>sha256(value + salt)</code> (deterministic). NULLs stay NULL. Set a shared salt above for consistent pseudonyms.</div>`;
-      case 'faker':
+      case 'synth': {
+        const cats = [['fullName', 'Full name'], ['firstName', 'First name'], ['lastName', 'Last name'], ['company', 'Company'], ['email', 'Email (structure)'], ['phone', 'Phone (structure)'], ['city', 'City'], ['country', 'Country'], ['street', 'Street + no.'], ['zip', 'ZIP (structure)'], ['autoEntity', 'Auto entity (person / org)']];
+        const methods = [['consistent', 'Consistent & collision-free (k-anon)'], ['det', 'Deterministic (per value)'], ['rand', 'Random (per value)']];
+        const meth = p.method || 'consistent';
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
-          + `<div class="pc-field"><label>Category</label><select class="qrx-select" data-step="${sid}" data-field="category">`
-          + [['fullName', 'Full name'], ['firstName', 'First name'], ['lastName', 'Last name'], ['city', 'City'], ['country', 'Country'], ['street', 'Street + no.'], ['company', 'Company'], ['email', 'Email (structure)'], ['phone', 'Phone (structure)'], ['zip', 'ZIP (structure)']].map(([v, l]) => `<option value="${v}" ${p.category === v ? 'selected' : ''}>${l}</option>`).join('')
+          + `<div class="pc-field"><label>What to generate</label><select class="qrx-select" data-step="${sid}" data-field="category">`
+          + cats.map(([v, l]) => `<option value="${v}" ${p.category === v ? 'selected' : ''}>${l}</option>`).join('')
           + `</select></div></div>`
-          + modeSelect(sid, p.mode)
-          + `<div class="pc-diff-note">Replaces values with realistic synthetic data, keeping the structure. <strong>Deterministic</strong>: same input → same fake value (joins kept). <strong>Random</strong>: every row independent (breaks linkage). NULLs stay NULL.</div>`;
+          + `<div class="pc-row"><div class="pc-field"><label>Method</label><select class="qrx-select" data-step="${sid}" data-field="method">`
+          + methods.map(([v, l]) => `<option value="${v}" ${meth === v ? 'selected' : ''}>${l}</option>`).join('')
+          + `</select></div>`
+          + `<div class="pc-field" id="kwrap-${sid}" ${synthEngine(p) === 'consistent' ? '' : 'hidden'}><label>Collapse rare (&lt; k, 0 = off)</label><input class="qrx-input" data-step="${sid}" data-field="k" type="number" min="0" value="${escapeAttr(p.k != null ? p.k : '5')}"></div></div>`
+          + `<div class="pc-diff-note">Replaces values with realistic synthetic data; NULLs stay NULL. <strong>Consistent &amp; collision-free</strong> (Full name / Company / Auto entity): each distinct entity → one unique pseudonym, so <code>GROUP BY</code> totals stay exact; entities seen fewer than <strong>k</strong> times collapse into a “Weitere … (Sammel)” bucket. <strong>Deterministic</strong>: same input → same fake (per value, may collide). <strong>Random</strong>: every row independent. Consistent mode applies to Full name / Company / Auto entity only — other categories use deterministic.</div>`;
+      }
       case 'shuffle':
         return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + modeSelect(sid, p.mode)
@@ -795,13 +821,6 @@
           + `<div class="pc-diff-note">Tokens: YYYY YY · MM (month) DD · HH (24h) hh (12h) mm (min) SS — or raw strptime like <code>%d.%m.%Y</code>. Empty = automatic ISO. Unparseable values become NULL (counted as failures). <strong>Generalize</strong> reduces the parsed date to the start of the month/quarter/year.</div>`
           + `</div>`;
       }
-      case 'pseudoEntity':
-        return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
-          + `<div class="pc-field"><label>Entity type</label><select class="qrx-select" data-step="${sid}" data-field="entityType">`
-          + [['auto', 'Auto-detect'], ['person', 'Person'], ['org', 'Organization'], ['authority', 'Authority (keep)']].map(([v, l]) => `<option value="${v}" ${p.entityType === v ? 'selected' : ''}>${l}</option>`).join('')
-          + `</select></div>`
-          + `<div class="pc-field"><label>Collapse rare (&lt; k, 0 = off)</label><input class="qrx-input" data-step="${sid}" data-field="k" type="number" min="0" value="${escapeAttr(p.k != null ? p.k : '5')}"></div></div>`
-          + `<div class="pc-diff-note">Consistent, collision-free pseudonyms (same entity → same value), so per-partner totals stay exact. Type-aware (Person/Organization keep their shape; Authorities kept). <strong>k</strong>: entities with fewer than k transactions are merged into a “Weitere … (Sammel)” bucket to prevent singling-out. Uses the salt above.</div>`;
       case 'coarsen':
         return `<div class="pc-row"><div class="pc-field"><label>Amount column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>Round to multiple of</label><input class="qrx-input" data-step="${sid}" data-field="step" type="number" min="0" step="any" value="${escapeAttr(p.step || '100')}"></div>`
@@ -961,7 +980,7 @@
   }
   // A step actually anonymizes a column (vs. plain structural cleaning like trim/parse).
   function isAnonStep(s) {
-    if (['hash', 'faker', 'shuffle', 'numNoise', 'numRound', 'pseudoEntity', 'coarsen'].includes(s.kind)) return true;
+    if (['hash', 'synth', 'shuffle', 'numNoise', 'numRound', 'coarsen'].includes(s.kind)) return true;
     if (s.kind === 'parseDate' && s.params.generalize && s.params.generalize !== 'none') return true;
     return false;
   }
@@ -1367,7 +1386,7 @@
     // -- content-detectable (strong signal) --
     { key: 'email', label: 'Email address', level: 'direct',
       name: /e[\W_]?mail/i, content: s => /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(s),
-      suggest: c => ({ kind: 'faker', params: { column: c, category: 'email', mode: 'det' } }) },
+      suggest: c => ({ kind: 'synth', params: { column: c, category: 'email', method: 'det' } }) },
     { key: 'iban', label: 'IBAN / bank account', level: 'direct',
       name: /\biban\b|\bbic\b|kontonummer|konto[\W_]?nr|account[\W_]?(no|number|nr)/i,
       content: s => /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s.replace(/\s+/g, '').toUpperCase()),
@@ -1384,7 +1403,7 @@
         const d = t.replace(/\D/g, '');
         return d.length >= 7 && d.length <= 15 && (/[+()\/\-\s]/.test(t) || t[0] === '0' || t[0] === '+');
       },
-      suggest: c => ({ kind: 'faker', params: { column: c, category: 'phone', mode: 'det' } }) },
+      suggest: c => ({ kind: 'synth', params: { column: c, category: 'phone', method: 'det' } }) },
     { key: 'creditcard', label: 'Credit card number', level: 'direct',
       name: /kreditkart|credit[\W_]?card|card[\W_]?(no|number)|kartennummer/i,
       content: s => { const d = s.replace(/[\s\-]/g, ''); return /^\d{13,19}$/.test(d) && luhn(d); },
@@ -1401,21 +1420,21 @@
     // aggregates exact while bucketing the rare long tail (k-anonymity). Checked first.
     { key: 'partyname', label: 'Business party / recipient', level: 'direct',
       name: /beg[uü]nstigt|empf[aä]nger|zahlungspflicht|\bpartner\b|inhaber|kontoinhaber|holder|lieferant|vendor|supplier|debitor|kreditor/i,
-      suggest: c => ({ kind: 'pseudoEntity', params: { column: c, entityType: 'auto', k: '5' } }) },
+      suggest: c => ({ kind: 'synth', params: { column: c, category: 'autoEntity', method: 'consistent', k: '5' } }) },
     // Plain person/customer name (mostly unique) → realistic fake name, deterministic.
     { key: 'personname', label: 'Person / customer name', level: 'direct',
       name: /(vor|nach|nick|spitz|familien)[\W_]?name|first[\W_]?name|last[\W_]?name|sur[\W_]?name|full[\W_]?name|name\b|kunde|customer[\W_]?name|ansprechpartner|kontaktperson/i,
       suggest: c => {
         const l = c.toLowerCase();
         const cat = /vor|first/.test(l) ? 'firstName' : (/nach|last|sur|familien/.test(l) ? 'lastName' : 'fullName');
-        return { kind: 'faker', params: { column: c, category: cat, mode: 'det' } };
+        return { kind: 'synth', params: { column: c, category: cat, method: 'det' } };
       } },
     { key: 'govid', label: 'Government / tax ID', level: 'direct',
       name: /\bssn\b|sozialvers|steuer[\W_]?(id|nr|nummer)|tax[\W_]?id|\bvat\b|ust[\W_]?id|personalausweis|\bausweis\b|reisepass|passport|\bnino\b/i,
       suggest: c => ({ kind: 'hash', params: { column: c } }) },
     { key: 'address', label: 'Street address', level: 'direct',
       name: /stra(ss|ß)e\b|\bstreet\b|adresse|address|anschrift|hausnummer/i,
-      suggest: c => ({ kind: 'faker', params: { column: c, category: 'street', mode: 'det' } }) },
+      suggest: c => ({ kind: 'synth', params: { column: c, category: 'street', method: 'det' } }) },
     { key: 'customerid', label: 'Customer / personal ID', level: 'direct',
       name: /^id$|kunden[\W_]?(id|nummer|nr)|customer[\W_]?(id|no|number)|personal[\W_]?nr|mitarbeiter[\W_]?(id|nr)|user[\W_]?id|benutzer[\W_]?id|patient[\W_]?(id|nr)/i,
       suggest: c => ({ kind: 'hash', params: { column: c } }) },
@@ -1425,10 +1444,10 @@
       suggest: c => ({ kind: 'parseDate', params: { column: c, target: 'DATE', generalize: 'year', formats: '' } }) },
     { key: 'zip', label: 'Postal code', level: 'quasi',
       name: /\bplz\b|postleitzahl|\bzip\b|postal[\W_]?code/i,
-      suggest: c => ({ kind: 'faker', params: { column: c, category: 'zip', mode: 'det' } }) },
+      suggest: c => ({ kind: 'synth', params: { column: c, category: 'zip', method: 'det' } }) },
     { key: 'city', label: 'City / place', level: 'quasi',
       name: /\bort\b|wohnort|\bstadt\b|\bcity\b|gemeinde|\btown\b/i,
-      suggest: c => ({ kind: 'faker', params: { column: c, category: 'city', mode: 'det' } }) },
+      suggest: c => ({ kind: 'synth', params: { column: c, category: 'city', method: 'det' } }) },
     { key: 'gender', label: 'Gender / salutation', level: 'quasi',
       name: /geschlecht|gender|\bsex\b|anrede|salutation/i,
       suggest: c => ({ kind: 'shuffle', params: { column: c, mode: 'det' } }) },
@@ -1437,7 +1456,7 @@
       suggest: c => ({ kind: 'numRound', params: { column: c, step: '5' } }) },
     { key: 'nationality', label: 'Nationality / origin', level: 'quasi',
       name: /nationalit|staatsang|staatsb[uü]rger|\bcountry\b|herkunft|ethni/i,
-      suggest: c => ({ kind: 'faker', params: { column: c, category: 'country', mode: 'det' } }) },
+      suggest: c => ({ kind: 'synth', params: { column: c, category: 'country', method: 'det' } }) },
     { key: 'marital', label: 'Marital status', level: 'quasi',
       name: /familienstand|marital/i,
       suggest: c => ({ kind: 'shuffle', params: { column: c, mode: 'det' } }) },
@@ -1678,7 +1697,7 @@
   const COL_MENU_GROUPS = [
     ['Convert / parse', ['cast', 'parseNumber', 'parseDate']],
     ['Clean text', ['trim', 'case', 'emptyToNull', 'regexReplace', 'regexExtract']],
-    ['Anonymize / pseudonymize', ['pseudoEntity', 'faker', 'hash', 'shuffle', 'numRound', 'numNoise', 'coarsen']],
+    ['Anonymize / pseudonymize', ['synth', 'hash', 'shuffle', 'numRound', 'numNoise', 'coarsen']],
     ['Column / structure', ['rename', 'drop', 'recalcSaldo']],
   ];
   function openColMenu(anchor, col) {
@@ -1731,6 +1750,11 @@
       if (el.dataset.field === 'toType') {
         const fw = $(`fmtwrap-${sid}`);
         if (fw) fw.hidden = !isTemporalType(el.value);
+      }
+      // show/hide the k field for the synth rule (only the consistent engine uses it)
+      if (step.kind === 'synth' && (el.dataset.field === 'method' || el.dataset.field === 'category')) {
+        const kw = $(`kwrap-${sid}`);
+        if (kw) kw.hidden = synthEngine(step.params) !== 'consistent';
       }
     }
     scheduleRecompute();

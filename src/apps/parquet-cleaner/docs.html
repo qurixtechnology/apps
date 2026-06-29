@@ -104,8 +104,9 @@
     </ul>
     <p>
       Each column comes with a <strong>suggested anonymization rule</strong> appropriate for its type
-      (e.g. email → Faker email, person name → Faker name, recurring business party → Pseudonymize
-      entity, IBAN → Hash, date of birth → Parse date + generalize to year, income → Round/bucket).
+      (e.g. email → Synthetic email, person name → Synthetic name, recurring business party →
+      Synthetic data in <em>consistent</em> mode, IBAN → Hash, date of birth → Parse date + generalize
+      to year, income → Round/bucket).
       Click <em>Apply</em> to add that step to the
       pipeline, or <em>Apply all suggestions</em> for every detected column at once. The detection is a
       heuristic starting point — always review the result before exporting.
@@ -168,23 +169,30 @@
       <code>hash(value + salt)</code>; randomness from a fresh draw per row (so each run differs).
     </p>
     <ul>
-      <li><strong>Pseudonymize entity (consistent, k-anon)</strong> — the analytics-preserving choice
-          for names/organizations. Each distinct entity maps to <em>one</em> stable, collision-free
-          synthetic value (so <code>GROUP BY</code> partner totals stay exact), type-aware
-          (Person → person name, Organization → “… GmbH/AG”, Authority kept as-is). The <strong>k</strong>
-          parameter merges entities with fewer than k transactions into a “Weitere … (Sammel)” bucket
-          so no individual can be singled out by uniqueness. A salted ordering makes the mapping
-          non-guessable. Preferred over plain Hash/Faker for the partner column.</li>
+      <li><strong>Replace with synthetic data (Faker / consistent)</strong> — replaces values with
+          realistic synthetic data while keeping the structure; NULLs stay NULL. Pick <em>what to
+          generate</em> (Full/First/Last name, Company, Email, Phone, City, Country, Street, ZIP, or
+          <em>Auto entity</em>) and a <em>method</em>:
+          <ul>
+            <li><strong>Consistent &amp; collision-free (k-anon)</strong> — the analytics-preserving
+                choice for entity columns (Full name / Company / Auto entity). Each distinct entity maps
+                to <em>one</em> stable, collision-free pseudonym, so <code>GROUP BY</code> partner totals
+                stay exact; type-aware (Person → person name, Organization → “… GmbH/AG”, Authority kept
+                as-is). The <strong>k</strong> parameter merges entities seen fewer than k times into a
+                “Weitere … (Sammel)” bucket so no individual is singled out; a salted ordering makes the
+                mapping non-guessable.</li>
+            <li><strong>Deterministic</strong> — per value, same input → same fake (joins kept, but two
+                different values may collide). <strong>Random</strong> — every row independent. Example:
+                <code>Thomas Müller → Fritz Schmidt</code>.</li>
+          </ul>
+          Consistent mode applies to Full name / Company / Auto entity; other categories use
+          deterministic.</li>
       <li><strong>Coarsen amounts (sum-preserving)</strong> — rounds an amount column to remove unique
           value fingerprints (e.g. exact salaries) while keeping the <strong>exact sum within each
           group</strong> (default: per category) — so category/monthly totals are unchanged. Run
           <strong>Recompute running balance</strong> afterwards to keep the saldo consistent.</li>
       <li><strong>Hash / pseudonymize</strong> — <code>sha256(value + salt)</code> (deterministic).
           Keep the salt secret; weak for small value ranges (e.g. gender) — use generalization there.</li>
-      <li><strong>Faker — synthetic values</strong> — replaces text with realistic fakes while keeping
-          the structure: categories <em>Full/First/Last name, City, Country, Street, Company</em> and
-          structure templates for <em>Email, Phone, ZIP</em>. Deterministic or random.
-          Example: <code>Thomas Müller → Fritz Schmidt</code>.</li>
       <li><strong>Shuffle / bootstrap</strong> — replaces each value with another value drawn from the
           same column. The column's distribution is preserved exactly; the row link is broken.
           Deterministic = stable mapping, Random = bootstrap. Works for numbers, dates and categories
