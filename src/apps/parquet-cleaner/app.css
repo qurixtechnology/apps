@@ -330,5 +330,17 @@
   .pii-tag.pii-sensitive { background: #2c1f4a; color: #cdb6f5; }
 }
 
+/* Clean-data suggestions (reuses .pc-pii-row layout) */
+.pc-clean-conf { font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; }
+.pc-clean-conf.conf-high   { background: #e8f7f1; color: #0f6f5a; }
+.pc-clean-conf.conf-medium { background: #fdf3e0; color: #b45f00; }
+.pc-clean-conf.conf-low    { background: var(--qrx-bg-muted); color: var(--qrx-text-muted); }
+@media (prefers-color-scheme: dark) {
+  .pc-clean-conf.conf-high   { background: #14392f; color: #8fe3c6; }
+  .pc-clean-conf.conf-medium { background: #4a2e10; color: #f5c98a; }
+}
+.pc-pii-source { flex-shrink: 0; }
+.pc-pii .pc-analyze-body .pc-add, .pc-clean .pc-analyze-body .pc-add { max-width: none; flex-wrap: wrap; align-items: center; }
+
 /* Export */
 .pc-export { display: flex; align-items: center; gap: var(--qrx-s-3); flex-wrap: wrap; }

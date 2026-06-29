@@ -46,16 +46,37 @@
         <div class="pc-kpi"><div class="pc-kpi-label">PII columns</div><div class="pc-kpi-value" id="sumPii">—</div></div>
       </div>
 
+      <!-- Heuristic data cleaning -->
+      <details class="qrx-card pc-analyze pc-clean" id="cleanCard">
+        <summary>
+          <span class="pc-analyze-title">Clean data</span>
+          <span class="pc-analyze-hint">scan for quality issues and suggest cleaning steps automatically</span>
+          <svg class="pc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>
+        </summary>
+        <div class="pc-analyze-body">
+          <div class="pc-add">
+            <button class="qrx-btn qrx-btn-primary" id="cleanScanBtn" type="button">Suggest cleaning</button>
+            <button class="qrx-btn" id="cleanApplyAllBtn" type="button" hidden>Apply all suggestions</button>
+            <span class="muted" id="cleanSummary"></span>
+          </div>
+          <div id="cleanResults"></div>
+        </div>
+      </details>
+
       <!-- PII / sensitive-data detection -->
       <details class="qrx-card pc-analyze pc-pii" id="piiCard">
         <summary>
-          <span class="pc-analyze-title">PII &amp; sensitive data</span>
-          <span class="pc-analyze-hint">scan columns by name + content, classify by sensitivity, apply suggested anonymization</span>
+          <span class="pc-analyze-title">Scan for PII</span>
+          <span class="pc-analyze-hint">classify columns by sensitivity and apply suggested anonymization — runs on the cleaned data</span>
           <svg class="pc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>
         </summary>
         <div class="pc-analyze-body">
           <div class="pc-add">
             <button class="qrx-btn qrx-btn-primary" id="piiScanBtn" type="button">Scan for PII</button>
+            <span class="pc-toggle pc-pii-source" role="group" aria-label="PII scan source">
+              <button class="qrx-btn qrx-btn-sm" data-pii-src="original" type="button">Original</button>
+              <button class="qrx-btn qrx-btn-sm is-active" data-pii-src="cleaned" type="button">Cleaned</button>
+            </span>
             <button class="qrx-btn" id="piiApplyAllBtn" type="button" hidden>Apply all suggestions</button>
             <span class="muted" id="piiSummary"></span>
           </div>

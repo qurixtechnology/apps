@@ -48,6 +48,10 @@
   const piiApplyAllBtn = $('piiApplyAllBtn');
   const piiResults     = $('piiResults');
   const piiSummary     = $('piiSummary');
+  const cleanScanBtn     = $('cleanScanBtn');
+  const cleanApplyAllBtn = $('cleanApplyAllBtn');
+  const cleanResults     = $('cleanResults');
+  const cleanSummary     = $('cleanSummary');
 
   // ---- State ----
   const state = {
@@ -63,6 +67,8 @@
     seq: 0,
     cleanedSig: null,
     pii: null,             // { colName: { type, via:'name'|'content', conf } } after a scan
+    piiSource: 'cleaned',  // 'original' | 'cleaned' — which view the PII scan samples
+    clean: null,           // [ { key, target, kind, params, reason, confidence, order } ] after a clean scan
   };
   let stepSeq = 0;
   const uid = () => 's' + (++stepSeq);
@@ -881,6 +887,7 @@
       if (seq !== state.seq) return;
       await renderPreview();
       if (state.pii) renderPii();
+      if (state.clean) renderClean();
       setStatus('');
     } catch (err) {
       console.error(err);
@@ -921,8 +928,7 @@
       if (!s.enabled || !s.impact) continue;
       if ((s.kind === 'dedupExact' || s.kind === 'dedupKeys') && s.impact.kind === 'rows') dupes += s.impact.removed;
       if (s.kind === 'cast' && s.impact.kind === 'cast') fails += s.impact.failed;
-      if (['hash', 'faker', 'shuffle', 'numNoise', 'numRound', 'pseudoEntity', 'coarsen'].includes(s.kind) && STEP_DEFS[s.kind].complete(s.params)) anon.add(s.params.column);
-      if (s.kind === 'parseDate' && s.params.generalize && s.params.generalize !== 'none' && STEP_DEFS.parseDate.complete(s.params)) anon.add(s.params.column);
+      if (isAnonStep(s) && STEP_DEFS[s.kind].complete(s.params)) anon.add(s.params.column);
     }
     $('sumRows').innerHTML = `${fmtN(state.rowCountOriginal)} <span class="pc-arrow">→</span> ${fmtN(rowsCleaned)}`;
     $('sumCols').innerHTML = `${fmtN(state.schema.length)} <span class="pc-arrow">→</span> ${fmtN(cols)}`;
@@ -957,6 +963,15 @@
       if (s.kind === 'rename' && s.params.newName) add(s.params.newName.trim(), 'renamed');
     }
     return m;
+  }
+  // A step actually anonymizes a column (vs. plain structural cleaning like trim/parse).
+  function isAnonStep(s) {
+    if (['hash', 'faker', 'shuffle', 'numNoise', 'numRound', 'pseudoEntity', 'coarsen'].includes(s.kind)) return true;
+    if (s.kind === 'parseDate' && s.params.generalize && s.params.generalize !== 'none') return true;
+    return false;
+  }
+  function columnAnonymized(col) {
+    return state.pipeline.some(s => s.enabled && s.params && s.params.column === col && isAnonStep(s) && STEP_DEFS[s.kind].complete(s.params));
   }
   function renderGrid(res) {
     const fields = arrowFields(res.schema), rows = arrowRows(res);
@@ -1085,7 +1100,7 @@
       if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
       state.file = file; state.fileSize = file.size;
       state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null;
-      resetPii();
+      resetPii(); resetClean();
       const vname = `input_${Date.now()}_` + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       state.duckFile = vname;
       setStatus('Registering file…');
@@ -1117,7 +1132,7 @@
     state.page = 0; state.cleanedSig = null;
     dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
     if (analyzeResults) analyzeResults.innerHTML = '';
-    resetPii();
+    resetPii(); resetClean();
     filePicker.value = '';
     setStatus('');
   }
@@ -1239,6 +1254,144 @@
     analyzeResults.innerHTML = html;
   }
 
+  // ---- Clean-data heuristics (structural quality → suggested cleaning steps) ----
+  const CLEAN_CONF = { high: 'High', medium: 'Medium', low: 'Low' };
+  function isTextType(t) { return /VARCHAR|CHAR|STRING|UTF8|TEXT/i.test(t || ''); }
+  function isDateLikeStr(s) {
+    return /^\d{4}-\d{1,2}-\d{1,2}([ T]\d{1,2}:\d{2}(:\d{2})?)?$/.test(s)
+      || /^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(s)
+      || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s);
+  }
+  function dateFormatOf(s) {
+    if (/^\d{4}-\d{1,2}-\d{1,2}[ T]\d{1,2}:\d{2}/.test(s)) return 'YYYY-MM-DD HH:mm:ss';
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) return 'YYYY-MM-DD';
+    if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(s)) return 'DD.MM.YYYY';
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) return 'MM/DD/YYYY';
+    return null;
+  }
+  const BOOL_WORDS = new Set(['true', 'false', 'yes', 'no', 'y', 'n', 'ja', 'nein', 't', 'f']);
+  function looksNumericStr(s) {
+    if (isDateLikeStr(s)) return false;
+    const t = s.replace(/[\s€$£%]/g, '');
+    return /^[-+]?[\d.,']*\d[\d.,']*$/.test(t);
+  }
+  function needsTrim(s) { return s !== s.trim().replace(/\s+/g, ' '); }
+  function decimalSepOf(vals) {
+    let g = 0, u = 0;
+    for (const v of vals) { const t = v.replace(/[\s€$£%]/g, ''); const lc = t.lastIndexOf(','), ld = t.lastIndexOf('.'); if (lc < 0 && ld < 0) continue; if (lc > ld) g++; else u++; }
+    return g >= u ? ',' : '.';
+  }
+  async function cleanScan() {
+    if (!conn || !state.schema.length) return;
+    cleanScanBtn.disabled = true;
+    cleanResults.innerHTML = '<p class="pc-diff-note">Scanning columns…</p>';
+    try {
+      let sample;
+      try { sample = arrowRows(await conn.query('SELECT * FROM original USING SAMPLE 400 ROWS')); }
+      catch (_) { sample = arrowRows(await conn.query('SELECT * FROM original LIMIT 400')); }
+      const sugg = [];
+      let uid2 = 0; const mk = (o) => { o.key = 'cl' + (++uid2); sugg.push(o); };
+      // table-level: exact duplicate rows
+      try {
+        const total = state.rowCountOriginal;
+        const distinct = Number((await conn.query('SELECT count(*) AS c FROM (SELECT DISTINCT * FROM original)')).toArray()[0].c);
+        if (total - distinct > 0) mk({ target: '(all rows)', kind: 'dedupExact', params: {}, reason: `${fmtN(total - distinct)} exact duplicate row(s)`, confidence: 'high', order: 5 });
+      } catch (_) {}
+      for (const col of state.schema) {
+        const name = col.name;
+        const raw = sample.map(r => r[name]);
+        const nonNull = raw.filter(v => v != null);
+        const strs = nonNull.map(v => cellText(v, col.type));
+        const nonEmpty = strs.filter(s => s.trim() !== '');
+        const nNull = raw.length - nonNull.length;
+        const nEmpty = strs.length - nonEmpty.length;
+        // entirely empty / all-null column → drop
+        if (raw.length >= 5 && nonEmpty.length === 0) {
+          mk({ target: name, kind: 'drop', params: { column: name }, reason: 'column is entirely null / empty', confidence: 'high', order: 6 });
+          continue;
+        }
+        if (!isTextType(col.type)) continue;     // typed columns need no text cleaning
+        const N = nonEmpty.length || 1;
+        // empty strings that should be NULL (≥2 to ignore a single all-empty row)
+        if (nEmpty >= 2 && nonEmpty.length > 0) mk({ target: name, kind: 'emptyToNull', params: { column: name }, reason: `${fmtN(nEmpty)} empty / whitespace-only cell(s) in sample`, confidence: 'medium', order: 2 });
+        // stray whitespace
+        const trimN = nonEmpty.filter(needsTrim).length;
+        if (trimN >= 2) mk({ target: name, kind: 'trim', params: { column: name }, reason: `${fmtN(trimN)} cell(s) with leading/trailing/double spaces`, confidence: 'medium', order: 1 });
+        // boolean-ish (must contain a non-digit boolean token, else it's just 0/1 numbers)
+        const lowVals = nonEmpty.map(s => s.trim().toLowerCase());
+        if (lowVals.every(v => BOOL_WORDS.has(v) || v === '0' || v === '1') && lowVals.some(v => /[a-z]/.test(v))) {
+          mk({ target: name, kind: 'cast', params: { column: name, toType: 'BOOLEAN', formats: '' }, reason: 'values look boolean (true/false/yes/no/0/1)', confidence: 'high', order: 3 });
+          continue;
+        }
+        // dates as text
+        const dateVals = nonEmpty.filter(isDateLikeStr);
+        if (dateVals.length / N >= 0.7) {
+          const fcount = {}; for (const v of dateVals) { const f = dateFormatOf(v); if (f) fcount[f] = (fcount[f] || 0) + 1; }
+          const fmts = Object.entries(fcount).filter(([, c]) => c / dateVals.length >= 0.1).sort((a, b) => b[1] - a[1]).map(([f]) => f);
+          const ts = fmts.some(f => /HH/.test(f));
+          mk({ target: name, kind: 'parseDate', params: { column: name, target: ts ? 'TIMESTAMP' : 'DATE', generalize: 'none', formats: fmts.join('\n') }, reason: `${Math.round(dateVals.length / N * 100)}% look like dates (${fmts.join(', ') || 'ISO'})`, confidence: dateVals.length / N >= 0.9 ? 'high' : 'medium', order: 3 });
+          continue;
+        }
+        // numbers as text — but never for identifier / code columns (would drop leading zeros)
+        const isCodeName = /(?:^id$|_id$|\bid\b|\bnr\b|nummer|\bno\b|_no$|code|plz|zip|postal|iban|\bbic\b|konto|account|\btel\b|phone|telefon|fon|mobil|ausweis|steuer)/i.test(name);
+        const numVals = nonEmpty.filter(looksNumericStr);
+        if (!isCodeName && numVals.length / N >= 0.7) {
+          const dec = decimalSepOf(numVals);
+          const intOnly = numVals.every(v => /^[-+]?\d+$/.test(v.replace(/\s/g, '')));
+          mk({ target: name, kind: 'parseNumber', params: { column: name, decimal: dec, target: intOnly ? 'BIGINT' : 'DOUBLE' }, reason: `${Math.round(numVals.length / N * 100)}% look numeric (${dec === ',' ? 'German 1.234,56' : 'US 1,234.56'}${intOnly ? ', integer' : ''})`, confidence: numVals.length / N >= 0.9 ? 'high' : 'medium', order: 3 });
+        }
+      }
+      state.clean = sugg;
+      renderClean();
+    } catch (err) {
+      console.error(err);
+      cleanResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Scan failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`;
+    } finally {
+      cleanScanBtn.disabled = false;
+    }
+  }
+  function cleanHandled(s) {
+    return state.pipeline.some(st => st.kind === s.kind && (s.kind === 'dedupExact' || st.params.column === s.params.column));
+  }
+  function resetClean() {
+    state.clean = null;
+    if (cleanResults) cleanResults.innerHTML = '';
+    if (cleanSummary) cleanSummary.textContent = '';
+    if (cleanApplyAllBtn) cleanApplyAllBtn.hidden = true;
+  }
+  function renderClean() {
+    const list = state.clean;
+    if (!list) { cleanResults.innerHTML = ''; cleanSummary.textContent = ''; cleanApplyAllBtn.hidden = true; return; }
+    if (!list.length) {
+      cleanResults.innerHTML = '<p class="pc-diff-note">No obvious cleaning issues found. This is a heuristic — review the data yourself too.</p>';
+      cleanSummary.textContent = ''; cleanApplyAllBtn.hidden = true; return;
+    }
+    let html = '', pending = 0;
+    for (const s of list) {
+      const handled = cleanHandled(s);
+      if (!handled) pending++;
+      const sdef = STEP_DEFS[s.kind];
+      html += `<div class="pc-pii-row ${handled ? 'is-handled' : ''}">`
+        + `<div class="pc-pii-col"><span class="pc-pii-name">${escapeHtml(s.target)}</span>`
+        + `<span class="pc-clean-conf conf-${s.confidence}">${CLEAN_CONF[s.confidence]}</span>`
+        + `<span class="pc-pii-type">${escapeHtml(s.reason)}</span></div>`
+        + `<div class="pc-pii-action">`
+        + (handled
+          ? `<span class="pc-pii-done">✓ added</span>`
+          : `<span class="pc-pii-suggest" title="Suggested step">→ ${escapeHtml(sdef.label)}</span><button type="button" class="qrx-btn qrx-btn-sm" data-clean-apply="${escapeAttr(s.key)}">Apply</button>`)
+        + `</div></div>`;
+    }
+    cleanResults.innerHTML = html;
+    cleanSummary.textContent = `${list.length} suggestion(s) · ${pending} not yet applied`;
+    cleanApplyAllBtn.hidden = pending === 0;
+  }
+  function applyCleanSuggestion(key) {
+    const s = state.clean && state.clean.find(x => x.key === key); if (!s) return;
+    if (state.layout === 'preview') setLayout('split');
+    addStep(s.kind, s.params);
+    renderClean();
+  }
+
   // ---- PII / sensitive-data detection (heuristic: column name + content sample) ----
   const PII_LEVELS = {
     direct:    { label: 'Direct identifier', cls: 'pii-direct' },
@@ -1357,11 +1510,13 @@
     piiScanBtn.disabled = true;
     piiResults.innerHTML = '<p class="pc-diff-note">Scanning columns…</p>';
     try {
+      const src = state.piiSource === 'original' ? 'original' : 'cleaned';
+      const cols = arrowFields((await conn.query(`SELECT * FROM ${src} LIMIT 0`)).schema);
       let sample;
-      try { sample = arrowRows(await conn.query('SELECT * FROM original USING SAMPLE 200 ROWS')); }
-      catch (_) { sample = arrowRows(await conn.query('SELECT * FROM original LIMIT 200')); }
+      try { sample = arrowRows(await conn.query(`SELECT * FROM ${src} USING SAMPLE 200 ROWS`)); }
+      catch (_) { sample = arrowRows(await conn.query(`SELECT * FROM ${src} LIMIT 200`)); }
       const det = {};
-      for (const col of state.schema) {
+      for (const col of cols) {
         const name = col.name, lname = name.toLowerCase();
         const vals = sample.map(r => r[name]).filter(v => v != null).map(v => cellText(v, col.type).trim()).filter(v => v !== '');
         let found = null, via = null, conf = 0;
@@ -1399,7 +1554,6 @@
       piiResults.innerHTML = '<p class="pc-diff-note">No PII-looking columns detected. This is a heuristic — always sanity-check manually.</p>';
       piiSummary.textContent = ''; piiApplyAllBtn.hidden = true; return;
     }
-    const stepMap = columnStepMap();
     const byLevel = { direct: [], quasi: [], sensitive: [] };
     for (const [col, d] of entries) byLevel[d.type.level].push([col, d]);
     let html = '', pending = 0;
@@ -1408,7 +1562,7 @@
       const L = PII_LEVELS[lvl];
       html += `<div class="pc-pii-group"><div class="pc-pii-grouphead"><span class="pii-badge ${L.cls}">${escapeHtml(L.label)}</span> <span class="muted">${list.length} column(s)</span></div>`;
       for (const [col, d] of list) {
-        const handled = stepMap.has(col);
+        const handled = columnAnonymized(col);
         if (!handled) pending++;
         const sug = d.type.suggest(col), sdef = STEP_DEFS[sug.kind];
         html += `<div class="pc-pii-row ${handled ? 'is-handled' : ''}">`
@@ -1465,6 +1619,24 @@
   nextBtn.addEventListener('click', () => { state.page++; renderPreview().catch(e => console.error(e)); });
   exportBtn.addEventListener('click', exportCleaned);
   if (analyzeBtn) analyzeBtn.addEventListener('click', runAnalyze);
+  if (cleanScanBtn) cleanScanBtn.addEventListener('click', cleanScan);
+  if (cleanResults) cleanResults.addEventListener('click', e => {
+    const b = e.target.closest('[data-clean-apply]'); if (!b) return;
+    applyCleanSuggestion(b.getAttribute('data-clean-apply'));
+  });
+  if (cleanApplyAllBtn) cleanApplyAllBtn.addEventListener('click', () => {
+    if (!state.clean) return;
+    for (const s of [...state.clean].sort((a, b) => a.order - b.order)) {
+      if (cleanHandled(s)) continue;
+      addStep(s.kind, s.params);
+    }
+    renderClean();
+  });
+  document.querySelectorAll('.pc-pii-source [data-pii-src]').forEach(btn => btn.addEventListener('click', () => {
+    state.piiSource = btn.getAttribute('data-pii-src');
+    document.querySelectorAll('.pc-pii-source [data-pii-src]').forEach(b => b.classList.toggle('is-active', b === btn));
+    if (state.pii) scanPII();
+  }));
   if (piiScanBtn) piiScanBtn.addEventListener('click', scanPII);
   if (piiResults) piiResults.addEventListener('click', e => {
     const b = e.target.closest('[data-pii-apply]'); if (!b) return;
@@ -1472,9 +1644,8 @@
   });
   if (piiApplyAllBtn) piiApplyAllBtn.addEventListener('click', () => {
     if (!state.pii) return;
-    const stepMap = columnStepMap();
     for (const [col, d] of Object.entries(state.pii)) {
-      if (stepMap.has(col)) continue;
+      if (columnAnonymized(col)) continue;
       const sug = d.type.suggest(col);
       addStep(sug.kind, sug.params);
     }
