@@ -77,9 +77,11 @@
           fields; joins/consistency are preserved. Quasi-identifiers, dates and numeric values stay
           unchanged.</li>
       <li><strong>Level 2 · + numeric</strong> — Level 1 plus <em>quasi-identifiers</em> (ZIP, city,
-          country …) and <em>dates</em>, and <em>numeric measures</em> perturbed: <em>Add noise</em>
-          (mean-preserving) by default, or <em>Coarsen</em> (exact sum per detected category) — so
-          aggregate statistics survive but concrete amounts can't be read.</li>
+          country …) and <em>dates</em>, and <em>numeric measures</em> perturbed with
+          <em>relative ±10% noise</em> — this keeps the sign, zero values, magnitude and 2 decimals
+          (structure) and the distribution/mean (statistics), but hides the concrete value. (For
+          additive amount columns you can still switch a step to <em>Coarsen</em> to keep exact
+          per-category sums.)</li>
       <li><strong>Level 3 · Full anonymization</strong> — everything randomized / irreversible: PII →
           <em>random</em> synthetic values (no linkage), numbers → <em>Randomize</em> within their
           range, free text → synthetic. Only the data structure remains; no re-identification of PII or

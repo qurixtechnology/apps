@@ -501,13 +501,18 @@
       safeExpr(p, c) {
         const col = id(p.column), amt = Number(p.amount) || 0, base = `TRY_CAST(${col} AS DOUBLE)`;
         const salt = sqlEscape((c && c.salt) || '');
-        const noise = p.mode === 'rand'
-          ? `(random() * 2 - 1) * ${amt}`
-          : `(((hash(CAST(${col} AS VARCHAR) || '${salt}') % 2001)) / 1000.0 - 1.0) * ${amt}`;
-        return `CASE WHEN ${base} IS NULL THEN NULL ELSE ${base} + ${noise} END`;
+        // unit ∈ [-1, 1], deterministic from value (+salt) or random per row
+        const unit = p.mode === 'rand'
+          ? `(random() * 2 - 1)`
+          : `(((hash(CAST(${col} AS VARCHAR) || '${salt}') % 2001)) / 1000.0 - 1.0)`;
+        const rel = (p.rel === true || p.rel === 'true');
+        // relative: multiply by a factor in [1-amt, 1+amt] → keeps sign, zero, scale & shape
+        const val = rel ? `${base} * (1 + ${unit} * ${amt})` : `${base} + ${unit} * ${amt}`;
+        const out = (p.int === true || p.int === 'true') ? `CAST(round(${val}) AS BIGINT)` : `round(${val}, 2)`;
+        return `CASE WHEN ${base} IS NULL THEN NULL ELSE ${out} END`;
       },
       compile(src, p, c) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p, c)) : src; },
-      title: p => `Add noise ±${p.amount || '?'}`,
+      title: p => (p.rel === true || p.rel === 'true') ? `Noise ±${Math.round((Number(p.amount) || 0) * 100)}%` : `Add noise ±${p.amount || '?'}`,
     },
     numRandom: {
       label: 'Randomize (in range)', group: 'anon', impact: 'cell',
@@ -872,11 +877,15 @@
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>Round to multiple of</label><input class="qrx-input" data-step="${sid}" data-field="step" type="number" min="0" step="any" value="${escapeAttr(p.step || '100')}"></div></div>`
           + `<div class="pc-diff-note">Coarsens numbers to a multiple (e.g. 100 → 0, 100, 200 …). Deterministic; keeps aggregates roughly and gives k-anonymity. Non-numbers become NULL.</div>`;
-      case 'numNoise':
+      case 'numNoise': {
+        const rel = p.rel === true || p.rel === 'true';
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
-          + `<div class="pc-field"><label>Noise amount (±)</label><input class="qrx-input" data-step="${sid}" data-field="amount" type="number" min="0" step="any" value="${escapeAttr(p.amount || '1')}"></div></div>`
+          + `<div class="pc-field"><label>Noise amount (±${rel ? ' fraction, 0.1 = 10%' : ''})</label><input class="qrx-input" data-step="${sid}" data-field="amount" type="number" min="0" step="any" value="${escapeAttr(p.amount || '1')}"></div></div>`
           + modeSelect(sid, p.mode)
-          + `<div class="pc-diff-note">Adds zero-centred noise; stays a number. <strong>Deterministic</strong> = stable per value; <strong>Random</strong> = fresh per run. Non-numbers become NULL.</div>`;
+          + `<div class="pc-flags"><label class="pc-check"><input type="checkbox" data-step="${sid}" data-bool="rel" ${rel ? 'checked' : ''}> relative (± % of the value — keeps sign, zero &amp; scale)</label>`
+          + `<label class="pc-check"><input type="checkbox" data-step="${sid}" data-bool="int" ${p.int === true || p.int === 'true' ? 'checked' : ''}> integer values</label></div>`
+          + `<div class="pc-diff-note">Perturbs numbers so the exact value can't be read while the distribution/mean is roughly kept. <strong>Relative</strong> scales the noise to each value (e.g. ±10%), preserving sign and magnitude — good for wide-range columns like balances. <strong>Deterministic</strong> = stable per value; <strong>Random</strong> = fresh per run. Non-numbers become NULL.</div>`;
+      }
       case 'numRandom':
         return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
           + `<div class="pc-field"><label>Min</label><input class="qrx-input" data-step="${sid}" data-field="min" type="number" step="any" value="${escapeAttr(p.min != null ? p.min : '0')}"></div>`
@@ -1619,10 +1628,9 @@
     const nm = state.numericMeta && state.numericMeta[col];
     if (nm) {
       if (L < 2) return null;
-      if (L === 2) {
-        if (state.catCol && state.catCol !== col) return { kind: 'coarsen', params: { column: col, step: String(nm.step), groupBy: state.catCol } };
-        return { kind: 'numNoise', params: { column: col, amount: String(nm.noise), mode: 'det' } };
-      }
+      // Level 2: relative ±10% noise — keeps sign, zero, scale & 2 decimals (structure),
+      // preserves the distribution/mean (statistics), hides the concrete value.
+      if (L === 2) return { kind: 'numNoise', params: { column: col, amount: '0.1', mode: 'det', rel: true, int: nm.isInt } };
       return { kind: 'numRandom', params: { column: col, min: String(nm.min), max: String(nm.max), isInt: nm.isInt } };
     }
     if (state.textCols && state.textCols.has(col)) return L >= 3 ? { kind: 'synth', params: { column: col, category: 'text', method: 'rand' } } : null;
