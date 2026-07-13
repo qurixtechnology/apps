@@ -1154,10 +1154,10 @@
     if (open) state.pipeline.forEach(renderStepDiff);
     else document.querySelectorAll('[id^="imp-diff-"]').forEach(d => { d.innerHTML = ''; });
   }
-  function addStep(kind, preset) {
+  function addStep(kind, preset, meta) {
     const def = STEP_DEFS[kind]; if (!def) return;
     state.pipeline.forEach(s => s._open = false);   // collapse the rest
-    const step = { id: uid(), kind, enabled: true, params: Object.assign(def.defaults(), preset || {}), impact: null, _open: true };
+    const step = Object.assign({ id: uid(), kind, enabled: true, params: Object.assign(def.defaults(), preset || {}), impact: null, _open: true }, meta || {});
     state.pipeline.push(step);
     renderSteps();
     scheduleRecompute();
@@ -1670,10 +1670,28 @@
       state.catCol = bestCat; state.textCols = textCols;
     } catch (_) { state.catCol = null; state.textCols = new Set(); }
   }
+  // Does step's params match every field of the suggestion's params?
+  function suggEquals(stepParams, sugParams) {
+    return Object.keys(sugParams).every(k => String(stepParams[k]) === String(sugParams[k]));
+  }
+  // Is the CURRENT level's anonymization already applied for this column?
+  function anonApplied(col) {
+    const sug = levelAnonSuggestion(col); if (!sug) return false;
+    return state.pipeline.some(s => s.enabled && s._reviewAnon === col && s.kind === sug.kind && suggEquals(s.params, sug.params));
+  }
+  // Remove anonymization steps that a previous review-apply added for these columns
+  // (leaves manually-added and cleaning steps untouched). Returns true if any removed.
+  function removeReviewAnon(cols) {
+    const set = cols ? new Set(cols) : null;
+    const before = state.pipeline.length;
+    state.pipeline = state.pipeline.filter(s => !(s._reviewAnon != null && (!set || set.has(s._reviewAnon))));
+    return state.pipeline.length !== before;
+  }
   function applyPiiSuggestion(col) {
     const sug = levelAnonSuggestion(col); if (!sug) return;
+    removeReviewAnon([col]);           // replace any previous review anonymization for this column
     if (state.layout === 'preview') setLayout('split');
-    addStep(sug.kind, sug.params);
+    addStep(sug.kind, sug.params, { _reviewAnon: col });
     renderReview();
   }
   // ---- Combined cleaning + PII review table ----
@@ -1730,7 +1748,7 @@
       const sug = levelAnonSuggestion(col);
       if (!sug) return `${tag} <span class="rv-none">keep (L${state.level})</span>`;
       anonCount++;
-      const handled = columnAnonymized(col); if (!handled) pending++;
+      const handled = anonApplied(col); if (!handled) pending++;
       const sdef = STEP_DEFS[sug.kind];
       return handled
         ? `${tag} <span class="rv-chip is-done">✓ ${escapeHtml(sdef.label)}</span>`
@@ -1793,12 +1811,13 @@
   });
   if (reviewApplyAllBtn) reviewApplyAllBtn.addEventListener('click', () => {
     if (state.clean) for (const s of [...state.clean].sort((a, b) => a.order - b.order)) { if (!cleanHandled(s)) addStep(s.kind, s.params); }
+    removeReviewAnon();   // drop the previous level's review anonymization, then apply the current level
     const cols = new Set([...Object.keys(state.pii || {}), ...Object.keys(state.numericMeta || {}), ...(state.textCols || [])]);
     for (const col of cols) {
-      if (columnAnonymized(col)) continue;
       const sug = levelAnonSuggestion(col);
-      if (sug) addStep(sug.kind, sug.params);
+      if (sug && !anonApplied(col)) addStep(sug.kind, sug.params, { _reviewAnon: col });
     }
+    renderSteps(); scheduleRecompute();   // ensure removals are reflected even if nothing was re-added
     renderReview();
   });
   document.querySelectorAll('.pc-level [data-level]').forEach(btn => btn.addEventListener('click', () => {
