@@ -1277,6 +1277,7 @@
       fileName.textContent = file.name;
       fileMeta.textContent = `Parquet · ${fmtBytes(file.size)} · ${fmtN(state.schema.length)} cols · ${fmtN(state.rowCountOriginal)} rows`;
       dropzone.hidden = true; fileInfo.hidden = false; workspace.hidden = false;
+      { const ch = $('pcConvertHint'); if (ch) ch.hidden = true; }
       setView('original');
       setLayout('default');
       renderSteps();
@@ -1293,6 +1294,7 @@
     state.file = null; state.duckFile = null; state.schema = []; state.pipeline = [];
     state.page = 0; state.cleanedSig = null;
     dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
+    { const ch = $('pcConvertHint'); if (ch) ch.hidden = false; }
     if (analyzeResults) analyzeResults.innerHTML = '';
     resetReview();
     filePicker.value = '';

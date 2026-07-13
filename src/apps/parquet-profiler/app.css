@@ -110,6 +110,8 @@ body.pp-fullscreen .pp-pivot-result {
 }
 .pp-drop-zone h2 { margin: 0 0 var(--qrx-s-2); color: var(--qrx-text); font-weight: 600; }
 .pp-drop-zone p { margin: 0 0 var(--qrx-s-6); color: var(--qrx-text-muted); }
+.pp-convert-hint { text-align: center; font-size: 0.8125rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
+.pp-convert-hint a { color: var(--qrx-primary); font-weight: 600; }
 
 /* Status bar */
 .pp-status-bar {

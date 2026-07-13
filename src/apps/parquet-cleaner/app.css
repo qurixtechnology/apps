@@ -23,6 +23,8 @@
 .dropzone p { margin: 0 0 var(--qrx-s-2); }
 .dropzone .dz-title { font-size: 1.125rem; font-weight: 600; color: var(--qrx-text); }
 .dropzone .dz-sub { font-size: 0.875rem; color: var(--qrx-text-muted); }
+.dz-convert { text-align: center; font-size: 0.8125rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
+.dz-convert a { color: var(--qrx-primary); font-weight: 600; }
 
 /* File info bar */
 .file-info {

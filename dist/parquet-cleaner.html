@@ -197,6 +197,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .dropzone p { margin: 0 0 var(--qrx-s-2); }
 .dropzone .dz-title { font-size: 1.125rem; font-weight: 600; color: var(--qrx-text); }
 .dropzone .dz-sub { font-size: 0.875rem; color: var(--qrx-text-muted); }
+.dz-convert { text-align: center; font-size: 0.8125rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
+.dz-convert a { color: var(--qrx-primary); font-weight: 600; }
 
 /* File info bar */
 .file-info {
@@ -861,6 +863,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       <p class="dz-sub">Parquet (.parquet / .pq) · everything runs locally in your browser — no upload</p>
       <input type="file" id="filePicker" hidden accept=".parquet,.pq">
     </div>
+    <p class="dz-convert" id="pcConvertHint">
+      No Parquet file? Convert CSV, Excel, JSON &amp; more to Parquet with the
+      <a href="table-format-converter.html" target="_blank" rel="noopener">Table Format Converter</a>.
+    </p>
 
     <!-- File info bar (after load) -->
     <div id="fileInfo" class="file-info" hidden>
@@ -1054,7 +1060,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260713-141306</span>
+    &middot; v<span data-build-version>260713-150454</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2462,6 +2468,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       fileName.textContent = file.name;
       fileMeta.textContent = `Parquet · ${fmtBytes(file.size)} · ${fmtN(state.schema.length)} cols · ${fmtN(state.rowCountOriginal)} rows`;
       dropzone.hidden = true; fileInfo.hidden = false; workspace.hidden = false;
+      { const ch = $('pcConvertHint'); if (ch) ch.hidden = true; }
       setView('original');
       setLayout('default');
       renderSteps();
@@ -2478,6 +2485,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     state.file = null; state.duckFile = null; state.schema = []; state.pipeline = [];
     state.page = 0; state.cleanedSig = null;
     dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
+    { const ch = $('pcConvertHint'); if (ch) ch.hidden = false; }
     if (analyzeResults) analyzeResults.innerHTML = '';
     resetReview();
     filePicker.value = '';
