@@ -282,23 +282,29 @@
     const label = STRUCT_LABEL[category]('rk');
     return k > 0 ? `CASE WHEN cnt < ${k} THEN '${sqlEscape(STRUCT_BUCKET[category])}' ELSE ${label} END` : label;
   }
-  function pseudCase(type, k) {
+  function pseudCase(type, k, keepAuth) {
     const person = personLabel('rk'), org = orgLabel('rk');
     const isOrg = `regexp_matches(v, '${ORG_RE}')`, isAuth = `regexp_matches(v, '${AUTH_RE}')`;
     if (type === 'authority') return `v`;
     if (type === 'person') return `CASE ${k > 0 ? `WHEN cnt < ${k} THEN 'Weitere Personen (Sammel)' ` : ''}ELSE ${person} END`;
     if (type === 'org') return `CASE ${k > 0 ? `WHEN cnt < ${k} THEN 'Weitere Organisationen (Sammel)' ` : ''}ELSE ${org} END`;
-    // auto
-    const collapse = k > 0 ? `WHEN NOT ${isAuth} AND cnt < ${k} THEN (CASE WHEN ${isOrg} THEN 'Weitere Organisationen (Sammel)' ELSE 'Weitere Personen (Sammel)' END) ` : '';
-    return `CASE WHEN ${isAuth} THEN v ${collapse}WHEN ${isOrg} THEN ${org} ELSE ${person} END`;
+    // auto: public authorities are pseudonymized as organizations by default; with
+    // keepAuth they are left unchanged (useful for reports where they aren't personal data).
+    const orgLike = keepAuth ? isOrg : `(${isOrg} OR ${isAuth})`;
+    const authKeep = keepAuth ? `WHEN ${isAuth} THEN v ` : '';
+    const collapse = k > 0
+      ? `WHEN ${keepAuth ? `NOT ${isAuth} AND ` : ''}cnt < ${k} THEN (CASE WHEN ${orgLike} THEN 'Weitere Organisationen (Sammel)' ELSE 'Weitere Personen (Sammel)' END) `
+      : '';
+    return `CASE ${authKeep}${collapse}WHEN ${orgLike} THEN ${org} ELSE ${person} END`;
   }
   // Build the full SQL for compile / count / sample. A salted dense_rank gives a
   // stable, non-guessable, collision-free mapping per distinct value → analytics
   // (GROUP BY partner) are preserved exactly; rare entities (< k) collapse.
   function pseudoBuild(inputSql, p, salt, what) {
     const col = id(p.column), k = Number(p.k) || 0, type = p.entityType || 'auto';
+    const keepAuth = p.keepAuth === true || p.keepAuth === 'true';
     const struct = STRUCT_CATS.includes(p.category);
-    const labelCase = struct ? structLabelCase(p.category, k) : pseudCase(type, k);
+    const labelCase = struct ? structLabelCase(p.category, k) : pseudCase(type, k, keepAuth);
     const collapsedCond = struct ? `pseud = '${sqlEscape(STRUCT_BUCKET[p.category])}'` : `pseud LIKE 'Weitere %(Sammel)'`;
     const cte = `WITH __map AS (SELECT v, cnt, rk, ${labelCase} AS pseud FROM (`
       + `SELECT ${col} AS v, count(*) AS cnt, dense_rank() OVER (ORDER BY hash(CAST(${col} AS VARCHAR) || '${salt}')) AS rk`
@@ -326,7 +332,7 @@
   }
   function pseudoParams(p) {
     const entityType = p.category === 'company' ? 'org' : (p.category === 'autoEntity' ? 'auto' : 'person');
-    return { column: p.column, entityType, k: p.k != null ? p.k : '5', category: p.category };
+    return { column: p.column, entityType, k: p.k != null ? p.k : '5', category: p.category, keepAuth: p.keepAuth };
   }
   // Method options depend on the category: the consistent (collision-free, k-anon)
   // engine only generates entity names, so it is offered only for those categories.
@@ -868,7 +874,8 @@
           + synthMethodsHtml(p)
           + `</select></div>`
           + `<div class="pc-field" id="kwrap-${sid}" ${synthEngine(p) === 'consistent' ? '' : 'hidden'}><label>Collapse rare (&lt; k, 0 = off)</label><input class="qrx-input" data-step="${sid}" data-field="k" type="number" min="0" value="${escapeAttr(p.k != null ? p.k : '5')}"></div></div>`
-          + `<div class="pc-diff-note">Replaces values with realistic synthetic data; NULLs stay NULL. <strong>Consistent &amp; collision-free</strong>: each distinct value → one unique pseudonym, so <code>GROUP BY</code> totals stay exact; values seen fewer than <strong>k</strong> times collapse into a shared bucket. <strong>Deterministic</strong>: same input → same fake (per value, may collide). <strong>Random</strong>: every row independent. Consistent mode is available for Full name, Company, Auto entity, Email, Phone, ZIP and Street (it needs a large enough value space); First/Last name, City and Country use deterministic.</div>`;
+          + `<div class="pc-flags" id="authwrap-${sid}" ${synthEngine(p) === 'consistent' && p.category === 'autoEntity' ? '' : 'hidden'}><label class="pc-check"><input type="checkbox" data-step="${sid}" data-bool="keepAuth" ${p.keepAuth === true || p.keepAuth === 'true' ? 'checked' : ''}> keep public authorities (Finanzamt, Stadt, Krankenkasse …) unchanged</label></div>`
+          + `<div class="pc-diff-note">Replaces values with realistic synthetic data; NULLs stay NULL. <strong>Consistent &amp; collision-free</strong>: each distinct value → one unique pseudonym, so <code>GROUP BY</code> totals stay exact; values seen fewer than <strong>k</strong> times collapse into a shared bucket. <strong>Deterministic</strong>: same input → same fake (per value, may collide). <strong>Random</strong>: every row independent. With <em>Auto entity</em>, public authorities are pseudonymized as organizations unless you tick “keep … unchanged”. Consistent mode is available for Full name, Company, Auto entity, Email, Phone, ZIP and Street; First/Last name, City and Country use deterministic.</div>`;
       }
       case 'shuffle':
         return `<div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
@@ -2107,6 +2114,8 @@
       if (step.kind === 'synth' && (el.dataset.field === 'method' || el.dataset.field === 'category')) {
         const kw = $(`kwrap-${sid}`);
         if (kw) kw.hidden = synthEngine(step.params) !== 'consistent';
+        const aw = $(`authwrap-${sid}`);
+        if (aw) aw.hidden = !(synthEngine(step.params) === 'consistent' && step.params.category === 'autoEntity');
       }
     }
     scheduleRecompute();

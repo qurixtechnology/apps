@@ -201,7 +201,10 @@
                 choice. Each distinct value maps to <em>one</em> stable, collision-free pseudonym (via a
                 salted <code>dense_rank</code>), so <code>GROUP BY</code> totals stay exact and join keys
                 are preserved. For Full name / Company / Auto entity it is type-aware (Person → person
-                name, Organization → “… GmbH/AG”, Authority kept as-is); for <em>Email, Phone, ZIP,
+                name, Organization → “… GmbH/AG”). Public authorities (Finanzamt, Stadt, Krankenkasse …)
+                are pseudonymized as organizations by default; tick <em>keep public authorities</em> to
+                leave them unchanged (e.g. for reports where they aren't personal data). For
+                <em>Email, Phone, ZIP,</em>
                 Street</em> it generates collision-free values of that shape (e.g.
                 <code>anna.mueller@example.org</code>, <code>00001</code>). The <strong>k</strong>
                 parameter merges values seen fewer than k times into a shared “Sammel” bucket so no
