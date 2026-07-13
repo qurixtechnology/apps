@@ -63,6 +63,7 @@
     salt: '',
     seq: 0,
     cleanedSig: null,
+    colWidths: {},         // { colName: px } — user-resized preview column widths
     pii: null,             // { colName: { type, via:'name'|'content', conf } } after a scan
     piiSource: 'cleaned',  // 'original' | 'cleaned' — which view the PII scan samples
     clean: null,           // [ { key, target, kind, params, reason, confidence, order } ] after a clean scan
@@ -1117,9 +1118,12 @@
         ? `<span class="pii-tag ${PII_LEVELS[pii.type.level].cls}" title="${escapeAttr(pii.type.label + ' — ' + PII_LEVELS[pii.type.level].label + ' (detected ' + (pii.via === 'content' ? 'by content' : 'by name') + ')')}">PII</span>`
         : '';
       const tip = has ? `${f.name}\nSteps: ${labels.join(', ')}\n(click to add another rule)` : `${f.name}\nClick to add a column rule`;
-      h += `<th class="${has ? 'has-steps' : ''}" title="${escapeAttr(tip)}">`
+      const w = state.colWidths && state.colWidths[f.name];
+      const wStyle = w ? ` style="width:${w}px;min-width:${w}px;max-width:${w}px"` : '';
+      h += `<th class="${has ? 'has-steps' : ''}"${wStyle} title="${escapeAttr(tip)}">`
         + `<button type="button" class="pc-col-btn" data-col="${escapeAttr(f.name)}"><span class="col-name-cell">${escapeHtml(f.name)}</span>${has ? '<span class="pc-col-dot" aria-hidden="true"></span>' : ''}<span class="pc-col-caret" aria-hidden="true">▾</span></button>`
-        + `<span class="col-type"><span class="type-badge ${f.typeClass}">${escapeHtml(f.type)}</span>${piiTag}</span></th>`;
+        + `<span class="col-type"><span class="type-badge ${f.typeClass}">${escapeHtml(f.type)}</span>${piiTag}</span>`
+        + `<span class="col-resizer" data-col="${escapeAttr(f.name)}" title="Drag to resize · double-click to reset"></span></th>`;
     }
     return h + '</tr>';
   }
@@ -1261,7 +1265,7 @@
       try { await conn.query('DROP VIEW IF EXISTS original'); } catch (_) {}
       if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
       state.file = file; state.fileSize = file.size;
-      state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null;
+      state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null; state.colWidths = {};
       resetReview();
       const vname = `input_${Date.now()}_` + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       state.duckFile = vname;
@@ -2083,6 +2087,32 @@
   previewGrid.addEventListener('click', e => {
     const b = e.target.closest('.pc-col-btn');
     if (b) { e.stopPropagation(); openColMenu(b, b.getAttribute('data-col')); }
+  });
+  // Resize preview columns by dragging the right-edge handle (double-click resets to auto).
+  let lastGripCol = null, lastGripTime = 0;
+  previewGrid.addEventListener('mousedown', e => {
+    const grip = e.target.closest('.col-resizer'); if (!grip) return;
+    e.preventDefault(); e.stopPropagation();
+    const th = grip.closest('th'), col = grip.getAttribute('data-col'), now = Date.now();
+    if (lastGripCol === col && now - lastGripTime < 350) {   // double-click → reset to auto width
+      lastGripCol = null;
+      delete state.colWidths[col];
+      th.style.width = th.style.minWidth = th.style.maxWidth = '';
+      return;
+    }
+    lastGripCol = col; lastGripTime = now;
+    const startX = e.clientX, startW = th.offsetWidth;
+    grip.classList.add('is-drag'); document.body.classList.add('pc-col-resizing');
+    const move = ev => {
+      const w = Math.max(48, Math.round(startW + (ev.clientX - startX)));
+      state.colWidths[col] = w;
+      th.style.width = th.style.minWidth = th.style.maxWidth = w + 'px';
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+      grip.classList.remove('is-drag'); document.body.classList.remove('pc-col-resizing');
+    };
+    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
   });
   function onField(e) {
     const el = e.target; const sid = el.getAttribute('data-step'); if (!sid) return;

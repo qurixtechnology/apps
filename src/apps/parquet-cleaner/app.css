@@ -220,7 +220,13 @@
   padding: var(--qrx-s-2) var(--qrx-s-3); border-bottom: 1px solid var(--qrx-border); border-right: 1px solid var(--qrx-border);
   font-weight: 600; color: var(--qrx-text); vertical-align: top;
 }
+.preview-grid thead th { overflow: hidden; }
 .preview-grid thead th .col-name-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Column resize handle at the right edge of each header cell */
+.col-resizer { position: absolute; top: 0; right: 0; width: 7px; height: 100%; cursor: col-resize; user-select: none; z-index: 3; }
+.col-resizer::after { content: ''; position: absolute; top: 0; right: 0; width: 2px; height: 100%; background: transparent; transition: background 0.1s; }
+.col-resizer:hover::after, .col-resizer.is-drag::after { background: var(--qrx-primary); }
+body.pc-col-resizing { cursor: col-resize; user-select: none; }
 .preview-grid thead th .col-type { display: block; font-weight: 400; font-size: 0.6875rem; margin-top: 2px; }
 /* Clickable column header → add a column rule */
 .pc-col-btn {
