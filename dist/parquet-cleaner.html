@@ -545,6 +545,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .rv-chip.is-done { color: var(--qrx-success); border-color: transparent; background: transparent; font-weight: 600; }
 .rv-apply { padding: 1px 8px; }
 .rv-via { font-size: 0.7rem; color: var(--qrx-text-subtle); margin: 0 6px; }
+.rv-measure { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--qrx-bg-muted); color: var(--qrx-text-muted); }
+.pc-level-desc { font-size: 0.8125rem; margin: -2px 0 var(--qrx-s-3); max-width: 70ch; }
 
 /* Export */
 .pc-export { display: flex; align-items: center; gap: var(--qrx-s-3); flex-wrap: wrap; }
@@ -635,11 +637,29 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <p>
       Open <strong>Clean &amp; anonymize</strong> and click <em>Scan data</em>. A single scan checks the
       data for quality issues <em>and</em> for PII, and presents everything in one table — one row per
-      <strong>attribute (column)</strong>, with a <strong>Cleaning</strong> column and a
-      <strong>PII / sensitivity</strong> column, so you see all suggested rules at a glance and can
+      <strong>attribute (column)</strong>, with a <strong>Cleaning</strong> column and an
+      <strong>Anonymization</strong> column, so you see all suggested rules at a glance and can
       <em>Apply</em> them individually, or <em>Apply all suggestions</em> at once (cleaning first, then
       anonymization). Whole-table fixes (e.g. exact duplicates) appear as a banner above the table.
     </p>
+    <p>
+      A <strong>Protection level</strong> switch chooses <em>how much</em> is anonymized (cleaning is
+      always the same). The anonymization column and <em>Apply all</em> follow the selected level:
+    </p>
+    <ul>
+      <li><strong>Level 1 · Pseudonymize PII</strong> — deterministic pseudonyms for
+          <em>direct identifiers</em> (name, email, phone, IBAN, address, ID …) and <em>sensitive</em>
+          fields; joins/consistency are preserved. Quasi-identifiers, dates and numeric values stay
+          unchanged.</li>
+      <li><strong>Level 2 · + numeric</strong> — Level 1 plus <em>quasi-identifiers</em> (ZIP, city,
+          country …) and <em>dates</em>, and <em>numeric measures</em> perturbed: <em>Add noise</em>
+          (mean-preserving) by default, or <em>Coarsen</em> (exact sum per detected category) — so
+          aggregate statistics survive but concrete amounts can't be read.</li>
+      <li><strong>Level 3 · Full anonymization</strong> — everything randomized / irreversible: PII →
+          <em>random</em> synthetic values (no linkage), numbers → <em>Randomize</em> within their
+          range, free text → synthetic. Only the data structure remains; no re-identification of PII or
+          numeric values.</li>
+    </ul>
     <p>
       The <strong>Cleaning</strong> suggestions run locally on a sample plus a few
       full-table aggregates and covers: <strong>stray whitespace</strong> (→ Trim),
@@ -866,6 +886,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         <div class="pc-analyze-body">
           <div class="pc-add">
             <button class="qrx-btn qrx-btn-primary" id="reviewScanBtn" type="button">Scan data</button>
+            <span class="pc-pii-srclabel muted">Protection level</span>
+            <span class="pc-toggle pc-level" role="group" aria-label="Protection level">
+              <button class="qrx-btn qrx-btn-sm is-active" data-level="1" type="button">1 · PII</button>
+              <button class="qrx-btn qrx-btn-sm" data-level="2" type="button">2 · + numbers</button>
+              <button class="qrx-btn qrx-btn-sm" data-level="3" type="button">3 · full</button>
+            </span>
             <span class="pc-pii-srclabel muted">PII source</span>
             <span class="pc-toggle pc-pii-source" role="group" aria-label="PII scan source">
               <button class="qrx-btn qrx-btn-sm" data-pii-src="original" type="button">Original</button>
@@ -874,6 +900,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
             <button class="qrx-btn" id="reviewApplyAllBtn" type="button" hidden>Apply all suggestions</button>
             <span class="muted" id="reviewSummary"></span>
           </div>
+          <div class="pc-level-desc muted" id="reviewLevelDesc"></div>
           <div id="reviewResults"></div>
         </div>
       </details>
@@ -944,6 +971,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
                 <option value="shuffle">Shuffle / bootstrap</option>
                 <option value="numRound">Round / bucket (number)</option>
                 <option value="numNoise">Add noise (number)</option>
+                <option value="numRandom">Randomize number (in range)</option>
                 <option value="coarsen">Coarsen amounts (sum-preserving)</option>
                 <option value="recalcSaldo">Recompute running balance</option>
               </optgroup>
@@ -1006,7 +1034,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260713-094245</span>
+    &middot; v<span data-build-version>260713-115532</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1202,6 +1230,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     pii: null,             // { colName: { type, via:'name'|'content', conf } } after a scan
     piiSource: 'cleaned',  // 'original' | 'cleaned' — which view the PII scan samples
     clean: null,           // [ { key, target, kind, params, reason, confidence, order } ] after a clean scan
+    level: 1,              // protection level 1 | 2 | 3
+    numericMeta: null,     // { colName: { min, max, isInt, noise, step } } numeric measures (non-PII)
+    catCol: null,          // detected low-cardinality category column (group for coarsen)
+    textCols: null,        // Set of free-text column names (non-PII, long strings)
   };
   let stepSeq = 0;
   const uid = () => 's' + (++stepSeq);
@@ -1642,6 +1674,19 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       compile(src, p, c) { return this.complete(p) ? colReplace(src, p.column, this.safeExpr(p, c)) : src; },
       title: p => `Add noise ±${p.amount || '?'}`,
     },
+    numRandom: {
+      label: 'Randomize (in range)', group: 'anon', impact: 'cell',
+      complete: p => !!p.column && p.min != null && p.max != null && p.min !== '' && p.max !== '',
+      defaults: () => ({ column: firstCol(), min: '0', max: '1', isInt: false }),
+      cellExpr(p) {
+        const c = id(p.column), lo = Number(p.min) || 0, hi = Number(p.max) || 0, span = hi - lo;
+        const rnd = `(${lo} + random() * ${span})`;
+        const val = (p.isInt === true || p.isInt === 'true') ? `CAST(round(${rnd}) AS BIGINT)` : `round(${rnd}, 2)`;
+        return `CASE WHEN ${c} IS NULL THEN NULL ELSE ${val} END`;
+      },
+      compile(src, p) { return this.complete(p) ? colReplace(src, p.column, this.cellExpr(p)) : src; },
+      title: p => `Randomize → [${p.min}, ${p.max}]`,
+    },
     parseDate: {
       label: 'Parse date', group: 'col', impact: 'cast',
       complete: p => !!p.column && !!p.target,
@@ -1997,6 +2042,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           + `<div class="pc-field"><label>Noise amount (±)</label><input class="qrx-input" data-step="${sid}" data-field="amount" type="number" min="0" step="any" value="${escapeAttr(p.amount || '1')}"></div></div>`
           + modeSelect(sid, p.mode)
           + `<div class="pc-diff-note">Adds zero-centred noise; stays a number. <strong>Deterministic</strong> = stable per value; <strong>Random</strong> = fresh per run. Non-numbers become NULL.</div>`;
+      case 'numRandom':
+        return `<div class="pc-row"><div class="pc-field"><label>Column</label>${colSelect(sid, 'column', p.column)}</div>`
+          + `<div class="pc-field"><label>Min</label><input class="qrx-input" data-step="${sid}" data-field="min" type="number" step="any" value="${escapeAttr(p.min != null ? p.min : '0')}"></div>`
+          + `<div class="pc-field"><label>Max</label><input class="qrx-input" data-step="${sid}" data-field="max" type="number" step="any" value="${escapeAttr(p.max != null ? p.max : '1')}"></div></div>`
+          + `<label class="pc-check"><input type="checkbox" data-step="${sid}" data-bool="isInt" ${p.isInt === true || p.isInt === 'true' ? 'checked' : ''}> integer values</label>`
+          + `<div class="pc-diff-note">Replaces each value with a fresh <strong>random</strong> number drawn uniformly from the range — full anonymization: the column keeps its type/scale but carries no real information (no distribution or per-row inference). NULLs stay NULL.</div>`;
       case 'parseDate': {
         const presets = [
           ['DE date', 'DD.MM.YYYY'], ['US date', 'MM/DD/YYYY'], ['ISO date', 'YYYY-MM-DD'],
@@ -2174,7 +2225,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
   // A step actually anonymizes a column (vs. plain structural cleaning like trim/parse).
   function isAnonStep(s) {
-    if (['hash', 'synth', 'shuffle', 'numNoise', 'numRound', 'coarsen'].includes(s.kind)) return true;
+    if (['hash', 'synth', 'shuffle', 'numNoise', 'numRound', 'numRandom', 'coarsen'].includes(s.kind)) return true;
     if (s.kind === 'parseDate' && s.params.generalize && s.params.generalize !== 'none') return true;
     return false;
   }
@@ -2705,9 +2756,87 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       console.error(err); state.pii = {};
     }
   }
+  // ---- Protection levels: resolve one anonymization rule per column & level ----
+  const LEVEL_INFO = {
+    1: { label: '1 · Pseudonymize PII', desc: 'Deterministic pseudonyms for direct identifiers & sensitive fields (joins/consistency preserved). Quasi-identifiers, dates and numeric values stay unchanged.' },
+    2: { label: '2 · + numeric', desc: 'Level 1 plus quasi-identifiers & dates, and numeric measures perturbed (noise, or sum-preserving per category) — aggregate statistics survive but concrete values are hidden.' },
+    3: { label: '3 · Full anonymization', desc: 'Everything randomized / irreversible: PII → random (no linkage), numbers → random within their range, free text → synthetic. Only the data structure remains.' },
+  };
+  function randomizeSuggestion(base, col) {
+    if (base.kind === 'synth') {
+      const p = Object.assign({}, base.params);
+      if (p.category === 'autoEntity') p.category = 'fullName';
+      p.method = 'rand'; delete p.k;
+      return { kind: 'synth', params: p };
+    }
+    if (base.kind === 'parseDate') return base;      // date generalization is already non-identifying
+    return { kind: 'shuffle', params: { column: col, mode: 'rand' } };  // hash/shuffle/numRound → break linkage
+  }
+  // The anonymization rule for a column at the current protection level (or null = keep).
+  function levelAnonSuggestion(col) {
+    const L = state.level, d = state.pii && state.pii[col];
+    if (d) {
+      const active = (d.type.level === 'quasi') ? (L >= 2) : (L >= 1);  // quasi (+ dates) from L2
+      if (!active) return null;
+      const base = d.type.suggest(col);
+      return L >= 3 ? randomizeSuggestion(base, col) : base;
+    }
+    const nm = state.numericMeta && state.numericMeta[col];
+    if (nm) {
+      if (L < 2) return null;
+      if (L === 2) {
+        if (state.catCol && state.catCol !== col) return { kind: 'coarsen', params: { column: col, step: String(nm.step), groupBy: state.catCol } };
+        return { kind: 'numNoise', params: { column: col, amount: String(nm.noise), mode: 'det' } };
+      }
+      return { kind: 'numRandom', params: { column: col, min: String(nm.min), max: String(nm.max), isInt: nm.isInt } };
+    }
+    if (state.textCols && state.textCols.has(col)) return L >= 3 ? { kind: 'synth', params: { column: col, category: 'text', method: 'rand' } } : null;
+    return null;
+  }
+  // Classify numeric-measure / category / free-text columns and gather numeric stats.
+  async function computeAnonMeta() {
+    state.numericMeta = {}; state.catCol = null; state.textCols = new Set();
+    if (!conn || !state.schema.length) return;
+    const pii = state.pii || {}, parseNum = {};
+    for (const s of (state.clean || [])) if (s.kind === 'parseNumber') parseNum[s.params.column] = s.params;
+    const numCols = [];
+    for (const c of state.schema) {
+      if (pii[c.name]) continue;
+      if (parseNum[c.name]) numCols.push({ name: c.name, expr: STEP_DEFS.parseNumber.safeExpr(parseNum[c.name]), isInt: /BIGINT|INT/i.test(parseNum[c.name].target) });
+      else if (/INT|DOUBLE|DECIMAL|NUMERIC|FLOAT|REAL|HUGEINT/i.test(c.type)) numCols.push({ name: c.name, expr: `TRY_CAST(${id(c.name)} AS DOUBLE)`, isInt: /INT/i.test(c.type) });
+    }
+    const meta = {};
+    if (numCols.length) {
+      const sel = numCols.map((n, i) => `min(${n.expr}) AS mn${i}, max(${n.expr}) AS mx${i}, median(abs(${n.expr})) AS md${i}`).join(', ');
+      try {
+        const r = (await conn.query(`SELECT ${sel} FROM cleaned`)).toArray()[0];
+        numCols.forEach((n, i) => {
+          const mn = r['mn' + i], mx = r['mx' + i], md = Number(r['md' + i]) || 0;
+          if (mn == null || mx == null) return;
+          const mag = Math.max(1, Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, md))) - 1)));
+          meta[n.name] = { min: Number(mn), max: Number(mx), isInt: n.isInt, noise: Math.max(1, Math.round(md * 0.15)), step: mag };
+        });
+      } catch (_) {}
+    }
+    state.numericMeta = meta;
+    try {
+      const cols = arrowFields((await conn.query('SELECT * FROM cleaned LIMIT 0')).schema);
+      const sample = arrowRows(await conn.query('SELECT * FROM cleaned USING SAMPLE 200 ROWS'));
+      let bestCat = null, bestDistinct = Infinity; const textCols = new Set();
+      for (const c of cols) {
+        if (pii[c.name] || meta[c.name]) continue;
+        if (!/VARCHAR|CHAR|STRING|UTF8|TEXT/i.test(c.type)) continue;
+        const ne = sample.map(r => r[c.name]).filter(v => v != null).map(v => String(v)).filter(v => v.trim() !== '');
+        if (ne.length < 5) continue;
+        const distinct = new Set(ne).size, ratio = distinct / ne.length, avgLen = ne.reduce((a, v) => a + v.length, 0) / ne.length;
+        if (distinct >= 2 && distinct <= 25 && ratio < 0.5 && distinct < bestDistinct) { bestCat = c.name; bestDistinct = distinct; }
+        if (avgLen >= 20 && ratio > 0.5) textCols.add(c.name);
+      }
+      state.catCol = bestCat; state.textCols = textCols;
+    } catch (_) { state.catCol = null; state.textCols = new Set(); }
+  }
   function applyPiiSuggestion(col) {
-    const d = state.pii && state.pii[col]; if (!d) return;
-    const sug = d.type.suggest(col);
+    const sug = levelAnonSuggestion(col); if (!sug) return;
     if (state.layout === 'preview') setLayout('split');
     addStep(sug.kind, sug.params);
     renderReview();
@@ -2717,12 +2846,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     if (!conn || !state.schema.length) return;
     reviewScanBtn.disabled = true;
     reviewResults.innerHTML = '<p class="pc-diff-note">Scanning data…</p>';
-    try { await computeClean(); await computePii(); renderReview(); }
+    try { await computeClean(); await computePii(); await computeAnonMeta(); renderReview(); }
     catch (err) { console.error(err); reviewResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Scan failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`; }
     finally { reviewScanBtn.disabled = false; }
   }
   function resetReview() {
-    state.clean = null; state.pii = null;
+    state.clean = null; state.pii = null; state.numericMeta = null; state.catCol = null; state.textCols = null;
     if (typeof exampleCache !== 'undefined') exampleCache.clear();
     if (reviewResults) reviewResults.innerHTML = '';
     if (reviewSummary) reviewSummary.textContent = '';
@@ -2738,11 +2867,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     for (const s of clean) { if (s.target === '(all rows)') continue; if (!colClean.has(s.target)) colClean.set(s.target, []); colClean.get(s.target).push(s); }
     const piiCols = Object.keys(pii);
     if (k) k.textContent = fmtN(piiCols.length);
+    const desc = $('reviewLevelDesc'); if (desc) desc.textContent = LEVEL_INFO[state.level].desc;
     const names = new Set([...colClean.keys(), ...piiCols]);
+    for (const n of Object.keys(state.numericMeta || {})) if (levelAnonSuggestion(n)) names.add(n);
+    if (state.textCols) for (const n of state.textCols) if (levelAnonSuggestion(n)) names.add(n);
     const ordered = state.schema.map(c => c.name).filter(n => names.has(n));
     for (const n of names) if (!ordered.includes(n)) ordered.push(n);
     const schemaCol = name => state.schema.find(x => x.name === name);
-    let pending = 0;
+    let pending = 0, anonCount = 0;
     const cleanChip = s => {
       const handled = cleanHandled(s); if (!handled) pending++;
       const sdef = STEP_DEFS[s.kind];
@@ -2750,23 +2882,31 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         ? `<span class="rv-chip is-done" title="${escapeAttr(s.reason)}">✓ ${escapeHtml(sdef.label)}</span>`
         : `<span class="rv-chip" title="${escapeAttr(s.reason)}"><span class="pc-clean-conf conf-${s.confidence}">${CLEAN_CONF[s.confidence]}</span>${escapeHtml(sdef.label)} <button type="button" class="qrx-btn qrx-btn-sm rv-apply" data-clean-apply="${escapeAttr(s.key)}">Apply</button></span>`;
     };
-    const piiCellHtml = (col, d) => {
+    const anonCellHtml = (col) => {
+      const d = pii[col], nm = state.numericMeta && state.numericMeta[col], isText = state.textCols && state.textCols.has(col);
+      let tag;
+      if (d) {
+        const Lv = PII_LEVELS[d.type.level];
+        tag = `<span class="pii-tag ${Lv.cls}" title="${escapeAttr(Lv.label + ' · detected ' + (d.via === 'content' ? 'by content' : 'by name'))}">${escapeHtml(d.type.label)}</span>`
+          + `<span class="rv-via">${d.via === 'content' ? Math.round(d.conf * 100) + '%' : 'name'}</span>`;
+      } else if (nm) { tag = `<span class="rv-measure">Numeric measure</span>`; }
+      else if (isText) { tag = `<span class="rv-measure">Free text</span>`; }
+      else return '<span class="rv-none">—</span>';
+      const sug = levelAnonSuggestion(col);
+      if (!sug) return `${tag} <span class="rv-none">keep (L${state.level})</span>`;
+      anonCount++;
       const handled = columnAnonymized(col); if (!handled) pending++;
-      const L = PII_LEVELS[d.type.level], sug = d.type.suggest(col), sdef = STEP_DEFS[sug.kind];
-      const tag = `<span class="pii-tag ${L.cls}" title="${escapeAttr(L.label + ' · detected ' + (d.via === 'content' ? 'by content' : 'by name'))}">${escapeHtml(d.type.label)}</span>`;
-      const via = `<span class="rv-via">${d.via === 'content' ? Math.round(d.conf * 100) + '%' : 'name'}</span>`;
+      const sdef = STEP_DEFS[sug.kind];
       return handled
-        ? `${tag}${via} <span class="rv-chip is-done">✓ ${escapeHtml(sdef.label)}</span>`
-        : `${tag}${via} <span class="rv-chip"><button type="button" class="qrx-btn qrx-btn-sm rv-apply" data-pii-apply="${escapeAttr(col)}">${escapeHtml(sdef.label)}</button></span>`;
+        ? `${tag} <span class="rv-chip is-done">✓ ${escapeHtml(sdef.label)}</span>`
+        : `${tag} <span class="rv-chip"><button type="button" class="qrx-btn qrx-btn-sm rv-apply" data-pii-apply="${escapeAttr(col)}">${escapeHtml(sdef.label)}</button></span>`;
     };
     let body = '';
     for (const col of ordered) {
       const sc = schemaCol(col);
       const tyBadge = sc ? `<span class="type-badge ${sc.typeClass}">${escapeHtml(sc.type)}</span>` : '';
       const cc = (colClean.get(col) || []).map(cleanChip).join(' ') || '<span class="rv-none">—</span>';
-      const d = pii[col];
-      const pc = d ? piiCellHtml(col, d) : '<span class="rv-none">—</span>';
-      body += `<tr><td class="rv-col">${escapeHtml(col)}</td><td class="rv-ty">${tyBadge}</td><td>${cc}</td><td>${pc}</td></tr>`;
+      body += `<tr><td class="rv-col">${escapeHtml(col)}</td><td class="rv-ty">${tyBadge}</td><td>${cc}</td><td>${anonCellHtml(col)}</td></tr>`;
     }
     const banner = tableSugs.length
       ? `<div class="rv-banner">${tableSugs.map(s => `<span class="rv-banner-item"><strong>Whole table:</strong> ${cleanChip(s)}</span>`).join('')}</div>`
@@ -2776,9 +2916,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       reviewSummary.textContent = ''; reviewApplyAllBtn.hidden = true; return;
     }
     reviewResults.innerHTML = banner
-      + `<table class="rv-table"><thead><tr><th>Attribute</th><th>Type</th><th>Cleaning</th><th>PII / sensitivity</th></tr></thead><tbody>${body}</tbody></table>`;
-    const totalSug = clean.length + piiCols.length;
-    reviewSummary.textContent = `${totalSug} suggestion(s) · ${pending} not yet applied`;
+      + `<table class="rv-table"><thead><tr><th>Attribute</th><th>Type</th><th>Cleaning</th><th>Anonymization · Level ${state.level}</th></tr></thead><tbody>${body}</tbody></table>`;
+    reviewSummary.textContent = `${clean.length} cleaning · ${anonCount} anonymization · ${pending} not yet applied`;
     reviewApplyAllBtn.hidden = pending === 0;
   }
 
@@ -2819,13 +2958,24 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   });
   if (reviewApplyAllBtn) reviewApplyAllBtn.addEventListener('click', () => {
     if (state.clean) for (const s of [...state.clean].sort((a, b) => a.order - b.order)) { if (!cleanHandled(s)) addStep(s.kind, s.params); }
-    if (state.pii) for (const [col, d] of Object.entries(state.pii)) { if (!columnAnonymized(col)) { const sug = d.type.suggest(col); addStep(sug.kind, sug.params); } }
+    const cols = new Set([...Object.keys(state.pii || {}), ...Object.keys(state.numericMeta || {}), ...(state.textCols || [])]);
+    for (const col of cols) {
+      if (columnAnonymized(col)) continue;
+      const sug = levelAnonSuggestion(col);
+      if (sug) addStep(sug.kind, sug.params);
+    }
     renderReview();
   });
+  document.querySelectorAll('.pc-level [data-level]').forEach(btn => btn.addEventListener('click', () => {
+    state.level = Number(btn.getAttribute('data-level')) || 1;
+    document.querySelectorAll('.pc-level [data-level]').forEach(b => b.classList.toggle('is-active', b === btn));
+    const desc = $('reviewLevelDesc'); if (desc) desc.textContent = LEVEL_INFO[state.level].desc;
+    if (state.pii || state.clean) renderReview();
+  }));
   document.querySelectorAll('.pc-pii-source [data-pii-src]').forEach(btn => btn.addEventListener('click', async () => {
     state.piiSource = btn.getAttribute('data-pii-src');
     document.querySelectorAll('.pc-pii-source [data-pii-src]').forEach(b => b.classList.toggle('is-active', b === btn));
-    if (state.pii) { await computePii(); renderReview(); }
+    if (state.pii) { await computePii(); await computeAnonMeta(); renderReview(); }
   }));
   if (analyzeResults) analyzeResults.addEventListener('click', e => {
     const mb = e.target.closest('[data-mode]');
@@ -2896,7 +3046,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   const COL_MENU_GROUPS = [
     ['Convert / parse', ['cast', 'parseNumber', 'parseDate']],
     ['Clean text', ['trim', 'case', 'emptyToNull', 'regexReplace', 'regexExtract']],
-    ['Anonymize / pseudonymize', ['synth', 'hash', 'shuffle', 'numRound', 'numNoise', 'coarsen']],
+    ['Anonymize / pseudonymize', ['synth', 'hash', 'shuffle', 'numRound', 'numNoise', 'numRandom', 'coarsen']],
     ['Column / structure', ['rename', 'drop', 'recalcSaldo']],
   ];
   // Live before→after examples for the column popover (transparency: show what a rule does).

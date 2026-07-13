@@ -371,6 +371,8 @@
 .rv-chip.is-done { color: var(--qrx-success); border-color: transparent; background: transparent; font-weight: 600; }
 .rv-apply { padding: 1px 8px; }
 .rv-via { font-size: 0.7rem; color: var(--qrx-text-subtle); margin: 0 6px; }
+.rv-measure { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--qrx-bg-muted); color: var(--qrx-text-muted); }
+.pc-level-desc { font-size: 0.8125rem; margin: -2px 0 var(--qrx-s-3); max-width: 70ch; }
 
 /* Export */
 .pc-export { display: flex; align-items: center; gap: var(--qrx-s-3); flex-wrap: wrap; }

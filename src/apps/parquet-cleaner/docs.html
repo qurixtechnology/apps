@@ -62,11 +62,29 @@
     <p>
       Open <strong>Clean &amp; anonymize</strong> and click <em>Scan data</em>. A single scan checks the
       data for quality issues <em>and</em> for PII, and presents everything in one table — one row per
-      <strong>attribute (column)</strong>, with a <strong>Cleaning</strong> column and a
-      <strong>PII / sensitivity</strong> column, so you see all suggested rules at a glance and can
+      <strong>attribute (column)</strong>, with a <strong>Cleaning</strong> column and an
+      <strong>Anonymization</strong> column, so you see all suggested rules at a glance and can
       <em>Apply</em> them individually, or <em>Apply all suggestions</em> at once (cleaning first, then
       anonymization). Whole-table fixes (e.g. exact duplicates) appear as a banner above the table.
     </p>
+    <p>
+      A <strong>Protection level</strong> switch chooses <em>how much</em> is anonymized (cleaning is
+      always the same). The anonymization column and <em>Apply all</em> follow the selected level:
+    </p>
+    <ul>
+      <li><strong>Level 1 · Pseudonymize PII</strong> — deterministic pseudonyms for
+          <em>direct identifiers</em> (name, email, phone, IBAN, address, ID …) and <em>sensitive</em>
+          fields; joins/consistency are preserved. Quasi-identifiers, dates and numeric values stay
+          unchanged.</li>
+      <li><strong>Level 2 · + numeric</strong> — Level 1 plus <em>quasi-identifiers</em> (ZIP, city,
+          country …) and <em>dates</em>, and <em>numeric measures</em> perturbed: <em>Add noise</em>
+          (mean-preserving) by default, or <em>Coarsen</em> (exact sum per detected category) — so
+          aggregate statistics survive but concrete amounts can't be read.</li>
+      <li><strong>Level 3 · Full anonymization</strong> — everything randomized / irreversible: PII →
+          <em>random</em> synthetic values (no linkage), numbers → <em>Randomize</em> within their
+          range, free text → synthetic. Only the data structure remains; no re-identification of PII or
+          numeric values.</li>
+    </ul>
     <p>
       The <strong>Cleaning</strong> suggestions run locally on a sample plus a few
       full-table aggregates and covers: <strong>stray whitespace</strong> (→ Trim),
