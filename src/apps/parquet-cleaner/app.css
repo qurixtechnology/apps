@@ -240,6 +240,8 @@
 }
 .pc-colmenu-body { overflow: auto; flex: 1 1 auto; }
 .pc-colmenu-item.is-hover { background: var(--qrx-bg-subtle); color: var(--qrx-primary); }
+.pc-colmenu-analyze { font-weight: 600; color: var(--qrx-primary); border: 1px solid var(--qrx-border) !important; margin-bottom: 4px; }
+.pc-colmenu-analyze:hover { background: var(--qrx-bg-subtle); border-color: var(--qrx-primary) !important; }
 .pc-colmenu-ex {
   flex-shrink: 0; margin-top: 4px; padding: 8px 10px; border-top: 1px solid var(--qrx-border);
   background: var(--qrx-bg-subtle); border-radius: 0 0 6px 6px; min-height: 2.4em;

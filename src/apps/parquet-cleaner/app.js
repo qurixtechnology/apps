@@ -1973,7 +1973,8 @@
     closeColMenu();
     const el = document.createElement('div');
     el.className = 'pc-colmenu';
-    let html = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div><div class="pc-colmenu-body">`;
+    let html = `<div class="pc-colmenu-title">Column <strong>${escapeHtml(col)}</strong></div><div class="pc-colmenu-body">`;
+    html += `<button type="button" class="pc-colmenu-item pc-colmenu-analyze" data-analyze="1">🔎 Analyze value patterns</button>`;
     for (const [label, kinds] of COL_MENU_GROUPS) {
       const avail = kinds.filter(k => STEP_DEFS[k]);
       if (!avail.length) continue;
@@ -1988,6 +1989,14 @@
     el.style.top = (r.bottom + 4 + window.scrollY) + 'px';
     el.style.left = (Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - w - 8)) + 'px';
     el.addEventListener('click', ev => {
+      if (ev.target.closest('[data-analyze]')) {
+        closeColMenu();
+        const card = $('analyzeCard'); if (card) card.open = true;
+        if (analyzeCol) analyzeCol.value = col;
+        runAnalyze();
+        if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        return;
+      }
       const b = ev.target.closest('[data-kind]'); if (!b) return;
       const kind = b.getAttribute('data-kind');
       closeColMenu();
@@ -1996,7 +2005,7 @@
     });
     let exSeq = 0;
     el.addEventListener('mouseover', async ev => {
-      const item = ev.target.closest('.pc-colmenu-item'); if (!item) return;
+      const item = ev.target.closest('.pc-colmenu-item[data-kind]'); if (!item) return;
       const kind = item.getAttribute('data-kind');
       el.querySelectorAll('.pc-colmenu-item').forEach(b => b.classList.toggle('is-hover', b === item));
       const footer = el.querySelector('.pc-colmenu-ex');

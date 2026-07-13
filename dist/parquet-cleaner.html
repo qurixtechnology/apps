@@ -414,6 +414,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 }
 .pc-colmenu-body { overflow: auto; flex: 1 1 auto; }
 .pc-colmenu-item.is-hover { background: var(--qrx-bg-subtle); color: var(--qrx-primary); }
+.pc-colmenu-analyze { font-weight: 600; color: var(--qrx-primary); border: 1px solid var(--qrx-border) !important; margin-bottom: 4px; }
+.pc-colmenu-analyze:hover { background: var(--qrx-bg-subtle); border-color: var(--qrx-primary) !important; }
 .pc-colmenu-ex {
   flex-shrink: 0; margin-top: 4px; padding: 8px 10px; border-top: 1px solid var(--qrx-border);
   background: var(--qrx-bg-subtle); border-radius: 0 0 6px 6px; min-height: 2.4em;
@@ -620,7 +622,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <h3>Column structure — pattern analysis</h3>
     <p>
       To understand a messy column before cleaning it, open <strong>Column structure — pattern
-      analysis</strong>, pick a column and click <em>Analyze patterns</em>. Each value is reduced to a
+      analysis</strong>, pick a column and click <em>Analyze patterns</em> — or, quicker, click a
+      <strong>column header in the preview</strong> and choose <em>Analyze value patterns</em> (the
+      result opens in this panel for that column). Each value is reduced to a
       mask — <code>A</code> = uppercase letter, <code>a</code> = lowercase letter, <code>9</code> =
       digit, every other character kept literally (Unicode letters incl. umlauts are recognized). The
       most frequent masks are listed with their count, share and an example, plus a <strong>derived
@@ -1036,7 +1040,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260713-122827</span>
+    &middot; v<span data-build-version>260713-132831</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -3140,7 +3144,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     closeColMenu();
     const el = document.createElement('div');
     el.className = 'pc-colmenu';
-    let html = `<div class="pc-colmenu-title">Add rule for <strong>${escapeHtml(col)}</strong></div><div class="pc-colmenu-body">`;
+    let html = `<div class="pc-colmenu-title">Column <strong>${escapeHtml(col)}</strong></div><div class="pc-colmenu-body">`;
+    html += `<button type="button" class="pc-colmenu-item pc-colmenu-analyze" data-analyze="1">🔎 Analyze value patterns</button>`;
     for (const [label, kinds] of COL_MENU_GROUPS) {
       const avail = kinds.filter(k => STEP_DEFS[k]);
       if (!avail.length) continue;
@@ -3155,6 +3160,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     el.style.top = (r.bottom + 4 + window.scrollY) + 'px';
     el.style.left = (Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - w - 8)) + 'px';
     el.addEventListener('click', ev => {
+      if (ev.target.closest('[data-analyze]')) {
+        closeColMenu();
+        const card = $('analyzeCard'); if (card) card.open = true;
+        if (analyzeCol) analyzeCol.value = col;
+        runAnalyze();
+        if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        return;
+      }
       const b = ev.target.closest('[data-kind]'); if (!b) return;
       const kind = b.getAttribute('data-kind');
       closeColMenu();
@@ -3163,7 +3176,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     });
     let exSeq = 0;
     el.addEventListener('mouseover', async ev => {
-      const item = ev.target.closest('.pc-colmenu-item'); if (!item) return;
+      const item = ev.target.closest('.pc-colmenu-item[data-kind]'); if (!item) return;
       const kind = item.getAttribute('data-kind');
       el.querySelectorAll('.pc-colmenu-item').forEach(b => b.classList.toggle('is-hover', b === item));
       const footer = el.querySelector('.pc-colmenu-ex');
