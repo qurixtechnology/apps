@@ -274,6 +274,15 @@
 .preview-grid tbody tr:hover { background: var(--qrx-bg-muted); }
 .preview-grid .null-val { color: var(--qrx-text-subtle); font-style: italic; }
 .pc-preview-hint { font-size: 0.75rem; color: var(--qrx-text-muted); margin-top: var(--qrx-s-2); }
+/* Compare view: old → new per cell */
+.preview-grid td.cmp-changed { background: rgba(200, 54, 42, 0.05); white-space: nowrap; }
+.cmp-old { color: var(--qrx-danger); text-decoration: line-through; text-decoration-thickness: 1px; opacity: 0.85; }
+.cmp-arr { color: var(--qrx-text-subtle); margin: 0 5px; }
+.cmp-new { color: var(--qrx-success); font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  .preview-grid td.cmp-changed { background: rgba(240, 165, 155, 0.08); }
+  .cmp-old { color: #f0a59b; } .cmp-new { color: #8fe3c6; }
+}
 
 /* Pager / status (mirrors converter) */
 .sql-pager { display: flex; align-items: center; justify-content: center; gap: var(--qrx-s-3); margin-top: var(--qrx-s-3); }

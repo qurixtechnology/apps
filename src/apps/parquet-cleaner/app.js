@@ -32,6 +32,7 @@
   const previewHint  = $('previewHint');
   const viewOriginalBtn = $('viewOriginalBtn');
   const viewCleanedBtn  = $('viewCleanedBtn');
+  const viewCompareBtn  = $('viewCompareBtn');
   const pager        = $('pager');
   const prevBtn      = $('prevBtn');
   const nextBtn      = $('nextBtn');
@@ -1040,6 +1041,7 @@
     $('sumAnon').textContent = fmtN(anon.size);
   }
   async function renderPreview() {
+    if (state.view === 'compare') return renderCompare();
     const base = state.view === 'cleaned' ? 'cleaned' : 'original';
     const total = state.view === 'cleaned' ? state.rowCountCleaned : state.rowCountOriginal;
     const pages = Math.max(1, Math.ceil(total / PAGE));
@@ -1048,6 +1050,27 @@
     const res = await conn.query(`SELECT * FROM ${base} LIMIT ${PAGE} OFFSET ${state.page * PAGE}`);
     renderGrid(res);
     renderPreviewStats(total, res.schema.fields.length);
+    pager.hidden = total <= PAGE;
+    const start = total ? state.page * PAGE + 1 : 0;
+    pageInfo.textContent = `Rows ${fmtN(start)}–${fmtN(Math.min(total, (state.page + 1) * PAGE))} of ${fmtN(total)} · page ${state.page + 1}/${pages}`;
+    prevBtn.disabled = state.page <= 0;
+    nextBtn.disabled = state.page >= pages - 1;
+  }
+  // Compare view: old → new per cell (changed cells highlighted). Rows are aligned by
+  // position (row_number); when row-based steps remove rows the alignment is best-effort.
+  async function renderCompare() {
+    const fields = arrowFields((await conn.query('SELECT * FROM cleaned LIMIT 0')).schema);
+    const origNames = new Set(state.schema.map(c => c.name));
+    const total = state.rowCountCleaned;
+    const pages = Math.max(1, Math.ceil(total / PAGE));
+    if (state.page >= pages) state.page = pages - 1;
+    if (state.page < 0) state.page = 0;
+    const sel = fields.map((f, i) => `${origNames.has(f.name) ? `o.${id(f.name)}` : 'NULL'} AS b${i}, c.${id(f.name)} AS a${i}`).join(', ');
+    const q = `WITH o AS (SELECT row_number() OVER () AS __rn, * FROM original), c AS (SELECT row_number() OVER () AS __rn, * FROM cleaned) `
+      + `SELECT ${sel} FROM c LEFT JOIN o ON c.__rn = o.__rn ORDER BY c.__rn LIMIT ${PAGE} OFFSET ${state.page * PAGE}`;
+    const rows = arrowRows(await conn.query(q));
+    renderCompareGrid(fields, origNames, rows);
+    renderPreviewStats(total, fields.length);
     pager.hidden = total <= PAGE;
     const start = total ? state.page * PAGE + 1 : 0;
     pageInfo.textContent = `Rows ${fmtN(start)}–${fmtN(Math.min(total, (state.page + 1) * PAGE))} of ${fmtN(total)} · page ${state.page + 1}/${pages}`;
@@ -1076,8 +1099,7 @@
   function columnAnonymized(col) {
     return state.pipeline.some(s => s.enabled && s.params && s.params.column === col && isAnonStep(s) && STEP_DEFS[s.kind].complete(s.params));
   }
-  function renderGrid(res) {
-    const fields = arrowFields(res.schema), rows = arrowRows(res);
+  function gridHead(fields) {
     const stepMap = columnStepMap();
     let h = '<tr>'; if (!fields.length) h += '<th>—</th>';
     for (const f of fields) {
@@ -1092,11 +1114,32 @@
         + `<button type="button" class="pc-col-btn" data-col="${escapeAttr(f.name)}"><span class="col-name-cell">${escapeHtml(f.name)}</span>${has ? '<span class="pc-col-dot" aria-hidden="true"></span>' : ''}<span class="pc-col-caret" aria-hidden="true">▾</span></button>`
         + `<span class="col-type"><span class="type-badge ${f.typeClass}">${escapeHtml(f.type)}</span>${piiTag}</span></th>`;
     }
-    previewGrid.querySelector('thead').innerHTML = h + '</tr>';
+    return h + '</tr>';
+  }
+  function renderGrid(res) {
+    const fields = arrowFields(res.schema), rows = arrowRows(res);
+    previewGrid.querySelector('thead').innerHTML = gridHead(fields);
     let b = ''; if (!rows.length) b = `<tr><td class="muted" colspan="${Math.max(1, fields.length)}">No rows</td></tr>`;
     for (const r of rows) {
       b += '<tr>';
       for (const f of fields) { const v = r[f.name]; b += `<td title="${escapeAttr(cellText(v, f.type))}">${cellHtml(v, f.type)}</td>`; }
+      b += '</tr>';
+    }
+    previewGrid.querySelector('tbody').innerHTML = b;
+  }
+  function renderCompareGrid(fields, origNames, rows) {
+    previewGrid.querySelector('thead').innerHTML = gridHead(fields);
+    let b = ''; if (!rows.length) b = `<tr><td class="muted" colspan="${Math.max(1, fields.length)}">No rows</td></tr>`;
+    for (const r of rows) {
+      b += '<tr>';
+      fields.forEach((f, i) => {
+        const av = r['a' + i], at = cellText(av, f.type);
+        if (!origNames.has(f.name)) { b += `<td title="${escapeAttr(at)}">${cellHtml(av, f.type)}</td>`; return; }
+        const bv = r['b' + i], bt = cellText(bv, f.type);
+        if (bt === at) { b += `<td title="${escapeAttr(at)}">${cellHtml(av, f.type)}</td>`; return; }
+        b += `<td class="cmp-changed" title="${escapeAttr(bt + '  →  ' + at)}">`
+          + `<span class="cmp-old">${cellHtml(bv, f.type)}</span><span class="cmp-arr">→</span><span class="cmp-new">${cellHtml(av, f.type)}</span></td>`;
+      });
       b += '</tr>';
     }
     previewGrid.querySelector('tbody').innerHTML = b;
@@ -1113,12 +1156,21 @@
     return escapeHtml(cellText(v, type));
   }
   function renderPreviewStats(total, cols) {
+    const rowLabel = state.view === 'compare' ? 'Compared rows' : (state.view === 'cleaned' ? 'Cleaned rows' : 'Rows');
     previewStats.innerHTML =
-      `<div class="preview-stat"><div class="preview-stat-label">${state.view === 'cleaned' ? 'Cleaned rows' : 'Rows'}</div><div class="preview-stat-value">${fmtN(total)}</div></div>` +
+      `<div class="preview-stat"><div class="preview-stat-label">${rowLabel}</div><div class="preview-stat-value">${fmtN(total)}</div></div>` +
       `<div class="preview-stat"><div class="preview-stat-label">Columns</div><div class="preview-stat-value">${fmtN(cols)}</div></div>`;
-    if (previewHint) previewHint.textContent = cols > 8
-      ? `${fmtN(cols)} columns — scroll horizontally to see more. Hover a cell or header for the full value.`
-      : 'Hover a cell for the full value.';
+    if (previewHint) {
+      if (state.view === 'compare') {
+        const misaligned = state.rowCountCleaned !== state.rowCountOriginal;
+        previewHint.textContent = 'Old → new per cell; changed cells are highlighted.'
+          + (misaligned ? ' Rows were added/removed, so old↔new alignment is approximate.' : '');
+      } else {
+        previewHint.textContent = cols > 8
+          ? `${fmtN(cols)} columns — scroll horizontally to see more. Hover a cell or header for the full value.`
+          : 'Hover a cell for the full value.';
+      }
+    }
   }
 
   // ---- Step actions ----
@@ -1243,6 +1295,7 @@
     state.view = v; state.page = 0;
     viewOriginalBtn.classList.toggle('is-active', v === 'original');
     viewCleanedBtn.classList.toggle('is-active', v === 'cleaned');
+    if (viewCompareBtn) viewCompareBtn.classList.toggle('is-active', v === 'compare');
     if (conn && state.duckFile) renderPreview().catch(e => console.error(e));
   }
 
@@ -1808,6 +1861,7 @@
 
   viewOriginalBtn.addEventListener('click', () => setView('original'));
   viewCleanedBtn.addEventListener('click', () => setView('cleaned'));
+  if (viewCompareBtn) viewCompareBtn.addEventListener('click', () => setView('compare'));
   prevBtn.addEventListener('click', () => { state.page--; renderPreview().catch(e => console.error(e)); });
   nextBtn.addEventListener('click', () => { state.page++; renderPreview().catch(e => console.error(e)); });
   exportBtn.addEventListener('click', exportCleaned);
