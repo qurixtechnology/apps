@@ -1297,160 +1297,22 @@
     }
   }
   // ============================ DuckDB server (quack) ============================
-  // A server table is bound to the view `original` exactly like a dropped file,
-  // so the whole cleaning pipeline works unchanged. The vault/attach/list logic
-  // lives in the shared module (src/shared/duckdb-server.js).
+  // The whole connect flow — credentials, remembered token, table picker — is
+  // the shared widget (src/shared/qrx-connect.js). This app only says what to
+  // do with the picked table.
   const srv = window.qrxDuckServer;
   const vault = srv.vault;
-  let serverConn = { connected: false, uri: null };
-  let srvPhase = 'connect';   // 'connect' -> enter credentials | 'pick' -> choose a table
 
-  const srvStatusEl = () => $('srvStatus');
-  function srvSetStatus(msg, cls) {
-    const el = srvStatusEl(); if (!el) return;
-    el.textContent = msg || ''; el.className = 'qds-status' + (cls ? ' is-' + cls : '');
-  }
-  function srvSyncRememberUi() {
-    const uri = ($('srvUri').value || '').trim();
-    const hint = $('srvRememberHint'), cb = $('srvRemember'), tok = $('srvToken');
-    if (!hint || !cb) return;
-    if (!vault.available()) {
-      cb.checked = false; cb.disabled = true;
-      hint.textContent = 'Not available — this browser blocks local storage.';
-      return;
-    }
-    if (vault.has(uri)) {
-      cb.checked = true;
-      tok.placeholder = 'using saved token';
-      hint.innerHTML = 'A token for this server is saved (encrypted). Leave the field empty to reuse it. '
-        + '<a href="#" id="srvForgetLink">Forget it</a>';
-      const fl = $('srvForgetLink');
-      if (fl) fl.addEventListener('click', e => {
-        e.preventDefault(); vault.forget(uri); $('srvToken').value = '';
-        srvSyncRememberUi(); srvSetStatus('Saved token deleted.');
-      });
-    } else {
-      tok.placeholder = 'token';
-      hint.textContent = 'Stored encrypted in this browser, per server URI. Shared with the other qurix apps.';
-    }
-  }
-  // In the pick phase the credentials are already accepted — hide them so the
-  // dialog does not look like it is asking for the token again.
-  function srvSetPhase(phase) {
-    srvPhase = phase;
-    const pick = phase === 'pick';
-    $('srvTableGroup').hidden = !pick;
-    $('srvCreds').hidden = pick;
-    const note = $('srvConnNote');
-    note.hidden = !pick;
-    if (pick) {
-      note.innerHTML = `Connected to <strong>${escapeHtml(serverConn.uri || '')}</strong> · `
-        + '<a href="#" id="srvChangeConn">use a different server or token</a>';
-      const link = $('srvChangeConn');
-      if (link) link.addEventListener('click', e => {
-        e.preventDefault();
-        srvSetPhase('connect');
-        srvSetStatus('');
-        setTimeout(() => $('srvToken').focus(), 0);
-      });
-    }
-    $('srvGoBtn').textContent = pick ? 'Load table' : 'Connect';
-  }
-  function srvOpenModal(msg) {
-    srvSetStatus(msg || '', msg ? 'err' : null);
-    const last = vault.lastUri();
-    if (last) $('srvUri').value = last;
-    $('srvToken').value = '';
-    srvSyncRememberUi();
-    // Only offer the picker once the list is actually populated — otherwise the
-    // dialog shows an empty table select while the listing query is still running.
-    const filled = $('srvTable').options.length > 0;
-    srvSetPhase(serverConn.connected && filled ? 'pick' : 'connect');
-    $('srvModal').hidden = false;
-    setTimeout(() => { const el = serverConn.connected ? $('srvTable') : $('srvToken'); if (el) el.focus(); }, 0);
-  }
-  function srvCloseModal() { $('srvModal').hidden = true; }
-  async function srvFillTables() {
-    const tables = await srv.listTables(conn);
-    if (!tables.length) throw new Error('No tables found on this server.');
-    // Tables outside `main` are listed by the server but cannot be read through
-    // quack — show them, disabled, with the reason.
-    $('srvTable').innerHTML = tables.map(t => {
-      const label = t.reachable ? t.name : `${t.schema}.${t.name} — not reachable through quack`;
-      return `<option value="${escapeAttr(t.name)}"${t.reachable ? '' : ' disabled'}>${escapeHtml(label)}</option>`;
-    }).join('');
-    const first = tables.find(t => t.reachable);
-    if (!first) {
-      throw new Error(`None of the ${tables.length} tables are in the “main” schema. quack drops the `
-        + 'schema when forwarding a query, so only “main” can be read.');
-    }
-    $('srvTable').value = first.name;
-    srvSetPhase('pick');
-  }
-  // Lazy attach: with a remembered token, go straight to the table picker.
-  async function srvConnectClicked() {
-    const last = vault.lastUri();
-    if (serverConn.connected) {
-      srvOpenModal();
-      srvSetStatus('Loading tables…');
-      try { await srvFillTables(); srvSetStatus(''); }
-      catch (e) { srvSetStatus('Failed: ' + (e.message || String(e)), 'err'); }
-      return;
-    }
-    if (!last || !vault.has(last)) { srvOpenModal(); return; }
-    const token = await vault.get(last);
-    if (token === null) { srvOpenModal(); return; }
-    setStatus('Connecting to ' + last + '…');
-    try {
-      await initDuckDB();
-      await srv.attach(conn, last, token);
-      serverConn = { connected: true, uri: last };
-      setStatus('');
-      srvOpenModal();
-      srvSetStatus('Loading tables…');
-      await srvFillTables();
-      srvSetStatus('');
-    } catch (e) {
-      if (srv.isAuthError(e)) vault.forget(last);
-      serverConn = { connected: false, uri: null };
-      setStatus('');
-      srvOpenModal((srv.isAuthError(e) ? 'Saved token was rejected — enter it again. ' : 'Failed: ') + (e.message || String(e)));
-    }
-  }
-  async function srvGo() {
-    const btn = $('srvGoBtn'); btn.disabled = true;
-    try {
-      if (srvPhase === 'connect') {
-        const uri = $('srvUri').value.trim();
-        let token = $('srvToken').value;
-        if (!uri) { srvSetStatus('Enter a server URI.', 'err'); return; }
-        if (!token && vault.has(uri)) token = (await vault.get(uri)) || '';
-        srvSetStatus('Connecting…');
-        await initDuckDB();
-        await srv.attach(conn, uri, token);
-        serverConn = { connected: true, uri };
-        vault.noteUri(uri);
-        // Persist only once the server has actually accepted the token.
-        if ($('srvRemember').checked && token) await vault.put(uri, token);
-        else if (!$('srvRemember').checked) vault.forget(uri);
-        srvSetStatus('');
-        await srvFillTables();
-      } else {
-        const table = $('srvTable').value;
-        srvSetStatus('Loading…');
-        await srvLoadTable(serverConn.uri, table);
-        srvCloseModal();
-      }
-    } catch (e) {
-      const uri = $('srvUri').value.trim();
-      if (srvPhase === 'connect') {
-        if (srv.isAuthError(e)) vault.forget(uri);
-        serverConn = { connected: false, uri: null };
-        srvSyncRememberUi();
-      }
-      srvSetStatus('Failed: ' + (e && e.message ? e.message : String(e)), 'err');
-    } finally { btn.disabled = false; }
-  }
+  const srvDialog = qrx.ui.connectDialog({
+    selection: 'single',
+    onPick: async ({ uri, tables }) => { await initDuckDB(); await srvLoadTable(uri, tables[0]); },
+  });
+  // the export panel needs to know whether a connection already stands
+  const serverConn = {
+    get connected() { return srvDialog.isConnected(); },
+    get uri() { return srvDialog.uri(); },
+  };
+
   async function srvLoadTable(uri, table) {
     try { await conn.query('DROP VIEW IF EXISTS cleaned'); } catch (_) {}
     try { await conn.query('DROP VIEW IF EXISTS original'); } catch (_) {}
@@ -1536,7 +1398,6 @@
           }
           throw e;
         }
-        serverConn = { connected: true, uri };
         vault.noteUri(uri);
         const rem = $('srvExpRemember');
         if (typed && rem && rem.checked) await vault.put(uri, token);
@@ -2101,14 +1962,9 @@
   // DuckDB server: the connect button sits inside the clickable dropzone, so it
   // must stop the click from also opening the file picker.
   if ($('srvConnectBtn')) {
-    $('srvConnectBtn').addEventListener('click', e => { e.stopPropagation(); srvConnectClicked(); });
+    $('srvConnectBtn').addEventListener('click', e => { e.stopPropagation(); srvDialog.open(); });
     $('srvConnectBtn').addEventListener('keydown', e => e.stopPropagation());
   }
-  if ($('srvCancelBtn')) $('srvCancelBtn').addEventListener('click', srvCloseModal);
-  if ($('srvGoBtn')) $('srvGoBtn').addEventListener('click', srvGo);
-  if ($('srvUri')) $('srvUri').addEventListener('input', srvSyncRememberUi);
-  if ($('srvToken')) $('srvToken').addEventListener('keydown', e => { if (e.key === 'Enter') srvGo(); });
-  if ($('srvModal')) $('srvModal').addEventListener('click', e => { if (e.target === $('srvModal')) srvCloseModal(); });
   if ($('exportSrvBtn')) $('exportSrvBtn').addEventListener('click', srvExpOpen);
   if ($('srvExpCancelBtn')) $('srvExpCancelBtn').addEventListener('click', srvExpClose);
   if ($('srvExpGoBtn')) $('srvExpGoBtn').addEventListener('click', srvExportCleaned);

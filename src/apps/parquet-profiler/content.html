@@ -24,44 +24,6 @@
     </p>
   </section>
 
-  <!-- DuckDB server (quack): connect and pick tables to profile -->
-  <div id="pp-srvModal" class="qds-modal" hidden>
-    <div class="qds-card">
-      <h3 class="qds-title">Connect with DuckDB</h3>
-      <p class="qds-hint">
-        Profiliert Tabellen eines laufenden DuckDB-Servers über die <code>quack</code>-Extension.
-        Dort starten mit <code>CALL quack_serve('quack:localhost', token =&gt; '…');</code>
-      </p>
-      <p class="qds-hint" id="pp-srvConnNote" hidden></p>
-      <div id="pp-srvCreds">
-        <div class="qrx-form-group">
-          <label class="qrx-label" for="pp-srvUri">Server-URI</label>
-          <input class="qrx-input" id="pp-srvUri" value="quack:localhost" spellcheck="false" placeholder="quack:localhost">
-        </div>
-        <div class="qrx-form-group">
-          <label class="qrx-label" for="pp-srvToken">Auth-Token</label>
-          <input class="qrx-input" id="pp-srvToken" type="password" autocomplete="off" placeholder="Token">
-        </div>
-        <div class="qrx-form-group">
-          <label class="qds-check">
-            <input type="checkbox" id="pp-srvRemember">
-            <span class="qrx-label" style="margin: 0;">Token auf diesem Gerät merken</span>
-          </label>
-          <p class="qds-hint" id="pp-srvRememberHint" style="margin: .35rem 0 0;"></p>
-        </div>
-      </div>
-      <div class="qrx-form-group" id="pp-srvTableGroup" hidden>
-        <label class="qrx-label">Tabellen</label>
-        <div class="qds-tables" id="pp-srvTables"></div>
-      </div>
-      <p class="qds-status" id="pp-srvStatus"></p>
-      <div class="qds-actions">
-        <button class="qrx-btn" id="pp-srvCancelBtn" type="button">Abbrechen</button>
-        <button class="qrx-btn qrx-btn-primary" id="pp-srvGoBtn" type="button">Verbinden</button>
-      </div>
-    </div>
-  </div>
-
   <!-- File list (visible once at least one file is loaded) -->
   <section class="pp-section" id="pp-statusSection" hidden>
     <div class="pp-files-head">

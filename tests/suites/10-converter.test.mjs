@@ -94,13 +94,14 @@ describe('converter', () => {
       await page.evaluate(() => {
         window.__picker = false;
         document.getElementById('filePicker').click = () => { window.__picker = true; };
+        window.qrxDuckServer.vault.forget();   // a remembered token would skip the dialog
       });
       await page.click('#srvConnectBtn');
-      await page.waitForFunction(() => !document.getElementById('srvModal').hidden, { timeout: 10_000 });
+      await page.waitForSelector('.qrx-modal:not([hidden])', { timeout: 10_000 });
       assert.equal(await page.evaluate(() => window.__picker), false, 'file dialog must stay closed');
 
       // and the dropzone itself must still open it
-      await page.click('#srvCancelBtn');
+      await page.click('.qrx-modal:not([hidden]) [data-key="cancel"]');
       await page.evaluate(() => { window.__picker = false; });
       await page.click('.dz-title');
       assert.equal(await page.evaluate(() => window.__picker), true, 'dropzone still opens the dialog');

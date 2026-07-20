@@ -128,9 +128,10 @@ describe('profiler', () => {
       await page.evaluate(() => {
         window.__picker = false;
         document.getElementById('pp-fileInput').click = () => { window.__picker = true; };
+        window.qrxDuckServer.vault.forget();   // a remembered token would skip the dialog
       });
       await page.click('#pp-srvConnectBtn');
-      await page.waitForFunction(() => !document.getElementById('pp-srvModal').hidden, { timeout: 10_000 });
+      await page.waitForSelector('.qrx-modal:not([hidden])', { timeout: 10_000 });
       assert.equal(await page.evaluate(() => window.__picker), false);
       page.assertNoErrors();
     } finally { await page.close(); }

@@ -1,0 +1,53 @@
+/* Styling for the shared widgets (qrx.ui.*).
+   Prefixed qrx- so it never collides with an app's own classes. Colours and
+   spacing come from the theme's custom properties, so a widget looks native in
+   every app without being restyled. */
+
+/* --- modal --------------------------------------------------------------- */
+.qrx-modal {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--qrx-s-6); background: rgba(10, 31, 43, 0.55);
+}
+.qrx-modal[hidden] { display: none; }
+.qrx-modal-card {
+  width: 100%; max-width: 560px; max-height: 88vh; overflow: auto;
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg); box-shadow: var(--qrx-shadow-lg);
+  padding: var(--qrx-s-6);
+}
+.qrx-modal-card.is-busy { opacity: .75; }
+.qrx-modal-title { margin: 0 0 var(--qrx-s-2); color: var(--qrx-primary); font-size: 1.125rem; }
+.qrx-modal-hint { margin: 0 0 var(--qrx-s-4); font-size: 0.875rem; color: var(--qrx-text-muted); }
+.qrx-modal-status {
+  font-size: 0.8125rem; font-weight: 600; margin: var(--qrx-s-3) 0 0; min-height: 1.2em;
+}
+.qrx-modal-status.is-err { color: var(--qrx-danger); }
+.qrx-modal-actions {
+  display: flex; justify-content: flex-end; gap: var(--qrx-s-3); margin-top: var(--qrx-s-4);
+}
+
+/* --- form bits used by widgets inside a modal ---------------------------- */
+.qrx-field { margin-bottom: var(--qrx-s-4); }
+.qrx-field:last-child { margin-bottom: 0; }
+.qrx-check { display: flex; align-items: center; gap: var(--qrx-s-2); }
+.qrx-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--qrx-primary); }
+.qrx-note { margin: .35rem 0 0; font-size: 0.8125rem; color: var(--qrx-text-muted); }
+
+/* --- table picker (connect dialog) --------------------------------------- */
+.qrx-picker {
+  max-height: 34vh; overflow: auto; margin: 0 0 var(--qrx-s-2);
+  border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius);
+  background: var(--qrx-bg-subtle);
+}
+.qrx-picker label {
+  display: flex; align-items: center; gap: var(--qrx-s-2);
+  padding: var(--qrx-s-2) var(--qrx-s-3); cursor: pointer;
+  font-family: var(--qrx-font-mono); font-size: 0.8125rem;
+  border-bottom: 1px solid var(--qrx-border);
+}
+.qrx-picker label:last-child { border-bottom: none; }
+.qrx-picker label:hover { background: var(--qrx-surface); }
+.qrx-picker label.is-disabled { opacity: .55; cursor: default; }
+.qrx-picker label.is-disabled:hover { background: none; }
+.qrx-picker input { accent-color: var(--qrx-primary); }

@@ -16,44 +16,6 @@
       </div>
     </div>
 
-    <!-- DuckDB server (quack): connect + pick a table -->
-    <div id="srvModal" class="qds-modal" hidden>
-      <div class="qds-card">
-        <h3 class="qds-title">Connect with DuckDB</h3>
-        <p class="qds-hint">
-          Cleans a table from a running DuckDB server via the <code>quack</code> extension.
-          Start it there with <code>CALL quack_serve('quack:localhost', token =&gt; '…');</code>
-        </p>
-        <p class="qds-hint" id="srvConnNote" hidden></p>
-        <div id="srvCreds">
-          <div class="qrx-form-group">
-            <label class="qrx-label" for="srvUri">Server URI</label>
-            <input class="qrx-input" id="srvUri" value="quack:localhost" spellcheck="false" placeholder="quack:localhost">
-          </div>
-          <div class="qrx-form-group">
-            <label class="qrx-label" for="srvToken">Auth token</label>
-            <input class="qrx-input" id="srvToken" type="password" autocomplete="off" placeholder="token">
-          </div>
-          <div class="qrx-form-group">
-            <label class="qds-check">
-              <input type="checkbox" id="srvRemember">
-              <span class="qrx-label" style="margin: 0;">Remember this token on this device</span>
-            </label>
-            <p class="qds-hint" id="srvRememberHint" style="margin: .35rem 0 0;"></p>
-          </div>
-        </div>
-        <div class="qrx-form-group" id="srvTableGroup" hidden>
-          <label class="qrx-label" for="srvTable">Table</label>
-          <select class="qrx-select" id="srvTable"></select>
-        </div>
-        <p class="qds-status" id="srvStatus"></p>
-        <div class="qds-actions">
-          <button class="qrx-btn" id="srvCancelBtn" type="button">Cancel</button>
-          <button class="qrx-btn qrx-btn-primary" id="srvGoBtn" type="button">Connect</button>
-        </div>
-      </div>
-    </div>
-
     <!-- DuckDB server: export the cleaned result back to a table -->
     <div id="srvExpModal" class="qds-modal" hidden>
       <div class="qds-card">

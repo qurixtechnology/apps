@@ -428,165 +428,17 @@
   }
 
   // -------------------------------------------------------------------------
-  // DuckDB server (quack) — vault/attach/list live in src/shared/duckdb-server.js
+  // DuckDB server (quack) — the connect flow is the shared widget
+  // (src/shared/qrx-connect.js); this app only says what to do with the picked
+  // tables.
   // -------------------------------------------------------------------------
   const srv = window.qrxDuckServer;
-  const vault = srv.vault;
-  let serverConn = { connected: false, uri: null };
-  let srvPhase = 'connect';
 
-  function srvSetStatus(msg, cls) {
-    const el = document.getElementById('pp-srvStatus'); if (!el) return;
-    el.textContent = msg || ''; el.className = 'qds-status' + (cls ? ' is-' + cls : '');
-  }
-  function srvSyncRememberUi() {
-    const uri = (document.getElementById('pp-srvUri').value || '').trim();
-    const hint = document.getElementById('pp-srvRememberHint');
-    const cb = document.getElementById('pp-srvRemember');
-    const tok = document.getElementById('pp-srvToken');
-    if (!hint || !cb) return;
-    if (!vault.available()) {
-      cb.checked = false; cb.disabled = true;
-      hint.textContent = 'Nicht verfügbar — dieser Browser blockiert lokalen Speicher.';
-      return;
-    }
-    if (vault.has(uri)) {
-      cb.checked = true;
-      tok.placeholder = 'gespeicherter Token wird verwendet';
-      hint.innerHTML = 'Für diesen Server ist ein Token gespeichert (verschlüsselt). Feld leer lassen, um ihn zu verwenden. '
-        + '<a href="#" id="pp-srvForgetLink">Token löschen</a>';
-      const fl = document.getElementById('pp-srvForgetLink');
-      if (fl) fl.addEventListener('click', e => {
-        e.preventDefault(); vault.forget(uri);
-        document.getElementById('pp-srvToken').value = '';
-        srvSyncRememberUi(); srvSetStatus('Gespeicherter Token gelöscht.');
-      });
-    } else {
-      tok.placeholder = 'Token';
-      hint.textContent = 'Verschlüsselt im Browser gespeichert, pro Server-URI — geteilt mit den anderen qurix-Apps.';
-    }
-  }
-  // In the pick phase the credentials are already accepted — hide them so the
-  // dialog does not look like it is asking for the token again.
-  function srvSetPhase(phase) {
-    srvPhase = phase;
-    const pick = phase === 'pick';
-    document.getElementById('pp-srvTableGroup').hidden = !pick;
-    document.getElementById('pp-srvCreds').hidden = pick;
-    const note = document.getElementById('pp-srvConnNote');
-    note.hidden = !pick;
-    if (pick) {
-      note.innerHTML = `Verbunden mit <strong>${escapeHtml(serverConn.uri || '')}</strong> · `
-        + '<a href="#" id="pp-srvChangeConn">anderer Server oder Token</a>';
-      const link = document.getElementById('pp-srvChangeConn');
-      if (link) link.addEventListener('click', e => {
-        e.preventDefault();
-        srvSetPhase('connect');
-        srvSetStatus('');
-        setTimeout(() => document.getElementById('pp-srvToken').focus(), 0);
-      });
-    }
-    document.getElementById('pp-srvGoBtn').textContent = pick ? 'Tabellen laden' : 'Verbinden';
-  }
-  function srvOpenModal(msg) {
-    srvSetStatus(msg || '', msg ? 'err' : null);
-    const last = vault.lastUri();
-    if (last) document.getElementById('pp-srvUri').value = last;
-    document.getElementById('pp-srvToken').value = '';
-    srvSyncRememberUi();
-    // Only offer the picker once the list is actually populated — otherwise the
-    // dialog shows an empty table box while the listing query is still running.
-    const filled = document.getElementById('pp-srvTables').children.length > 0;
-    srvSetPhase(serverConn.connected && filled ? 'pick' : 'connect');
-    document.getElementById('pp-srvModal').hidden = false;
-  }
-  function srvCloseModal() { document.getElementById('pp-srvModal').hidden = true; }
-  async function srvFillTables() {
-    const tables = await srv.listTables(state.conn);
-    if (!tables.length) throw new Error('Auf diesem Server wurden keine Tabellen gefunden.');
-    // Only `main` is readable through quack — the rest are shown, but disabled.
-    state.remoteTables = tables.filter(t => t.reachable).map(t => t.name);
-    renderSqlTables();   // make them available as chips in the SQL editor
-    const loaded = new Set(state.files.filter(f => f.kind === 'duckdb').map(f => f.name));
-    document.getElementById('pp-srvTables').innerHTML = tables.map(t => {
-      const off = !t.reachable || loaded.has(t.name);
-      const note = !t.reachable ? ` · Schema „${escapeHtml(t.schema)}" — über quack nicht erreichbar`
-        : (loaded.has(t.name) ? ' · bereits geladen' : '');
-      return `<label${off ? ' style="opacity:.55;cursor:default;"' : ''}>`
-        + `<input type="checkbox" value="${escapeHtml(t.name)}"${off ? ' disabled' : ''}>`
-        + `<span>${escapeHtml(t.name)}${note}</span></label>`;
-    }).join('');
-    if (!state.remoteTables.length) {
-      throw new Error(`Keine der ${tables.length} Tabellen liegt im Schema „main". quack entfernt das `
-        + 'Schema beim Weiterleiten einer Abfrage, daher ist nur „main" lesbar.');
-    }
-    srvSetPhase('pick');
-  }
-  // Lazy attach: with a remembered token, go straight to the table picker.
-  async function srvConnectClicked() {
-    const last = vault.lastUri();
-    if (serverConn.connected) {
-      srvOpenModal();
-      srvSetStatus('Tabellen werden geladen …');
-      try { await srvFillTables(); srvSetStatus(''); }
-      catch (e) { srvSetStatus('Fehlgeschlagen: ' + (e.message || String(e)), 'err'); }
-      return;
-    }
-    if (!last || !vault.has(last)) { srvOpenModal(); return; }
-    const token = await vault.get(last);
-    if (token === null) { srvOpenModal(); return; }
-    showLoading('Verbindung zu ' + last + ' …');
-    try {
-      await initDuckDB();
-      await srv.attach(state.conn, last, token);
-      serverConn = { connected: true, uri: last };
-      hideLoading();
-      srvOpenModal();
-      srvSetStatus('Tabellen werden geladen …');
-      await srvFillTables();
-      srvSetStatus('');
-    } catch (e) {
-      if (srv.isAuthError(e)) vault.forget(last);
-      serverConn = { connected: false, uri: null };
-      hideLoading();
-      srvOpenModal((srv.isAuthError(e) ? 'Gespeicherter Token wurde abgelehnt — bitte neu eingeben. ' : 'Fehlgeschlagen: ')
-        + (e.message || String(e)));
-    }
-  }
-  async function srvGo() {
-    const btn = document.getElementById('pp-srvGoBtn'); btn.disabled = true;
-    try {
-      if (srvPhase === 'connect') {
-        const uri = document.getElementById('pp-srvUri').value.trim();
-        let token = document.getElementById('pp-srvToken').value;
-        if (!uri) { srvSetStatus('Bitte eine Server-URI eingeben.', 'err'); return; }
-        if (!token && vault.has(uri)) token = (await vault.get(uri)) || '';
-        srvSetStatus('Verbinde …');
-        await initDuckDB();
-        await srv.attach(state.conn, uri, token);
-        serverConn = { connected: true, uri };
-        vault.noteUri(uri);
-        // Persist only once the server has actually accepted the token.
-        if (document.getElementById('pp-srvRemember').checked && token) await vault.put(uri, token);
-        else if (!document.getElementById('pp-srvRemember').checked) vault.forget(uri);
-        srvSetStatus('');
-        await srvFillTables();
-      } else {
-        const picked = Array.from(document.querySelectorAll('#pp-srvTables input:checked')).map(i => i.value);
-        if (!picked.length) { srvSetStatus('Bitte mindestens eine Tabelle wählen.', 'err'); return; }
-        srvCloseModal();
-        await addRemoteTables(serverConn.uri, picked);
-      }
-    } catch (e) {
-      if (srvPhase === 'connect') {
-        const uri = document.getElementById('pp-srvUri').value.trim();
-        if (srv.isAuthError(e)) vault.forget(uri);
-        serverConn = { connected: false, uri: null };
-        srvSyncRememberUi();
-      }
-      srvSetStatus('Fehlgeschlagen: ' + (e && e.message ? e.message : String(e)), 'err');
-    } finally { btn.disabled = false; }
-  }
+  const srvDialog = qrx.ui.connectDialog({
+    selection: 'multi',
+    loadedTables: () => state.files.filter(f => f.kind === 'duckdb').map(f => f.name),
+    onPick: async ({ uri, tables }) => { await initDuckDB(); await addRemoteTables(uri, tables); },
+  });
 
   // Switch a file's registration between lazy (range reads, low RAM) and
   // fully buffered (whole file in WASM memory, faster repeated queries).
@@ -3935,21 +3787,11 @@
   {
     const cb = document.getElementById('pp-srvConnectBtn');
     if (cb) {
-      cb.addEventListener('click', e => { e.stopPropagation(); srvConnectClicked(); });
+      cb.addEventListener('click', e => { e.stopPropagation(); srvDialog.open(); });
       cb.addEventListener('keydown', e => e.stopPropagation());
     }
     const ab = document.getElementById('pp-srvAddBtn');
-    if (ab) ab.addEventListener('click', srvConnectClicked);
-    const cancel = document.getElementById('pp-srvCancelBtn');
-    if (cancel) cancel.addEventListener('click', srvCloseModal);
-    const go = document.getElementById('pp-srvGoBtn');
-    if (go) go.addEventListener('click', srvGo);
-    const uriEl = document.getElementById('pp-srvUri');
-    if (uriEl) uriEl.addEventListener('input', srvSyncRememberUi);
-    const tokEl = document.getElementById('pp-srvToken');
-    if (tokEl) tokEl.addEventListener('keydown', e => { if (e.key === 'Enter') srvGo(); });
-    const modal = document.getElementById('pp-srvModal');
-    if (modal) modal.addEventListener('click', e => { if (e.target === modal) srvCloseModal(); });
+    if (ab) ab.addEventListener('click', () => srvDialog.open());
   }
 
   // Pure logic for the test suite (only with ?qrxtest in the URL).

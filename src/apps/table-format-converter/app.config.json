@@ -18,8 +18,11 @@
     "../../shared/qrx-i18n.js",
     "../../shared/qrx-duckdb.js",
     "../../shared/qrx-test.js",
-    "../../shared/duckdb-server.js"
+    "../../shared/duckdb-server.js",
+    "../../shared/qrx-ui.js",
+    "../../shared/qrx-connect.js"
   ],
+  "inlineStyles": ["../../shared/qrx-ui.css"],
   "headAssets": [
     {
       "comment": "SheetJS (xlsx) via the official SheetJS CDN, pinned — adds robust ODS read/write and Apple Numbers read",

@@ -23,9 +23,12 @@
     "../../shared/qrx-i18n.js",
     "../../shared/qrx-duckdb.js",
     "../../shared/qrx-test.js",
-    "../../shared/duckdb-server.js"
+    "../../shared/duckdb-server.js",
+    "../../shared/qrx-ui.js",
+    "../../shared/qrx-connect.js"
   ],
   "inlineStyles": [
+    "../../shared/qrx-ui.css",
     "../../shared/duckdb-server.css"
   ],
   "headAssets": [

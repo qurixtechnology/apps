@@ -23,36 +23,6 @@
       </div>
     </div>
 
-    <!-- DuckDB server connect modal -->
-    <div id="srvModal" class="paste-modal" hidden>
-      <div class="paste-modal-card">
-        <h3 class="paste-modal-title">Connect with DuckDB</h3>
-        <p class="muted paste-modal-hint">
-          Reads tables from a running DuckDB server via the <code>quack</code> extension.
-          Start it there with <code>CALL quack_serve('quack:localhost', token =&gt; '…');</code>
-        </p>
-        <div class="qrx-form-group">
-          <label class="qrx-label" for="srvUri">Server URI</label>
-          <input class="qrx-input" id="srvUri" value="quack:localhost" spellcheck="false" placeholder="quack:localhost">
-        </div>
-        <div class="qrx-form-group">
-          <label class="qrx-label" for="srvToken">Auth token</label>
-          <input class="qrx-input" id="srvToken" type="password" autocomplete="off" placeholder="token">
-        </div>
-        <div class="qrx-form-group">
-          <label class="checkbox-row">
-            <input type="checkbox" id="srvRemember">
-            <span class="qrx-label" style="margin: 0;">Remember this token on this device</span>
-          </label>
-          <p class="muted paste-modal-hint" id="srvRememberHint"></p>
-        </div>
-        <p class="srv-status" id="srvStatus"></p>
-        <div class="paste-modal-actions">
-          <button class="qrx-btn" id="srvCancelBtn" type="button">Cancel</button>
-          <button class="qrx-btn qrx-btn-primary" id="srvGoBtn" type="button">Connect</button>
-        </div>
-      </div>
-    </div>
 
     <!-- Paste-capture modal (fallback when the async Clipboard API isn't available) -->
     <div id="pasteModal" class="paste-modal" hidden>

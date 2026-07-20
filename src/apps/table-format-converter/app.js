@@ -3476,103 +3476,25 @@
 
   // ============================ DuckDB server (quack) ============================
   // A connected server behaves exactly like a dropped .duckdb file: its tables
-  // appear in the normal table picker. The same connection is reused for export.
-  // Token vault, attach and table listing live in the shared module
-  // (src/shared/duckdb-server.js) so they cannot drift between the qurix apps.
+  // appear in the normal table picker, so the shared dialog only has to
+  // connect — the table choice happens in the app itself.
   const srv = window.qrxDuckServer;
   const tokenVault = srv.vault;
-  const srvIsAuthError = srv.isAuthError;
   const srvRemoteRef = srv.remoteRef;
 
-  let serverConn = { connected: false, uri: null };
-  function srvSetStatus(msg, cls) {
-    const el = $('srvStatus'); if (!el) return;
-    el.textContent = msg || ''; el.className = 'srv-status' + (cls ? ' is-' + cls : '');
-  }
-  async function srvAttach(uri, token) {
-    await initDuckDB();
-    await srv.attach(conn, uri, token);
-    serverConn = { connected: true, uri };
-  }
-  const srvListTables = () => srv.listTables(conn);
-  // Reflect whether a token is already stored for the URI currently typed in.
-  function srvSyncRememberUi() {
-    const uri = ($('srvUri').value || '').trim();
-    const hint = $('srvRememberHint'), cb = $('srvRemember'), tok = $('srvToken');
-    if (!hint || !cb) return;
-    if (!tokenVault.available()) {
-      cb.checked = false; cb.disabled = true;
-      hint.textContent = 'Not available — this browser blocks local storage.';
-      return;
-    }
-    if (tokenVault.has(uri)) {
-      cb.checked = true;
-      tok.placeholder = 'using saved token';
-      hint.innerHTML = 'A token for this server is saved (encrypted). Leave the field empty to reuse it. '
-        + '<a href="#" id="srvForgetLink">Forget it</a>';
-      const fl = $('srvForgetLink');
-      if (fl) fl.addEventListener('click', e => {
-        e.preventDefault();
-        tokenVault.forget(uri);
-        $('srvToken').value = '';
-        srvSyncRememberUi();
-        srvSetStatus('Saved token deleted.', null);
-      });
-    } else {
-      tok.placeholder = 'token';
-      hint.textContent = 'Stored encrypted in this browser, per server URI. Shared with the other qurix apps.';
-    }
-  }
-  function srvOpenModal(msg) {
-    srvSetStatus(msg || '', msg ? 'err' : null);
-    const last = tokenVault.lastUri();
-    if (last) $('srvUri').value = last;
-    $('srvToken').value = '';
-    srvSyncRememberUi();
-    $('srvModal').hidden = false;
-    setTimeout(() => { const t = $('srvToken'); if (t) t.focus(); }, 0);
-  }
-  function srvCloseModal() { $('srvModal').hidden = true; }
-  // Lazy attach: if a token is remembered, connect straight away — no modal.
-  async function srvConnectClicked() {
-    const last = tokenVault.lastUri();
-    if (!last || !tokenVault.has(last)) { srvOpenModal(); return; }
-    const token = await tokenVault.get(last);
-    if (token === null) { srvOpenModal(); return; }
-    setStatus('Connecting to ' + last + '…');
-    try {
-      await srvLoadFrom(last, token);
-      setStatus('');
-    } catch (e) {
-      if (srvIsAuthError(e)) tokenVault.forget(last);
-      setStatus('');
-      srvOpenModal((srvIsAuthError(e) ? 'Saved token was rejected — enter it again. ' : 'Failed: ') + (e && e.message ? e.message : String(e)));
-    }
-  }
-  async function srvConnectAndLoad() {
-    const uri = $('srvUri').value.trim();
-    let token = $('srvToken').value;
-    if (!uri) { srvSetStatus('Enter a server URI.', 'err'); return; }
-    if (!token && tokenVault.has(uri)) token = (await tokenVault.get(uri)) || '';
-    const btn = $('srvGoBtn'); btn.disabled = true;
-    srvSetStatus('Connecting…');
-    try {
-      await srvLoadFrom(uri, token);
-      // Only persist once the server has actually accepted the token.
-      if ($('srvRemember').checked && token) await tokenVault.put(uri, token);
-      else if (!$('srvRemember').checked) tokenVault.forget(uri);
-    } catch (e) {
-      if (srvIsAuthError(e)) tokenVault.forget(uri);
-      srvSetStatus('Failed: ' + (e && e.message ? e.message : String(e)), 'err');
-      srvSyncRememberUi();
-    } finally { btn.disabled = false; }
-  }
+  const srvDialog = qrx.ui.connectDialog({
+    selection: 'none',
+    onConnected: async ({ uri }) => { await initDuckDB(); await srvLoadFrom(uri); },
+  });
+  const serverConn = {
+    get connected() { return srvDialog.isConnected(); },
+    get uri() { return srvDialog.uri(); },
+  };
+
   // Connect, then present the server exactly like an attached DuckDB database.
-  async function srvLoadFrom(uri, token) {
-    try {
-      await srvAttach(uri, token);
-      tokenVault.noteUri(uri);
-      const all = await srvListTables();
+  async function srvLoadFrom(uri) {
+    {
+      const all = await srv.listTables(conn);
       if (!all.length) throw new Error('No tables found on this server.');
       // quack can only read the server's `main` schema; the rest are listed but
       // would fail on the first query, so they are not offered as a source.
@@ -3591,7 +3513,6 @@
         schema: 'main', name: n, qualified: `remote.${sqlIdent('main')}.${sqlIdent(n)}`,
       }));
       state.detected = { table: state.duckdbTables[0].qualified };
-      srvCloseModal();
       dropzone.hidden = true; fileInfo.hidden = false;
       fileIcon.textContent = 'DDB';
       fileName.textContent = uri;
@@ -3603,9 +3524,6 @@
       await refreshPreview();
       updateHeuristicCollapseState();
       setStatus('');
-    } catch (e) {
-      serverConn = { connected: false, uri: null };
-      throw e;   // callers decide whether to show the modal or an inline error
     }
   }
   // Export target "DuckDB": write the current (filtered/edited) result to a table.
@@ -3656,14 +3574,9 @@
   }
   // The button sits inside the dropzone — stop the click from also opening the file picker.
   if ($('srvConnectBtn')) {
-    $('srvConnectBtn').addEventListener('click', e => { e.stopPropagation(); srvConnectClicked(); });
+    $('srvConnectBtn').addEventListener('click', e => { e.stopPropagation(); srvDialog.open(); });
     $('srvConnectBtn').addEventListener('keydown', e => e.stopPropagation());
   }
-  if ($('srvCancelBtn')) $('srvCancelBtn').addEventListener('click', srvCloseModal);
-  if ($('srvGoBtn')) $('srvGoBtn').addEventListener('click', srvConnectAndLoad);
-  if ($('srvToken')) $('srvToken').addEventListener('keydown', e => { if (e.key === 'Enter') srvConnectAndLoad(); });
-  if ($('srvModal')) $('srvModal').addEventListener('click', e => { if (e.target === $('srvModal')) srvCloseModal(); });
-  if ($('srvUri')) $('srvUri').addEventListener('input', srvSyncRememberUi);
 
   // Pure logic for the test suite (only with ?qrxtest in the URL).
   qrxTest.expose('converter', {
