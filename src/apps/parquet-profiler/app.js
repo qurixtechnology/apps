@@ -421,18 +421,23 @@
         const id = 'f' + (fileSeq++);
         const alias = makeAlias(t, taken);
         taken.add(alias);
-        const sqlRef = srv.remoteRef(t);
-        // quack strips the schema when forwarding a query, so only tables in the
-        // server's `main` schema are reachable even though all are listed.
+        // Copy the table into local memory rather than binding a view to it: a
+        // quack table is a STREAMING scan that may be read only once per query,
+        // so a view breaks joins, self-joins and stats subqueries with
+        // "Multiple streaming scans ... not supported". It also avoids
+        // re-scanning over the network for every profiling query.
+        const sqlRef = quoteIdent(alias);
         try {
-          await runQuery(`CREATE OR REPLACE VIEW ${quoteIdent(alias)} AS SELECT * FROM ${sqlRef}`);
-          await runQuery(`SELECT * FROM ${sqlRef} LIMIT 0`);   // views bind lazily — probe now
+          await runQuery(`CREATE OR REPLACE TABLE ${sqlRef} AS SELECT * FROM ${srv.remoteRef(t)}`);
         } catch (e) {
-          console.warn('view create failed for', alias, e);
-          try { await runQuery(`DROP VIEW IF EXISTS ${quoteIdent(alias)}`); } catch (_) {}
-          throw new Error(`Die Tabelle „${t}" ist über quack nicht erreichbar. `
-            + 'Der Server stellt nur Tabellen im Schema „main" bereit — Tabellen in anderen Schemata '
-            + 'werden zwar aufgelistet, können aber nicht gelesen werden.');
+          console.warn('materialising failed for', alias, e);
+          try { await runQuery(`DROP TABLE IF EXISTS ${sqlRef}`); } catch (_) {}
+          if (/does not exist|Catalog Error/i.test((e && e.message) || '')) {
+            throw new Error(`Die Tabelle „${t}" ist über quack nicht erreichbar. `
+              + 'Der Server stellt nur Tabellen im Schema „main" bereit — Tabellen in anderen Schemata '
+              + 'werden zwar aufgelistet, können aber nicht gelesen werden.');
+          }
+          throw e;
         }
         let rows = null;
         try {
@@ -784,6 +789,8 @@
     if (idx < 0) return;
     const rec = state.files[idx];
     try { await runQuery(`DROP VIEW IF EXISTS ${quoteIdent(rec.alias)}`); } catch (e) { /* ignore */ }
+    // a DuckDB-server source is a materialised table, not a view
+    try { await runQuery(`DROP TABLE IF EXISTS ${quoteIdent(rec.alias)}`); } catch (e) { /* ignore */ }
     try { await state.db.dropFile(rec.vfsName); } catch (e) { /* ignore */ }
     state.files.splice(idx, 1);
 
@@ -853,7 +860,7 @@
           + (isActive ? `<span class="pp-file-active-badge">aktiv</span>` : '')
           + (isActive && f.mode === 'buffer' ? `<span class="pp-file-buffered-badge">im Speicher</span>` : '')
           + `</span>`
-          + `<span class="pp-file-detail">${f.kind === 'duckdb' ? 'DuckDB-Server' : formatBytes(f.size)} \u00B7 ${rowsTxt}${attrsTxt}`
+          + `<span class="pp-file-detail">${f.kind === 'duckdb' ? 'DuckDB-Server · im Speicher' : formatBytes(f.size)} \u00B7 ${rowsTxt}${attrsTxt}`
           + ` \u00B7 View: <code>${escapeHtml(f.alias)}</code></span>`
         + `</span>`
         + `<button class="pp-file-remove" type="button" data-action="remove" `

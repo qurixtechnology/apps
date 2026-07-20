@@ -1264,7 +1264,10 @@
       await initDuckDB();
       // tear down any previous source
       try { await conn.query('DROP VIEW IF EXISTS cleaned'); } catch (_) {}
+      // `original` is a VIEW for a file source and a materialised TABLE for a
+      // DuckDB-server source — drop whichever exists.
       try { await conn.query('DROP VIEW IF EXISTS original'); } catch (_) {}
+      try { await conn.query('DROP TABLE IF EXISTS original'); } catch (_) {}
       if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
       state.file = file; state.fileSize = file.size; state.remote = null; state.loaded = false;
       state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null; state.colWidths = {};
@@ -1301,7 +1304,7 @@
     setStatus('');
   }
   function resetFile() {
-    try { if (conn) { conn.query('DROP VIEW IF EXISTS cleaned'); conn.query('DROP VIEW IF EXISTS original'); } } catch (_) {}
+    try { if (conn) { conn.query('DROP VIEW IF EXISTS cleaned'); conn.query('DROP VIEW IF EXISTS original'); conn.query('DROP TABLE IF EXISTS original'); } } catch (_) {}
     if (state.duckFile && db) { try { db.dropFile(state.duckFile); } catch (_) {} }
     state.file = null; state.duckFile = null; state.schema = []; state.pipeline = [];
     state.loaded = false; state.remote = null;
@@ -1503,21 +1506,29 @@
   async function srvLoadTable(uri, table) {
     try { await conn.query('DROP VIEW IF EXISTS cleaned'); } catch (_) {}
     try { await conn.query('DROP VIEW IF EXISTS original'); } catch (_) {}
+    try { await conn.query('DROP TABLE IF EXISTS original'); } catch (_) {}
     if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
     state.file = null; state.fileSize = 0; state.duckFile = null; state.loaded = false;
     state.remote = { uri, table };
     state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null; state.colWidths = {};
     resetReview();
-    // quack strips the schema when forwarding a query, so only tables in the
-    // server's `main` schema are reachable even though all are listed.
+    // Copy the table into local memory instead of binding a view to it. A quack
+    // table is a STREAMING scan: it may be read only once per query, so a view
+    // breaks every pipeline step that scans twice (joins, k-anonymity buckets,
+    // stats subqueries) with "Multiple streaming scans ... not supported".
+    // Materialising also avoids re-scanning over the network on every preview.
+    setStatus('Copying the table into memory…');
     try {
-      await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM ${srv.remoteRef(table)}`);
-      await conn.query('SELECT * FROM original LIMIT 0');   // views bind lazily — probe now
+      await conn.query(`CREATE OR REPLACE TABLE original AS SELECT * FROM ${srv.remoteRef(table)}`);
     } catch (e) {
-      throw new Error(`Table “${table}” is not reachable through quack. The server only exposes `
-        + 'tables in the “main” schema — tables in other schemas are listed but cannot be read.');
+      const msg = (e && e.message) || String(e);
+      if (/does not exist|Catalog Error/i.test(msg)) {
+        throw new Error(`Table “${table}” is not reachable through quack. The server only exposes `
+          + 'tables in the “main” schema — tables in other schemas are listed but cannot be read.');
+      }
+      throw e;
     }
-    await finalizeSource('DDB', `${uri} · ${table}`, 'DuckDB server');
+    await finalizeSource('DDB', `${uri} · ${table}`, 'DuckDB server · copied into memory');
   }
 
   // ---- Export to a DuckDB server table (applies the cleaning pipeline) ----
