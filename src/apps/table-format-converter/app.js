@@ -236,7 +236,7 @@
       // with multi-line quoted fields. Earlier versions (1.29 → DuckDB v1.1)
       // can't handle the bare LF inside quoted stack traces and the sniffer
       // bails. Extensions (json/parquet/etc.) still autoload as in 1.29.
-      duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.30.0/+esm');
+      duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm');
       const bundles = duckdb.getJsDelivrBundles();
       const bundle = await duckdb.selectBundle(bundles);
       const worker_url = URL.createObjectURL(
@@ -3487,8 +3487,32 @@
         <input type="checkbox" id="ex_header" checked>
         <span class="qrx-label" style="margin: 0;">Write header</span>
       </label></div>`;
+    } else if (fmt === 'duckdb') {
+      html += serverConn.connected
+        ? `<p class="empty-note">Connected to <strong>${escapeHtml(serverConn.uri)}</strong>.</p>`
+        : `<div class="qrx-form-group">
+             <label class="qrx-label" for="ex_srv_uri">Server URI</label>
+             <input class="qrx-input" id="ex_srv_uri" type="text" value="quack:localhost" spellcheck="false">
+           </div>
+           <div class="qrx-form-group">
+             <label class="qrx-label" for="ex_srv_token">Auth token</label>
+             <input class="qrx-input" id="ex_srv_token" type="password" autocomplete="off" placeholder="token">
+           </div>`;
+      html += `<div class="qrx-form-group">
+          <label class="qrx-label" for="ex_srv_table">Target table</label>
+          <input class="qrx-input" id="ex_srv_table" type="text" value="${escapeAttr(srvDefaultTargetName())}" spellcheck="false">
+        </div>
+        <div class="qrx-form-group">
+          <label class="qrx-label" for="ex_srv_mode">If the table exists</label>
+          <select class="qrx-select" id="ex_srv_mode">
+            <option value="replace">Replace</option>
+            <option value="create">Create new (fail if it exists)</option>
+            <option value="append">Append</option>
+          </select>
+        </div>`;
     }
     exportOptions.innerHTML = html;
+    exportBtn.textContent = (fmt === 'duckdb') ? 'Export to DuckDB' : 'Export & download';
   }
   targetFormat.addEventListener('change', renderExportOptions);
 
@@ -3502,7 +3526,9 @@
       // Excel source must be funneled through DuckDB for non-xlsx targets,
       // OR handled directly with SheetJS for xlsx target.
       const spreadsheet = (fmt === 'xlsx' || fmt === 'ods');  // SheetJS-written targets
-      if (state.format === 'sqlite') {
+      if (fmt === 'duckdb') {
+        await exportToDuckServer();   // writes a table on the connected DuckDB server
+      } else if (state.format === 'sqlite') {
         // Materialise the chosen table to a CSV DuckDB can read, then export
         // through the normal SQL path (gives filter / rename / exclude for free).
         await materializeSqlite();
@@ -3527,7 +3553,7 @@
       } else {
         await exportSqlToFile(fmt);
       }
-      exportProgress.textContent = 'Done.';
+      if (fmt !== 'duckdb') exportProgress.textContent = 'Done.';
       setStatus('');
     } catch (err) {
       console.error(err);
@@ -3540,9 +3566,113 @@
   });
 
   function makeOutName(ext) {
-    const base = (state.file.name.replace(/\.[^.]+$/, '') || 'output');
+    const base = ((state.file && state.file.name || 'output').replace(/\.[^.]+$/, '') || 'output');
     return `${base}.converted.${ext}`;
   }
+
+  // ============================ DuckDB server (quack) ============================
+  // A connected server behaves exactly like a dropped .duckdb file: its tables
+  // appear in the normal table picker. The same connection is reused for export.
+  let serverConn = { connected: false, uri: null };
+  function srvSetStatus(msg, cls) {
+    const el = $('srvStatus'); if (!el) return;
+    el.textContent = msg || ''; el.className = 'srv-status' + (cls ? ' is-' + cls : '');
+  }
+  // quack addresses the server's `main` schema.
+  function srvRemoteRef(input) {
+    const parts = input.includes('.') ? input.split('.') : ['main', input];
+    return 'remote.' + parts.map(p => sqlIdent(p.trim())).join('.');
+  }
+  async function srvAttach(uri, token) {
+    await initDuckDB();
+    await conn.query('INSTALL quack; LOAD quack;');
+    try { await conn.query('DETACH remote'); } catch (_) {}
+    await conn.query(`CREATE OR REPLACE SECRET __quack (TYPE quack, TOKEN '${sqlEscape(token)}')`);
+    await conn.query(`ATTACH '${sqlEscape(uri)}' AS remote`);
+    serverConn = { connected: true, uri };
+  }
+  async function srvListTables() {
+    const rows = (await conn.query("SELECT DISTINCT name FROM remote.sqlite_master WHERE type='table' ORDER BY name")).toArray();
+    return rows.map(r => String(r.name));
+  }
+  function srvOpenModal() {
+    srvSetStatus('');
+    $('srvModal').hidden = false;
+    setTimeout(() => { const t = $('srvToken'); if (t) t.focus(); }, 0);
+  }
+  function srvCloseModal() { $('srvModal').hidden = true; }
+  // Connect, then present the server exactly like an attached DuckDB database.
+  async function srvConnectAndLoad() {
+    const uri = $('srvUri').value.trim(), token = $('srvToken').value;
+    if (!uri) { srvSetStatus('Enter a server URI.', 'err'); return; }
+    const btn = $('srvGoBtn'); btn.disabled = true;
+    srvSetStatus('Connecting…');
+    try {
+      await srvAttach(uri, token);
+      const names = await srvListTables();
+      if (!names.length) throw new Error('No tables found on this server.');
+      state.format = 'duckdb';
+      state.file = { name: uri, size: 0 };
+      state.fileSize = 0;
+      state.user = {};
+      state.duckdbAlias = null;   // keep `remote` attached across source changes
+      state.duckdbTables = names.map(n => ({
+        schema: 'main', name: n, qualified: `remote.${sqlIdent('main')}.${sqlIdent(n)}`,
+      }));
+      state.detected = { table: state.duckdbTables[0].qualified };
+      srvCloseModal();
+      dropzone.hidden = true; fileInfo.hidden = false;
+      fileIcon.textContent = 'DDB';
+      fileName.textContent = uri;
+      fileMeta.textContent = `DuckDB server · ${names.length} table${names.length === 1 ? '' : 's'}`;
+      workspace.hidden = false;
+      renderHeuristicPanel();
+      renderExportOptions();
+      await refreshPreview();
+      updateHeuristicCollapseState();
+      setStatus('');
+    } catch (e) {
+      serverConn = { connected: false, uri: null };
+      srvSetStatus('Failed: ' + (e && e.message ? e.message : String(e)), 'err');
+    } finally { btn.disabled = false; }
+  }
+  // Export target "DuckDB": write the current (filtered/edited) result to a table.
+  async function exportToDuckServer() {
+    const dst = (($('ex_srv_table') || {}).value || '').trim();
+    if (!dst) throw new Error('Enter a target table name.');
+    if (!serverConn.connected) {
+      const uri = (($('ex_srv_uri') || {}).value || '').trim();
+      const token = (($('ex_srv_token') || {}).value) || '';
+      if (!uri) throw new Error('Enter the server URI.');
+      exportProgress.textContent = 'Connecting…';
+      await srvAttach(uri, token);
+    }
+    const mode = (($('ex_srv_mode') || {}).value) || 'replace';
+    exportProgress.textContent = 'Reading source…';
+    await ensureDataView();     // binds ANY source (incl. Excel/SQLite/paste) to `data`
+    const sql = applyColumnEditsToSql(applyFilterToSql('SELECT * FROM data'));
+    // Stage locally first — quack does not support a remote→remote CTAS.
+    exportProgress.textContent = 'Staging…';
+    await conn.query(`CREATE OR REPLACE TABLE __srv_stage AS ${sql}`);
+    const ref = srvRemoteRef(dst);
+    exportProgress.textContent = 'Writing to server…';
+    if (mode === 'append') await conn.query(`INSERT INTO ${ref} SELECT * FROM __srv_stage`);
+    else if (mode === 'create') await conn.query(`CREATE TABLE ${ref} AS SELECT * FROM __srv_stage`);
+    else await conn.query(`CREATE OR REPLACE TABLE ${ref} AS SELECT * FROM __srv_stage`);
+    const n = Number((await conn.query(`SELECT count(*) AS c FROM ${ref}`)).toArray()[0].c);
+    try { await conn.query('DROP TABLE IF EXISTS __srv_stage'); } catch (_) {}
+    exportProgress.textContent = `Wrote ${dst} (${n.toLocaleString()} rows).`;
+  }
+  function srvDefaultTargetName() {
+    const raw = (state.file && state.file.name) || '';
+    if (!raw || raw.includes(':')) return 'converted';
+    return raw.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'converted';
+  }
+  if ($('srvConnectBtn')) $('srvConnectBtn').addEventListener('click', srvOpenModal);
+  if ($('srvCancelBtn')) $('srvCancelBtn').addEventListener('click', srvCloseModal);
+  if ($('srvGoBtn')) $('srvGoBtn').addEventListener('click', srvConnectAndLoad);
+  if ($('srvToken')) $('srvToken').addEventListener('keydown', e => { if (e.key === 'Enter') srvConnectAndLoad(); });
+  if ($('srvModal')) $('srvModal').addEventListener('click', e => { if (e.target === $('srvModal')) srvCloseModal(); });
 
   // DuckDB-WASM 1.28.0's autoloader can't fetch the json extension on this
   // build, so COPY ... (FORMAT JSON) is unavailable. We serialize JSON output

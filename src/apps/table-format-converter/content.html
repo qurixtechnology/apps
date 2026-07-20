@@ -18,6 +18,32 @@
                 title="Paste a table copied from Excel, a browser, CSV/TSV, …">Paste table from clipboard</button>
         <button class="qrx-btn" id="newTableBtn" type="button"
                 title="Open an empty editor to type or paste a table (delimited or Markdown)">New / blank table</button>
+        <button class="qrx-btn" id="srvConnectBtn" type="button"
+                title="Read a table from a running DuckDB server (quack)">Connect with DuckDB</button>
+      </div>
+    </div>
+
+    <!-- DuckDB server connect modal -->
+    <div id="srvModal" class="paste-modal" hidden>
+      <div class="paste-modal-card">
+        <h3 class="paste-modal-title">Connect with DuckDB</h3>
+        <p class="muted paste-modal-hint">
+          Reads tables from a running DuckDB server via the <code>quack</code> extension.
+          Start it there with <code>CALL quack_serve('quack:localhost', token =&gt; '…');</code>
+        </p>
+        <div class="qrx-form-group">
+          <label class="qrx-label" for="srvUri">Server URI</label>
+          <input class="qrx-input" id="srvUri" value="quack:localhost" spellcheck="false" placeholder="quack:localhost">
+        </div>
+        <div class="qrx-form-group">
+          <label class="qrx-label" for="srvToken">Auth token</label>
+          <input class="qrx-input" id="srvToken" type="password" autocomplete="off" placeholder="token">
+        </div>
+        <p class="srv-status" id="srvStatus"></p>
+        <div class="paste-modal-actions">
+          <button class="qrx-btn" id="srvCancelBtn" type="button">Cancel</button>
+          <button class="qrx-btn qrx-btn-primary" id="srvGoBtn" type="button">Connect</button>
+        </div>
       </div>
     </div>
 
@@ -191,6 +217,7 @@
               <button type="button" class="format-chip"           data-format="ods"      role="radio" aria-checked="false">ODS<span class="format-chip-ext">.ods</span></button>
               <button type="button" class="format-chip"           data-format="markdown" role="radio" aria-checked="false">Markdown<span class="format-chip-ext">.md</span></button>
               <button type="button" class="format-chip"           data-format="html"     role="radio" aria-checked="false">HTML<span class="format-chip-ext">.html</span></button>
+              <button type="button" class="format-chip"           data-format="duckdb"   role="radio" aria-checked="false">DuckDB<span class="format-chip-ext">server table</span></button>
             </div>
           </div>
 
