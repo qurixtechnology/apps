@@ -923,21 +923,11 @@
   let duckdb = null, db = null, conn = null, dbInitPromise = null;
   async function initDuckDB() {
     if (dbInitPromise) return dbInitPromise;
-    dbInitPromise = (async () => {
-      duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.30.0/+esm');
-      const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
-      const workerUrl = URL.createObjectURL(
-        new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
-      );
-      const worker = new Worker(workerUrl);
-      db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
-      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-      URL.revokeObjectURL(workerUrl);
-      conn = await db.connect();
-      try {
-        await conn.query('SET autoinstall_known_extensions=1; SET autoload_known_extensions=1;');
-      } catch (e) { console.warn('Could not enable extension autoload', e); }
-    })();
+    // Engine and helpers: src/shared/qrx-duckdb.js — this app used to pin an
+    // older duckdb-wasm than the rest; now everyone shares one version.
+    dbInitPromise = qrx.duckdb.init().then(() => {
+      duckdb = qrx.duckdb.duckdb(); db = qrx.duckdb.db(); conn = qrx.duckdb.conn();
+    }).catch((e) => { dbInitPromise = null; throw e; });
     return dbInitPromise;
   }
 

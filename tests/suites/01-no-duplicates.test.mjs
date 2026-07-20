@@ -29,6 +29,19 @@ const OWNED = {
   fmtDur: 'qrx.core.fmt.duration',
   fmtDuration: 'qrx.core.fmt.duration',
   formatDateByType: 'qrx.core.fmt.dateByType',
+
+  sqlEscape: 'qrx.duckdb.esc',
+  sqlIdent: 'qrx.duckdb.ident',
+  quoteIdent: 'qrx.duckdb.ident',
+  quoteString: 'qrx.duckdb.str (returns a finished literal, unlike esc)',
+  arrowFriendlyType: 'qrx.duckdb.friendlyType',
+  typeClass: 'qrx.duckdb.typeClass',
+  arrowFields: 'qrx.duckdb.fields',
+  arrowRows: 'qrx.duckdb.rows',
+  rowsFromQuery: 'qrx.duckdb.rows',
+  coerceDateValue: 'qrx.duckdb.toDate',
+  isDateLikeArrowType: 'qrx.duckdb.isDateLike',
+  cellText: 'qrx.duckdb.cellText',
 };
 
 describe('no re-duplication of shared code', () => {

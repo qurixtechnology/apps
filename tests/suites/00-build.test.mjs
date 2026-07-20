@@ -50,7 +50,9 @@ describe('build', () => {
     for (const f of readdirSync(DIST).filter(f => f.endsWith('.html'))) {
       const html = readFileSync(join(DIST, f), 'utf8');
       assert.ok(!html.includes('<!--SLOT:'), `${f} has an unreplaced slot`);
-      assert.ok(!html.includes('{{'), `${f} has an unreplaced placeholder`);
+      // the build's placeholders look like {{APP_NAME}} — match that shape, not
+      // any double brace, which also occurs in legitimate JSDoc and templates
+      assert.doesNotMatch(html, /\{\{[A-Z_]+\}\}/, `${f} has an unreplaced placeholder`);
       assert.ok(!/>undefined</.test(html), `${f} renders "undefined"`);
     }
   });
@@ -60,24 +62,25 @@ describe('build', () => {
       const html = readFileSync(join(DIST, cfg(a).output), 'utf8');
       assert.match(html, /window\.qrxDuckServer\s*=/, `${a}: shared duckdb-server module missing`);
       assert.match(html, /window\.qrxTest\s*=/, `${a}: test hooks missing`);
-      const versions = [...html.matchAll(/duckdb-wasm@([0-9a-z.-]+)/g)].map(m => m[1]);
-      assert.ok(versions.length, `${a}: no duckdb-wasm reference`);
-      for (const v of new Set(versions)) {
-        // quack (the DuckDB remote protocol) needs engine >= 1.5.3, which is
-        // duckdb-wasm 1.33.1-dev57.0 or newer. Older pins silently load an
-        // unrelated namesake extension instead of failing.
-        const [maj, min] = v.split('.').map(Number);
-        assert.ok(maj > 1 || (maj === 1 && min >= 33), `${a}: duckdb-wasm ${v} is too old for quack`);
-      }
+      assert.match(html, /qrx\.duckdb\s*=/, `${a}: shared duckdb module missing`);
     }
   });
 
-  test('all apps share one duckdb-wasm version', () => {
-    const seen = new Map();
-    for (const a of DUCK_APPS) {
-      const html = readFileSync(join(DIST, cfg(a).output), 'utf8');
-      for (const m of html.matchAll(/duckdb-wasm@([0-9a-z.-]+)/g)) seen.set(m[1], a);
+  test('the engine version lives in one place and is quack-capable', () => {
+    // quack (the DuckDB remote protocol) needs engine >= 1.5.3, which is
+    // duckdb-wasm 1.33.1-dev57.0 or newer. Older pins silently load an
+    // unrelated namesake extension instead of failing.
+    const mod = readFileSync(join(ROOT, 'src', 'shared', 'qrx-duckdb.js'), 'utf8');
+    const m = /const VERSION = '([^']+)'/.exec(mod);
+    assert.ok(m, 'qrx-duckdb.js must declare a VERSION constant');
+    const [maj, min] = m[1].split('.').map(Number);
+    assert.ok(maj > 1 || (maj === 1 && min >= 33), `duckdb-wasm ${m[1]} is too old for quack`);
+
+    // no app may pin its own version any more
+    for (const app of APPS) {
+      const src = readFileSync(join(ROOT, 'src', 'apps', app, 'app.js'), 'utf8');
+      const own = [...src.matchAll(/duckdb-wasm@([0-9a-z.-]+)/g)].map(x => x[1]);
+      assert.deepEqual(own, [], `${app} pins its own duckdb-wasm version: ${own.join(', ')}`);
     }
-    assert.equal(seen.size, 1, 'diverging duckdb-wasm versions: ' + JSON.stringify([...seen]));
   });
 });

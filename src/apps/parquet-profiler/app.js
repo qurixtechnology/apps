@@ -5,7 +5,6 @@
   // -------------------------------------------------------------------------
   // Constants & state
   // -------------------------------------------------------------------------
-  const DUCKDB_URL  = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm';
   // These point at the *active* file and are reassigned in setActiveFile().
   // The whole profiling layer reads them at query time, so re-pointing them
   // (plus the `data` view) is all that's needed to switch the profiled file.
@@ -116,15 +115,10 @@
   // Basics come from the shared module (src/shared/qrx-core.js).
   const escapeHtml = qrx.core.escapeHtml;
 
-  function quoteIdent(name) {
-    // DuckDB identifier quoting
-    return '"' + String(name).replace(/"/g, '""') + '"';
-  }
+  // Engine and helpers: src/shared/qrx-duckdb.js
+  const quoteIdent = qrx.duckdb.ident;
 
-  function quoteString(val) {
-    // SQL single-quoted string literal
-    return "'" + String(val).replace(/'/g, "''") + "'";
-  }
+  const quoteString = qrx.duckdb.str;
 
   const formatBytes = qrx.core.fmt.bytes;
 
@@ -196,28 +190,9 @@
 
   // Convert Arrow-style result rows into plain JS objects with sane types.
   // We rely on Arrow's .toArray() but guard for BigInt where needed.
-  function rowsFromQuery(result) {
-    const rows = result.toArray();
-    return rows.map(r => {
-      const o = {};
-      for (const k of Object.keys(r)) {
-        let v = r[k];
-        // Convert BigInt counts to Number when safe
-        if (typeof v === 'bigint') {
-          if (v <= BigInt(Number.MAX_SAFE_INTEGER) && v >= BigInt(Number.MIN_SAFE_INTEGER)) {
-            v = Number(v);
-          }
-        }
-        o[k] = v;
-      }
-      return o;
-    });
-  }
+  const rowsFromQuery = qrx.duckdb.rows;
 
-  async function runQuery(sql) {
-    if (!state.conn) throw new Error('DuckDB connection not initialized');
-    return await state.conn.query(sql);
-  }
+  const runQuery = (sql) => qrx.duckdb.query(sql);
 
   // Build a stable hash of the active filter set for cache keys
   function hashFilters(excludeCol = null) {
@@ -273,25 +248,15 @@
     initPromise = (async () => {
       showLoading('DuckDB wird initialisiert \u2026');
       try {
-        const duckdb = await import(DUCKDB_URL);
-        state.duckdb = duckdb;
-        const bundles = duckdb.getJsDelivrBundles();
-        const bundle = await duckdb.selectBundle(bundles);
-        const workerScript = `importScripts("${bundle.mainWorker}");`;
-        const workerUrl = URL.createObjectURL(
-          new Blob([workerScript], { type: 'text/javascript' })
-        );
-        const worker = new Worker(workerUrl);
-        const logger = new duckdb.ConsoleLogger();
-        const db = new duckdb.AsyncDuckDB(logger, worker);
-        await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-        URL.revokeObjectURL(workerUrl);
-        state.db = db;
-        state.conn = await db.connect();
+        await qrx.duckdb.init();
+        state.duckdb = qrx.duckdb.duckdb();
+        state.db = qrx.duckdb.db();
+        state.conn = qrx.duckdb.conn();
       } catch (e) {
         console.error(e);
         showError('DuckDB konnte nicht initialisiert werden', e && e.message || String(e));
         hideLoading();
+        initPromise = null;          // a failed start must stay retryable
         throw e;
       }
     })();

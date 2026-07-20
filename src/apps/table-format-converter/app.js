@@ -181,35 +181,9 @@
   }
 
   // Map DuckDB / Arrow type strings to friendly category for badge color
-  function typeClass(t) {
-    const T = String(t).toUpperCase();
-    if (/INT|DEC|FLOAT|DOUBLE|NUMERIC|REAL|HUGEINT|UTINY|TINYINT|SMALLINT|BIGINT/.test(T)) return 't-number';
-    if (/BOOL/.test(T)) return 't-bool';
-    if (/DATE|TIMESTAMP|TIME/.test(T)) return 't-date';
-    if (/VARCHAR|TEXT|CHAR|STRING|UTF/.test(T)) return 't-string';
-    return 't-other';
-  }
-  // Friendly type name from Arrow type object
-  function arrowFriendlyType(arrowType) {
-    if (!arrowType) return 'UNKNOWN';
-    const n = arrowType.toString();
-    // Arrow type strings like "Int64", "Float64", "Utf8", "Bool", "Date<...>"
-    if (/Int(8|16|32|64)/i.test(n)) return /Int64/.test(n) ? 'BIGINT' : 'INTEGER';
-    if (/Uint(8|16|32|64)/i.test(n)) return 'UINTEGER';
-    if (/Float64|Double/i.test(n)) return 'DOUBLE';
-    if (/Float(16|32)/i.test(n)) return 'FLOAT';
-    if (/Decimal/i.test(n)) return 'DECIMAL';
-    if (/Utf8|String|LargeUtf8/i.test(n)) return 'VARCHAR';
-    if (/Bool/i.test(n)) return 'BOOLEAN';
-    if (/Timestamp/i.test(n)) return 'TIMESTAMP';
-    if (/Date/i.test(n)) return 'DATE';
-    if (/Time/i.test(n)) return 'TIME';
-    if (/Struct/i.test(n)) return 'STRUCT';
-    if (/List/i.test(n)) return 'LIST';
-    if (/Map/i.test(n)) return 'MAP';
-    if (/Binary/i.test(n)) return 'BLOB';
-    return n.toUpperCase();
-  }
+  // Engine and helpers: src/shared/qrx-duckdb.js
+  const typeClass = qrx.duckdb.typeClass;
+  const arrowFriendlyType = qrx.duckdb.friendlyType;
 
   // ---------------------------------------------------------------- DuckDB-WASM
   let duckdb = null;
@@ -219,32 +193,9 @@
 
   async function initDuckDB() {
     if (dbInitPromise) return dbInitPromise;
-    dbInitPromise = (async () => {
-      setStatus('Loading DuckDB engine…');
-      // v1.30.0 wraps DuckDB v1.3.2 — first version that exposes
-      // `strict_mode=false`, which is essential for reading real-world CSVs
-      // with multi-line quoted fields. Earlier versions (1.29 → DuckDB v1.1)
-      // can't handle the bare LF inside quoted stack traces and the sniffer
-      // bails. Extensions (json/parquet/etc.) still autoload as in 1.29.
-      duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm');
-      const bundles = duckdb.getJsDelivrBundles();
-      const bundle = await duckdb.selectBundle(bundles);
-      const worker_url = URL.createObjectURL(
-        new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
-      );
-      const worker = new Worker(worker_url);
-      const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
-      db = new duckdb.AsyncDuckDB(logger, worker);
-      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-      URL.revokeObjectURL(worker_url);
-      conn = await db.connect();
-      // Allow on-demand loading of optional extensions like 'json' (needed
-      // for COPY ... (FORMAT JSON) and read_json on the WASM build).
-      try {
-        await conn.query(`SET autoinstall_known_extensions=1; SET autoload_known_extensions=1;`);
-      } catch (e) { console.warn('Could not enable extension autoload', e); }
-      setStatus('');
-    })();
+    dbInitPromise = qrx.duckdb.init({ onStatus: setStatus }).then(() => {
+      duckdb = qrx.duckdb.duckdb(); db = qrx.duckdb.db(); conn = qrx.duckdb.conn();
+    }).catch((e) => { dbInitPromise = null; throw e; });
     return dbInitPromise;
   }
 
@@ -282,8 +233,8 @@
     }
   }
 
-  function sqlEscape(s) { return String(s).replace(/'/g, "''"); }
-  function sqlIdent(s)  { return '"' + String(s).replace(/"/g, '""') + '"'; }
+  const sqlEscape = qrx.duckdb.esc;
+  const sqlIdent = qrx.duckdb.ident;
 
   // ---------------------------------------------------------------- Format detection
   async function detectFormat(file) {
@@ -2351,9 +2302,6 @@
   // SQL value formatter for the column-header filter quick-pick. Returns null
   // for values we can't safely express (and the caller falls back to IS NULL /
   // IS NOT NULL or skips the suggestion).
-  function sqlIdent(name) {
-    return '"' + String(name).replace(/"/g, '""') + '"';
-  }
   function sqlLiteral(v) {
     if (v == null) return null;
     if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
@@ -2767,50 +2715,14 @@
     return { label: 'VARCHAR', cls: 't-string' };
   }
 
-  function arrowFields(schema) {
-    return schema.fields.map(f => {
-      const t = arrowFriendlyType(f.type);
-      return { name: f.name, type: t, typeClass: typeClass(t) };
-    });
-  }
-  // Arrow JS returns DuckDB DATE / TIMESTAMP / TIME values as raw numbers
-  // (Date32: days, Date64: ms) or bigints (Timestamp: us / ns). Convert them
-  // to JS Date so downstream code (preview render, JSON / Excel export) can
-  // format them in a human-readable way.
-  function coerceDateValue(v) {
-    if (v == null || v instanceof Date) return v;
-    let n;
-    if (typeof v === 'bigint') n = Number(v);
-    else if (typeof v === 'number') n = v;
-    else return v;
-    if (!Number.isFinite(n)) return v;
-    const a = Math.abs(n);
-    if (a < 1e6)  return new Date(n * 86400000);   // days since epoch (Date32)
-    if (a < 1e13) return new Date(n);              // milliseconds (Date64)
-    if (a < 1e16) return new Date(n / 1000);       // microseconds (Timestamp[us])
-    return new Date(n / 1000000);                  // nanoseconds (Timestamp[ns])
-  }
-  function isDateLikeArrowType(arrowType) {
-    if (!arrowType) return false;
-    return /Date|Time|Timestamp/i.test(arrowType.toString());
-  }
+  const arrowFields = qrx.duckdb.fields;
+  const coerceDateValue = qrx.duckdb.toDate;
+  const isDateLikeArrowType = qrx.duckdb.isDateLike;
   // Format a JS Date according to the column type: DATE → 'YYYY-MM-DD',
   // TIME → 'HH:MM:SS', everything else (incl. TIMESTAMP) → 'YYYY-MM-DD HH:MM:SS'.
   const formatDateByType = qrx.core.fmt.dateByType;
 
-  function arrowRows(table) {
-    // Pre-compute per-column coercion based on Arrow type
-    const fields = table.schema.fields.map(f => ({
-      name: f.name,
-      coerce: isDateLikeArrowType(f.type) ? coerceDateValue : (v) => v,
-    }));
-    const arr = table.toArray();
-    return arr.map(r => {
-      const obj = {};
-      for (const f of fields) obj[f.name] = f.coerce(r[f.name]);
-      return obj;
-    });
-  }
+  const arrowRows = qrx.duckdb.rows;
 
   async function estimateCsvRows() {
     if (!state.fileSize) return null;

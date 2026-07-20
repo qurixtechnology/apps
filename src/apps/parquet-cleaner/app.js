@@ -102,72 +102,26 @@
   // One escaper for text and attributes alike — it escapes quotes too.
   const escapeHtml = qrx.core.escapeHtml;
   const escapeAttr = qrx.core.escapeHtml;
-  function sqlEscape(s) { return String(s).replace(/'/g, "''"); }
-  function sqlIdent(s) { return '"' + String(s).replace(/"/g, '""') + '"'; }
+  // Engine and helpers: src/shared/qrx-duckdb.js
+  const sqlEscape = qrx.duckdb.esc;
+  const sqlIdent = qrx.duckdb.ident;
   const id = sqlIdent;
 
-  function typeClass(t) {
-    const T = String(t).toUpperCase();
-    if (/INT|DEC|FLOAT|DOUBLE|NUMERIC|REAL|HUGEINT|UTINY|TINYINT|SMALLINT|BIGINT/.test(T)) return 't-number';
-    if (/BOOL/.test(T)) return 't-bool';
-    if (/DATE|TIMESTAMP|TIME/.test(T)) return 't-date';
-    if (/VARCHAR|TEXT|CHAR|STRING|UTF/.test(T)) return 't-string';
-    return 't-other';
-  }
-  function arrowFriendlyType(arrowType) {
-    if (!arrowType) return 'UNKNOWN';
-    const n = arrowType.toString();
-    if (/Int(8|16|32|64)/i.test(n)) return /Int64/.test(n) ? 'BIGINT' : 'INTEGER';
-    if (/Uint(8|16|32|64)/i.test(n)) return 'UINTEGER';
-    if (/Float64|Double/i.test(n)) return 'DOUBLE';
-    if (/Float(16|32)/i.test(n)) return 'FLOAT';
-    if (/Decimal/i.test(n)) return 'DECIMAL';
-    if (/Utf8|String|LargeUtf8/i.test(n)) return 'VARCHAR';
-    if (/Bool/i.test(n)) return 'BOOLEAN';
-    if (/Timestamp/i.test(n)) return 'TIMESTAMP';
-    if (/Date/i.test(n)) return 'DATE';
-    if (/Time/i.test(n)) return 'TIME';
-    if (/Struct/i.test(n)) return 'STRUCT';
-    if (/List/i.test(n)) return 'LIST';
-    if (/Map/i.test(n)) return 'MAP';
-    if (/Binary/i.test(n)) return 'BLOB';
-    return n.toUpperCase();
-  }
-  function arrowFields(schema) {
-    return schema.fields.map(f => { const t = arrowFriendlyType(f.type); return { name: f.name, type: t, typeClass: typeClass(t) }; });
-  }
-  function coerceDateValue(v) {
-    if (v == null || v instanceof Date) return v;
-    let n; if (typeof v === 'bigint') n = Number(v); else if (typeof v === 'number') n = v; else return v;
-    if (!Number.isFinite(n)) return v;
-    const a = Math.abs(n);
-    if (a < 1e6) return new Date(n * 86400000);
-    if (a < 1e13) return new Date(n);
-    if (a < 1e16) return new Date(n / 1000);
-    return new Date(n / 1000000);
-  }
-  function isDateLikeArrowType(t) { return t && /Date|Time|Timestamp/i.test(t.toString()); }
+  const typeClass = qrx.duckdb.typeClass;
+  const arrowFriendlyType = qrx.duckdb.friendlyType;
+  const arrowFields = qrx.duckdb.fields;
+  const coerceDateValue = qrx.duckdb.toDate;
+  const isDateLikeArrowType = qrx.duckdb.isDateLike;
   const formatDateByType = qrx.core.fmt.dateByType;
-  function arrowRows(table) {
-    const fields = table.schema.fields.map(f => ({ name: f.name, coerce: isDateLikeArrowType(f.type) ? coerceDateValue : (v) => v }));
-    return table.toArray().map(r => { const o = {}; for (const f of fields) o[f.name] = f.coerce(r[f.name]); return o; });
-  }
+  const arrowRows = qrx.duckdb.rows;
 
   // ---- DuckDB-WASM engine ----
   let duckdb = null, db = null, conn = null, dbInitPromise = null;
   async function initDuckDB() {
     if (dbInitPromise) return dbInitPromise;
-    dbInitPromise = (async () => {
-      duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm');
-      const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
-      const worker_url = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' }));
-      const worker = new Worker(worker_url);
-      db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
-      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-      URL.revokeObjectURL(worker_url);
-      conn = await db.connect();
-      try { await conn.query(`SET autoinstall_known_extensions=1; SET autoload_known_extensions=1;`); } catch (_) {}
-    })();
+    dbInitPromise = qrx.duckdb.init({ onStatus: setStatus }).then(() => {
+      duckdb = qrx.duckdb.duckdb(); db = qrx.duckdb.db(); conn = qrx.duckdb.conn();
+    }).catch((e) => { dbInitPromise = null; throw e; });
     return dbInitPromise;
   }
   async function countRows(sql) {
@@ -1157,13 +1111,7 @@
     }
     previewGrid.querySelector('tbody').innerHTML = b;
   }
-  function cellText(v, type) {
-    if (v == null) return 'null';
-    if (v instanceof Date) return formatDateByType(v, type);
-    if (typeof v === 'bigint') return v.toString();
-    if (typeof v === 'object') { try { return JSON.stringify(v); } catch (_) { return String(v); } }
-    return String(v);
-  }
+  const cellText = qrx.duckdb.cellText;
   function cellHtml(v, type) {
     if (v == null) return '<span class="null-val">null</span>';
     return escapeHtml(cellText(v, type));
