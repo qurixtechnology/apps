@@ -3634,21 +3634,10 @@
   if (sqlEditor) {
     sqlEditor.value = SQL_DEFAULT_QUERY;
     state.sql.query = SQL_DEFAULT_QUERY;
-    sqlEditor.addEventListener('input', () => {
-      state.sql.query = sqlEditor.value;
-    });
-    sqlEditor.addEventListener('keydown', e => {
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        const ss = sqlEditor.selectionStart;
-        const se = sqlEditor.selectionEnd;
-        sqlEditor.value = sqlEditor.value.substring(0, ss) + '  ' + sqlEditor.value.substring(se);
-        sqlEditor.selectionStart = sqlEditor.selectionEnd = ss + 2;
-        state.sql.query = sqlEditor.value;
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        runSqlQuery();
-      }
+    // Shared widget (src/shared/qrx-ui.js) — this app's behaviour became it.
+    qrx.ui.sqlEditor(sqlEditor, {
+      onRun: () => runSqlQuery(),
+      onChange: (v) => { state.sql.query = v; },
     });
   }
 

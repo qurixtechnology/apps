@@ -3961,9 +3961,9 @@
   // ---------------------------------------------------------------- SQL editor wiring
   if (sqlEditor && !sqlEditor.value) sqlEditor.value = 'SELECT * FROM data\nLIMIT 100';
   if (sqlRunBtn) sqlRunBtn.addEventListener('click', runSqlEditor);
-  if (sqlEditor) sqlEditor.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runSqlEditor(); }
-  });
+  // Shared widget (src/shared/qrx-ui.js) — Ctrl/Cmd+Enter runs, Tab indents
+  // (this app used to lose focus on Tab).
+  if (sqlEditor) qrx.ui.sqlEditor(sqlEditor, { onRun: () => runSqlEditor() });
   if (sqlExportBtn) sqlExportBtn.addEventListener('click', exportSqlResultParquet);
   // The docs link sits inside the <summary> — don't toggle the panel when it's clicked.
   { const dl = $('sqlDocLink'); if (dl) dl.addEventListener('click', e => e.stopPropagation()); }

@@ -466,6 +466,44 @@
     return api;
   };
 
+  /**
+   * SQL editor behaviour for a <textarea>.
+   *
+   * Only the behaviour: the panels around it (table chips, examples, export
+   * buttons, hints) differ per app for good reasons, and the result table and
+   * the pager are already shared. What was actually duplicated is this —
+   * and inconsistently: only the profiler indented with Tab, so the same key
+   * jumped out of the field in the converter.
+   *
+   * opts: { onRun, onChange, indent }
+   */
+  ui.sqlEditor = function sqlEditor(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.sqlEditor: mount element not found');
+    const indent = opts.indent || '  ';
+
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const { selectionStart: a, selectionEnd: b } = el;
+        el.value = el.value.slice(0, a) + indent + el.value.slice(b);
+        el.selectionStart = el.selectionEnd = a + indent.length;
+        if (opts.onChange) opts.onChange(el.value);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (opts.onRun) opts.onRun(el.value);
+      }
+    });
+    if (opts.onChange) el.addEventListener('input', () => opts.onChange(el.value));
+
+    return {
+      el,
+      value: () => el.value,
+      set(v) { el.value = v; if (opts.onChange) opts.onChange(v); return this; },
+      focus() { el.focus(); return this; },
+    };
+  };
+
   /** A transient message. One container, reused. */
   let toastEl = null, toastTimer = null;
   ui.toast = function toast(message, kind, ms = 3200) {

@@ -524,3 +524,44 @@ describe('widget: result grid and pager', () => {
     assert.match(got.dePrev, /Zurück/);
   });
 });
+
+describe('widget: SQL editor behaviour', () => {
+  test('Tab indents instead of leaving the field', async () => {
+    const got = await page.evaluate(() => {
+      const ta = document.createElement('textarea');
+      ta.value = 'SELECT 1';
+      document.body.appendChild(ta);
+      window.qrx.ui.sqlEditor(ta, {});
+      ta.selectionStart = ta.selectionEnd = 6;          // "SELECT|" + " 1"
+      const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      ta.dispatchEvent(ev);
+      const out = { value: ta.value, caret: ta.selectionStart, prevented: ev.defaultPrevented };
+      ta.remove();
+      return out;
+    });
+    assert.equal(got.value, 'SELECT   1', 'two spaces at the caret');
+    assert.equal(got.caret, 8);
+    assert.equal(got.prevented, true, 'the browser must not move focus');
+  });
+
+  test('Ctrl/Cmd+Enter runs, plain Enter does not', async () => {
+    const got = await page.evaluate(() => {
+      const ta = document.createElement('textarea');
+      document.body.appendChild(ta);
+      let runs = 0, changes = [];
+      window.qrx.ui.sqlEditor(ta, { onRun: () => { runs++; }, onChange: (v) => changes.push(v) });
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const afterPlain = runs;
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }));
+      const afterCombo = runs;
+      ta.value = 'SELECT 2';
+      ta.dispatchEvent(new Event('input'));
+      ta.remove();
+      return { afterPlain, afterCombo, changes };
+    });
+    assert.equal(got.afterPlain, 0, 'Enter alone types a newline');
+    assert.equal(got.afterCombo, 2, 'both Ctrl and Cmd run the query');
+    assert.deepEqual(got.changes, ['SELECT 2'], 'edits are reported');
+  });
+});
