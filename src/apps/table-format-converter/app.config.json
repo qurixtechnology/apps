@@ -9,6 +9,7 @@
     "tags": ["CSV ⇄ Parquet", "JSON", "Excel"]
   },
   "fonts": [],
+  "inlineScripts": ["../../shared/duckdb-server.js"],
   "headAssets": [
     {
       "comment": "SheetJS (xlsx) via the official SheetJS CDN, pinned — adds robust ODS read/write and Apple Numbers read",

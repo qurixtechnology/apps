@@ -3583,106 +3583,24 @@
   // ============================ DuckDB server (quack) ============================
   // A connected server behaves exactly like a dropped .duckdb file: its tables
   // appear in the normal table picker. The same connection is reused for export.
-  // --- Token vault -------------------------------------------------------
-  // Opt-in, per-URI. The token is encrypted with AES-GCM; the key lives in
-  // IndexedDB as a NON-EXTRACTABLE CryptoKey, so it can never be read back out
-  // — the stored token is a blob, not plaintext, in the browser profile.
-  // Note this is not a defence against code on the same origin (which can just
-  // call decrypt); it keeps the token out of profile dumps, backups and syncs.
-  // The key is shared with the other qurix apps so one token covers all of them.
-  const VAULT_KEY = 'qrx_duckdb_conn';
-  const tokenVault = (() => {
-    let keyPromise = null;
-    function openIdb() {
-      return new Promise((res, rej) => {
-        const r = indexedDB.open('qrx_secrets', 1);
-        r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('keys')) r.result.createObjectStore('keys'); };
-        r.onsuccess = () => res(r.result);
-        r.onerror = () => rej(r.error);
-      });
-    }
-    function idbTx(db, mode, fn) {
-      return new Promise((res, rej) => {
-        const tx = db.transaction('keys', mode);
-        const rq = fn(tx.objectStore('keys'));
-        tx.onerror = () => rej(tx.error);
-        tx.oncomplete = () => res(rq && rq.result);
-      });
-    }
-    async function getKey() {
-      if (!keyPromise) keyPromise = (async () => {
-        const db = await openIdb();
-        const found = await idbTx(db, 'readonly', s => s.get(VAULT_KEY));
-        if (found) return found;
-        const k = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-        await idbTx(db, 'readwrite', s => s.put(k, VAULT_KEY));
-        return k;
-      })().catch(e => { keyPromise = null; throw e; });
-      return keyPromise;
-    }
-    const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
-    const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-    function readAll() {
-      try { const o = JSON.parse(localStorage.getItem(VAULT_KEY) || '{}'); return (o && o.entries) ? o : { entries: {} }; }
-      catch (_) { return { entries: {} }; }
-    }
-    function writeAll(o) { try { localStorage.setItem(VAULT_KEY, JSON.stringify(o)); } catch (_) {} }
-    return {
-      available() { try { return !!(window.localStorage && window.indexedDB && crypto.subtle); } catch (_) { return false; } },
-      has(uri) { return !!readAll().entries[uri]; },
-      lastUri() { return readAll().last || null; },
-      noteUri(uri) { const all = readAll(); all.last = uri; writeAll(all); },
-      async get(uri) {
-        const e = readAll().entries[uri];
-        if (!e) return null;
-        try {
-          const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(e.iv) }, await getKey(), unb64(e.ct));
-          return new TextDecoder().decode(pt);
-        } catch (_) { this.forget(uri); return null; }   // key gone / storage cleared
-      },
-      async put(uri, token) {
-        const iv = crypto.getRandomValues(new Uint8Array(12));
-        const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await getKey(), new TextEncoder().encode(token));
-        const all = readAll();
-        all.entries[uri] = { iv: b64(iv), ct: b64(ct) };
-        all.last = uri;
-        writeAll(all);
-      },
-      forget(uri) {
-        const all = readAll();
-        if (uri) delete all.entries[uri]; else all.entries = {};
-        writeAll(all);
-      },
-    };
-  })();
-  // quack reports a bad token as a generic error — match loosely so a rotated
-  // token gets dropped instead of failing silently forever.
-  function srvIsAuthError(e) {
-    return /token|auth|unauthor|forbidden|401|403/i.test((e && e.message) || String(e));
-  }
+  // Token vault, attach and table listing live in the shared module
+  // (src/shared/duckdb-server.js) so they cannot drift between the qurix apps.
+  const srv = window.qrxDuckServer;
+  const tokenVault = srv.vault;
+  const srvIsAuthError = srv.isAuthError;
+  const srvRemoteRef = srv.remoteRef;
 
   let serverConn = { connected: false, uri: null };
   function srvSetStatus(msg, cls) {
     const el = $('srvStatus'); if (!el) return;
     el.textContent = msg || ''; el.className = 'srv-status' + (cls ? ' is-' + cls : '');
   }
-  // quack addresses the server's `main` schema.
-  function srvRemoteRef(input) {
-    const parts = input.includes('.') ? input.split('.') : ['main', input];
-    return 'remote.' + parts.map(p => sqlIdent(p.trim())).join('.');
-  }
   async function srvAttach(uri, token) {
     await initDuckDB();
-    await conn.query('INSTALL quack; LOAD quack;');
-    try { await conn.query('DETACH remote'); } catch (_) {}
-    await conn.query(`CREATE OR REPLACE SECRET __quack (TYPE quack, TOKEN '${sqlEscape(token)}')`);
-    await conn.query(`ATTACH '${sqlEscape(uri)}' AS remote`);
+    await srv.attach(conn, uri, token);
     serverConn = { connected: true, uri };
   }
-  async function srvListTables() {
-    const rows = (await conn.query("SELECT DISTINCT name FROM remote.sqlite_master WHERE type='table' ORDER BY name")).toArray();
-    return rows.map(r => String(r.name));
-  }
+  const srvListTables = () => srv.listTables(conn);
   // Reflect whether a token is already stored for the URI currently typed in.
   function srvSyncRememberUi() {
     const uri = ($('srvUri').value || '').trim();

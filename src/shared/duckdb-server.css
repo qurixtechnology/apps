@@ -1,0 +1,40 @@
+/* Shared styling for the DuckDB-server (quack) connect/export dialogs.
+   Included via app.config.json "inlineStyles": "../../shared/duckdb-server.css".
+   Prefixed `qds-` so it never collides with an app's own modal classes
+   (the table-format-converter styles its dialogs as .paste-modal). */
+.qds-modal {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--qrx-s-6); background: rgba(10,31,43,0.55);
+}
+.qds-modal[hidden] { display: none; }
+.qds-card {
+  width: 100%; max-width: 560px; max-height: 88vh; overflow: auto;
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg); box-shadow: var(--qrx-shadow-lg);
+  padding: var(--qrx-s-6);
+}
+.qds-title { margin: 0 0 var(--qrx-s-2); color: var(--qrx-primary); font-size: 1.125rem; }
+.qds-hint { margin: 0 0 var(--qrx-s-4); font-size: 0.875rem; color: var(--qrx-text-muted); }
+.qds-actions { display: flex; justify-content: flex-end; gap: var(--qrx-s-3); margin-top: var(--qrx-s-4); }
+.qds-status { font-size: 0.8125rem; font-weight: 600; margin: var(--qrx-s-2) 0 0; min-height: 1.2em; }
+.qds-status.is-err { color: var(--qrx-danger); }
+.qds-check { display: flex; align-items: center; gap: var(--qrx-s-2); }
+.qds-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--qrx-primary); }
+.qds-dz-actions { margin-top: var(--qrx-s-4); }
+
+/* Table picker (profiler: pick one or more remote tables to load) */
+.qds-tables {
+  max-height: 34vh; overflow: auto; margin: 0 0 var(--qrx-s-2);
+  border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius);
+  background: var(--qrx-bg-subtle);
+}
+.qds-tables label {
+  display: flex; align-items: center; gap: var(--qrx-s-2);
+  padding: var(--qrx-s-2) var(--qrx-s-3); cursor: pointer;
+  font-family: var(--qrx-font-mono); font-size: 0.8125rem;
+  border-bottom: 1px solid var(--qrx-border);
+}
+.qds-tables label:last-child { border-bottom: none; }
+.qds-tables label:hover { background: var(--qrx-surface); }
+.qds-tables input[type="checkbox"] { accent-color: var(--qrx-primary); }

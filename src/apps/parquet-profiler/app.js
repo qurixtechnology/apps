@@ -5,7 +5,7 @@
   // -------------------------------------------------------------------------
   // Constants & state
   // -------------------------------------------------------------------------
-  const DUCKDB_URL  = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/+esm';
+  const DUCKDB_URL  = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm';
   // These point at the *active* file and are reassigned in setActiveFile().
   // The whole profiling layer reads them at query time, so re-pointing them
   // (plus the `data` view) is all that's needed to switch the profiled file.
@@ -404,6 +404,213 @@
   // Backward-compatible single-file entry point.
   function handleFile(file) { return addFiles([file]); }
 
+  // Bind DuckDB-server tables as additional sources. They join the same file
+  // list and are profiled exactly like a Parquet file — minus the footer-only
+  // metadata, which does not exist for a server table.
+  async function addRemoteTables(uri, names) {
+    if (!names.length) return;
+    exitSnapshotMode();
+    clearError();
+    showLoading('DuckDB-Tabellen werden eingebunden …');
+    try {
+      const taken = new Set(['data']);
+      for (const f of state.files) taken.add(f.alias);
+      let firstNewId = null;
+      for (const t of names) {
+        const id = 'f' + (fileSeq++);
+        const alias = makeAlias(t, taken);
+        taken.add(alias);
+        const sqlRef = srv.remoteRef(t);
+        try {
+          await runQuery(`CREATE OR REPLACE VIEW ${quoteIdent(alias)} AS SELECT * FROM ${sqlRef}`);
+        } catch (e) { console.warn('view create failed for', alias, e); }
+        let rows = null;
+        try {
+          const r = rowsFromQuery(await runQuery(`SELECT COUNT(*)::BIGINT AS c FROM ${sqlRef}`));
+          if (r[0] && r[0].c != null) rows = Number(r[0].c);
+        } catch (e) { /* leave null on error */ }
+        state.files.push({ id, name: t, size: 0, vfsName: null, alias, handle: null,
+                           rows, profiled: false, mode: 'remote', kind: 'duckdb',
+                           remote: { uri, table: t }, sqlRef });
+        if (firstNewId === null) firstNewId = id;
+      }
+      hideLoading();
+      if (!state.activeFileId) await setActiveFile(firstNewId);
+      else { renderFileList(); rebuildSqlExamples(); renderSqlTables(); }
+    } catch (e) {
+      console.error(e);
+      hideLoading();
+      showError('DuckDB-Tabellen konnten nicht eingebunden werden', e && e.message || String(e));
+    }
+  }
+
+  // A server table has no Parquet footer, so the null counts that drive the
+  // Füllgrad KPI are fetched with a single aggregate query instead.
+  async function loadRemoteColumnMeta() {
+    for (const col of state.columns) col.meta = null;
+    const cols = state.columns.filter(c => c.category !== 'complex').slice(0, 200);
+    if (!cols.length) return;
+    const sel = cols.map((c, i) => `COUNT(*) - COUNT(${quoteIdent(c.name)}) AS n${i}`).join(', ');
+    try {
+      const r = rowsFromQuery(await runQuery(`SELECT ${sel} FROM ${PARQUET_SQL}`))[0] || {};
+      cols.forEach((c, i) => {
+        const v = r['n' + i];
+        if (v == null) return;
+        c.meta = { nullCount: Number(v), compressed: null, uncompressed: null,
+                   compressionRatio: null, min: null, max: null, compression: null, chunkCount: null };
+      });
+    } catch (e) { console.warn('remote null-count query failed:', e); }
+  }
+
+  // -------------------------------------------------------------------------
+  // DuckDB server (quack) — vault/attach/list live in src/shared/duckdb-server.js
+  // -------------------------------------------------------------------------
+  const srv = window.qrxDuckServer;
+  const vault = srv.vault;
+  let serverConn = { connected: false, uri: null };
+  let srvPhase = 'connect';
+
+  function srvSetStatus(msg, cls) {
+    const el = document.getElementById('pp-srvStatus'); if (!el) return;
+    el.textContent = msg || ''; el.className = 'qds-status' + (cls ? ' is-' + cls : '');
+  }
+  function srvSyncRememberUi() {
+    const uri = (document.getElementById('pp-srvUri').value || '').trim();
+    const hint = document.getElementById('pp-srvRememberHint');
+    const cb = document.getElementById('pp-srvRemember');
+    const tok = document.getElementById('pp-srvToken');
+    if (!hint || !cb) return;
+    if (!vault.available()) {
+      cb.checked = false; cb.disabled = true;
+      hint.textContent = 'Nicht verfügbar — dieser Browser blockiert lokalen Speicher.';
+      return;
+    }
+    if (vault.has(uri)) {
+      cb.checked = true;
+      tok.placeholder = 'gespeicherter Token wird verwendet';
+      hint.innerHTML = 'Für diesen Server ist ein Token gespeichert (verschlüsselt). Feld leer lassen, um ihn zu verwenden. '
+        + '<a href="#" id="pp-srvForgetLink">Token löschen</a>';
+      const fl = document.getElementById('pp-srvForgetLink');
+      if (fl) fl.addEventListener('click', e => {
+        e.preventDefault(); vault.forget(uri);
+        document.getElementById('pp-srvToken').value = '';
+        srvSyncRememberUi(); srvSetStatus('Gespeicherter Token gelöscht.');
+      });
+    } else {
+      tok.placeholder = 'Token';
+      hint.textContent = 'Verschlüsselt im Browser gespeichert, pro Server-URI — geteilt mit den anderen qurix-Apps.';
+    }
+  }
+  // In the pick phase the credentials are already accepted — hide them so the
+  // dialog does not look like it is asking for the token again.
+  function srvSetPhase(phase) {
+    srvPhase = phase;
+    const pick = phase === 'pick';
+    document.getElementById('pp-srvTableGroup').hidden = !pick;
+    document.getElementById('pp-srvCreds').hidden = pick;
+    const note = document.getElementById('pp-srvConnNote');
+    note.hidden = !pick;
+    if (pick) {
+      note.innerHTML = `Verbunden mit <strong>${escapeHtml(serverConn.uri || '')}</strong> · `
+        + '<a href="#" id="pp-srvChangeConn">anderer Server oder Token</a>';
+      const link = document.getElementById('pp-srvChangeConn');
+      if (link) link.addEventListener('click', e => {
+        e.preventDefault();
+        srvSetPhase('connect');
+        srvSetStatus('');
+        setTimeout(() => document.getElementById('pp-srvToken').focus(), 0);
+      });
+    }
+    document.getElementById('pp-srvGoBtn').textContent = pick ? 'Tabellen laden' : 'Verbinden';
+  }
+  function srvOpenModal(msg) {
+    srvSetStatus(msg || '', msg ? 'err' : null);
+    const last = vault.lastUri();
+    if (last) document.getElementById('pp-srvUri').value = last;
+    document.getElementById('pp-srvToken').value = '';
+    srvSyncRememberUi();
+    // Only offer the picker once the list is actually populated — otherwise the
+    // dialog shows an empty table box while the listing query is still running.
+    const filled = document.getElementById('pp-srvTables').children.length > 0;
+    srvSetPhase(serverConn.connected && filled ? 'pick' : 'connect');
+    document.getElementById('pp-srvModal').hidden = false;
+  }
+  function srvCloseModal() { document.getElementById('pp-srvModal').hidden = true; }
+  async function srvFillTables() {
+    const names = await srv.listTables(state.conn);
+    if (!names.length) throw new Error('Auf diesem Server wurden keine Tabellen gefunden.');
+    const loaded = new Set(state.files.filter(f => f.kind === 'duckdb').map(f => f.name));
+    document.getElementById('pp-srvTables').innerHTML = names.map(n =>
+      `<label><input type="checkbox" value="${escapeHtml(n)}"${loaded.has(n) ? ' disabled' : ''}>`
+      + `<span>${escapeHtml(n)}${loaded.has(n) ? ' · bereits geladen' : ''}</span></label>`).join('');
+    srvSetPhase('pick');
+  }
+  // Lazy attach: with a remembered token, go straight to the table picker.
+  async function srvConnectClicked() {
+    const last = vault.lastUri();
+    if (serverConn.connected) {
+      srvOpenModal();
+      srvSetStatus('Tabellen werden geladen …');
+      try { await srvFillTables(); srvSetStatus(''); }
+      catch (e) { srvSetStatus('Fehlgeschlagen: ' + (e.message || String(e)), 'err'); }
+      return;
+    }
+    if (!last || !vault.has(last)) { srvOpenModal(); return; }
+    const token = await vault.get(last);
+    if (token === null) { srvOpenModal(); return; }
+    showLoading('Verbindung zu ' + last + ' …');
+    try {
+      await initDuckDB();
+      await srv.attach(state.conn, last, token);
+      serverConn = { connected: true, uri: last };
+      hideLoading();
+      srvOpenModal();
+      srvSetStatus('Tabellen werden geladen …');
+      await srvFillTables();
+      srvSetStatus('');
+    } catch (e) {
+      if (srv.isAuthError(e)) vault.forget(last);
+      serverConn = { connected: false, uri: null };
+      hideLoading();
+      srvOpenModal((srv.isAuthError(e) ? 'Gespeicherter Token wurde abgelehnt — bitte neu eingeben. ' : 'Fehlgeschlagen: ')
+        + (e.message || String(e)));
+    }
+  }
+  async function srvGo() {
+    const btn = document.getElementById('pp-srvGoBtn'); btn.disabled = true;
+    try {
+      if (srvPhase === 'connect') {
+        const uri = document.getElementById('pp-srvUri').value.trim();
+        let token = document.getElementById('pp-srvToken').value;
+        if (!uri) { srvSetStatus('Bitte eine Server-URI eingeben.', 'err'); return; }
+        if (!token && vault.has(uri)) token = (await vault.get(uri)) || '';
+        srvSetStatus('Verbinde …');
+        await initDuckDB();
+        await srv.attach(state.conn, uri, token);
+        serverConn = { connected: true, uri };
+        vault.noteUri(uri);
+        // Persist only once the server has actually accepted the token.
+        if (document.getElementById('pp-srvRemember').checked && token) await vault.put(uri, token);
+        else if (!document.getElementById('pp-srvRemember').checked) vault.forget(uri);
+        srvSetStatus('');
+        await srvFillTables();
+      } else {
+        const picked = Array.from(document.querySelectorAll('#pp-srvTables input:checked')).map(i => i.value);
+        if (!picked.length) { srvSetStatus('Bitte mindestens eine Tabelle wählen.', 'err'); return; }
+        srvCloseModal();
+        await addRemoteTables(serverConn.uri, picked);
+      }
+    } catch (e) {
+      if (srvPhase === 'connect') {
+        const uri = document.getElementById('pp-srvUri').value.trim();
+        if (srv.isAuthError(e)) vault.forget(uri);
+        serverConn = { connected: false, uri: null };
+        srvSyncRememberUi();
+      }
+      srvSetStatus('Fehlgeschlagen: ' + (e && e.message ? e.message : String(e)), 'err');
+    } finally { btn.disabled = false; }
+  }
+
   // Switch a file's registration between lazy (range reads, low RAM) and
   // fully buffered (whole file in WASM memory, faster repeated queries).
   // Re-registering under the same VFS name keeps its view valid.
@@ -425,10 +632,11 @@
   // every other file back to a lazy handle so its RAM is released.
   async function applyRegistrationModes(activeId) {
     for (const f of state.files) {
+      if (f.kind === 'duckdb') continue;   // server table: nothing registered locally
       if (f.id !== activeId && f.mode === 'buffer') await registerAsHandle(f);
     }
     const act = state.files.find(f => f.id === activeId);
-    if (!act) return;
+    if (!act || act.kind === 'duckdb') return;
     if (state.bufferActive) await registerAsBuffer(act);
     else await registerAsHandle(act);
   }
@@ -462,7 +670,7 @@
     // Re-point the active-file path variables + the `data` convenience view.
     state.activeFileId = id;
     PARQUET_VFS = rec.vfsName;
-    PARQUET_SQL = `'${PARQUET_VFS}'`;
+    PARQUET_SQL = rec.kind === 'duckdb' ? rec.sqlRef : `'${PARQUET_VFS}'`;
     state.fileMeta = { name: rec.name, size: rec.size };
 
     showLoading('Parquet-Metadaten werden gelesen \u2026');
@@ -473,9 +681,13 @@
         await runQuery(`CREATE OR REPLACE VIEW data AS SELECT * FROM ${PARQUET_SQL}`);
       } catch (e) { console.warn('Could not create data view', e); }
 
-      // File-level metadata (footer only)
-      const fileMetaRes = await runQuery(`SELECT * FROM parquet_file_metadata(${PARQUET_SQL})`);
-      state.fileMetaRow = rowsFromQuery(fileMetaRes)[0] || null;
+      // File-level metadata (footer only) - a server table has no Parquet footer.
+      if (rec.kind === 'duckdb') {
+        state.fileMetaRow = null;
+      } else {
+        const fileMetaRes = await runQuery(`SELECT * FROM parquet_file_metadata(${PARQUET_SQL})`);
+        state.fileMetaRow = rowsFromQuery(fileMetaRes)[0] || null;
+      }
 
       // Schema
       const descRes = await runQuery(`DESCRIBE SELECT * FROM ${PARQUET_SQL}`);
@@ -492,18 +704,22 @@
       state.rowCountFiltered = state.rowCountTotal;
       rec.rows = state.rowCountTotal;
 
-      // Row group aggregate stats (file-level)
-      const rgRes = await runQuery(`
-        SELECT
-          COUNT(DISTINCT row_group_id)::BIGINT  AS rg_count,
-          SUM(total_compressed_size)::BIGINT    AS compressed_size,
-          SUM(total_uncompressed_size)::BIGINT  AS uncompressed_size
-        FROM parquet_metadata(${PARQUET_SQL})
-      `);
-      state.rowGroupAgg = rowsFromQuery(rgRes)[0] || {};
+      // Row group aggregate stats (file-level) - Parquet footer only.
+      if (rec.kind === 'duckdb') {
+        state.rowGroupAgg = {};
+      } else {
+        const rgRes = await runQuery(`
+          SELECT
+            COUNT(DISTINCT row_group_id)::BIGINT  AS rg_count,
+            SUM(total_compressed_size)::BIGINT    AS compressed_size,
+            SUM(total_uncompressed_size)::BIGINT  AS uncompressed_size
+          FROM parquet_metadata(${PARQUET_SQL})
+        `);
+        state.rowGroupAgg = rowsFromQuery(rgRes)[0] || {};
+      }
 
-      // Per-column metadata (footer-only)
-      await loadColumnMetadata();
+      // Per-column metadata (Parquet footer for files; one aggregate query remotely)
+      await (rec.kind === 'duckdb' ? loadRemoteColumnMeta() : loadColumnMetadata());
       for (const c of state.columns) c.distinctCount = undefined;
 
       rec.profiled = true;
@@ -614,7 +830,7 @@
           + (isActive ? `<span class="pp-file-active-badge">aktiv</span>` : '')
           + (isActive && f.mode === 'buffer' ? `<span class="pp-file-buffered-badge">im Speicher</span>` : '')
           + `</span>`
-          + `<span class="pp-file-detail">${formatBytes(f.size)} \u00B7 ${rowsTxt}${attrsTxt}`
+          + `<span class="pp-file-detail">${f.kind === 'duckdb' ? 'DuckDB-Server' : formatBytes(f.size)} \u00B7 ${rowsTxt}${attrsTxt}`
           + ` \u00B7 View: <code>${escapeHtml(f.alias)}</code></span>`
         + `</span>`
         + `<button class="pp-file-remove" type="button" data-action="remove" `
@@ -3721,6 +3937,27 @@
   // -------------------------------------------------------------------------
   pickBtn.addEventListener('click', () => fileInput.click());
   addFilesBtn.addEventListener('click', () => fileInput.click());
+  // DuckDB server. The connect button sits inside the clickable drop zone, so
+  // it must stop the click from also opening the file picker.
+  {
+    const cb = document.getElementById('pp-srvConnectBtn');
+    if (cb) {
+      cb.addEventListener('click', e => { e.stopPropagation(); srvConnectClicked(); });
+      cb.addEventListener('keydown', e => e.stopPropagation());
+    }
+    const ab = document.getElementById('pp-srvAddBtn');
+    if (ab) ab.addEventListener('click', srvConnectClicked);
+    const cancel = document.getElementById('pp-srvCancelBtn');
+    if (cancel) cancel.addEventListener('click', srvCloseModal);
+    const go = document.getElementById('pp-srvGoBtn');
+    if (go) go.addEventListener('click', srvGo);
+    const uriEl = document.getElementById('pp-srvUri');
+    if (uriEl) uriEl.addEventListener('input', srvSyncRememberUi);
+    const tokEl = document.getElementById('pp-srvToken');
+    if (tokEl) tokEl.addEventListener('keydown', e => { if (e.key === 'Enter') srvGo(); });
+    const modal = document.getElementById('pp-srvModal');
+    if (modal) modal.addEventListener('click', e => { if (e.target === modal) srvCloseModal(); });
+  }
   fileInput.addEventListener('change', () => {
     if (fileInput.files && fileInput.files.length) addFiles(fileInput.files);
     fileInput.value = '';

@@ -11,7 +11,75 @@
       <p class="dz-title">Drop a Parquet file here, or click to pick one</p>
       <p class="dz-sub">Parquet (.parquet / .pq) · everything runs locally in your browser — no upload</p>
       <input type="file" id="filePicker" hidden accept=".parquet,.pq">
+      <div class="qds-dz-actions">
+        <button class="qrx-btn" id="srvConnectBtn" type="button">Connect with DuckDB</button>
+      </div>
     </div>
+
+    <!-- DuckDB server (quack): connect + pick a table -->
+    <div id="srvModal" class="qds-modal" hidden>
+      <div class="qds-card">
+        <h3 class="qds-title">Connect with DuckDB</h3>
+        <p class="qds-hint">
+          Cleans a table from a running DuckDB server via the <code>quack</code> extension.
+          Start it there with <code>CALL quack_serve('quack:localhost', token =&gt; '…');</code>
+        </p>
+        <p class="qds-hint" id="srvConnNote" hidden></p>
+        <div id="srvCreds">
+          <div class="qrx-form-group">
+            <label class="qrx-label" for="srvUri">Server URI</label>
+            <input class="qrx-input" id="srvUri" value="quack:localhost" spellcheck="false" placeholder="quack:localhost">
+          </div>
+          <div class="qrx-form-group">
+            <label class="qrx-label" for="srvToken">Auth token</label>
+            <input class="qrx-input" id="srvToken" type="password" autocomplete="off" placeholder="token">
+          </div>
+          <div class="qrx-form-group">
+            <label class="qds-check">
+              <input type="checkbox" id="srvRemember">
+              <span class="qrx-label" style="margin: 0;">Remember this token on this device</span>
+            </label>
+            <p class="qds-hint" id="srvRememberHint" style="margin: .35rem 0 0;"></p>
+          </div>
+        </div>
+        <div class="qrx-form-group" id="srvTableGroup" hidden>
+          <label class="qrx-label" for="srvTable">Table</label>
+          <select class="qrx-select" id="srvTable"></select>
+        </div>
+        <p class="qds-status" id="srvStatus"></p>
+        <div class="qds-actions">
+          <button class="qrx-btn" id="srvCancelBtn" type="button">Cancel</button>
+          <button class="qrx-btn qrx-btn-primary" id="srvGoBtn" type="button">Connect</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DuckDB server: export the cleaned result back to a table -->
+    <div id="srvExpModal" class="qds-modal" hidden>
+      <div class="qds-card">
+        <h3 class="qds-title">Export to DuckDB</h3>
+        <p class="qds-hint">Writes the cleaned result — all applied rules included — to a table on the DuckDB server.</p>
+        <div id="srvExpConn"></div>
+        <div class="qrx-form-group">
+          <label class="qrx-label" for="srvExpTable">Target table</label>
+          <input class="qrx-input" id="srvExpTable" spellcheck="false" placeholder="cleaned_table">
+        </div>
+        <div class="qrx-form-group">
+          <label class="qrx-label" for="srvExpMode">If the table exists</label>
+          <select class="qrx-select" id="srvExpMode">
+            <option value="replace">Replace</option>
+            <option value="create">Create new (fail if it exists)</option>
+            <option value="append">Append</option>
+          </select>
+        </div>
+        <p class="qds-status" id="srvExpStatus"></p>
+        <div class="qds-actions">
+          <button class="qrx-btn" id="srvExpCancelBtn" type="button">Cancel</button>
+          <button class="qrx-btn qrx-btn-primary" id="srvExpGoBtn" type="button">Export</button>
+        </div>
+      </div>
+    </div>
+
     <p class="dz-convert" id="pcConvertHint">
       No Parquet file? Convert CSV, Excel, JSON &amp; more to Parquet with the
       <a href="table-format-converter.html" target="_blank" rel="noopener">Table Format Converter</a>.
@@ -194,6 +262,7 @@
         <h3 class="section-title">Export</h3>
         <div class="pc-export">
           <button class="qrx-btn qrx-btn-primary" id="exportBtn" type="button">Export cleaned Parquet</button>
+          <button class="qrx-btn" id="exportSrvBtn" type="button">Export to DuckDB…</button>
           <span class="sql-status" id="exportStatus"></span>
         </div>
       </div>

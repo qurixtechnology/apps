@@ -10,6 +10,8 @@
     "tags_en": [".parquet", "metadata", "column stats"]
   },
   "fonts": [],
+  "inlineScripts": ["../../shared/duckdb-server.js"],
+  "inlineStyles": ["../../shared/duckdb-server.css"],
   "headAssets": [
     {
       "comment": "Chart.js via CDN, pinned version, minified",

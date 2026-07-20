@@ -11,5 +11,7 @@
     "tags_en": ["Parquet", "Cleaning", "Anonymization"]
   },
   "fonts": [],
+  "inlineScripts": ["../../shared/duckdb-server.js"],
+  "inlineStyles": ["../../shared/duckdb-server.css"],
   "headAssets": []
 }

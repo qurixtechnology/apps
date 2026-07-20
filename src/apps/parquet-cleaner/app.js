@@ -53,6 +53,8 @@
   // ---- State ----
   const state = {
     file: null, fileSize: 0, duckFile: null,
+    loaded: false,        // a source is bound to view `original` (file OR DuckDB server)
+    remote: null,         // {uri, table} when the source is a DuckDB server table
     schema: [],            // original columns [{name,type,typeClass}]
     rowCountOriginal: 0,
     rowCountCleaned: 0,
@@ -166,7 +168,7 @@
   async function initDuckDB() {
     if (dbInitPromise) return dbInitPromise;
     dbInitPromise = (async () => {
-      duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.30.0/+esm');
+      duckdb = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm');
       const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
       const worker_url = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' }));
       const worker = new Worker(worker_url);
@@ -984,7 +986,7 @@
   // ---- Recompute (debounced) ----
   const scheduleRecompute = debounce(recompute, 250);
   async function recompute() {
-    if (!conn || !state.duckFile) return;
+    if (!conn || !state.loaded) return;
     const seq = ++state.seq;
     try {
       const sql = compilePipeline();
@@ -1264,7 +1266,7 @@
       try { await conn.query('DROP VIEW IF EXISTS cleaned'); } catch (_) {}
       try { await conn.query('DROP VIEW IF EXISTS original'); } catch (_) {}
       if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
-      state.file = file; state.fileSize = file.size;
+      state.file = file; state.fileSize = file.size; state.remote = null; state.loaded = false;
       state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null; state.colWidths = {};
       resetReview();
       const vname = `input_${Date.now()}_` + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -1273,29 +1275,36 @@
       await db.registerFileHandle(vname, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
       setStatus('Reading schema…');
       await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM read_parquet('${sqlEscape(vname)}')`);
-      state.schema = arrowFields((await conn.query('SELECT * FROM original LIMIT 0')).schema);
-      state.rowCountOriginal = Number((await conn.query('SELECT count(*) AS c FROM original')).toArray()[0].c);
-      analyzeCol.innerHTML = state.schema.map(c => `<option value="${escapeAttr(c.name)}">${escapeHtml(c.name)}</option>`).join('');
-      analyzeResults.innerHTML = '';
-      fileIcon.textContent = 'PRQ';
-      fileName.textContent = file.name;
-      fileMeta.textContent = `Parquet · ${fmtBytes(file.size)} · ${fmtN(state.schema.length)} cols · ${fmtN(state.rowCountOriginal)} rows`;
-      dropzone.hidden = true; fileInfo.hidden = false; workspace.hidden = false;
-      { const ch = $('pcConvertHint'); if (ch) ch.hidden = true; }
-      setView('original');
-      setLayout('default');
-      renderSteps();
-      await recompute();
-      setStatus('');
+      await finalizeSource('PRQ', file.name, `Parquet · ${fmtBytes(file.size)}`);
     } catch (err) {
       console.error(err);
       setStatus('Could not read this Parquet file: ' + (err && err.message ? err.message : String(err)), 'error');
     }
   }
+  // Shared tail of every load path — the view `original` is already bound, so
+  // everything below is source-agnostic (file or DuckDB server table).
+  async function finalizeSource(icon, name, metaPrefix) {
+    state.schema = arrowFields((await conn.query('SELECT * FROM original LIMIT 0')).schema);
+    state.rowCountOriginal = Number((await conn.query('SELECT count(*) AS c FROM original')).toArray()[0].c);
+    analyzeCol.innerHTML = state.schema.map(c => `<option value="${escapeAttr(c.name)}">${escapeHtml(c.name)}</option>`).join('');
+    analyzeResults.innerHTML = '';
+    fileIcon.textContent = icon;
+    fileName.textContent = name;
+    fileMeta.textContent = `${metaPrefix} · ${fmtN(state.schema.length)} cols · ${fmtN(state.rowCountOriginal)} rows`;
+    state.loaded = true;
+    dropzone.hidden = true; fileInfo.hidden = false; workspace.hidden = false;
+    { const ch = $('pcConvertHint'); if (ch) ch.hidden = true; }
+    setView('original');
+    setLayout('default');
+    renderSteps();
+    await recompute();
+    setStatus('');
+  }
   function resetFile() {
     try { if (conn) { conn.query('DROP VIEW IF EXISTS cleaned'); conn.query('DROP VIEW IF EXISTS original'); } } catch (_) {}
     if (state.duckFile && db) { try { db.dropFile(state.duckFile); } catch (_) {} }
     state.file = null; state.duckFile = null; state.schema = []; state.pipeline = [];
+    state.loaded = false; state.remote = null;
     state.page = 0; state.cleanedSig = null;
     dropzone.hidden = false; fileInfo.hidden = true; workspace.hidden = true;
     { const ch = $('pcConvertHint'); if (ch) ch.hidden = false; }
@@ -1309,12 +1318,12 @@
     viewOriginalBtn.classList.toggle('is-active', v === 'original');
     viewCleanedBtn.classList.toggle('is-active', v === 'cleaned');
     if (viewCompareBtn) viewCompareBtn.classList.toggle('is-active', v === 'compare');
-    if (conn && state.duckFile) renderPreview().catch(e => console.error(e));
+    if (conn && state.loaded) renderPreview().catch(e => console.error(e));
   }
 
   // ---- Export ----
   async function exportCleaned() {
-    if (!conn || !state.duckFile) return;
+    if (!conn || !state.loaded) return;
     exportBtn.disabled = true;
     exportStatus.className = 'sql-status'; exportStatus.textContent = 'Exporting…';
     const t0 = performance.now();
@@ -1336,6 +1345,245 @@
       exportBtn.disabled = false;
     }
   }
+  // ============================ DuckDB server (quack) ============================
+  // A server table is bound to the view `original` exactly like a dropped file,
+  // so the whole cleaning pipeline works unchanged. The vault/attach/list logic
+  // lives in the shared module (src/shared/duckdb-server.js).
+  const srv = window.qrxDuckServer;
+  const vault = srv.vault;
+  let serverConn = { connected: false, uri: null };
+  let srvPhase = 'connect';   // 'connect' -> enter credentials | 'pick' -> choose a table
+
+  const srvStatusEl = () => $('srvStatus');
+  function srvSetStatus(msg, cls) {
+    const el = srvStatusEl(); if (!el) return;
+    el.textContent = msg || ''; el.className = 'qds-status' + (cls ? ' is-' + cls : '');
+  }
+  function srvSyncRememberUi() {
+    const uri = ($('srvUri').value || '').trim();
+    const hint = $('srvRememberHint'), cb = $('srvRemember'), tok = $('srvToken');
+    if (!hint || !cb) return;
+    if (!vault.available()) {
+      cb.checked = false; cb.disabled = true;
+      hint.textContent = 'Not available — this browser blocks local storage.';
+      return;
+    }
+    if (vault.has(uri)) {
+      cb.checked = true;
+      tok.placeholder = 'using saved token';
+      hint.innerHTML = 'A token for this server is saved (encrypted). Leave the field empty to reuse it. '
+        + '<a href="#" id="srvForgetLink">Forget it</a>';
+      const fl = $('srvForgetLink');
+      if (fl) fl.addEventListener('click', e => {
+        e.preventDefault(); vault.forget(uri); $('srvToken').value = '';
+        srvSyncRememberUi(); srvSetStatus('Saved token deleted.');
+      });
+    } else {
+      tok.placeholder = 'token';
+      hint.textContent = 'Stored encrypted in this browser, per server URI. Shared with the other qurix apps.';
+    }
+  }
+  // In the pick phase the credentials are already accepted — hide them so the
+  // dialog does not look like it is asking for the token again.
+  function srvSetPhase(phase) {
+    srvPhase = phase;
+    const pick = phase === 'pick';
+    $('srvTableGroup').hidden = !pick;
+    $('srvCreds').hidden = pick;
+    const note = $('srvConnNote');
+    note.hidden = !pick;
+    if (pick) {
+      note.innerHTML = `Connected to <strong>${escapeHtml(serverConn.uri || '')}</strong> · `
+        + '<a href="#" id="srvChangeConn">use a different server or token</a>';
+      const link = $('srvChangeConn');
+      if (link) link.addEventListener('click', e => {
+        e.preventDefault();
+        srvSetPhase('connect');
+        srvSetStatus('');
+        setTimeout(() => $('srvToken').focus(), 0);
+      });
+    }
+    $('srvGoBtn').textContent = pick ? 'Load table' : 'Connect';
+  }
+  function srvOpenModal(msg) {
+    srvSetStatus(msg || '', msg ? 'err' : null);
+    const last = vault.lastUri();
+    if (last) $('srvUri').value = last;
+    $('srvToken').value = '';
+    srvSyncRememberUi();
+    // Only offer the picker once the list is actually populated — otherwise the
+    // dialog shows an empty table select while the listing query is still running.
+    const filled = $('srvTable').options.length > 0;
+    srvSetPhase(serverConn.connected && filled ? 'pick' : 'connect');
+    $('srvModal').hidden = false;
+    setTimeout(() => { const el = serverConn.connected ? $('srvTable') : $('srvToken'); if (el) el.focus(); }, 0);
+  }
+  function srvCloseModal() { $('srvModal').hidden = true; }
+  async function srvFillTables() {
+    const names = await srv.listTables(conn);
+    if (!names.length) throw new Error('No tables found on this server.');
+    $('srvTable').innerHTML = names.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
+    srvSetPhase('pick');
+  }
+  // Lazy attach: with a remembered token, go straight to the table picker.
+  async function srvConnectClicked() {
+    const last = vault.lastUri();
+    if (serverConn.connected) {
+      srvOpenModal();
+      srvSetStatus('Loading tables…');
+      try { await srvFillTables(); srvSetStatus(''); }
+      catch (e) { srvSetStatus('Failed: ' + (e.message || String(e)), 'err'); }
+      return;
+    }
+    if (!last || !vault.has(last)) { srvOpenModal(); return; }
+    const token = await vault.get(last);
+    if (token === null) { srvOpenModal(); return; }
+    setStatus('Connecting to ' + last + '…');
+    try {
+      await initDuckDB();
+      await srv.attach(conn, last, token);
+      serverConn = { connected: true, uri: last };
+      setStatus('');
+      srvOpenModal();
+      srvSetStatus('Loading tables…');
+      await srvFillTables();
+      srvSetStatus('');
+    } catch (e) {
+      if (srv.isAuthError(e)) vault.forget(last);
+      serverConn = { connected: false, uri: null };
+      setStatus('');
+      srvOpenModal((srv.isAuthError(e) ? 'Saved token was rejected — enter it again. ' : 'Failed: ') + (e.message || String(e)));
+    }
+  }
+  async function srvGo() {
+    const btn = $('srvGoBtn'); btn.disabled = true;
+    try {
+      if (srvPhase === 'connect') {
+        const uri = $('srvUri').value.trim();
+        let token = $('srvToken').value;
+        if (!uri) { srvSetStatus('Enter a server URI.', 'err'); return; }
+        if (!token && vault.has(uri)) token = (await vault.get(uri)) || '';
+        srvSetStatus('Connecting…');
+        await initDuckDB();
+        await srv.attach(conn, uri, token);
+        serverConn = { connected: true, uri };
+        vault.noteUri(uri);
+        // Persist only once the server has actually accepted the token.
+        if ($('srvRemember').checked && token) await vault.put(uri, token);
+        else if (!$('srvRemember').checked) vault.forget(uri);
+        srvSetStatus('');
+        await srvFillTables();
+      } else {
+        const table = $('srvTable').value;
+        srvSetStatus('Loading…');
+        await srvLoadTable(serverConn.uri, table);
+        srvCloseModal();
+      }
+    } catch (e) {
+      const uri = $('srvUri').value.trim();
+      if (srvPhase === 'connect') {
+        if (srv.isAuthError(e)) vault.forget(uri);
+        serverConn = { connected: false, uri: null };
+        srvSyncRememberUi();
+      }
+      srvSetStatus('Failed: ' + (e && e.message ? e.message : String(e)), 'err');
+    } finally { btn.disabled = false; }
+  }
+  async function srvLoadTable(uri, table) {
+    try { await conn.query('DROP VIEW IF EXISTS cleaned'); } catch (_) {}
+    try { await conn.query('DROP VIEW IF EXISTS original'); } catch (_) {}
+    if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
+    state.file = null; state.fileSize = 0; state.duckFile = null; state.loaded = false;
+    state.remote = { uri, table };
+    state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null; state.colWidths = {};
+    resetReview();
+    await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM ${srv.remoteRef(table)}`);
+    await finalizeSource('DDB', `${uri} · ${table}`, 'DuckDB server');
+  }
+
+  // ---- Export to a DuckDB server table (applies the cleaning pipeline) ----
+  function srvExpSetStatus(msg, cls) {
+    const el = $('srvExpStatus'); if (!el) return;
+    el.textContent = msg || ''; el.className = 'qds-status' + (cls ? ' is-' + cls : '');
+  }
+  function srvExpOpen() {
+    if (!state.loaded) return;
+    srvExpSetStatus('');
+    const box = $('srvExpConn');
+    if (serverConn.connected) {
+      box.innerHTML = `<p class="qds-hint">Connected to <strong>${escapeHtml(serverConn.uri)}</strong>.</p>`;
+    } else {
+      const uri = vault.lastUri() || 'quack:localhost';
+      const saved = vault.has(uri);
+      box.innerHTML = `<div class="qrx-form-group">
+          <label class="qrx-label" for="srvExpUri">Server URI</label>
+          <input class="qrx-input" id="srvExpUri" value="${escapeAttr(uri)}" spellcheck="false">
+        </div>
+        <div class="qrx-form-group">
+          <label class="qrx-label" for="srvExpToken">Auth token</label>
+          <input class="qrx-input" id="srvExpToken" type="password" autocomplete="off" placeholder="${saved ? 'using saved token' : 'token'}">
+          ${saved ? '<p class="qds-hint" style="margin:.35rem 0 0;">A saved token is used automatically. Type one here to override it.</p>'
+                  : `<label class="qds-check" style="margin-top:.4rem;">
+                       <input type="checkbox" id="srvExpRemember"${vault.available() ? '' : ' disabled'}>
+                       <span class="qrx-label" style="margin:0;">Remember this token on this device</span>
+                     </label>`}
+        </div>`;
+    }
+    const base = state.remote ? state.remote.table
+      : (state.file && state.file.name ? state.file.name.replace(/\.[^.]+$/, '') : 'data');
+    $('srvExpTable').value = (base.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'data') + '_cleaned';
+    $('srvExpModal').hidden = false;
+    setTimeout(() => $('srvExpTable').focus(), 0);
+  }
+  function srvExpClose() { $('srvExpModal').hidden = true; }
+  async function srvExportCleaned() {
+    const dst = ($('srvExpTable').value || '').trim();
+    if (!dst) { srvExpSetStatus('Enter a target table name.', 'err'); return; }
+    const btn = $('srvExpGoBtn'); btn.disabled = true;
+    const t0 = performance.now();
+    try {
+      if (!serverConn.connected) {
+        const uri = ($('srvExpUri').value || '').trim();
+        let token = ($('srvExpToken').value) || '';
+        if (!uri) throw new Error('Enter the server URI.');
+        const typed = !!token;
+        if (!token) token = (await vault.get(uri)) || '';
+        srvExpSetStatus('Connecting…');
+        try {
+          await srv.attach(conn, uri, token);
+        } catch (e) {
+          if (srv.isAuthError(e)) {
+            vault.forget(uri);
+            throw new Error((typed ? 'Token rejected.' : 'Saved token was rejected — enter it again.') + ' ' + (e.message || ''));
+          }
+          throw e;
+        }
+        serverConn = { connected: true, uri };
+        vault.noteUri(uri);
+        const rem = $('srvExpRemember');
+        if (typed && rem && rem.checked) await vault.put(uri, token);
+      }
+      const mode = $('srvExpMode').value || 'replace';
+      srvExpSetStatus('Staging…');
+      await conn.query(`CREATE OR REPLACE VIEW cleaned AS ${compilePipeline()}`);
+      // Stage locally first — quack does not support a remote→remote CTAS.
+      await conn.query('CREATE OR REPLACE TABLE __srv_stage AS SELECT * FROM cleaned');
+      const ref = srv.remoteRef(dst);
+      srvExpSetStatus('Writing to server…');
+      if (mode === 'append') await conn.query(`INSERT INTO ${ref} SELECT * FROM __srv_stage`);
+      else if (mode === 'create') await conn.query(`CREATE TABLE ${ref} AS SELECT * FROM __srv_stage`);
+      else await conn.query(`CREATE OR REPLACE TABLE ${ref} AS SELECT * FROM __srv_stage`);
+      const n = Number((await conn.query(`SELECT count(*) AS c FROM ${ref}`)).toArray()[0].c);
+      try { await conn.query('DROP TABLE IF EXISTS __srv_stage'); } catch (_) {}
+      srvExpClose();
+      exportStatus.className = 'sql-status is-ok';
+      exportStatus.textContent = `Wrote ${dst} (${fmtN(n)} rows) · ${fmtDur(performance.now() - t0)}`;
+    } catch (err) {
+      console.error(err);
+      srvExpSetStatus('Failed: ' + (err && err.message ? err.message : String(err)), 'err');
+    } finally { btn.disabled = false; }
+  }
+
   // ---- Pattern analysis (assistance) ----
   // Mask each value: \p{Lu}->A, \p{Ll}->a, [0-9]->9, other chars kept literal.
   function maskedExpr(col) {
@@ -1878,6 +2126,21 @@
   prevBtn.addEventListener('click', () => { state.page--; renderPreview().catch(e => console.error(e)); });
   nextBtn.addEventListener('click', () => { state.page++; renderPreview().catch(e => console.error(e)); });
   exportBtn.addEventListener('click', exportCleaned);
+  // DuckDB server: the connect button sits inside the clickable dropzone, so it
+  // must stop the click from also opening the file picker.
+  if ($('srvConnectBtn')) {
+    $('srvConnectBtn').addEventListener('click', e => { e.stopPropagation(); srvConnectClicked(); });
+    $('srvConnectBtn').addEventListener('keydown', e => e.stopPropagation());
+  }
+  if ($('srvCancelBtn')) $('srvCancelBtn').addEventListener('click', srvCloseModal);
+  if ($('srvGoBtn')) $('srvGoBtn').addEventListener('click', srvGo);
+  if ($('srvUri')) $('srvUri').addEventListener('input', srvSyncRememberUi);
+  if ($('srvToken')) $('srvToken').addEventListener('keydown', e => { if (e.key === 'Enter') srvGo(); });
+  if ($('srvModal')) $('srvModal').addEventListener('click', e => { if (e.target === $('srvModal')) srvCloseModal(); });
+  if ($('exportSrvBtn')) $('exportSrvBtn').addEventListener('click', srvExpOpen);
+  if ($('srvExpCancelBtn')) $('srvExpCancelBtn').addEventListener('click', srvExpClose);
+  if ($('srvExpGoBtn')) $('srvExpGoBtn').addEventListener('click', srvExportCleaned);
+  if ($('srvExpModal')) $('srvExpModal').addEventListener('click', e => { if (e.target === $('srvExpModal')) srvExpClose(); });
   if (analyzeBtn) analyzeBtn.addEventListener('click', runAnalyze);
   if (reviewScanBtn) reviewScanBtn.addEventListener('click', scanData);
   if (reviewResults) reviewResults.addEventListener('click', e => {
