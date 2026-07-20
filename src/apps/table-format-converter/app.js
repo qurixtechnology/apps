@@ -13,8 +13,6 @@
   const fileMeta        = $('fileMeta');
   const resetFileBtn    = $('resetFileBtn');
   const statusBar       = $('statusBar');
-  const statusSpinner   = $('statusSpinner');
-  const statusText      = $('statusText');
   const workspace       = $('workspace');
   const heuristicPanel  = $('heuristicPanel');
   const heuristicFields = $('heuristicFields');
@@ -115,25 +113,10 @@
   function eff() { return Object.assign({}, state.detected, state.user); }
 
   // ---------------------------------------------------------------- Utilities
-  let _statusDismissTimer = null;
-  function setStatus(text, kind) {
-    if (_statusDismissTimer) { clearTimeout(_statusDismissTimer); _statusDismissTimer = null; }
-    if (!text) { statusBar.hidden = true; return; }
-    statusBar.hidden = false;
-    statusText.textContent = text;
-    statusBar.classList.toggle('is-error',   kind === 'error');
-    statusBar.classList.toggle('is-warn',    kind === 'warn');
-    statusBar.classList.toggle('is-success', kind === 'success');
-    // Spinner is only meaningful for ongoing work — suppress for terminal states.
-    const isTerminal = kind === 'error' || kind === 'warn' || kind === 'success';
-    statusSpinner.style.display = isTerminal ? 'none' : '';
-    // Success messages are confirmations, not ongoing state — auto-clear them.
-    if (kind === 'success') {
-      _statusDismissTimer = setTimeout(() => {
-        if (statusText.textContent === text) setStatus('');
-      }, 2500);
-    }
-  }
+  // Shared widget (src/shared/qrx-ui.js) — spinner, terminal states,
+  // self-clearing success messages and an ARIA live region.
+  const statusWidget = qrx.ui.status(statusBar);
+  const setStatus = (text, kind) => { statusWidget.set(text, kind); };
 
   // Basics come from the shared module (src/shared/qrx-core.js).
   const fmtBytes = qrx.core.fmt.bytes;

@@ -615,6 +615,99 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   .md-paper h1, .md-paper h2, .md-paper h3, .md-paper h4 { break-after: avoid; }
 }
 </style>
+<style>
+/* Styling for the shared widgets (qrx.ui.*).
+   Prefixed qrx- so it never collides with an app's own classes. Colours and
+   spacing come from the theme's custom properties, so a widget looks native in
+   every app without being restyled. */
+
+/* --- modal --------------------------------------------------------------- */
+.qrx-modal {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--qrx-s-6); background: rgba(10, 31, 43, 0.55);
+}
+.qrx-modal[hidden] { display: none; }
+.qrx-modal-card {
+  width: 100%; max-width: 560px; max-height: 88vh; overflow: auto;
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg); box-shadow: var(--qrx-shadow-lg);
+  padding: var(--qrx-s-6);
+}
+.qrx-modal-card.is-busy { opacity: .75; }
+.qrx-modal-title { margin: 0 0 var(--qrx-s-2); color: var(--qrx-primary); font-size: 1.125rem; }
+.qrx-modal-hint { margin: 0 0 var(--qrx-s-4); font-size: 0.875rem; color: var(--qrx-text-muted); }
+.qrx-modal-status {
+  font-size: 0.8125rem; font-weight: 600; margin: var(--qrx-s-3) 0 0; min-height: 1.2em;
+}
+.qrx-modal-status.is-err { color: var(--qrx-danger); }
+.qrx-modal-actions {
+  display: flex; justify-content: flex-end; gap: var(--qrx-s-3); margin-top: var(--qrx-s-4);
+}
+
+/* --- form bits used by widgets inside a modal ---------------------------- */
+.qrx-field { margin-bottom: var(--qrx-s-4); }
+.qrx-field:last-child { margin-bottom: 0; }
+.qrx-check { display: flex; align-items: center; gap: var(--qrx-s-2); }
+.qrx-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--qrx-primary); }
+.qrx-note { margin: .35rem 0 0; font-size: 0.8125rem; color: var(--qrx-text-muted); }
+
+/* --- table picker (connect dialog) --------------------------------------- */
+.qrx-picker {
+  max-height: 34vh; overflow: auto; margin: 0 0 var(--qrx-s-2);
+  border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius);
+  background: var(--qrx-bg-subtle);
+}
+.qrx-picker label {
+  display: flex; align-items: center; gap: var(--qrx-s-2);
+  padding: var(--qrx-s-2) var(--qrx-s-3); cursor: pointer;
+  font-family: var(--qrx-font-mono); font-size: 0.8125rem;
+  border-bottom: 1px solid var(--qrx-border);
+}
+.qrx-picker label:last-child { border-bottom: none; }
+.qrx-picker label:hover { background: var(--qrx-surface); }
+.qrx-picker label.is-disabled { opacity: .55; cursor: default; }
+.qrx-picker label.is-disabled:hover { background: none; }
+.qrx-picker input { accent-color: var(--qrx-primary); }
+
+/* --- status bar ---------------------------------------------------------- */
+.qrx-status {
+  display: flex; align-items: center; gap: var(--qrx-s-3);
+  padding: var(--qrx-s-3) var(--qrx-s-4);
+  background: var(--qrx-bg-subtle);
+  border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius);
+  font-size: 0.875rem;
+  color: var(--qrx-text-muted);
+}
+.qrx-status[hidden] { display: none; }
+.qrx-status.is-error   { background: #fdecea; border-color: var(--qrx-danger); color: var(--qrx-danger); }
+.qrx-status.is-warn    { background: #fdf6e3; border-color: var(--qrx-warning); color: #8a5b00; }
+.qrx-status.is-success { background: #e8f7f1; border-color: var(--qrx-success); color: #0f6f5a; }
+.qrx-status-spinner {
+  flex: none; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--qrx-border-strong);
+  border-top-color: var(--qrx-primary);
+  animation: qrx-spin 0.8s linear infinite;
+}
+@keyframes qrx-spin { to { transform: rotate(360deg); } }
+
+/* --- toast --------------------------------------------------------------- */
+.qrx-toast {
+  position: fixed; bottom: var(--qrx-s-6); left: 50%; transform: translateX(-50%);
+  padding: var(--qrx-s-3) var(--qrx-s-5);
+  background: var(--qrx-text); color: var(--qrx-text-inverse);
+  border-radius: var(--qrx-radius);
+  box-shadow: var(--qrx-shadow-lg);
+  font-size: 0.875rem;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.qrx-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+.qrx-toast.is-error   { background: var(--qrx-danger); }
+.qrx-toast.is-success { background: var(--qrx-success); }
+</style>
 
 <!-- Markdown parser (marked) via CDN, pinned, minified -->
 <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js" crossorigin="anonymous"></script>
@@ -883,7 +976,7 @@ flowchart LR
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-175458</span>
+    &middot; v<span data-build-version>260720-193307</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1380,6 +1473,218 @@ flowchart LR
 </script>
 
 <script>
+// ============================================================================
+// qrx.ui — reusable widgets. Each one owns its markup, its CSS classes and its
+// texts; an app places a mount point and passes callbacks. Nothing here reaches
+// back into an app.
+//
+// Texts come from qrx.i18n, which is what makes a widget usable in the German
+// profiler and the English converter at the same time.
+// ============================================================================
+(function () {
+  'use strict';
+  const qrx = (window.qrx = window.qrx || {});
+  const ui = (qrx.ui = qrx.ui || {});
+  const esc = (s) => qrx.core.escapeHtml(s);
+
+  qrx.i18n.register('ui', {
+    de: { close: 'Schließen', cancel: 'Abbrechen', ok: 'OK' },
+    en: { close: 'Close', cancel: 'Cancel', ok: 'OK' },
+  });
+
+  const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),'
+    + 'textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+  /**
+   * A modal dialog. Three visibility mechanisms existed across the apps
+   * (hidden attribute, .active, .open) and none of them trapped focus or
+   * restored it on close — a keyboard user could tab out of the dialog into
+   * the page behind it. This one does both.
+   *
+   * opts: { title, titleKey, hint, hintKey, body (HTMLElement|string),
+   *         actions: [{ key, label, labelKey, primary, onClick }],
+   *         onClose, closeOnBackdrop = true, closeOnEscape = true }
+   */
+  ui.modal = function modal(opts = {}) {
+    const root = document.createElement('div');
+    root.className = 'qrx-modal';
+    root.hidden = true;
+    const titleId = 'qrx-modal-title-' + Math.random().toString(36).slice(2, 8);
+
+    root.innerHTML = `
+      <div class="qrx-modal-card" role="dialog" aria-modal="true" aria-labelledby="${titleId}">
+        <h3 class="qrx-modal-title" id="${titleId}"></h3>
+        <p class="qrx-modal-hint" hidden></p>
+        <div class="qrx-modal-body"></div>
+        <p class="qrx-modal-status" hidden></p>
+        <div class="qrx-modal-actions"></div>
+      </div>`;
+    const card = root.querySelector('.qrx-modal-card');
+    const titleEl = root.querySelector('.qrx-modal-title');
+    const hintEl = root.querySelector('.qrx-modal-hint');
+    const bodyEl = root.querySelector('.qrx-modal-body');
+    const statusEl = root.querySelector('.qrx-modal-status');
+    const actionsEl = root.querySelector('.qrx-modal-actions');
+
+    const T = (text, key) => (key ? qrx.i18n.t(key) : (text || ''));
+
+    function renderTexts() {
+      titleEl.textContent = T(opts.title, opts.titleKey);
+      const hint = T(opts.hint, opts.hintKey);
+      hintEl.hidden = !hint;
+      if (hint) hintEl.innerHTML = opts.hintHtml ? hint : esc(hint);
+      [...actionsEl.children].forEach((btn) => {
+        const a = opts.actions[Number(btn.dataset.index)];
+        const label = T(a.label, a.labelKey);
+        // An action declared without a label is managed by the caller (the
+        // connect dialog switches its primary button between "Connect" and
+        // "Load table"), so leave it alone instead of blanking it.
+        if (label) btn.textContent = label;
+      });
+    }
+
+    opts.actions = opts.actions || [];
+    opts.actions.forEach((a, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'qrx-btn' + (a.primary ? ' qrx-btn-primary' : '');
+      btn.dataset.index = String(i);
+      if (a.key) btn.dataset.key = a.key;
+      btn.addEventListener('click', () => a.onClick && a.onClick(api));
+      actionsEl.appendChild(btn);
+    });
+
+    if (opts.body instanceof Node) bodyEl.appendChild(opts.body);
+    else if (typeof opts.body === 'string') bodyEl.innerHTML = opts.body;
+
+    let lastFocused = null;
+
+    function onKeydown(e) {
+      if (e.key === 'Escape' && opts.closeOnEscape !== false) { e.stopPropagation(); api.close(); return; }
+      if (e.key !== 'Tab') return;
+      // focus trap: cycle inside the dialog instead of escaping into the page
+      const items = [...card.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+
+    root.addEventListener('click', (e) => {
+      if (e.target === root && opts.closeOnBackdrop !== false) api.close();
+    });
+    root.addEventListener('keydown', onKeydown);
+    qrx.i18n.onChange(renderTexts);
+
+    const api = {
+      el: root,
+      body: bodyEl,
+      button: (key) => actionsEl.querySelector(`[data-key="${key}"]`),
+      open(focusSelector) {
+        if (!root.isConnected) document.body.appendChild(root);
+        lastFocused = document.activeElement;
+        renderTexts();
+        api.setStatus('');
+        root.hidden = false;
+        setTimeout(() => {
+          const target = (focusSelector && card.querySelector(focusSelector))
+            || card.querySelector(FOCUSABLE);
+          if (target) target.focus();
+        }, 0);
+        return api;
+      },
+      close() {
+        if (root.hidden) return api;
+        root.hidden = true;
+        if (opts.onClose) opts.onClose();
+        // give focus back to whatever opened the dialog
+        if (lastFocused && lastFocused.isConnected) { try { lastFocused.focus(); } catch (_) {} }
+        return api;
+      },
+      isOpen: () => !root.hidden,
+      setStatus(msg, kind) {
+        statusEl.hidden = !msg;
+        statusEl.textContent = msg || '';
+        statusEl.className = 'qrx-modal-status' + (kind ? ' is-' + kind : '');
+        return api;
+      },
+      setBusy(busy) {
+        actionsEl.querySelectorAll('button').forEach(b => { b.disabled = !!busy; });
+        card.classList.toggle('is-busy', !!busy);
+        return api;
+      },
+      setTitle(text, key) { opts.title = text; opts.titleKey = key; renderTexts(); return api; },
+      destroy() { qrx.i18n.onChange(() => {}); root.remove(); },
+    };
+
+    renderTexts();
+    return api;
+  };
+
+  /**
+   * A status bar: one line of state, with a spinner while something is running.
+   *
+   * Merged from the converter and the cleaner (near-identical copies). The
+   * spinner is suppressed for terminal states, success messages clear
+   * themselves after a moment, and — new — the element is an ARIA live region,
+   * so a screen reader announces the change. Only markdown-display's toast had
+   * that before.
+   */
+  ui.status = function status(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.status: mount element not found');
+    el.className = 'qrx-status';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.innerHTML = '<span class="qrx-status-spinner" aria-hidden="true"></span><span class="qrx-status-text"></span>';
+    const spinner = el.querySelector('.qrx-status-spinner');
+    const textEl = el.querySelector('.qrx-status-text');
+    const successMs = opts.successMs || 2500;
+    let timer = null;
+
+    function set(text, kind) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (!text) { el.hidden = true; textEl.textContent = ''; return api; }
+      el.hidden = false;
+      textEl.textContent = text;
+      el.classList.toggle('is-error', kind === 'error');
+      el.classList.toggle('is-warn', kind === 'warn');
+      el.classList.toggle('is-success', kind === 'success');
+      const terminal = kind === 'error' || kind === 'warn' || kind === 'success';
+      spinner.style.display = terminal ? 'none' : '';
+      if (kind === 'success') {
+        timer = setTimeout(() => { if (textEl.textContent === text) set(''); }, successMs);
+      }
+      return api;
+    }
+
+    const api = { el, set, clear: () => set(''), text: () => textEl.textContent };
+    set('');
+    return api;
+  };
+
+  /** A transient message. One container, reused. */
+  let toastEl = null, toastTimer = null;
+  ui.toast = function toast(message, kind, ms = 3200) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'qrx-toast';
+      toastEl.setAttribute('role', 'status');
+      toastEl.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = message;
+    toastEl.classList.toggle('is-error', kind === 'error');
+    toastEl.classList.toggle('is-success', kind === 'success');
+    toastEl.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('is-visible'), ms);
+    return toastEl;
+  };
+})();
+</script>
+
+<script>
 (function () {
   'use strict';
 
@@ -1608,15 +1913,8 @@ flowchart LR
 
   // ----- Toast helper -----
   let toastTimer = null;
-  function showToast(msg, kind) {
-    toast.textContent = msg;
-    toast.classList.remove('is-error', 'is-success');
-    if (kind === 'error')   toast.classList.add('is-error');
-    if (kind === 'success') toast.classList.add('is-success');
-    toast.classList.add('is-visible');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 3200);
-  }
+  // Shared widget (src/shared/qrx-ui.js).
+  const showToast = (msg, kind) => qrx.ui.toast(msg, kind);
 
   // ----- Mermaid -----
   // qurix-branded palette for diagrams (light, on the white figure surface).

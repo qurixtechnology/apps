@@ -145,4 +145,65 @@
     renderTexts();
     return api;
   };
+
+  /**
+   * A status bar: one line of state, with a spinner while something is running.
+   *
+   * Merged from the converter and the cleaner (near-identical copies). The
+   * spinner is suppressed for terminal states, success messages clear
+   * themselves after a moment, and — new — the element is an ARIA live region,
+   * so a screen reader announces the change. Only markdown-display's toast had
+   * that before.
+   */
+  ui.status = function status(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.status: mount element not found');
+    el.className = 'qrx-status';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.innerHTML = '<span class="qrx-status-spinner" aria-hidden="true"></span><span class="qrx-status-text"></span>';
+    const spinner = el.querySelector('.qrx-status-spinner');
+    const textEl = el.querySelector('.qrx-status-text');
+    const successMs = opts.successMs || 2500;
+    let timer = null;
+
+    function set(text, kind) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (!text) { el.hidden = true; textEl.textContent = ''; return api; }
+      el.hidden = false;
+      textEl.textContent = text;
+      el.classList.toggle('is-error', kind === 'error');
+      el.classList.toggle('is-warn', kind === 'warn');
+      el.classList.toggle('is-success', kind === 'success');
+      const terminal = kind === 'error' || kind === 'warn' || kind === 'success';
+      spinner.style.display = terminal ? 'none' : '';
+      if (kind === 'success') {
+        timer = setTimeout(() => { if (textEl.textContent === text) set(''); }, successMs);
+      }
+      return api;
+    }
+
+    const api = { el, set, clear: () => set(''), text: () => textEl.textContent };
+    set('');
+    return api;
+  };
+
+  /** A transient message. One container, reused. */
+  let toastEl = null, toastTimer = null;
+  ui.toast = function toast(message, kind, ms = 3200) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'qrx-toast';
+      toastEl.setAttribute('role', 'status');
+      toastEl.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = message;
+    toastEl.classList.toggle('is-error', kind === 'error');
+    toastEl.classList.toggle('is-success', kind === 'success');
+    toastEl.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('is-visible'), ms);
+    return toastEl;
+  };
 })();

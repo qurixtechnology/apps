@@ -63,15 +63,8 @@
 
   // ----- Toast helper -----
   let toastTimer = null;
-  function showToast(msg, kind) {
-    toast.textContent = msg;
-    toast.classList.remove('is-error', 'is-success');
-    if (kind === 'error')   toast.classList.add('is-error');
-    if (kind === 'success') toast.classList.add('is-success');
-    toast.classList.add('is-visible');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 3200);
-  }
+  // Shared widget (src/shared/qrx-ui.js).
+  const showToast = (msg, kind) => qrx.ui.toast(msg, kind);
 
   // ----- Mermaid -----
   // qurix-branded palette for diagrams (light, on the white figure surface).

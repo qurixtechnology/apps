@@ -12,7 +12,9 @@
   },
   "fonts": ["qurix.fonts.html"],
   "inlineScripts": ["../../shared/qrx-core.js",
-    "../../shared/qrx-i18n.js", "../../shared/qrx-duckdb.js"],
+    "../../shared/qrx-i18n.js", "../../shared/qrx-duckdb.js",
+    "../../shared/qrx-ui.js"],
+  "inlineStyles": ["../../shared/qrx-ui.css"],
   "headAssets": [
     {
       "comment": "Markdown parser (marked) via CDN, pinned, minified",

@@ -1246,6 +1246,44 @@ body.pp-fullscreen .pp-sql-result {
 .qrx-picker label.is-disabled { opacity: .55; cursor: default; }
 .qrx-picker label.is-disabled:hover { background: none; }
 .qrx-picker input { accent-color: var(--qrx-primary); }
+
+/* --- status bar ---------------------------------------------------------- */
+.qrx-status {
+  display: flex; align-items: center; gap: var(--qrx-s-3);
+  padding: var(--qrx-s-3) var(--qrx-s-4);
+  background: var(--qrx-bg-subtle);
+  border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius);
+  font-size: 0.875rem;
+  color: var(--qrx-text-muted);
+}
+.qrx-status[hidden] { display: none; }
+.qrx-status.is-error   { background: #fdecea; border-color: var(--qrx-danger); color: var(--qrx-danger); }
+.qrx-status.is-warn    { background: #fdf6e3; border-color: var(--qrx-warning); color: #8a5b00; }
+.qrx-status.is-success { background: #e8f7f1; border-color: var(--qrx-success); color: #0f6f5a; }
+.qrx-status-spinner {
+  flex: none; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--qrx-border-strong);
+  border-top-color: var(--qrx-primary);
+  animation: qrx-spin 0.8s linear infinite;
+}
+@keyframes qrx-spin { to { transform: rotate(360deg); } }
+
+/* --- toast --------------------------------------------------------------- */
+.qrx-toast {
+  position: fixed; bottom: var(--qrx-s-6); left: 50%; transform: translateX(-50%);
+  padding: var(--qrx-s-3) var(--qrx-s-5);
+  background: var(--qrx-text); color: var(--qrx-text-inverse);
+  border-radius: var(--qrx-radius);
+  box-shadow: var(--qrx-shadow-lg);
+  font-size: 0.875rem;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.qrx-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+.qrx-toast.is-error   { background: var(--qrx-danger); }
+.qrx-toast.is-success { background: var(--qrx-success); }
 </style>
 <style>
 /* Shared styling for the DuckDB-server (quack) connect/export dialogs.
@@ -1760,7 +1798,7 @@ body.pp-fullscreen .pp-sql-result {
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-185715</span>
+    &middot; v<span data-build-version>260720-193225</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2601,6 +2639,67 @@ body.pp-fullscreen .pp-sql-result {
 
     renderTexts();
     return api;
+  };
+
+  /**
+   * A status bar: one line of state, with a spinner while something is running.
+   *
+   * Merged from the converter and the cleaner (near-identical copies). The
+   * spinner is suppressed for terminal states, success messages clear
+   * themselves after a moment, and — new — the element is an ARIA live region,
+   * so a screen reader announces the change. Only markdown-display's toast had
+   * that before.
+   */
+  ui.status = function status(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.status: mount element not found');
+    el.className = 'qrx-status';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.innerHTML = '<span class="qrx-status-spinner" aria-hidden="true"></span><span class="qrx-status-text"></span>';
+    const spinner = el.querySelector('.qrx-status-spinner');
+    const textEl = el.querySelector('.qrx-status-text');
+    const successMs = opts.successMs || 2500;
+    let timer = null;
+
+    function set(text, kind) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (!text) { el.hidden = true; textEl.textContent = ''; return api; }
+      el.hidden = false;
+      textEl.textContent = text;
+      el.classList.toggle('is-error', kind === 'error');
+      el.classList.toggle('is-warn', kind === 'warn');
+      el.classList.toggle('is-success', kind === 'success');
+      const terminal = kind === 'error' || kind === 'warn' || kind === 'success';
+      spinner.style.display = terminal ? 'none' : '';
+      if (kind === 'success') {
+        timer = setTimeout(() => { if (textEl.textContent === text) set(''); }, successMs);
+      }
+      return api;
+    }
+
+    const api = { el, set, clear: () => set(''), text: () => textEl.textContent };
+    set('');
+    return api;
+  };
+
+  /** A transient message. One container, reused. */
+  let toastEl = null, toastTimer = null;
+  ui.toast = function toast(message, kind, ms = 3200) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'qrx-toast';
+      toastEl.setAttribute('role', 'status');
+      toastEl.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = message;
+    toastEl.classList.toggle('is-error', kind === 'error');
+    toastEl.classList.toggle('is-success', kind === 'success');
+    toastEl.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('is-visible'), ms);
+    return toastEl;
   };
 })();
 </script>

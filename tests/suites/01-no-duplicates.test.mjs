@@ -42,6 +42,8 @@ const OWNED = {
   coerceDateValue: 'qrx.duckdb.toDate',
   isDateLikeArrowType: 'qrx.duckdb.isDateLike',
   cellText: 'qrx.duckdb.cellText',
+
+  showToast: 'qrx.ui.toast',
 };
 
 describe('no re-duplication of shared code', () => {

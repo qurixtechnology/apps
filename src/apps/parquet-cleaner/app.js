@@ -18,8 +18,6 @@
   const fileMeta     = $('fileMeta');
   const resetFileBtn = $('resetFileBtn');
   const statusBar    = $('statusBar');
-  const statusSpinner= $('statusSpinner');
-  const statusText   = $('statusText');
   const workspace    = $('workspace');
   const addStepSelect= $('addStepSelect');
   const addStepBtn   = $('addStepBtn');
@@ -79,18 +77,9 @@
   const ctx = () => ({ salt: state.salt });
 
   // ---- Utilities (mirrors table-format-converter) ----
-  let _statusTimer = null;
-  function setStatus(text, kind) {
-    if (_statusTimer) { clearTimeout(_statusTimer); _statusTimer = null; }
-    if (!text) { statusBar.hidden = true; return; }
-    statusBar.hidden = false;
-    statusText.textContent = text;
-    statusBar.classList.toggle('is-error', kind === 'error');
-    statusBar.classList.toggle('is-warn', kind === 'warn');
-    statusBar.classList.toggle('is-success', kind === 'success');
-    statusSpinner.style.display = (kind === 'error' || kind === 'warn' || kind === 'success') ? 'none' : '';
-    if (kind === 'success') _statusTimer = setTimeout(() => { if (statusText.textContent === text) setStatus(''); }, 2500);
-  }
+  // Shared widget (src/shared/qrx-ui.js).
+  const statusWidget = qrx.ui.status(statusBar);
+  const setStatus = (text, kind) => { statusWidget.set(text, kind); };
   // Basics come from the shared module (src/shared/qrx-core.js).
   const fmtBytes = qrx.core.fmt.bytes;
   const fmtN = (n) => qrx.core.fmt.number(n, qrx.i18n.locale());

@@ -209,3 +209,89 @@ describe('widget: connect dialog', () => {
     assert.equal(got.checked, true, 'and the checkbox reflects that');
   });
 });
+
+describe('widget: status bar', () => {
+  test('shows a spinner while working and hides it when done', async () => {
+    const got = await page.evaluate(async () => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const st = window.qrx.ui.status(host);
+      const read = () => ({
+        hidden: st.el.hidden,
+        text: st.el.querySelector('.qrx-status-text').textContent,
+        spinner: st.el.querySelector('.qrx-status-spinner').style.display !== 'none',
+        cls: st.el.className,
+      });
+      const out = { initial: read() };
+      st.set('Working…');
+      out.working = read();
+      st.set('Broken', 'error');
+      out.error = read();
+      st.set('');
+      out.cleared = read();
+      host.remove();
+      return out;
+    });
+    assert.equal(got.initial.hidden, true, 'starts empty and hidden');
+    assert.equal(got.working.text, 'Working…');
+    assert.equal(got.working.spinner, true, 'ongoing work shows the spinner');
+    assert.equal(got.error.spinner, false, 'a terminal state does not');
+    assert.match(got.error.cls, /is-error/);
+    assert.equal(got.cleared.hidden, true);
+  });
+
+  test('a success message clears itself', async () => {
+    const got = await page.evaluate(async () => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const st = window.qrx.ui.status(host, { successMs: 120 });
+      st.set('Saved', 'success');
+      const immediately = st.text();
+      await new Promise(r => setTimeout(r, 260));
+      const later = st.text();
+      host.remove();
+      return { immediately, later };
+    });
+    assert.equal(got.immediately, 'Saved');
+    assert.equal(got.later, '', 'confirmations are not permanent state');
+  });
+
+  test('is an ARIA live region', async () => {
+    // only markdown-display's toast announced anything before
+    const got = await page.evaluate(() => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const st = window.qrx.ui.status(host);
+      const out = { role: st.el.getAttribute('role'), live: st.el.getAttribute('aria-live') };
+      host.remove();
+      return out;
+    });
+    assert.deepEqual(got, { role: 'status', live: 'polite' });
+  });
+});
+
+describe('widget: toast', () => {
+  test('shows, styles by kind and disappears again', async () => {
+    const got = await page.evaluate(async () => {
+      const el = window.qrx.ui.toast('Hello', 'success', 120);
+      const shown = { text: el.textContent, visible: el.classList.contains('is-visible'), cls: el.className };
+      await new Promise(r => setTimeout(r, 260));
+      return { shown, after: el.classList.contains('is-visible'),
+               role: el.getAttribute('role'), live: el.getAttribute('aria-live') };
+    });
+    assert.equal(got.shown.text, 'Hello');
+    assert.equal(got.shown.visible, true);
+    assert.match(got.shown.cls, /is-success/);
+    assert.equal(got.after, false);
+    assert.equal(got.role, 'status');
+    assert.equal(got.live, 'polite');
+  });
+
+  test('reuses one element instead of stacking them up', async () => {
+    const count = await page.evaluate(async () => {
+      window.qrx.ui.toast('a'); window.qrx.ui.toast('b'); window.qrx.ui.toast('c');
+      return document.querySelectorAll('.qrx-toast').length;
+    });
+    assert.equal(count, 1);
+  });
+});
