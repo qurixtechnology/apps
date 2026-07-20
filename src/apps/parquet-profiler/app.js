@@ -548,14 +548,24 @@
   }
   function srvCloseModal() { document.getElementById('pp-srvModal').hidden = true; }
   async function srvFillTables() {
-    const names = await srv.listTables(state.conn);
-    if (!names.length) throw new Error('Auf diesem Server wurden keine Tabellen gefunden.');
-    state.remoteTables = names;
+    const tables = await srv.listTables(state.conn);
+    if (!tables.length) throw new Error('Auf diesem Server wurden keine Tabellen gefunden.');
+    // Only `main` is readable through quack — the rest are shown, but disabled.
+    state.remoteTables = tables.filter(t => t.reachable).map(t => t.name);
     renderSqlTables();   // make them available as chips in the SQL editor
     const loaded = new Set(state.files.filter(f => f.kind === 'duckdb').map(f => f.name));
-    document.getElementById('pp-srvTables').innerHTML = names.map(n =>
-      `<label><input type="checkbox" value="${escapeHtml(n)}"${loaded.has(n) ? ' disabled' : ''}>`
-      + `<span>${escapeHtml(n)}${loaded.has(n) ? ' · bereits geladen' : ''}</span></label>`).join('');
+    document.getElementById('pp-srvTables').innerHTML = tables.map(t => {
+      const off = !t.reachable || loaded.has(t.name);
+      const note = !t.reachable ? ` · Schema „${escapeHtml(t.schema)}" — über quack nicht erreichbar`
+        : (loaded.has(t.name) ? ' · bereits geladen' : '');
+      return `<label${off ? ' style="opacity:.55;cursor:default;"' : ''}>`
+        + `<input type="checkbox" value="${escapeHtml(t.name)}"${off ? ' disabled' : ''}>`
+        + `<span>${escapeHtml(t.name)}${note}</span></label>`;
+    }).join('');
+    if (!state.remoteTables.length) {
+      throw new Error(`Keine der ${tables.length} Tabellen liegt im Schema „main". quack entfernt das `
+        + 'Schema beim Weiterleiten einer Abfrage, daher ist nur „main" lesbar.');
+    }
     srvSetPhase('pick');
   }
   // Lazy attach: with a remembered token, go straight to the table picker.

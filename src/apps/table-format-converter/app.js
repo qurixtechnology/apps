@@ -3678,8 +3678,16 @@
     try {
       await srvAttach(uri, token);
       tokenVault.noteUri(uri);
-      const names = await srvListTables();
-      if (!names.length) throw new Error('No tables found on this server.');
+      const all = await srvListTables();
+      if (!all.length) throw new Error('No tables found on this server.');
+      // quack can only read the server's `main` schema; the rest are listed but
+      // would fail on the first query, so they are not offered as a source.
+      const names = all.filter(t => t.reachable).map(t => t.name);
+      const skipped = all.length - names.length;
+      if (!names.length) {
+        throw new Error(`None of the ${all.length} tables on this server are in the “main” schema. `
+          + 'quack drops the schema when forwarding a query, so only “main” can be read.');
+      }
       state.format = 'duckdb';
       state.file = { name: uri, size: 0 };
       state.fileSize = 0;
@@ -3693,7 +3701,8 @@
       dropzone.hidden = true; fileInfo.hidden = false;
       fileIcon.textContent = 'DDB';
       fileName.textContent = uri;
-      fileMeta.textContent = `DuckDB server · ${names.length} table${names.length === 1 ? '' : 's'}`;
+      fileMeta.textContent = `DuckDB server · ${names.length} table${names.length === 1 ? '' : 's'}`
+        + (skipped ? ` · ${skipped} outside the “main” schema (not reachable)` : '');
       workspace.hidden = false;
       renderHeuristicPanel();
       renderExportOptions();

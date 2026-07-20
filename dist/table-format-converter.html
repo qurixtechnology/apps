@@ -1422,7 +1422,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-101037</span>
+    &middot; v<span data-build-version>260720-133210</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1665,11 +1665,41 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     await conn.query(`ATTACH '${esc(uri)}' AS remote`);
   }
 
+  // The DDL in sqlite_master.sql carries the schema, which is the only way to
+  // tell a reachable table from an unreachable one before querying it:
+  //   CREATE TABLE hello(...)        -> main        (reachable)
+  //   CREATE TABLE demo.orders(...)  -> demo        (listed, but NOT reachable)
+  // The reference may be quoted and contain dots or spaces, e.g.
+  // CREATE TABLE "my schema"."tbl"(...) — so parse it part by part.
+  const PART = '"(?:[^"]|"")*"|[^\\s.(]+';
+  const DDL_RE = new RegExp(
+    'CREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:TEMP\\w*\\s+)?TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?'
+    + `((?:${PART})(?:\\s*\\.\\s*(?:${PART}))*)`, 'i');
+  function schemaFromDdl(sql) {
+    const m = DDL_RE.exec(sql || '');
+    if (!m) return 'main';
+    const parts = (m[1].match(new RegExp(PART, 'g')) || [])
+      .map(s => s.startsWith('"') ? s.slice(1, -1).replace(/""/g, '"') : s);
+    return parts.length >= 2 ? parts[parts.length - 2] : 'main';
+  }
+
   // Remote tables show up in neither duckdb_tables() nor information_schema —
-  // sqlite_master is the one listing quack exposes.
+  // sqlite_master is the one listing quack exposes. Returns
+  // [{name, schema, sql, reachable}]; quack strips the schema when forwarding a
+  // query, so only the server's `main` schema can actually be read.
   async function listTables(conn) {
-    const rows = (await conn.query("SELECT DISTINCT name FROM remote.sqlite_master WHERE type='table' ORDER BY name")).toArray();
-    return rows.map(r => String(r.name));
+    const rows = (await conn.query("SELECT name, sql FROM remote.sqlite_master WHERE type='table' ORDER BY name")).toArray();
+    const seen = new Set();
+    const out = [];
+    for (const r of rows) {
+      const name = String(r.name);
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const sql = r.sql == null ? '' : String(r.sql);
+      const schema = schemaFromDdl(sql);
+      out.push({ name, schema, sql, reachable: schema === 'main' });
+    }
+    return out;
   }
 
   window.qrxDuckServer = { vault, attach, listTables, isAuthError, remoteRef, ident, esc };
@@ -5357,8 +5387,16 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     try {
       await srvAttach(uri, token);
       tokenVault.noteUri(uri);
-      const names = await srvListTables();
-      if (!names.length) throw new Error('No tables found on this server.');
+      const all = await srvListTables();
+      if (!all.length) throw new Error('No tables found on this server.');
+      // quack can only read the server's `main` schema; the rest are listed but
+      // would fail on the first query, so they are not offered as a source.
+      const names = all.filter(t => t.reachable).map(t => t.name);
+      const skipped = all.length - names.length;
+      if (!names.length) {
+        throw new Error(`None of the ${all.length} tables on this server are in the “main” schema. `
+          + 'quack drops the schema when forwarding a query, so only “main” can be read.');
+      }
       state.format = 'duckdb';
       state.file = { name: uri, size: 0 };
       state.fileSize = 0;
@@ -5372,7 +5410,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       dropzone.hidden = true; fileInfo.hidden = false;
       fileIcon.textContent = 'DDB';
       fileName.textContent = uri;
-      fileMeta.textContent = `DuckDB server · ${names.length} table${names.length === 1 ? '' : 's'}`;
+      fileMeta.textContent = `DuckDB server · ${names.length} table${names.length === 1 ? '' : 's'}`
+        + (skipped ? ` · ${skipped} outside the “main” schema (not reachable)` : '');
       workspace.hidden = false;
       renderHeuristicPanel();
       renderExportOptions();

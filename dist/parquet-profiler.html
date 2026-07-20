@@ -1741,7 +1741,7 @@ body.pp-fullscreen .pp-sql-result {
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-123421</span>
+    &middot; v<span data-build-version>260720-133210</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1984,11 +1984,41 @@ body.pp-fullscreen .pp-sql-result {
     await conn.query(`ATTACH '${esc(uri)}' AS remote`);
   }
 
+  // The DDL in sqlite_master.sql carries the schema, which is the only way to
+  // tell a reachable table from an unreachable one before querying it:
+  //   CREATE TABLE hello(...)        -> main        (reachable)
+  //   CREATE TABLE demo.orders(...)  -> demo        (listed, but NOT reachable)
+  // The reference may be quoted and contain dots or spaces, e.g.
+  // CREATE TABLE "my schema"."tbl"(...) — so parse it part by part.
+  const PART = '"(?:[^"]|"")*"|[^\\s.(]+';
+  const DDL_RE = new RegExp(
+    'CREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:TEMP\\w*\\s+)?TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?'
+    + `((?:${PART})(?:\\s*\\.\\s*(?:${PART}))*)`, 'i');
+  function schemaFromDdl(sql) {
+    const m = DDL_RE.exec(sql || '');
+    if (!m) return 'main';
+    const parts = (m[1].match(new RegExp(PART, 'g')) || [])
+      .map(s => s.startsWith('"') ? s.slice(1, -1).replace(/""/g, '"') : s);
+    return parts.length >= 2 ? parts[parts.length - 2] : 'main';
+  }
+
   // Remote tables show up in neither duckdb_tables() nor information_schema —
-  // sqlite_master is the one listing quack exposes.
+  // sqlite_master is the one listing quack exposes. Returns
+  // [{name, schema, sql, reachable}]; quack strips the schema when forwarding a
+  // query, so only the server's `main` schema can actually be read.
   async function listTables(conn) {
-    const rows = (await conn.query("SELECT DISTINCT name FROM remote.sqlite_master WHERE type='table' ORDER BY name")).toArray();
-    return rows.map(r => String(r.name));
+    const rows = (await conn.query("SELECT name, sql FROM remote.sqlite_master WHERE type='table' ORDER BY name")).toArray();
+    const seen = new Set();
+    const out = [];
+    for (const r of rows) {
+      const name = String(r.name);
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const sql = r.sql == null ? '' : String(r.sql);
+      const schema = schemaFromDdl(sql);
+      out.push({ name, schema, sql, reachable: schema === 'main' });
+    }
+    return out;
   }
 
   window.qrxDuckServer = { vault, attach, listTables, isAuthError, remoteRef, ident, esc };
@@ -2546,14 +2576,24 @@ body.pp-fullscreen .pp-sql-result {
   }
   function srvCloseModal() { document.getElementById('pp-srvModal').hidden = true; }
   async function srvFillTables() {
-    const names = await srv.listTables(state.conn);
-    if (!names.length) throw new Error('Auf diesem Server wurden keine Tabellen gefunden.');
-    state.remoteTables = names;
+    const tables = await srv.listTables(state.conn);
+    if (!tables.length) throw new Error('Auf diesem Server wurden keine Tabellen gefunden.');
+    // Only `main` is readable through quack — the rest are shown, but disabled.
+    state.remoteTables = tables.filter(t => t.reachable).map(t => t.name);
     renderSqlTables();   // make them available as chips in the SQL editor
     const loaded = new Set(state.files.filter(f => f.kind === 'duckdb').map(f => f.name));
-    document.getElementById('pp-srvTables').innerHTML = names.map(n =>
-      `<label><input type="checkbox" value="${escapeHtml(n)}"${loaded.has(n) ? ' disabled' : ''}>`
-      + `<span>${escapeHtml(n)}${loaded.has(n) ? ' · bereits geladen' : ''}</span></label>`).join('');
+    document.getElementById('pp-srvTables').innerHTML = tables.map(t => {
+      const off = !t.reachable || loaded.has(t.name);
+      const note = !t.reachable ? ` · Schema „${escapeHtml(t.schema)}" — über quack nicht erreichbar`
+        : (loaded.has(t.name) ? ' · bereits geladen' : '');
+      return `<label${off ? ' style="opacity:.55;cursor:default;"' : ''}>`
+        + `<input type="checkbox" value="${escapeHtml(t.name)}"${off ? ' disabled' : ''}>`
+        + `<span>${escapeHtml(t.name)}${note}</span></label>`;
+    }).join('');
+    if (!state.remoteTables.length) {
+      throw new Error(`Keine der ${tables.length} Tabellen liegt im Schema „main". quack entfernt das `
+        + 'Schema beim Weiterleiten einer Abfrage, daher ist nur „main" lesbar.');
+    }
     srvSetPhase('pick');
   }
   // Lazy attach: with a remembered token, go straight to the table picker.

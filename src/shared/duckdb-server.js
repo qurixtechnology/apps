@@ -110,11 +110,41 @@
     await conn.query(`ATTACH '${esc(uri)}' AS remote`);
   }
 
+  // The DDL in sqlite_master.sql carries the schema, which is the only way to
+  // tell a reachable table from an unreachable one before querying it:
+  //   CREATE TABLE hello(...)        -> main        (reachable)
+  //   CREATE TABLE demo.orders(...)  -> demo        (listed, but NOT reachable)
+  // The reference may be quoted and contain dots or spaces, e.g.
+  // CREATE TABLE "my schema"."tbl"(...) — so parse it part by part.
+  const PART = '"(?:[^"]|"")*"|[^\\s.(]+';
+  const DDL_RE = new RegExp(
+    'CREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:TEMP\\w*\\s+)?TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?'
+    + `((?:${PART})(?:\\s*\\.\\s*(?:${PART}))*)`, 'i');
+  function schemaFromDdl(sql) {
+    const m = DDL_RE.exec(sql || '');
+    if (!m) return 'main';
+    const parts = (m[1].match(new RegExp(PART, 'g')) || [])
+      .map(s => s.startsWith('"') ? s.slice(1, -1).replace(/""/g, '"') : s);
+    return parts.length >= 2 ? parts[parts.length - 2] : 'main';
+  }
+
   // Remote tables show up in neither duckdb_tables() nor information_schema —
-  // sqlite_master is the one listing quack exposes.
+  // sqlite_master is the one listing quack exposes. Returns
+  // [{name, schema, sql, reachable}]; quack strips the schema when forwarding a
+  // query, so only the server's `main` schema can actually be read.
   async function listTables(conn) {
-    const rows = (await conn.query("SELECT DISTINCT name FROM remote.sqlite_master WHERE type='table' ORDER BY name")).toArray();
-    return rows.map(r => String(r.name));
+    const rows = (await conn.query("SELECT name, sql FROM remote.sqlite_master WHERE type='table' ORDER BY name")).toArray();
+    const seen = new Set();
+    const out = [];
+    for (const r of rows) {
+      const name = String(r.name);
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const sql = r.sql == null ? '' : String(r.sql);
+      const schema = schemaFromDdl(sql);
+      out.push({ name, schema, sql, reachable: schema === 'main' });
+    }
+    return out;
   }
 
   window.qrxDuckServer = { vault, attach, listTables, isAuthError, remoteRef, ident, esc };

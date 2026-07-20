@@ -1420,9 +1420,20 @@
   }
   function srvCloseModal() { $('srvModal').hidden = true; }
   async function srvFillTables() {
-    const names = await srv.listTables(conn);
-    if (!names.length) throw new Error('No tables found on this server.');
-    $('srvTable').innerHTML = names.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join('');
+    const tables = await srv.listTables(conn);
+    if (!tables.length) throw new Error('No tables found on this server.');
+    // Tables outside `main` are listed by the server but cannot be read through
+    // quack — show them, disabled, with the reason.
+    $('srvTable').innerHTML = tables.map(t => {
+      const label = t.reachable ? t.name : `${t.schema}.${t.name} — not reachable through quack`;
+      return `<option value="${escapeAttr(t.name)}"${t.reachable ? '' : ' disabled'}>${escapeHtml(label)}</option>`;
+    }).join('');
+    const first = tables.find(t => t.reachable);
+    if (!first) {
+      throw new Error(`None of the ${tables.length} tables are in the “main” schema. quack drops the `
+        + 'schema when forwarding a query, so only “main” can be read.');
+    }
+    $('srvTable').value = first.name;
     srvSetPhase('pick');
   }
   // Lazy attach: with a remembered token, go straight to the table picker.
