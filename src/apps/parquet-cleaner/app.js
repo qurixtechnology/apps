@@ -987,6 +987,7 @@
   const scheduleRecompute = debounce(recompute, 250);
   async function recompute() {
     if (!conn || !state.loaded) return;
+    qrxTest.state('busy');
     const seq = ++state.seq;
     try {
       const sql = compilePipeline();
@@ -1049,15 +1050,22 @@
     $('sumDupes').textContent = fmtN(dupes);
     const failEl = $('sumFails'); failEl.textContent = fmtN(fails); failEl.classList.toggle('is-warn', fails > 0);
     $('sumAnon').textContent = fmtN(anon.size);
+    qrxTest.state('ready'); qrxTest.tick('recompute');
   }
   async function renderPreview() {
     if (state.view === 'compare') return renderCompare();
+    qrxTest.state('busy');
+    // Renders overlap: switching the view while an earlier query is still in
+    // flight used to let the older result overwrite the newer one. Take a
+    // ticket and drop the result if the view moved on meanwhile.
+    const view = state.view, page = state.page;
     const base = state.view === 'cleaned' ? 'cleaned' : 'original';
     const total = state.view === 'cleaned' ? state.rowCountCleaned : state.rowCountOriginal;
     const pages = Math.max(1, Math.ceil(total / PAGE));
     if (state.page >= pages) state.page = pages - 1;
     if (state.page < 0) state.page = 0;
     const res = await conn.query(`SELECT * FROM ${base} LIMIT ${PAGE} OFFSET ${state.page * PAGE}`);
+    if (view !== state.view || page !== state.page) return;   // stale render
     renderGrid(res);
     renderPreviewStats(total, res.schema.fields.length);
     pager.hidden = total <= PAGE;
@@ -1065,6 +1073,7 @@
     pageInfo.textContent = `Rows ${fmtN(start)}–${fmtN(Math.min(total, (state.page + 1) * PAGE))} of ${fmtN(total)} · page ${state.page + 1}/${pages}`;
     prevBtn.disabled = state.page <= 0;
     nextBtn.disabled = state.page >= pages - 1;
+    qrxTest.state('ready'); qrxTest.tick('preview');
   }
   // Compare view: old → new per cell (changed cells highlighted). Rows are aligned by
   // position (row_number); when row-based steps remove rows the alignment is best-effort.
@@ -1086,6 +1095,7 @@
     pageInfo.textContent = `Rows ${fmtN(start)}–${fmtN(Math.min(total, (state.page + 1) * PAGE))} of ${fmtN(total)} · page ${state.page + 1}/${pages}`;
     prevBtn.disabled = state.page <= 0;
     nextBtn.disabled = state.page >= pages - 1;
+    qrxTest.state('ready'); qrxTest.tick('preview');
   }
   // Which displayed columns are touched by an enabled column-based step → labels.
   function columnStepMap() {
@@ -2050,10 +2060,11 @@
   async function scanData() {
     if (!conn || !state.schema.length) return;
     reviewScanBtn.disabled = true;
+    qrxTest.state('busy');
     reviewResults.innerHTML = '<p class="pc-diff-note">Scanning data…</p>';
     try { await computeClean(); await computePii(); await computeAnonMeta(); renderReview(); }
     catch (err) { console.error(err); reviewResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Scan failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`; }
-    finally { reviewScanBtn.disabled = false; }
+    finally { reviewScanBtn.disabled = false; qrxTest.state('ready'); qrxTest.tick('scan'); }
   }
   function resetReview() {
     state.clean = null; state.pii = null; state.numericMeta = null; state.catCol = null; state.textCols = null;
@@ -2171,6 +2182,12 @@
   if ($('srvExpCancelBtn')) $('srvExpCancelBtn').addEventListener('click', srvExpClose);
   if ($('srvExpGoBtn')) $('srvExpGoBtn').addEventListener('click', srvExportCleaned);
   if ($('srvExpModal')) $('srvExpModal').addEventListener('click', e => { if (e.target === $('srvExpModal')) srvExpClose(); });
+
+  // Pure logic for the test suite (only with ?qrxtest in the URL).
+  qrxTest.expose('cleaner', {
+    state, STEP_DEFS, PII_TYPES, PII_LEVELS,
+    compilePipeline, levelAnonSuggestion, randomizeSuggestion,
+  });
   if (analyzeBtn) analyzeBtn.addEventListener('click', runAnalyze);
   if (reviewScanBtn) reviewScanBtn.addEventListener('click', scanData);
   if (reviewResults) reviewResults.addEventListener('click', e => {

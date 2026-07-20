@@ -702,6 +702,7 @@
     state.fileMeta = { name: rec.name, size: rec.size };
 
     showLoading('Parquet-Metadaten werden gelesen \u2026');
+    qrxTest.state('busy');
     try {
       if (state.bufferActive) showLoading('Aktive Datei wird in den Speicher geladen \u2026');
       await applyRegistrationModes(id);
@@ -775,6 +776,7 @@
       if (sqlSummary) sqlSummary.textContent = '';
       state.sql.lastRunCount = null;
 
+      qrxTest.state('ready'); qrxTest.tick('profile');
       loadDistinctCounts(); // background, not awaited
     } catch (e) {
       console.error(e);
@@ -4000,6 +4002,9 @@
     const modal = document.getElementById('pp-srvModal');
     if (modal) modal.addEventListener('click', e => { if (e.target === modal) srvCloseModal(); });
   }
+
+  // Pure logic for the test suite (only with ?qrxtest in the URL).
+  qrxTest.expose('profiler', { state, getColCategory, makeAlias, quoteIdent, quoteString });
   fileInput.addEventListener('change', () => {
     if (fileInput.files && fileInput.files.length) addFiles(fileInput.files);
     fileInput.value = '';

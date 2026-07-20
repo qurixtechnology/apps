@@ -1422,7 +1422,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-133210</span>
+    &middot; v<span data-build-version>260720-145703</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1549,6 +1549,50 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     writeAppState(clone);
     download(clone, 'snapshot');
   });
+})();
+</script>
+
+<script>
+// ============================================================================
+// Test hooks. Included via app.config.json "inlineScripts".
+//
+// Two things, both deliberately tiny:
+//
+// 1. qrxTest.state('busy'|'ready') writes data-qrx-state on <body>. Always on —
+//    it costs nothing and lets the test suite wait for an app-owned state
+//    instead of sleeping, which is the single biggest source of flaky E2E runs.
+//
+// 2. qrxTest.expose(name, obj) publishes internals under window.__qrx, but ONLY
+//    when the page is opened with ?qrxtest. That keeps pure logic (pipeline SQL,
+//    PII detection, heuristics) testable without clicking through the UI, while
+//    a normally-opened app exposes nothing.
+// ============================================================================
+(function () {
+  'use strict';
+  const enabled = /(?:^|[?&])qrxtest(?:[=&]|$)/.test(location.search);
+  window.qrxTest = {
+    enabled,
+    state(s) {
+      try { document.body.dataset.qrxState = s; } catch (_) { /* pre-body call */ }
+    },
+    // Per-operation completion counters in data-qrx-ticks, e.g.
+    // {"preview":3,"scan":1}. A test captures the counter for the operation it
+    // triggers and waits for THAT one to advance. A single global "ready" flag
+    // is not enough: any unrelated render would satisfy it and the test would
+    // read a half-finished screen.
+    tick(op) {
+      try {
+        const el = document.body;
+        const m = JSON.parse(el.dataset.qrxTicks || '{}');
+        m[op] = (m[op] || 0) + 1;
+        el.dataset.qrxTicks = JSON.stringify(m);
+      } catch (_) { /* pre-body call */ }
+    },
+    expose(name, obj) {
+      if (!enabled) return;
+      (window.__qrx = window.__qrx || {})[name] = obj;
+    },
+  };
 })();
 </script>
 
@@ -3878,6 +3922,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // ---------------------------------------------------------------- Preview & schema
   async function refreshPreview() {
     if (state.snapshotMode) return;  // no live file behind a static snapshot
+    qrxTest.state('busy');
     try {
       setStatus('Loading preview…');
       if (state.format === 'csv') await previewCSV();
@@ -3893,6 +3938,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       renderPreviewGrid();
       updateParquetHint();
       setStatus('');
+      qrxTest.state('ready'); qrxTest.tick('preview');
     } catch (err) {
       console.error(err);
       // CSV sniffer or read failures: retry once with ignore_errors+null_padding
@@ -5479,6 +5525,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   if ($('srvToken')) $('srvToken').addEventListener('keydown', e => { if (e.key === 'Enter') srvConnectAndLoad(); });
   if ($('srvModal')) $('srvModal').addEventListener('click', e => { if (e.target === $('srvModal')) srvCloseModal(); });
   if ($('srvUri')) $('srvUri').addEventListener('input', srvSyncRememberUi);
+
+  // Pure logic for the test suite (only with ?qrxtest in the URL).
+  qrxTest.expose('converter', {
+    state, buildSourceSql, applyFilterToSql, applyColumnEditsToSql, makeOutName, srvDefaultTargetName,
+  });
 
   // DuckDB-WASM 1.28.0's autoloader can't fetch the json extension on this
   // build, so COPY ... (FORMAT JSON) is unavailable. We serialize JSON output

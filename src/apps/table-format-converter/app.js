@@ -2169,6 +2169,7 @@
   // ---------------------------------------------------------------- Preview & schema
   async function refreshPreview() {
     if (state.snapshotMode) return;  // no live file behind a static snapshot
+    qrxTest.state('busy');
     try {
       setStatus('Loading preview…');
       if (state.format === 'csv') await previewCSV();
@@ -2184,6 +2185,7 @@
       renderPreviewGrid();
       updateParquetHint();
       setStatus('');
+      qrxTest.state('ready'); qrxTest.tick('preview');
     } catch (err) {
       console.error(err);
       // CSV sniffer or read failures: retry once with ignore_errors+null_padding
@@ -3770,6 +3772,11 @@
   if ($('srvToken')) $('srvToken').addEventListener('keydown', e => { if (e.key === 'Enter') srvConnectAndLoad(); });
   if ($('srvModal')) $('srvModal').addEventListener('click', e => { if (e.target === $('srvModal')) srvCloseModal(); });
   if ($('srvUri')) $('srvUri').addEventListener('input', srvSyncRememberUi);
+
+  // Pure logic for the test suite (only with ?qrxtest in the URL).
+  qrxTest.expose('converter', {
+    state, buildSourceSql, applyFilterToSql, applyColumnEditsToSql, makeOutName, srvDefaultTargetName,
+  });
 
   // DuckDB-WASM 1.28.0's autoloader can't fetch the json extension on this
   // build, so COPY ... (FORMAT JSON) is unavailable. We serialize JSON output

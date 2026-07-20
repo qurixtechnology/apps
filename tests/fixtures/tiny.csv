@@ -1,0 +1,7 @@
+id,name,city,amount,booked_on
+1,Anna Berger,München,1250.50,2024-01-15
+2,Bob Neumann,Wien,-89.90,2024-01-16
+3,Carol Frei,Zürich,0.00,2024-02-01
+4,"Dora Klein, MBA",Berlin,17500.00,2024-02-14
+5,Emil Stark,,42.42,2024-03-03
+5,Emil Stark,,42.42,2024-03-03

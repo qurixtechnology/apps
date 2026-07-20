@@ -7,11 +7,24 @@
   "card": {
     "description": "Bereinigt und anonymisiert eine Parquet-Datei vollständig im Browser: stapelbare Pipeline aus Dedup, Null-/Filterregeln, Typkonvertierungen, Trim/Case und Pseudonymisierung (Hash mit Salt). Die Live-Vorschau zeigt transparent, wo jede Umwandlung greift, fehlschlägt oder ohne Wirkung bleibt.",
     "description_en": "Clean and anonymize one Parquet file entirely in the browser: a composable pipeline of dedup, null/filter rules, type conversions, trim/case, and pseudonymization (salted hashing). The live preview transparently shows where each transform succeeds, fails, or has no effect.",
-    "tags": ["Parquet", "Cleaning", "Anonymization"],
-    "tags_en": ["Parquet", "Cleaning", "Anonymization"]
+    "tags": [
+      "Parquet",
+      "Cleaning",
+      "Anonymization"
+    ],
+    "tags_en": [
+      "Parquet",
+      "Cleaning",
+      "Anonymization"
+    ]
   },
   "fonts": [],
-  "inlineScripts": ["../../shared/duckdb-server.js"],
-  "inlineStyles": ["../../shared/duckdb-server.css"],
+  "inlineScripts": [
+    "../../shared/qrx-test.js",
+    "../../shared/duckdb-server.js"
+  ],
+  "inlineStyles": [
+    "../../shared/duckdb-server.css"
+  ],
   "headAssets": []
 }

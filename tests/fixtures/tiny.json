@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "name": "Anna Berger",
+    "city": "München",
+    "amount": 1250.5,
+    "booked_on": "2024-01-15"
+  },
+  {
+    "id": 2,
+    "name": "Bob Neumann",
+    "city": "Wien",
+    "amount": -89.9,
+    "booked_on": "2024-01-16"
+  },
+  {
+    "id": 3,
+    "name": "Carol Frei",
+    "city": "Zürich",
+    "amount": 0,
+    "booked_on": "2024-02-01"
+  }
+]

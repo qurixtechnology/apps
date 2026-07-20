@@ -6,6 +6,13 @@
   "type": "module",
   "scripts": {
     "build": "node tools/build.mjs",
-    "extract": "node tools/extract.mjs"
+    "extract": "node tools/extract.mjs",
+    "test": "node --test --test-concurrency=1 \"tests/suites/*.test.mjs\"",
+    "test:quick": "node --test --test-concurrency=1 \"tests/suites/00-build.test.mjs\" \"tests/suites/40-duckdb-server.test.mjs\"",
+    "test:quack": "node --test --test-concurrency=1 \"tests/suites/50-quack.test.mjs\"",
+    "fixtures:make": "node tests/fixtures/make.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.0.0"
   }
 }

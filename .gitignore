@@ -2,3 +2,7 @@
 .env
 .env.local
 .ignore/
+node_modules/
+package-lock.json
+tests/.cache/
+tests/artifacts/
