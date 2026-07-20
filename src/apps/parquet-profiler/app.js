@@ -114,7 +114,6 @@
   // Utilities
   // -------------------------------------------------------------------------
   // Basics come from the shared module (src/shared/qrx-core.js).
-  const LOCALE = 'de-DE';            // app language; qrx.i18n takes over later
   const escapeHtml = qrx.core.escapeHtml;
 
   function quoteIdent(name) {
@@ -129,7 +128,7 @@
 
   const formatBytes = qrx.core.fmt.bytes;
 
-  const formatNumber = (n) => qrx.core.fmt.number(n, LOCALE);
+  const formatNumber = (n) => qrx.core.fmt.number(n, qrx.i18n.locale());
 
   function formatStat(v, type) {
     if (v == null) return '\u2014';

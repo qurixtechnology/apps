@@ -1250,8 +1250,10 @@ body.pp-fullscreen .pp-sql-result {
     <span class="qrx-header-app-label">Parquet Profiler</span>
   </div>
   <nav>
+    <!-- Only shown once the app provides translations (qrx.i18n.hasNamespace). -->
+    <button class="qrx-btn qrx-btn-ghost" data-action="toggle-lang" hidden></button>
     <button class="qrx-btn qrx-btn-ghost" data-action="toggle-docs"
-            aria-expanded="false" aria-controls="qrx-docs">
+            aria-expanded="false" aria-controls="qrx-docs" data-qrx-i18n="shell.docs">
       Documentation
     </button>
   </nav>
@@ -1737,139 +1739,25 @@ body.pp-fullscreen .pp-sql-result {
 
 <footer class="qrx-shell-footer">
   <div class="qrx-footer-brand">
-    Built by
+    <span data-qrx-i18n="shell.builtBy">Built by</span>
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-172321</span>
+    &middot; v<span data-build-version>260720-173329</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
+            data-qrx-i18n="shell.exportBlank" data-qrx-i18n-title="shell.exportBlankHint"
             title="Download a blank copy of this app — no entered data">
       Export blank
     </button>
     <button class="qrx-btn qrx-btn-primary" data-action="export-html-state"
+            data-qrx-i18n="shell.exportState" data-qrx-i18n-title="shell.exportStateHint"
             title="Download a snapshot including all currently entered data">
       Export with data
     </button>
   </div>
 </footer>
-
-<script>
-(function () {
-  'use strict';
-
-  // === Docs toggle ===
-  const docsBtn = document.querySelector('[data-action="toggle-docs"]');
-  const docs = document.getElementById('qrx-docs');
-  docsBtn.addEventListener('click', () => {
-    const open = !docs.hasAttribute('hidden');
-    if (open) { docs.setAttribute('hidden', ''); docsBtn.setAttribute('aria-expanded', 'false'); }
-    else      { docs.removeAttribute('hidden');   docsBtn.setAttribute('aria-expanded', 'true');
-                docs.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  });
-
-  // === Build version ===
-  // Baked into the [data-build-version] span at build time (newest source
-  // mtime, format YYMMDD-HHMMSS); read here only for the export filename.
-  const versionEl = document.querySelector('[data-build-version]');
-
-  // === App state hooks ===
-  window.qurixApp = window.qurixApp || {};
-
-  // Capture the pristine app region BEFORE any data is rendered into it, so a
-  // blank export can be restored to this clean state. (Runs synchronously at
-  // parse time, before DOMContentLoaded / any user interaction.)
-  const pristineApp = document.getElementById('qrx-app');
-  const pristineAppHTML = pristineApp ? pristineApp.innerHTML : null;
-
-  function hydrate() {
-    const el = document.getElementById('qrx-app-state');
-    if (!el || !window.qurixApp.hydrateState) return;
-    try { window.qurixApp.hydrateState(JSON.parse(el.textContent)); }
-    catch (e) { console.warn('qurix: state hydrate failed', e); }
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', hydrate);
-  } else { hydrate(); }
-
-  // === Export logic ===
-  function syncFormState(clone) {
-    const liveIn = document.querySelectorAll('input');
-    const cIn = clone.querySelectorAll('input');
-    liveIn.forEach((live, i) => {
-      const c = cIn[i]; if (!c) return;
-      if (live.type === 'password' || live.type === 'file') return;
-      if (live.type === 'checkbox' || live.type === 'radio') {
-        if (live.checked) c.setAttribute('checked', ''); else c.removeAttribute('checked');
-      } else { c.setAttribute('value', live.value); }
-    });
-    const liveTa = document.querySelectorAll('textarea');
-    const cTa = clone.querySelectorAll('textarea');
-    liveTa.forEach((live, i) => { if (cTa[i]) cTa[i].textContent = live.value; });
-    const liveSel = document.querySelectorAll('select');
-    const cSel = clone.querySelectorAll('select');
-    liveSel.forEach((live, i) => {
-      const c = cSel[i]; if (!c) return;
-      Array.from(c.options).forEach((opt, j) => {
-        if (live.options[j] && live.options[j].selected) opt.setAttribute('selected', '');
-        else opt.removeAttribute('selected');
-      });
-    });
-    const liveDet = document.querySelectorAll('details');
-    const cDet = clone.querySelectorAll('details');
-    liveDet.forEach((live, i) => {
-      const c = cDet[i]; if (!c) return;
-      if (live.open) c.setAttribute('open', ''); else c.removeAttribute('open');
-    });
-  }
-
-  function writeAppState(clone) {
-    if (!window.qurixApp.serializeState) return;
-    let stateData;
-    try { stateData = window.qurixApp.serializeState(); }
-    catch (e) { console.warn('qurix: state serialize failed', e); return; }
-    let s = clone.querySelector('#qrx-app-state');
-    if (!s) {
-      s = clone.ownerDocument.createElement('script');
-      s.type = 'application/json';
-      s.id = 'qrx-app-state';
-      clone.querySelector('body').appendChild(s);
-    }
-    s.textContent = JSON.stringify(stateData);
-  }
-
-  function download(clone, suffix) {
-    const html = '<!DOCTYPE html>\n' + clone.outerHTML;
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const title = (document.title || 'qurix-app').replace(/\s+/g, '-');
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title}-${versionEl.textContent}${suffix ? '-' + suffix : ''}.html`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  document.querySelector('[data-action="export-html"]').addEventListener('click', () => {
-    const clone = document.documentElement.cloneNode(true);
-    const oldState = clone.querySelector('#qrx-app-state');
-    if (oldState) oldState.remove();
-    // Restore the pristine app region — clears any data the app rendered into
-    // the DOM (tables, results, lists, etc.) so the blank export is truly blank.
-    const cApp = clone.querySelector('#qrx-app');
-    if (cApp && pristineAppHTML !== null) cApp.innerHTML = pristineAppHTML;
-    download(clone);
-  });
-
-  document.querySelector('[data-action="export-html-state"]').addEventListener('click', () => {
-    const clone = document.documentElement.cloneNode(true);
-    syncFormState(clone);
-    writeAppState(clone);
-    download(clone, 'snapshot');
-  });
-})();
-</script>
 
 <script>
 // ============================================================================
@@ -2002,6 +1890,148 @@ body.pp-fullscreen .pp-sql-result {
     fmt: { bytes, number, duration, dateByType, DASH },
     storage,
   };
+})();
+</script>
+
+<script>
+// ============================================================================
+// qrx.i18n — German/English for shell, widgets and apps.
+//
+// Design points that matter:
+//
+//  * Dictionaries are REGISTERED, not imported. Every widget ships its own
+//    strings under its own namespace, so a widget works the same in a German
+//    app and an English one. Nothing hard-codes text any more.
+//
+//  * The starting language comes from <html lang> (the build writes it from
+//    app.config.json). A user choice overrides it and is stored under one key
+//    for all qurix apps, so the language follows you from app to app.
+//
+//  * Number and date formats follow the language — one switch, not two
+//    settings that can drift apart (which is exactly what happened before:
+//    de-DE in the profiler, en-US and browser default in the converter).
+//
+//  * Static markup uses data-qrx-i18n attributes and is translated in place, so
+//    content.html does not have to move into JavaScript.
+// ============================================================================
+(function () {
+  'use strict';
+  const qrx = (window.qrx = window.qrx || {});
+
+  const SUPPORTED = ['de', 'en'];
+  const STORAGE_KEY = 'qrx_lang';
+  const LOCALES = { de: 'de-DE', en: 'en-GB' };
+
+  const dicts = Object.create(null);          // namespace -> { de: {...}, en: {...} }
+  const listeners = new Set();
+
+  function docLang() {
+    const l = (document.documentElement.getAttribute('lang') || '').slice(0, 2).toLowerCase();
+    return SUPPORTED.includes(l) ? l : 'en';
+  }
+
+  let current = (() => {
+    const stored = qrx.core ? qrx.core.storage.get(STORAGE_KEY) : null;
+    return SUPPORTED.includes(stored) ? stored : docLang();
+  })();
+
+  const registerListeners = new Set();
+
+  function register(namespace, tables) {
+    const slot = dicts[namespace] || (dicts[namespace] = { de: {}, en: {} });
+    for (const lang of SUPPORTED) Object.assign(slot[lang], (tables && tables[lang]) || {});
+    apply();
+    registerListeners.forEach(fn => {
+      try { fn(namespace); } catch (e) { console.warn('qrx.i18n register listener failed', e); }
+    });
+    return qrx.i18n;
+  }
+
+  // "namespace.key" — falls back to the other language and finally to the key
+  // itself, so a missing translation degrades to something readable instead of
+  // an empty label.
+  function lookup(key, lang) {
+    const dot = key.indexOf('.');
+    if (dot < 0) return undefined;
+    const ns = dicts[key.slice(0, dot)];
+    if (!ns) return undefined;
+    return ns[lang] ? ns[lang][key.slice(dot + 1)] : undefined;
+  }
+
+  function t(key, params) {
+    let s = lookup(key, current);
+    if (s === undefined) s = lookup(key, current === 'de' ? 'en' : 'de');
+    if (s === undefined) return key;
+    if (params) {
+      s = String(s).replace(/\{(\w+)\}/g, (m, name) =>
+        (params[name] === undefined ? m : String(params[name])));
+    }
+    return s;
+  }
+
+  // Translates an element tree in place:
+  //   <h2 data-qrx-i18n="app.title">              -> textContent
+  //   <input data-qrx-i18n-placeholder="app.hint"> -> placeholder attribute
+  //   also -title, -aria-label, -value
+  //
+  // The attribute is prefixed on purpose: wm2026-spielplan ships its own
+  // translation layer that uses the bare data-i18n attribute, and a shared
+  // module must never fight an app for its markup.
+  //
+  // An unresolved key is left alone rather than written into the page — a
+  // missing translation should show the original text, not "app.title".
+  const ATTRS = ['placeholder', 'title', 'aria-label', 'value'];
+  function apply(root) {
+    const scope = root || document;
+    if (!scope.querySelectorAll) return;
+    scope.querySelectorAll('[data-qrx-i18n]').forEach(el => {
+      const key = el.getAttribute('data-qrx-i18n');
+      const val = t(key);
+      if (val !== key) el.textContent = val;
+    });
+    for (const a of ATTRS) {
+      scope.querySelectorAll(`[data-qrx-i18n-${a}]`).forEach(el => {
+        const key = el.getAttribute(`data-qrx-i18n-${a}`);
+        const val = t(key);
+        if (val !== key) el.setAttribute(a, val);
+      });
+    }
+  }
+
+  function setLang(lang) {
+    if (!SUPPORTED.includes(lang) || lang === current) return;
+    current = lang;
+    if (qrx.core) qrx.core.storage.set(STORAGE_KEY, lang);
+    document.documentElement.setAttribute('lang', lang);
+    apply();
+    listeners.forEach(fn => { try { fn(lang); } catch (e) { console.warn('qrx.i18n listener failed', e); } });
+  }
+
+  qrx.i18n = {
+    SUPPORTED,
+    register,
+    t,
+    apply,
+    setLang,
+    lang: () => current,
+    /** BCP-47 tag for toLocaleString etc. — derived from the language. */
+    locale: () => LOCALES[current],
+    /** True once the app itself has registered strings (the shell uses this
+     *  to decide whether offering a language switch would help or would only
+     *  produce a half-translated screen). */
+    hasNamespace: (ns) => !!dicts[ns],
+    /** Test/debug view of what is registered. */
+    dicts: () => dicts,
+    onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+    /** Fires when a dictionary is registered — an app may do that long after
+     *  the shell has rendered. */
+    onRegister(fn) { registerListeners.add(fn); return () => registerListeners.delete(fn); },
+  };
+
+  // translate whatever is already in the document
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => apply());
+  } else { apply(); }
 })();
 </script>
 
@@ -2204,6 +2234,169 @@ body.pp-fullscreen .pp-sql-result {
 </script>
 
 <script>
+(function () {
+  'use strict';
+
+  // === Language ===
+  // The shell always speaks both languages. The switch is only offered once the
+  // app itself registered translations — otherwise switching would produce a
+  // half-translated screen, which is worse than no switch at all.
+  window.qrx.i18n.register('shell', {
+    de: {
+      docs: 'Dokumentation',
+      exportBlank: 'Leer exportieren',
+      exportBlankHint: 'Lädt eine leere Kopie dieser App herunter — ohne eingegebene Daten',
+      exportState: 'Mit Daten exportieren',
+      exportStateHint: 'Lädt eine Momentaufnahme inklusive aller eingegebenen Daten herunter',
+      builtBy: 'Erstellt von',
+      switchTo: 'English',
+      switchToHint: 'Switch this app to English',
+    },
+    en: {
+      docs: 'Documentation',
+      exportBlank: 'Export blank',
+      exportBlankHint: 'Download a blank copy of this app — no entered data',
+      exportState: 'Export with data',
+      exportStateHint: 'Download a snapshot including all currently entered data',
+      builtBy: 'Built by',
+      switchTo: 'Deutsch',
+      switchToHint: 'Diese App auf Deutsch umstellen',
+    },
+  });
+
+  const langBtn = document.querySelector('[data-action="toggle-lang"]');
+  function renderLangBtn() {
+    if (!langBtn) return;
+    const i18n = window.qrx.i18n;
+    langBtn.hidden = !i18n.hasNamespace('app');
+    langBtn.textContent = i18n.t('shell.switchTo');
+    langBtn.setAttribute('title', i18n.t('shell.switchToHint'));
+    langBtn.setAttribute('lang', i18n.lang() === 'de' ? 'en' : 'de');
+  }
+  if (langBtn) {
+    langBtn.addEventListener('click', () => {
+      const i18n = window.qrx.i18n;
+      i18n.setLang(i18n.lang() === 'de' ? 'en' : 'de');
+    });
+    window.qrx.i18n.onChange(renderLangBtn);
+    window.qrx.i18n.onRegister(renderLangBtn);   // apps register later than the shell
+    renderLangBtn();
+    document.addEventListener('DOMContentLoaded', renderLangBtn);
+  }
+
+  // === Docs toggle ===
+  const docsBtn = document.querySelector('[data-action="toggle-docs"]');
+  const docs = document.getElementById('qrx-docs');
+  docsBtn.addEventListener('click', () => {
+    const open = !docs.hasAttribute('hidden');
+    if (open) { docs.setAttribute('hidden', ''); docsBtn.setAttribute('aria-expanded', 'false'); }
+    else      { docs.removeAttribute('hidden');   docsBtn.setAttribute('aria-expanded', 'true');
+                docs.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+
+  // === Build version ===
+  // Baked into the [data-build-version] span at build time (newest source
+  // mtime, format YYMMDD-HHMMSS); read here only for the export filename.
+  const versionEl = document.querySelector('[data-build-version]');
+
+  // === App state hooks ===
+  window.qurixApp = window.qurixApp || {};
+
+  // Capture the pristine app region BEFORE any data is rendered into it, so a
+  // blank export can be restored to this clean state. (Runs synchronously at
+  // parse time, before DOMContentLoaded / any user interaction.)
+  const pristineApp = document.getElementById('qrx-app');
+  const pristineAppHTML = pristineApp ? pristineApp.innerHTML : null;
+
+  function hydrate() {
+    const el = document.getElementById('qrx-app-state');
+    if (!el || !window.qurixApp.hydrateState) return;
+    try { window.qurixApp.hydrateState(JSON.parse(el.textContent)); }
+    catch (e) { console.warn('qurix: state hydrate failed', e); }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', hydrate);
+  } else { hydrate(); }
+
+  // === Export logic ===
+  function syncFormState(clone) {
+    const liveIn = document.querySelectorAll('input');
+    const cIn = clone.querySelectorAll('input');
+    liveIn.forEach((live, i) => {
+      const c = cIn[i]; if (!c) return;
+      if (live.type === 'password' || live.type === 'file') return;
+      if (live.type === 'checkbox' || live.type === 'radio') {
+        if (live.checked) c.setAttribute('checked', ''); else c.removeAttribute('checked');
+      } else { c.setAttribute('value', live.value); }
+    });
+    const liveTa = document.querySelectorAll('textarea');
+    const cTa = clone.querySelectorAll('textarea');
+    liveTa.forEach((live, i) => { if (cTa[i]) cTa[i].textContent = live.value; });
+    const liveSel = document.querySelectorAll('select');
+    const cSel = clone.querySelectorAll('select');
+    liveSel.forEach((live, i) => {
+      const c = cSel[i]; if (!c) return;
+      Array.from(c.options).forEach((opt, j) => {
+        if (live.options[j] && live.options[j].selected) opt.setAttribute('selected', '');
+        else opt.removeAttribute('selected');
+      });
+    });
+    const liveDet = document.querySelectorAll('details');
+    const cDet = clone.querySelectorAll('details');
+    liveDet.forEach((live, i) => {
+      const c = cDet[i]; if (!c) return;
+      if (live.open) c.setAttribute('open', ''); else c.removeAttribute('open');
+    });
+  }
+
+  function writeAppState(clone) {
+    if (!window.qurixApp.serializeState) return;
+    let stateData;
+    try { stateData = window.qurixApp.serializeState(); }
+    catch (e) { console.warn('qurix: state serialize failed', e); return; }
+    let s = clone.querySelector('#qrx-app-state');
+    if (!s) {
+      s = clone.ownerDocument.createElement('script');
+      s.type = 'application/json';
+      s.id = 'qrx-app-state';
+      clone.querySelector('body').appendChild(s);
+    }
+    s.textContent = JSON.stringify(stateData);
+  }
+
+  function download(clone, suffix) {
+    const html = '<!DOCTYPE html>\n' + clone.outerHTML;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const title = (document.title || 'qurix-app').replace(/\s+/g, '-');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}-${versionEl.textContent}${suffix ? '-' + suffix : ''}.html`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  document.querySelector('[data-action="export-html"]').addEventListener('click', () => {
+    const clone = document.documentElement.cloneNode(true);
+    const oldState = clone.querySelector('#qrx-app-state');
+    if (oldState) oldState.remove();
+    // Restore the pristine app region — clears any data the app rendered into
+    // the DOM (tables, results, lists, etc.) so the blank export is truly blank.
+    const cApp = clone.querySelector('#qrx-app');
+    if (cApp && pristineAppHTML !== null) cApp.innerHTML = pristineAppHTML;
+    download(clone);
+  });
+
+  document.querySelector('[data-action="export-html-state"]').addEventListener('click', () => {
+    const clone = document.documentElement.cloneNode(true);
+    syncFormState(clone);
+    writeAppState(clone);
+    download(clone, 'snapshot');
+  });
+})();
+</script>
+
+<script>
 // === App logic ===
 (function () {
   'use strict';
@@ -2320,7 +2513,6 @@ body.pp-fullscreen .pp-sql-result {
   // Utilities
   // -------------------------------------------------------------------------
   // Basics come from the shared module (src/shared/qrx-core.js).
-  const LOCALE = 'de-DE';            // app language; qrx.i18n takes over later
   const escapeHtml = qrx.core.escapeHtml;
 
   function quoteIdent(name) {
@@ -2335,7 +2527,7 @@ body.pp-fullscreen .pp-sql-result {
 
   const formatBytes = qrx.core.fmt.bytes;
 
-  const formatNumber = (n) => qrx.core.fmt.number(n, LOCALE);
+  const formatNumber = (n) => qrx.core.fmt.number(n, qrx.i18n.locale());
 
   function formatStat(v, type) {
     if (v == null) return '\u2014';

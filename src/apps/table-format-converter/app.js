@@ -136,7 +136,6 @@
   }
 
   // Basics come from the shared module (src/shared/qrx-core.js).
-  const LOCALE = 'en-GB';            // app language; qrx.i18n takes over later
   const fmtBytes = qrx.core.fmt.bytes;
 
   const debounce = qrx.core.debounce;

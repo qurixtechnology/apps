@@ -69,10 +69,12 @@ function buildApp(appRel) {
   const shellJs = trimNl(rd('src/shell/shell.js'));
   const appJs = trimNl(rd(`${appRel}/app.js`));
   const inlineScripts = (cfg.inlineScripts || []).map((p) => trimNl(rd(`${appRel}/${p}`)));
-  // With inline libs, emit separate <script> blocks (shell, lib(s), app) so a
-  // vendored library keeps its own top-level scope; otherwise one combined block.
+  // Separate <script> blocks so each keeps its own top-level scope. Order
+  // matters: shared modules and vendored libs come FIRST, because the shell and
+  // the app both build on them — the shell registers its translations with
+  // qrx.i18n at parse time.
   const scriptsHtml = inlineScripts.length
-    ? [shellJs, ...inlineScripts, appJs].map((s) => `<script>\n${s}\n</script>`).join('\n\n')
+    ? [...inlineScripts, shellJs, appJs].map((s) => `<script>\n${s}\n</script>`).join('\n\n')
     : `<script>\n${shellJs}\n\n${appJs}\n</script>`;
 
   const html =

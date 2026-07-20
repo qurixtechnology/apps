@@ -92,9 +92,8 @@
     if (kind === 'success') _statusTimer = setTimeout(() => { if (statusText.textContent === text) setStatus(''); }, 2500);
   }
   // Basics come from the shared module (src/shared/qrx-core.js).
-  const LOCALE = 'en-GB';            // app language; qrx.i18n takes over later
   const fmtBytes = qrx.core.fmt.bytes;
-  const fmtN = (n) => qrx.core.fmt.number(n, LOCALE);
+  const fmtN = (n) => qrx.core.fmt.number(n, qrx.i18n.locale());
   const fmtDur = qrx.core.fmt.duration;
   const debounce = qrx.core.debounce;
   function readAll(file) {

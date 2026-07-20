@@ -1,6 +1,53 @@
 (function () {
   'use strict';
 
+  // === Language ===
+  // The shell always speaks both languages. The switch is only offered once the
+  // app itself registered translations — otherwise switching would produce a
+  // half-translated screen, which is worse than no switch at all.
+  window.qrx.i18n.register('shell', {
+    de: {
+      docs: 'Dokumentation',
+      exportBlank: 'Leer exportieren',
+      exportBlankHint: 'Lädt eine leere Kopie dieser App herunter — ohne eingegebene Daten',
+      exportState: 'Mit Daten exportieren',
+      exportStateHint: 'Lädt eine Momentaufnahme inklusive aller eingegebenen Daten herunter',
+      builtBy: 'Erstellt von',
+      switchTo: 'English',
+      switchToHint: 'Switch this app to English',
+    },
+    en: {
+      docs: 'Documentation',
+      exportBlank: 'Export blank',
+      exportBlankHint: 'Download a blank copy of this app — no entered data',
+      exportState: 'Export with data',
+      exportStateHint: 'Download a snapshot including all currently entered data',
+      builtBy: 'Built by',
+      switchTo: 'Deutsch',
+      switchToHint: 'Diese App auf Deutsch umstellen',
+    },
+  });
+
+  const langBtn = document.querySelector('[data-action="toggle-lang"]');
+  function renderLangBtn() {
+    if (!langBtn) return;
+    const i18n = window.qrx.i18n;
+    langBtn.hidden = !i18n.hasNamespace('app');
+    langBtn.textContent = i18n.t('shell.switchTo');
+    langBtn.setAttribute('title', i18n.t('shell.switchToHint'));
+    langBtn.setAttribute('lang', i18n.lang() === 'de' ? 'en' : 'de');
+  }
+  if (langBtn) {
+    langBtn.addEventListener('click', () => {
+      const i18n = window.qrx.i18n;
+      i18n.setLang(i18n.lang() === 'de' ? 'en' : 'de');
+    });
+    window.qrx.i18n.onChange(renderLangBtn);
+    window.qrx.i18n.onRegister(renderLangBtn);   // apps register later than the shell
+    renderLangBtn();
+    document.addEventListener('DOMContentLoaded', renderLangBtn);
+  }
+
   // === Docs toggle ===
   const docsBtn = document.querySelector('[data-action="toggle-docs"]');
   const docs = document.getElementById('qrx-docs');

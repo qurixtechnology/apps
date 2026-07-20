@@ -11,7 +11,8 @@
     "tags_en": ["Markdown", "Mermaid", "PDF export"]
   },
   "fonts": ["qurix.fonts.html"],
-  "inlineScripts": ["../../shared/qrx-core.js"],
+  "inlineScripts": ["../../shared/qrx-core.js",
+    "../../shared/qrx-i18n.js"],
   "headAssets": [
     {
       "comment": "Markdown parser (marked) via CDN, pinned, minified",

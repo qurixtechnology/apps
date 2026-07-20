@@ -20,6 +20,7 @@
   "fonts": [],
   "inlineScripts": [
     "../../shared/qrx-core.js",
+    "../../shared/qrx-i18n.js",
     "../../shared/qrx-test.js",
     "../../shared/duckdb-server.js"
   ],

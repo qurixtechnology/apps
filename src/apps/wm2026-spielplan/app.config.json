@@ -16,5 +16,6 @@
   "fonts": ["wm-qurix.fonts.html"],
   "headAssets": [],
   "inlineStyles": ["assets/leaflet-1.9.4.css"],
-  "inlineScripts": ["../../shared/qrx-core.js", "assets/leaflet-1.9.4.js"]
+  "inlineScripts": ["../../shared/qrx-core.js",
+    "../../shared/qrx-i18n.js", "assets/leaflet-1.9.4.js"]
 }
