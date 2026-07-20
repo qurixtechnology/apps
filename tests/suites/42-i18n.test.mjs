@@ -219,3 +219,54 @@ describe('i18n: the shell language switch', () => {
     } finally { await page.close(); }
   });
 });
+
+describe('i18n: the converter is bilingual end to end', () => {
+  test('the switch appears and flips the whole screen', async () => {
+    const page = await openApp(browser, 'table-format-converter.html');
+    try {
+      await page.evaluate(() => {
+        window.qrx.core.storage.remove('qrx_lang');
+        window.qrx.i18n.setLang('en');
+      });
+      const read = () => page.evaluate(() => ({
+        switchHidden: document.querySelector('[data-action="toggle-lang"]').hidden,
+        dropTitle: document.querySelector('.dz-title').textContent.trim(),
+        connectBtn: document.getElementById('srvConnectBtn').textContent.trim(),
+        connectTitle: document.getElementById('srvConnectBtn').getAttribute('title'),
+        exportBtn: document.getElementById('exportBtn').textContent.trim(),
+        exportHead: document.querySelector('[data-qrx-i18n="app.export"]').textContent.trim(),
+        docs: document.querySelector('[data-action="toggle-docs"]').textContent.trim(),
+      }));
+      const en = await read();
+      await page.evaluate(() => document.querySelector('[data-action="toggle-lang"]').click());
+      const de = await read();
+
+      assert.equal(en.switchHidden, false, 'the app registered translations, so the switch shows');
+      assert.equal(en.dropTitle, 'Drop a file here, or click to pick one');
+      assert.equal(en.connectBtn, 'Connect with DuckDB');
+      assert.equal(en.exportBtn, 'Export & download');
+
+      assert.equal(de.dropTitle, 'Datei hier ablegen oder klicken, um eine auszuwählen');
+      assert.equal(de.connectBtn, 'Mit DuckDB verbinden');
+      assert.match(de.connectTitle, /DuckDB-Server/, 'tooltips switch too');
+      assert.equal(de.exportBtn, 'Exportieren & herunterladen', 'a JS-rendered label switches as well');
+      assert.equal(de.exportHead, 'Export');
+      assert.equal(de.docs, 'Dokumentation', 'and the shell around it');
+      page.assertNoErrors();
+    } finally {
+      await page.evaluate(() => window.qrx.core.storage.remove('qrx_lang')).catch(() => {});
+      await page.close();
+    }
+  });
+
+  test('the other apps still hide the switch until they are translated', async () => {
+    for (const file of ['parquet-cleaner.html', 'parquet-profiler.html']) {
+      const page = await openApp(browser, file);
+      try {
+        const hidden = await page.evaluate(() =>
+          document.querySelector('[data-action="toggle-lang"]').hidden);
+        assert.equal(hidden, true, `${file} has no app dictionary yet`);
+      } finally { await page.close(); }
+    }
+  });
+});

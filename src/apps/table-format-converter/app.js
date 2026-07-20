@@ -167,6 +167,103 @@
   const typeClass = qrx.duckdb.typeClass;
   const arrowFriendlyType = qrx.duckdb.friendlyType;
 
+  // ---------------------------------------------------------------- i18n
+  // Registering an "app" namespace is what makes the language switch appear in
+  // the shell: it only offers one once the app itself can be translated.
+  qrx.i18n.register('app', {
+    de: {
+      dropAria: 'Datei hier ablegen oder klicken, um eine auszuwählen',
+      dropTitle: 'Datei hier ablegen oder klicken, um eine auszuwählen',
+      dropFormats: 'CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · bis ca. 1 GB',
+      dropMulti: 'Mehrere Dateien gleichen Typs und gleicher Struktur (CSV / Parquet / JSON) werden zu einer Tabelle zusammengefasst.',
+      pasteBtn: 'Tabelle aus Zwischenablage',
+      pasteBtnHint: 'Eine aus Excel, dem Browser oder als CSV/TSV kopierte Tabelle einfügen',
+      newTableBtn: 'Neue / leere Tabelle',
+      newTableBtnHint: 'Leeren Editor öffnen, um eine Tabelle zu tippen oder einzufügen (getrennt oder Markdown)',
+      connectBtn: 'Mit DuckDB verbinden',
+      connectBtnHint: 'Eine Tabelle von einem laufenden DuckDB-Server lesen (quack)',
+      pasteTitle: 'Tabelle einfügen',
+      pasteHint: 'Mit Strg/Cmd+V Daten aus Excel, einer Browser-Tabelle oder CSV/TSV-Text einfügen. Die Struktur wird automatisch erkannt.',
+      pasteAreaAria: 'Einfügebereich',
+      cancel: 'Abbrechen',
+      sourceFormat: 'Quellformat',
+      autoDetected: 'automatisch erkannt',
+      dataBlock: 'Datenbereich',
+      resetHeuristic: 'Auf automatische Erkennung zurücksetzen',
+      sourceEditor: 'Quell-Editor',
+      livePreview: 'Text bearbeiten · Live-Vorschau',
+      editorPlaceholder: 'Tabelle tippen oder einfügen — getrennt (Tab / ; / | / ,) oder als Markdown-Tabelle. Trennzeichen und Kopfzeile links einstellen.',
+      preview: 'Vorschau',
+      first10: 'erste 10 Zeilen',
+      copySchema: 'Schema kopieren (DDL / Markdown / TSV / JSON)',
+      copySchemaAria: 'Schema kopieren',
+      sqlHint: 'Quelle abfragen als',
+      sqlParquetHintTitle: 'Große Datei in einem nicht optimierten Format.',
+      sqlParquetHintBody: 'Für komplexe oder wiederholte Auswertungen zuerst nach Parquet exportieren und die Abfragen auf der Parquet-Datei ausführen — das ist deutlich schneller und speicherschonender.',
+      runQuery: 'Abfrage ausführen',
+      sqlExport: 'Ergebnis → Parquet',
+      sqlExportHint: 'Das vollständige Abfrageergebnis nach Parquet exportieren',
+      sqlRunHint: 'Strg / ⌘ + Enter · Quelle ist',
+      export: 'Export',
+      filterOptional: 'Filter (optional)',
+      filterPlaceholder: "SQL-WHERE-Ausdruck — z. B. umsatz > 1000 AND region = 'EU'",
+      filterHint: 'Bezieht sich auf die ursprünglichen Spaltennamen. Wird vor jeder Umbenennung oder Ausblendung angewandt.',
+      targetFormat: 'Zielformat',
+      options: 'Optionen',
+      exportDownload: 'Exportieren & herunterladen',
+      exportToDuckdb: 'Nach DuckDB exportieren',
+      loadingPreview: 'Vorschau wird geladen …',
+      readingSource: 'Quelle wird gelesen …',
+      exportDone: 'Fertig.',
+    },
+    en: {
+      dropAria: 'Drop a file here or click to pick one',
+      dropTitle: 'Drop a file here, or click to pick one',
+      dropFormats: 'CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · up to ~1 GB',
+      dropMulti: 'Multiple files of the same type & structure (CSV / Parquet / JSON) are combined into one table.',
+      pasteBtn: 'Paste table from clipboard',
+      pasteBtnHint: 'Paste a table copied from Excel, a browser, CSV/TSV, …',
+      newTableBtn: 'New / blank table',
+      newTableBtnHint: 'Open an empty editor to type or paste a table (delimited or Markdown)',
+      connectBtn: 'Connect with DuckDB',
+      connectBtnHint: 'Read a table from a running DuckDB server (quack)',
+      pasteTitle: 'Paste a table',
+      pasteHint: 'Press Ctrl/Cmd+V to paste data copied from Excel, a browser table, or CSV/TSV text. The structure is detected automatically.',
+      pasteAreaAria: 'Paste area',
+      cancel: 'Cancel',
+      sourceFormat: 'Source format',
+      autoDetected: 'auto-detected',
+      dataBlock: 'Data block',
+      resetHeuristic: 'Reset to auto-detected',
+      sourceEditor: 'Source editor',
+      livePreview: 'edit text · live preview',
+      editorPlaceholder: 'Type or paste a table — delimited (tab / ; / | / ,) or a Markdown pipe table. Adjust delimiter & header on the left.',
+      preview: 'Preview',
+      first10: 'first 10 rows',
+      copySchema: 'Copy schema (DDL / Markdown / TSV / JSON)',
+      copySchemaAria: 'Copy schema',
+      sqlHint: 'query the source as',
+      sqlParquetHintTitle: 'Large file in a non-optimized format.',
+      sqlParquetHintBody: 'For complex or repeated analyses, export it to Parquet first and run your queries on the Parquet file — that is far faster and much lighter on memory.',
+      runQuery: 'Run query',
+      sqlExport: 'Export result → Parquet',
+      sqlExportHint: 'Export the full query result to Parquet',
+      sqlRunHint: 'Ctrl / ⌘ + Enter · source is',
+      export: 'Export',
+      filterOptional: 'Filter (optional)',
+      filterPlaceholder: "SQL WHERE expression — e.g. revenue > 1000 AND region = 'EU'",
+      filterHint: 'References original column names. Applied before any column rename or exclusion.',
+      targetFormat: 'Target format',
+      options: 'Options',
+      exportDownload: 'Export & download',
+      exportToDuckdb: 'Export to DuckDB',
+      loadingPreview: 'Loading preview…',
+      readingSource: 'Reading source…',
+      exportDone: 'Done.',
+    },
+  });
+  const t = (k, p) => qrx.i18n.t('app.' + k, p);
+
   // ---------------------------------------------------------------- DuckDB-WASM
   let duckdb = null;
   let db = null;
@@ -2095,7 +2192,7 @@
     if (state.snapshotMode) return;  // no live file behind a static snapshot
     qrxTest.state('busy');
     try {
-      setStatus('Loading preview…');
+      setStatus(t('loadingPreview'));
       if (state.format === 'csv') await previewCSV();
       else if (state.format === 'parquet') await previewParquet();
       else if (state.format === 'json' || state.format === 'ndjson') await previewJSON();
@@ -3382,15 +3479,18 @@
         </div>`;
     }
     exportOptions.innerHTML = html;
-    exportBtn.textContent = (fmt === 'duckdb') ? 'Export to DuckDB' : 'Export & download';
+    exportBtn.textContent = (fmt === 'duckdb') ? t('exportToDuckdb') : t('exportDownload');
   }
   targetFormat.addEventListener('change', renderExportOptions);
+  // options and the export button label are rendered by JS, so they need a
+  // nudge when the language changes
+  qrx.i18n.onChange(() => { try { renderExportOptions(); } catch (_) {} });
 
   exportBtn.addEventListener('click', async () => {
     if (state.snapshotMode) return;  // export needs the live source file
     const fmt = targetFormat.value;
     exportBtn.disabled = true;
-    exportProgress.textContent = 'Reading source…';
+    exportProgress.textContent = t('readingSource');
     setStatus('Exporting to ' + fmt + '…');
     try {
       // Excel source must be funneled through DuckDB for non-xlsx targets,
@@ -3423,7 +3523,7 @@
       } else {
         await exportSqlToFile(fmt);
       }
-      if (fmt !== 'duckdb') exportProgress.textContent = 'Done.';
+      if (fmt !== 'duckdb') exportProgress.textContent = t('exportDone');
       setStatus('');
     } catch (err) {
       console.error(err);
@@ -3518,7 +3618,7 @@
       if (typed && rem && rem.checked) await tokenVault.put(uri, token);
     }
     const mode = (($('ex_srv_mode') || {}).value) || 'replace';
-    exportProgress.textContent = 'Reading source…';
+    exportProgress.textContent = t('readingSource');
     await ensureDataView();     // binds ANY source (incl. Excel/SQLite/paste) to `data`
     const sql = applyColumnEditsToSql(applyFilterToSql('SELECT * FROM data'));
     // Stage locally first — quack does not support a remote→remote CTAS.

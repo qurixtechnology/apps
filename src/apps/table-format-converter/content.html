@@ -7,18 +7,21 @@
 
     <!-- Drop zone (initial state) -->
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
-         aria-label="Drop a file here or click to pick one">
-      <p class="dz-title">Drop a file here, or click to pick one</p>
-      <p class="dz-sub">CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · up to ~1 GB</p>
-      <p class="dz-sub">Multiple files of the same type &amp; structure (CSV / Parquet / JSON) are combined into one table.</p>
+         data-qrx-i18n-aria-label="app.dropAria" aria-label="Drop a file here or click to pick one">
+      <p class="dz-title" data-qrx-i18n="app.dropTitle">Drop a file here, or click to pick one</p>
+      <p class="dz-sub" data-qrx-i18n="app.dropFormats">CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · up to ~1 GB</p>
+      <p class="dz-sub" data-qrx-i18n="app.dropMulti">Multiple files of the same type &amp; structure (CSV / Parquet / JSON) are combined into one table.</p>
       <input type="file" id="filePicker" hidden multiple
              accept=".csv,.tsv,.txt,.parquet,.pq,.json,.ndjson,.jsonl,.xlsx,.xls,.ods,.fods,.numbers,.duckdb,.ddb,.db,.sqlite,.sqlite3,.md,.markdown,.mdown,.mkd,.html,.htm">
       <div class="dz-actions">
         <button class="qrx-btn" id="pasteBtn" type="button"
+                data-qrx-i18n="app.pasteBtn" data-qrx-i18n-title="app.pasteBtnHint"
                 title="Paste a table copied from Excel, a browser, CSV/TSV, …">Paste table from clipboard</button>
         <button class="qrx-btn" id="newTableBtn" type="button"
+                data-qrx-i18n="app.newTableBtn" data-qrx-i18n-title="app.newTableBtnHint"
                 title="Open an empty editor to type or paste a table (delimited or Markdown)">New / blank table</button>
         <button class="qrx-btn" id="srvConnectBtn" type="button"
+                data-qrx-i18n="app.connectBtn" data-qrx-i18n-title="app.connectBtnHint"
                 title="Read a table from a running DuckDB server (quack)">Connect with DuckDB</button>
       </div>
     </div>
@@ -27,15 +30,16 @@
     <!-- Paste-capture modal (fallback when the async Clipboard API isn't available) -->
     <div id="pasteModal" class="paste-modal" hidden>
       <div class="paste-modal-card">
-        <h3 class="paste-modal-title">Paste a table</h3>
-        <p class="muted paste-modal-hint">
-          Press <kbd>Ctrl</kbd>/<kbd>&#8984;</kbd>+<kbd>V</kbd> to paste data copied from Excel,
-          a browser table, or CSV/TSV text. The structure is detected automatically.
+        <h3 class="paste-modal-title" data-qrx-i18n="app.pasteTitle">Paste a table</h3>
+        <p class="muted paste-modal-hint" data-qrx-i18n="app.pasteHint">
+          Press Ctrl/Cmd+V to paste data copied from Excel, a browser table, or CSV/TSV text.
+          The structure is detected automatically.
         </p>
         <div id="pasteArea" class="paste-area" contenteditable="true" spellcheck="false"
-             role="textbox" aria-label="Paste area" data-placeholder="Paste here…"></div>
+             role="textbox" data-qrx-i18n-aria-label="app.pasteAreaAria" aria-label="Paste area"
+             data-placeholder="Paste here…"></div>
         <div class="paste-modal-actions">
-          <button class="qrx-btn" id="pasteCancelBtn" type="button">Cancel</button>
+          <button class="qrx-btn" id="pasteCancelBtn" type="button" data-qrx-i18n="app.cancel">Cancel</button>
         </div>
       </div>
     </div>
@@ -51,8 +55,8 @@
     <div id="workspace" class="workspace" hidden>
       <details class="qrx-card heuristic-panel" id="heuristicPanel">
         <summary>
-          <span class="heuristic-summary-title">Source format</span>
-          <span class="heuristic-summary-hint" id="heuristicSummaryHint">auto-detected</span>
+          <span class="heuristic-summary-title" data-qrx-i18n="app.sourceFormat">Source format</span>
+          <span class="heuristic-summary-hint" id="heuristicSummaryHint" data-qrx-i18n="app.autoDetected">auto-detected</span>
           <svg class="heuristic-summary-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="6 4 10 8 6 12"/>
           </svg>
@@ -61,7 +65,7 @@
           <div id="heuristicFields"></div>
           <details class="data-block-panel" id="rangePickerCard" hidden>
             <summary>
-              <span class="data-block-title" id="rangePickerTitle">Data block</span>
+              <span class="data-block-title" id="rangePickerTitle" data-qrx-i18n="app.dataBlock">Data block</span>
               <span class="data-block-hint" id="rangePickerHint"></span>
               <svg class="data-block-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="6 4 10 8 6 12"/>
@@ -72,7 +76,7 @@
               <p class="muted" id="rangePickerHelp" style="margin-top: var(--qrx-s-3); font-size: 0.8125rem;"></p>
             </div>
           </details>
-          <button class="qrx-btn reset-btn" id="resetHeuristicBtn">Reset to auto-detected</button>
+          <button class="qrx-btn reset-btn" id="resetHeuristicBtn" data-qrx-i18n="app.resetHeuristic">Reset to auto-detected</button>
         </div>
       </details>
 
@@ -80,22 +84,24 @@
 
         <div class="qrx-card" id="editorCard" hidden>
           <h3 class="section-title">
-            Source editor
+            <span data-qrx-i18n="app.sourceEditor">Source editor</span>
             <span class="section-title-right">
-              <span class="muted">edit text · live preview</span>
+              <span class="muted" data-qrx-i18n="app.livePreview">edit text · live preview</span>
             </span>
           </h3>
           <textarea id="pasteEditor" class="paste-editor" spellcheck="false"
                     autocomplete="off" autocorrect="off" autocapitalize="off"
+                    data-qrx-i18n-placeholder="app.editorPlaceholder"
                     placeholder="Type or paste a table — delimited (tab / ; / | / ,) or a Markdown pipe table. Adjust delimiter & header on the left."></textarea>
         </div>
 
         <div class="qrx-card">
           <h3 class="section-title">
-            Preview
+            <span data-qrx-i18n="app.preview">Preview</span>
             <span class="section-title-right">
-              <span class="muted">first 10 rows</span>
+              <span class="muted" data-qrx-i18n="app.first10">first 10 rows</span>
               <button type="button" class="icon-btn" id="copySchemaBtn"
+                      data-qrx-i18n-title="app.copySchema" data-qrx-i18n-aria-label="app.copySchemaAria"
                       title="Copy schema (DDL / Markdown / TSV / JSON)" aria-label="Copy schema">
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
                   <path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
@@ -117,7 +123,7 @@
           <summary>
             <span class="sql-summary-title">SQL</span>
             <span class="sql-summary-hint">
-              query the source as <code>data</code> ·
+              <span data-qrx-i18n="app.sqlHint">query the source as</span> <code>data</code> ·
               <a href="https://duckdb.org/docs/1.3/sql/introduction" target="_blank"
                  rel="noopener noreferrer" id="sqlDocLink">DuckDB SQL syntax (v1.3.2)</a>
             </span>
@@ -127,18 +133,19 @@
           </summary>
           <div class="sql-body">
             <div class="sql-hint" id="sqlParquetHint" hidden>
-              <strong>Large file in a non-optimized format.</strong>
-              For complex or repeated analyses, export it to <strong>Parquet</strong> first
-              and run your queries on the Parquet file — that is far faster and much lighter on memory.
+              <strong data-qrx-i18n="app.sqlParquetHintTitle">Large file in a non-optimized format.</strong>
+              <span data-qrx-i18n="app.sqlParquetHintBody">For complex or repeated analyses, export it to Parquet first
+              and run your queries on the Parquet file — that is far faster and much lighter on memory.</span>
             </div>
             <textarea id="sqlEditor" class="sql-editor" spellcheck="false"
                       autocomplete="off" autocorrect="off" autocapitalize="off"
                       placeholder="SELECT * FROM data LIMIT 100"></textarea>
             <div class="sql-actions">
-              <button class="qrx-btn qrx-btn-primary" id="sqlRunBtn" type="button">Run query</button>
+              <button class="qrx-btn qrx-btn-primary" id="sqlRunBtn" type="button" data-qrx-i18n="app.runQuery">Run query</button>
               <button class="qrx-btn" id="sqlExportBtn" type="button" disabled
+                      data-qrx-i18n="app.sqlExport" data-qrx-i18n-title="app.sqlExportHint"
                       title="Export the full query result to Parquet">Export result → Parquet</button>
-              <span class="muted sql-run-hint">Ctrl / ⌘ + Enter · source is <code>data</code></span>
+              <span class="muted sql-run-hint"><span data-qrx-i18n="app.sqlRunHint">Ctrl / ⌘ + Enter · source is</span> <code>data</code></span>
               <span class="sql-status" id="sqlStatus"></span>
             </div>
             <div class="sql-result-wrap" id="sqlResultWrap" hidden>
@@ -150,15 +157,16 @@
         </details>
 
         <div class="qrx-card">
-          <h3 class="section-title">Export</h3>
+          <h3 class="section-title" data-qrx-i18n="app.export">Export</h3>
 
           <!-- Section 1: Filter (universal, persistent across format changes) -->
           <div class="export-section">
-            <h4 class="export-section-label">Filter (optional)</h4>
+            <h4 class="export-section-label" data-qrx-i18n="app.filterOptional">Filter (optional)</h4>
             <div class="export-filter-wrap">
               <textarea class="qrx-input" id="ex_filter" rows="2" spellcheck="false"
+                data-qrx-i18n-placeholder="app.filterPlaceholder"
                 placeholder="SQL WHERE expression — e.g. revenue > 1000 AND region = 'EU'"></textarea>
-              <p class="filter-hint">
+              <p class="filter-hint" data-qrx-i18n="app.filterHint">
                 References original column names. Applied before any column rename or exclusion.
               </p>
             </div>
@@ -166,8 +174,9 @@
 
           <!-- Section 2: Target format chips -->
           <div class="export-section">
-            <h4 class="export-section-label">Target format</h4>
-            <div class="format-chips" id="formatChips" role="radiogroup" aria-label="Target format">
+            <h4 class="export-section-label" data-qrx-i18n="app.targetFormat">Target format</h4>
+            <div class="format-chips" id="formatChips" role="radiogroup"
+                 data-qrx-i18n-aria-label="app.targetFormat" aria-label="Target format">
               <button type="button" class="format-chip is-active" data-format="csv"      role="radio" aria-checked="true">CSV<span class="format-chip-ext">.csv</span></button>
               <button type="button" class="format-chip"           data-format="parquet"  role="radio" aria-checked="false">Parquet<span class="format-chip-ext">.parquet</span></button>
               <button type="button" class="format-chip"           data-format="json"     role="radio" aria-checked="false">JSON<span class="format-chip-ext">.json</span></button>
@@ -182,14 +191,14 @@
 
           <!-- Section 3: Format-specific options -->
           <div class="export-section">
-            <h4 class="export-section-label">Options</h4>
+            <h4 class="export-section-label" data-qrx-i18n="app.options">Options</h4>
             <div class="export-options-grid" id="exportOptions"></div>
           </div>
 
           <!-- Action row -->
           <div class="export-section">
             <div class="export-actions">
-              <button class="qrx-btn qrx-btn-primary" id="exportBtn">Export &amp; download</button>
+              <button class="qrx-btn qrx-btn-primary" id="exportBtn" data-qrx-i18n="app.exportDownload">Export &amp; download</button>
               <span class="progress-msg" id="exportProgress"></span>
             </div>
           </div>
