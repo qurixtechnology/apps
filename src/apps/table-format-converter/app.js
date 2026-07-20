@@ -3668,7 +3668,11 @@
     if (!raw || raw.includes(':')) return 'converted';
     return raw.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'converted';
   }
-  if ($('srvConnectBtn')) $('srvConnectBtn').addEventListener('click', srvOpenModal);
+  // The button sits inside the dropzone — stop the click from also opening the file picker.
+  if ($('srvConnectBtn')) {
+    $('srvConnectBtn').addEventListener('click', e => { e.stopPropagation(); srvOpenModal(); });
+    $('srvConnectBtn').addEventListener('keydown', e => e.stopPropagation());
+  }
   if ($('srvCancelBtn')) $('srvCancelBtn').addEventListener('click', srvCloseModal);
   if ($('srvGoBtn')) $('srvGoBtn').addEventListener('click', srvConnectAndLoad);
   if ($('srvToken')) $('srvToken').addEventListener('keydown', e => { if (e.key === 'Enter') srvConnectAndLoad(); });

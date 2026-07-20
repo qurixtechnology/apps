@@ -1415,7 +1415,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-091140</span>
+    &middot; v<span data-build-version>260720-094311</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -5214,7 +5214,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     if (!raw || raw.includes(':')) return 'converted';
     return raw.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'converted';
   }
-  if ($('srvConnectBtn')) $('srvConnectBtn').addEventListener('click', srvOpenModal);
+  // The button sits inside the dropzone — stop the click from also opening the file picker.
+  if ($('srvConnectBtn')) {
+    $('srvConnectBtn').addEventListener('click', e => { e.stopPropagation(); srvOpenModal(); });
+    $('srvConnectBtn').addEventListener('keydown', e => e.stopPropagation());
+  }
   if ($('srvCancelBtn')) $('srvCancelBtn').addEventListener('click', srvCloseModal);
   if ($('srvGoBtn')) $('srvGoBtn').addEventListener('click', srvConnectAndLoad);
   if ($('srvToken')) $('srvToken').addEventListener('keydown', e => { if (e.key === 'Enter') srvConnectAndLoad(); });
