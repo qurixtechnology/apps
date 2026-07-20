@@ -82,7 +82,7 @@ describe('quack integration', opts, () => {
       await connectCleaner(page);
       await page.select(field('table-select'), 'people');
       await settle(page, 'preview', () => page.click(GO));
-      assert.match(await text(page, '#fileMeta'), /DuckDB server · copied into memory · 5 cols · 3 rows/);
+      assert.match(await text(page, '.qrx-fileinfo-meta'), /DuckDB server · copied into memory · 5 cols · 3 rows/);
       assert.equal((await tableRows(page, '#previewGrid')).length, 3);
 
       // the full clean + anonymise run — this used to fail with
@@ -165,7 +165,7 @@ describe('quack integration', opts, () => {
       const tables = await page.$$eval('#h_table option', os => os.map(o => o.textContent.trim()));
       assert.ok(tables.includes('main.hello'), JSON.stringify(tables));
       assert.ok(!tables.some(t => /orders/.test(t)), 'unreachable table is not offered');
-      assert.match(await text(page, '#fileMeta'), /not reachable/, 'and the skip is reported');
+      assert.match(await text(page, '.qrx-fileinfo-meta'), /not reachable/, 'and the skip is reported');
 
       await page.evaluate(() => document.querySelector('.format-chip[data-format="duckdb"]').click());
       await page.evaluate(() => { document.getElementById('ex_srv_table').value = 'from_converter'; });

@@ -707,6 +707,26 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .qrx-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 .qrx-toast.is-error   { background: var(--qrx-danger); }
 .qrx-toast.is-success { background: var(--qrx-success); }
+
+/* --- file info bar ------------------------------------------------------- */
+.qrx-fileinfo {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--qrx-s-4);
+  padding: var(--qrx-s-4); background: var(--qrx-bg-subtle);
+  border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius-lg);
+}
+.qrx-fileinfo[hidden] { display: none; }
+.qrx-fileinfo-left { display: flex; align-items: center; gap: var(--qrx-s-3); min-width: 0; }
+.qrx-fileinfo-icon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  background: var(--qrx-gradient); border-radius: var(--qrx-radius);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 600; font-size: 0.75rem;
+}
+.qrx-fileinfo-name {
+  font-weight: 600; color: var(--qrx-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.qrx-fileinfo-meta { font-size: 0.8125rem; color: var(--qrx-text-muted); }
 </style>
 
 <!-- Markdown parser (marked) via CDN, pinned, minified -->
@@ -976,7 +996,7 @@ flowchart LR
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-193307</span>
+    &middot; v<span data-build-version>260720-202457</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1660,6 +1680,163 @@ flowchart LR
 
     const api = { el, set, clear: () => set(''), text: () => textEl.textContent };
     set('');
+    return api;
+  };
+
+  /**
+   * A drop zone with a click-to-pick fallback.
+   *
+   * Merged from four implementations:
+   *  - the profiler's enter/leave DEPTH COUNTER (without it the highlight
+   *    flickers whenever the pointer crosses a child element) and its
+   *    DataTransferItemList extraction, which skips dropped directories,
+   *  - the converter's keyboard activation and ARIA, so the zone is usable
+   *    without a mouse,
+   *  - resetting the input after every pick, so choosing the same file twice
+   *    in a row still fires.
+   *
+   * It also ignores clicks that start on a control INSIDE the zone. Both apps
+   * with a button in their drop zone had shipped the same bug: the click
+   * bubbled up and opened the file dialog on top of the dialog the button had
+   * just opened. Solving it here means no app has to remember stopPropagation.
+   *
+   * opts: { input, accept, multiple, activeClass, label, onFiles, extraTargets }
+   */
+  ui.dropzone = function dropzone(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.dropzone: mount element not found');
+    const activeClass = opts.activeClass || 'is-dragover';
+    const onFiles = opts.onFiles || (() => {});
+
+    let input = opts.input || el.querySelector('input[type="file"]');
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'file';
+      input.hidden = true;
+      el.appendChild(input);
+    }
+    if (opts.accept) input.accept = opts.accept;
+    input.multiple = !!opts.multiple;
+
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+    if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+    if (opts.label) el.setAttribute('aria-label', opts.label);
+
+    function deliver(files) {
+      const list = Array.from(files || []).filter(Boolean);
+      if (!list.length) return;
+      onFiles(opts.multiple ? list : [list[0]]);
+    }
+
+    function pick() { input.click(); }
+
+    // A dropped directory yields an entry with no File — dt.items lets us skip
+    // those; dt.files is the fallback for browsers that do not populate items.
+    function filesFromDrop(e) {
+      const dt = e.dataTransfer;
+      if (!dt) return [];
+      const out = [];
+      if (dt.items && dt.items.length) {
+        for (const it of dt.items) {
+          if (it && it.kind === 'file') {
+            const f = it.getAsFile();
+            if (f) out.push(f);
+          }
+        }
+      }
+      return out.length ? out : (dt.files ? Array.from(dt.files) : []);
+    }
+
+    function wireTarget(target) {
+      let depth = 0;
+      target.addEventListener('dragenter', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        depth++; target.classList.add(activeClass);
+      });
+      target.addEventListener('dragleave', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        depth--; if (depth <= 0) { depth = 0; target.classList.remove(activeClass); }
+      });
+      target.addEventListener('dragover', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      });
+      target.addEventListener('drop', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        depth = 0; target.classList.remove(activeClass);
+        deliver(filesFromDrop(e));
+      });
+    }
+
+    wireTarget(el);
+    (opts.extraTargets || []).forEach(t => { if (t) wireTarget(t); });
+
+    el.addEventListener('click', (e) => {
+      // a control inside the zone does its own thing
+      if (e.target !== el && e.target.closest('button,a,input,select,textarea,label')) return;
+      pick();
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.target !== el) return;                 // let inner controls keep their keys
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+    });
+    input.addEventListener('change', () => {
+      deliver(input.files);
+      input.value = '';                            // same file twice must work
+    });
+
+    return { el, input, pick, deliver };
+  };
+
+  /**
+   * The "what is loaded" bar: icon, name, one line of metadata, and a button
+   * to start over. Identical in the converter and the cleaner, down to the
+   * markup.
+   *
+   * opts: { onReset, resetLabelKey }
+   */
+  qrx.i18n.register('fileInfo', {
+    de: { reset: 'Andere Datei laden' },
+    en: { reset: 'Load another file' },
+  });
+
+  ui.fileInfo = function fileInfo(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.fileInfo: mount element not found');
+    el.className = 'qrx-fileinfo';
+    el.innerHTML = `
+      <div class="qrx-fileinfo-left">
+        <div class="qrx-fileinfo-icon"></div>
+        <div style="min-width: 0;">
+          <div class="qrx-fileinfo-name"></div>
+          <div class="qrx-fileinfo-meta"></div>
+        </div>
+      </div>
+      <div><button class="qrx-btn" type="button" data-role="reset"></button></div>`;
+
+    const iconEl = el.querySelector('.qrx-fileinfo-icon');
+    const nameEl = el.querySelector('.qrx-fileinfo-name');
+    const metaEl = el.querySelector('.qrx-fileinfo-meta');
+    const resetBtn = el.querySelector('[data-role="reset"]');
+
+    const label = () => qrx.i18n.t(opts.resetLabelKey || 'fileInfo.reset');
+    resetBtn.textContent = label();
+    qrx.i18n.onChange(() => { resetBtn.textContent = label(); });
+    if (opts.onReset) resetBtn.addEventListener('click', opts.onReset);
+
+    const api = {
+      el,
+      show({ icon, name, meta } = {}) {
+        if (icon !== undefined) iconEl.textContent = icon;
+        if (name !== undefined) nameEl.textContent = name;
+        if (meta !== undefined) metaEl.textContent = meta;
+        el.hidden = false;
+        return api;
+      },
+      setMeta(meta) { metaEl.textContent = meta; return api; },
+      hide() { el.hidden = true; return api; },
+    };
+    el.hidden = true;
     return api;
   };
 

@@ -295,3 +295,134 @@ describe('widget: toast', () => {
     assert.equal(count, 1);
   });
 });
+
+describe('widget: dropzone', () => {
+  test('a click on the zone opens the picker, a click on a button inside does not', async () => {
+    // both apps with a button in their drop zone had shipped exactly this bug
+    const got = await page.evaluate(async () => {
+      const host = document.createElement('div');
+      host.innerHTML = '<span class="t">drop here</span><button class="b">Connect</button>';
+      document.body.appendChild(host);
+      const input = document.createElement('input');
+      input.type = 'file'; input.hidden = true;
+      document.body.appendChild(input);
+
+      let picks = 0;
+      input.click = () => { picks++; };
+      window.qrx.ui.dropzone(host, { input, onFiles: () => {} });
+
+      host.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      const afterZone = picks;
+      host.querySelector('.b').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      const afterButton = picks;
+      host.querySelector('.t').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      const afterText = picks;
+
+      host.remove(); input.remove();
+      return { afterZone, afterButton, afterText };
+    });
+    assert.equal(got.afterZone, 1, 'the zone itself opens the picker');
+    assert.equal(got.afterButton, 1, 'a button inside must not');
+    assert.equal(got.afterText, 2, 'plain content inside still does');
+  });
+
+  test('keyboard activation works, and only on the zone itself', async () => {
+    const got = await page.evaluate(() => {
+      const host = document.createElement('div');
+      host.innerHTML = '<input class="inner">';
+      document.body.appendChild(host);
+      const input = document.createElement('input');
+      input.type = 'file'; input.hidden = true; document.body.appendChild(input);
+      let picks = 0;
+      input.click = () => { picks++; };
+      window.qrx.ui.dropzone(host, { input, label: 'Drop files', onFiles: () => {} });
+
+      host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      host.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+      const afterZone = picks;
+      host.querySelector('.inner').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const afterInner = picks;
+      const attrs = { role: host.getAttribute('role'), tab: host.getAttribute('tabindex'),
+                      label: host.getAttribute('aria-label') };
+      host.remove(); input.remove();
+      return { afterZone, afterInner, attrs };
+    });
+    assert.equal(got.afterZone, 2, 'Enter and Space both activate');
+    assert.equal(got.afterInner, 2, 'typing in a field inside must not');
+    assert.deepEqual(got.attrs, { role: 'button', tab: '0', label: 'Drop files' });
+  });
+
+  test('the highlight survives moving over child elements', async () => {
+    // without a depth counter the class flickers off as soon as the pointer
+    // enters a child, which is what three of the four implementations did
+    const got = await page.evaluate(() => {
+      const host = document.createElement('div');
+      host.innerHTML = '<span class="c">child</span>';
+      document.body.appendChild(host);
+      const input = document.createElement('input'); input.type = 'file';
+      window.qrx.ui.dropzone(host, { input, onFiles: () => {} });
+      const dt = () => new DragEvent('dragenter', { bubbles: true });
+
+      host.dispatchEvent(dt());
+      const afterEnter = host.classList.contains('is-dragover');
+      host.dispatchEvent(new DragEvent('dragenter', { bubbles: true }));  // into the child
+      host.dispatchEvent(new DragEvent('dragleave', { bubbles: true }));  // out of the child
+      const stillActive = host.classList.contains('is-dragover');
+      host.dispatchEvent(new DragEvent('dragleave', { bubbles: true }));  // out of the zone
+      const afterLeave = host.classList.contains('is-dragover');
+      host.remove();
+      return { afterEnter, stillActive, afterLeave };
+    });
+    assert.deepEqual(got, { afterEnter: true, stillActive: true, afterLeave: false });
+  });
+});
+
+describe('widget: file info bar', () => {
+  test('shows what is loaded and resets on demand', async () => {
+    const got = await page.evaluate(() => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      let resets = 0;
+      const bar = window.qrx.ui.fileInfo(host, { onReset: () => { resets++; } });
+      const out = { hiddenInitially: bar.el.hidden };
+      bar.show({ icon: 'PRQ', name: 'data.parquet', meta: '5 cols · 6 rows' });
+      out.visible = !bar.el.hidden;
+      out.icon = bar.el.querySelector('.qrx-fileinfo-icon').textContent;
+      out.name = bar.el.querySelector('.qrx-fileinfo-name').textContent;
+      out.meta = bar.el.querySelector('.qrx-fileinfo-meta').textContent;
+      bar.setMeta('changed');
+      out.metaAfter = bar.el.querySelector('.qrx-fileinfo-meta').textContent;
+      bar.el.querySelector('[data-role="reset"]').click();
+      out.resets = resets;
+      bar.hide();
+      out.hiddenAfter = bar.el.hidden;
+      host.remove();
+      return out;
+    });
+    assert.equal(got.hiddenInitially, true);
+    assert.equal(got.visible, true);
+    assert.equal(got.icon, 'PRQ');
+    assert.equal(got.name, 'data.parquet');
+    assert.equal(got.meta, '5 cols · 6 rows');
+    assert.equal(got.metaAfter, 'changed');
+    assert.equal(got.resets, 1);
+    assert.equal(got.hiddenAfter, true);
+  });
+
+  test('its button follows the language', async () => {
+    const got = await page.evaluate(() => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const i = window.qrx.i18n;
+      const bar = window.qrx.ui.fileInfo(host);
+      const btn = bar.el.querySelector('[data-role="reset"]');
+      i.setLang('en'); const en = btn.textContent;
+      i.setLang('de'); const de = btn.textContent;
+      i.setLang('en');
+      host.remove();
+      return { en, de };
+    });
+    assert.equal(got.en, 'Load another file');
+    assert.equal(got.de, 'Andere Datei laden');
+  });
+});

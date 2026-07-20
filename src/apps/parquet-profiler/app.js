@@ -3841,46 +3841,32 @@
   // only valid during the event, and items.getAsFile() must be called now.
   // We try items (skips directories, most reliable for multi-select) and fall
   // back to the .files list.
+  // Kept for the page-wide fallback below; the zones themselves are handled
+  // by the shared widget, whose extraction this one became.
   function filesFromDrop(e) {
     const dt = e.dataTransfer;
     if (!dt) return [];
     const out = [];
     if (dt.items && dt.items.length) {
-      for (let i = 0; i < dt.items.length; i++) {
-        const it = dt.items[i];
-        if (it && it.kind === 'file') {
-          const f = it.getAsFile();
-          if (f) out.push(f);
-        }
+      for (const it of dt.items) {
+        if (it && it.kind === 'file') { const f = it.getAsFile(); if (f) out.push(f); }
       }
     }
-    if (out.length) return out;
-    return dt.files ? Array.from(dt.files) : [];
+    return out.length ? out : (dt.files ? Array.from(dt.files) : []);
   }
 
   // Attach drag-active styling + a multi-file drop handler to an element.
-  function wireDropTarget(el, activeClass) {
-    if (!el) return;
-    let depth = 0;
-    el.addEventListener('dragenter', e => {
-      e.preventDefault(); e.stopPropagation();
-      depth++; el.classList.add(activeClass);
-    });
-    el.addEventListener('dragleave', e => {
-      e.preventDefault(); e.stopPropagation();
-      depth--; if (depth <= 0) { depth = 0; el.classList.remove(activeClass); }
-    });
-    el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
-    el.addEventListener('drop', e => {
-      e.preventDefault(); e.stopPropagation();
-      depth = 0; el.classList.remove(activeClass);
-      const files = filesFromDrop(e);
-      if (files.length) addFiles(files);
-    });
-  }
-
-  wireDropTarget(dropZone, 'pp-drag-active');          // initial empty-state zone
-  wireDropTarget(statusSection, 'pp-files-dragover');  // file-list panel (after load)
+  // Shared widget (src/shared/qrx-ui.js): drag-depth tracking, directory-safe
+  // drop extraction, keyboard activation — and it ignores clicks on controls
+  // inside the zone, so a button in there no longer opens the file dialog too.
+  qrx.ui.dropzone(dropZone, {
+    input: fileInput,
+    multiple: true,
+    accept: '.parquet,application/octet-stream',
+    activeClass: 'pp-drag-active',
+    extraTargets: [statusSection],      // the file-list panel accepts drops too
+    onFiles: (files) => addFiles(files),
+  });
 
   // Page-wide drop fallback — adds files dropped anywhere on the page once at
   // least one file is loaded (so dropping outside the panel still works).

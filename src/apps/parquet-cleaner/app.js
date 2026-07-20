@@ -12,11 +12,13 @@
   // ---- DOM refs ----
   const dropzone     = $('dropzone');
   const filePicker   = $('filePicker');
-  const fileInfo     = $('fileInfo');
-  const fileIcon     = $('fileIcon');
-  const fileName     = $('fileName');
-  const fileMeta     = $('fileMeta');
-  const resetFileBtn = $('resetFileBtn');
+  // Shared widget (src/shared/qrx-ui.js) — it owns the markup; the aliases
+  // below keep the existing call sites working.
+  const fileBar      = qrx.ui.fileInfo($('fileInfo'), { onReset: () => resetFile() });
+  const fileInfo     = fileBar.el;
+  const fileIcon     = fileBar.el.querySelector('.qrx-fileinfo-icon');
+  const fileName     = fileBar.el.querySelector('.qrx-fileinfo-name');
+  const fileMeta     = fileBar.el.querySelector('.qrx-fileinfo-meta');
   const statusBar    = $('statusBar');
   const workspace    = $('workspace');
   const addStepSelect= $('addStepSelect');
@@ -1928,16 +1930,10 @@
   const triggerDownload = qrx.core.download;
 
   // ---- Wire-up ----
-  dropzone.addEventListener('click', () => filePicker.click());
-  dropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filePicker.click(); } });
-  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('is-dragover'); });
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('is-dragover'));
-  dropzone.addEventListener('drop', e => {
-    e.preventDefault(); dropzone.classList.remove('is-dragover');
-    const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) loadFile(f);
-  });
-  filePicker.addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (f) loadFile(f); filePicker.value = ''; });
-  resetFileBtn.addEventListener('click', resetFile);
+  // Shared widget (src/shared/qrx-ui.js): drag-depth tracking, directory-safe
+  // drop extraction, keyboard activation — and it ignores clicks on controls
+  // inside the zone, so a button in there no longer opens the file dialog too.
+  qrx.ui.dropzone(dropzone, { input: filePicker, onFiles: (files) => loadFile(files[0]) });
 
   addStepBtn.addEventListener('click', () => addStep(addStepSelect.value));
   saltInput.addEventListener('input', () => { state.salt = saltInput.value; scheduleRecompute(); });

@@ -89,3 +89,23 @@
 .qrx-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 .qrx-toast.is-error   { background: var(--qrx-danger); }
 .qrx-toast.is-success { background: var(--qrx-success); }
+
+/* --- file info bar ------------------------------------------------------- */
+.qrx-fileinfo {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--qrx-s-4);
+  padding: var(--qrx-s-4); background: var(--qrx-bg-subtle);
+  border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius-lg);
+}
+.qrx-fileinfo[hidden] { display: none; }
+.qrx-fileinfo-left { display: flex; align-items: center; gap: var(--qrx-s-3); min-width: 0; }
+.qrx-fileinfo-icon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  background: var(--qrx-gradient); border-radius: var(--qrx-radius);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 600; font-size: 0.75rem;
+}
+.qrx-fileinfo-name {
+  font-weight: 600; color: var(--qrx-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.qrx-fileinfo-meta { font-size: 0.8125rem; color: var(--qrx-text-muted); }

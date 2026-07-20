@@ -7,11 +7,13 @@
   const $  = id => document.getElementById(id);
   const dropzone        = $('dropzone');
   const filePicker      = $('filePicker');
-  const fileInfo        = $('fileInfo');
-  const fileIcon        = $('fileIcon');
-  const fileName        = $('fileName');
-  const fileMeta        = $('fileMeta');
-  const resetFileBtn    = $('resetFileBtn');
+  // Shared widget (src/shared/qrx-ui.js) — it owns the markup; the aliases
+  // below keep the existing call sites working.
+  const fileBar         = qrx.ui.fileInfo($('fileInfo'), { onReset: () => resetFile() });
+  const fileInfo        = fileBar.el;
+  const fileIcon        = fileBar.el.querySelector('.qrx-fileinfo-icon');
+  const fileName        = fileBar.el.querySelector('.qrx-fileinfo-name');
+  const fileMeta        = fileBar.el.querySelector('.qrx-fileinfo-meta');
   const statusBar       = $('statusBar');
   const workspace       = $('workspace');
   const heuristicPanel  = $('heuristicPanel');
@@ -3966,26 +3968,14 @@
   const triggerDownload = qrx.core.download;
 
   // ---------------------------------------------------------------- Wire-up
-  dropzone.addEventListener('click', () => filePicker.click());
-  dropzone.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filePicker.click(); }
+  // Shared widget (src/shared/qrx-ui.js): drag-depth tracking, directory-safe
+  // drop extraction, keyboard activation — and it ignores clicks on controls
+  // inside the zone, so a button in there no longer opens the file dialog too.
+  qrx.ui.dropzone(dropzone, {
+    input: filePicker,
+    multiple: true,
+    onFiles: (files) => loadFiles(files),
   });
-  dropzone.addEventListener('dragover', e => {
-    e.preventDefault(); dropzone.classList.add('is-dragover');
-  });
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('is-dragover'));
-  dropzone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropzone.classList.remove('is-dragover');
-    const fs = e.dataTransfer.files;
-    if (fs && fs.length) loadFiles(fs);
-  });
-  filePicker.addEventListener('change', e => {
-    const fs = e.target.files;
-    if (fs && fs.length) loadFiles(fs);
-    filePicker.value = '';   // allow re-selecting the same file(s)
-  });
-  resetFileBtn.addEventListener('click', resetFile);
 
   // ---------------------------------------------------------------- SQL editor wiring
   if (sqlEditor && !sqlEditor.value) sqlEditor.value = 'SELECT * FROM data\nLIMIT 100';

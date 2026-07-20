@@ -42,7 +42,7 @@ describe('cleaner', () => {
     const page = await openApp(browser, 'parquet-cleaner.html');
     try {
       await load(page, 'tiny.parquet');
-      assert.match(await text(page, '#fileMeta'), /Parquet · .* · 5 cols · 6 rows/);
+      assert.match(await text(page, '.qrx-fileinfo-meta'), /Parquet · .* · 5 cols · 6 rows/);
       const rows = await tableRows(page, '#previewGrid');
       assert.equal(rows.length, 6);
       assert.equal(rows[0][1], 'Anna Berger');
