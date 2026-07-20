@@ -11,6 +11,7 @@
     "tags_en": ["P2P video", "End-to-end", "WebRTC"]
   },
   "fonts": ["qurix.fonts.html"],
+  "inlineScripts": ["../../shared/qrx-core.js"],
   "headAssets": [
     {
       "comment": "PeerJS (WebRTC connection + signaling helper) via CDN, pinned, minified",

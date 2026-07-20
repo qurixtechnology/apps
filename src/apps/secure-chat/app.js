@@ -586,9 +586,8 @@ function getContactName(shortId) {
     return contact?.name || null;
 }
 
-function escapeHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+// Basics come from the shared module (src/shared/qrx-core.js).
+const escapeHtml = qrx.core.escapeHtml;
 
 function renderContacts() {
     const list = document.getElementById('contactList');

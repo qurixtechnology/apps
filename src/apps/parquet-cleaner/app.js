@@ -91,20 +91,18 @@
     statusSpinner.style.display = (kind === 'error' || kind === 'warn' || kind === 'success') ? 'none' : '';
     if (kind === 'success') _statusTimer = setTimeout(() => { if (statusText.textContent === text) setStatus(''); }, 2500);
   }
-  function fmtBytes(n) {
-    if (n < 1024) return n + ' B';
-    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-    if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
-    return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-  }
-  function fmtN(n) { return (n == null) ? '—' : Number(n).toLocaleString(); }
-  function fmtDur(ms) { return ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toFixed(2) + ' s'; }
-  function debounce(fn, ms) { let t; return function (...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); }; }
+  // Basics come from the shared module (src/shared/qrx-core.js).
+  const LOCALE = 'en-GB';            // app language; qrx.i18n takes over later
+  const fmtBytes = qrx.core.fmt.bytes;
+  const fmtN = (n) => qrx.core.fmt.number(n, LOCALE);
+  const fmtDur = qrx.core.fmt.duration;
+  const debounce = qrx.core.debounce;
   function readAll(file) {
     return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(new Uint8Array(r.result)); r.onerror = () => rej(r.error); r.readAsArrayBuffer(file); });
   }
-  function escapeHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-  function escapeAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+  // One escaper for text and attributes alike — it escapes quotes too.
+  const escapeHtml = qrx.core.escapeHtml;
+  const escapeAttr = qrx.core.escapeHtml;
   function sqlEscape(s) { return String(s).replace(/'/g, "''"); }
   function sqlIdent(s) { return '"' + String(s).replace(/"/g, '""') + '"'; }
   const id = sqlIdent;
@@ -150,14 +148,7 @@
     return new Date(n / 1000000);
   }
   function isDateLikeArrowType(t) { return t && /Date|Time|Timestamp/i.test(t.toString()); }
-  function formatDateByType(d, colType) {
-    if (!(d instanceof Date) || isNaN(d.getTime())) return String(d);
-    const T = String(colType || '').toUpperCase();
-    const iso = d.toISOString();
-    if (T === 'DATE') return iso.slice(0, 10);
-    if (T === 'TIME') return iso.slice(11, 19);
-    return iso.slice(0, 10) + ' ' + iso.slice(11, 19);
-  }
+  const formatDateByType = qrx.core.fmt.dateByType;
   function arrowRows(table) {
     const fields = table.schema.fields.map(f => ({ name: f.name, coerce: isDateLikeArrowType(f.type) ? coerceDateValue : (v) => v }));
     return table.toArray().map(r => { const o = {}; for (const f of fields) o[f.name] = f.coerce(r[f.name]); return o; });
@@ -2137,14 +2128,7 @@
     reviewApplyAllBtn.hidden = pending === 0;
   }
 
-  function triggerDownload(buf, name, mime) {
-    const blob = new Blob([buf], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
+  const triggerDownload = qrx.core.download;
 
   // ---- Wire-up ----
   dropzone.addEventListener('click', () => filePicker.click());

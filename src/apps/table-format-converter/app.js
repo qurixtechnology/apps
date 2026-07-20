@@ -135,20 +135,11 @@
     }
   }
 
-  function fmtBytes(n) {
-    if (n < 1024) return n + ' B';
-    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-    if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
-    return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-  }
+  // Basics come from the shared module (src/shared/qrx-core.js).
+  const LOCALE = 'en-GB';            // app language; qrx.i18n takes over later
+  const fmtBytes = qrx.core.fmt.bytes;
 
-  function debounce(fn, ms) {
-    let t;
-    return function (...args) {
-      clearTimeout(t);
-      t = setTimeout(() => fn.apply(this, args), ms);
-    };
-  }
+  const debounce = qrx.core.debounce;
 
   function readSlice(file, start, end) {
     return new Promise((resolve, reject) => {
@@ -1657,8 +1648,9 @@
     html += '</select>';
     return html;
   }
-  function escapeAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
-  function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // One escaper for text and attributes alike — it escapes quotes too.
+  const escapeHtml = qrx.core.escapeHtml;
+  const escapeAttr = qrx.core.escapeHtml;
 
   function wireHeuristicHandlers() {
     const onChange = debounce(refreshPreview, 300);
@@ -2805,14 +2797,7 @@
   }
   // Format a JS Date according to the column type: DATE → 'YYYY-MM-DD',
   // TIME → 'HH:MM:SS', everything else (incl. TIMESTAMP) → 'YYYY-MM-DD HH:MM:SS'.
-  function formatDateByType(d, colType) {
-    if (!(d instanceof Date) || isNaN(d.getTime())) return String(d);
-    const T = String(colType || '').toUpperCase();
-    const iso = d.toISOString();
-    if (T === 'DATE') return iso.slice(0, 10);
-    if (T === 'TIME') return iso.slice(11, 19);
-    return iso.slice(0, 10) + ' ' + iso.slice(11, 19);
-  }
+  const formatDateByType = qrx.core.fmt.dateByType;
 
   function arrowRows(table) {
     // Pre-compute per-column coercion based on Arrow type
@@ -3262,11 +3247,7 @@
   }
 
   const SQL_PAGE_SIZE = 100;   // result rows fetched/displayed per page
-  function fmtDuration(ms) {
-    if (ms < 1) return '<1 ms';
-    if (ms < 1000) return `${Math.round(ms)} ms`;
-    return `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s`;
-  }
+  const fmtDuration = qrx.core.fmt.duration;
   function sqlCellHtml(v) {
     if (v == null) return '<span class="null-val">null</span>';
     if (typeof v === 'object' && !(v instanceof Date)) {
@@ -4175,14 +4156,7 @@
            fmt === 'html' ? 'text/html' :
            'application/octet-stream';
   }
-  function triggerDownload(buf, name, mime) {
-    const blob = new Blob([buf], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
+  const triggerDownload = qrx.core.download;
 
   // ---------------------------------------------------------------- Wire-up
   dropzone.addEventListener('click', () => filePicker.click());

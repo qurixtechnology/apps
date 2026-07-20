@@ -1782,7 +1782,7 @@ function renderChances(c){
     return `<div class="chance-row"><span class="cl">${lbl}</span><div class="cbarwrap"><div class="cbar" style="width:${Math.max(pct,0).toFixed(1)}%;background:${col}"></div></div><span class="cv">${pct.toFixed(1)}%</span></div>`;}).join("")
     +`</div><div class="chance-note">${tf("ch.note",{n:nfmt(c.n)})}</div>`;
 }
-function downloadFile(name,content,mime){const b=new Blob([content],{type:mime||"text/plain;charset=utf-8"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);}
+const downloadFile = (name,content,mime) => qrx.core.download(content, name, mime || "text/plain;charset=utf-8");
 function icsEsc(s){return (s||"").replace(/([,;\\])/g,"\\$1").replace(/\n/g,"\\n");}
 function icsDt(d){return d.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z");}
 function icsFold(line){if(line.length<=74)return line;let out=line.slice(0,74),rest=line.slice(74);while(rest.length){out+="\r\n "+rest.slice(0,73);rest=rest.slice(73);}return out;}
@@ -2006,7 +2006,7 @@ const BASEMAPS={
  light:{url:"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",label:"Hell"},
  dark:{url:"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",label:"Dunkel"}
 };
-let mapStyle=localStorage.getItem("wm2026map")||"voyager";
+let mapStyle=qrx.core.storage.get("wm2026map","voyager");
 let venueTile=null;
 function applyBasemap(){
   if(!venueMap)return;
@@ -2041,7 +2041,7 @@ function initVenueMap(){
     mk._vd=vd; venueMarkers.push(mk); pts.push([vd.lat,vd.lng]);
   });
   venueMap.fitBounds(pts,{padding:[40,40]});
-  document.querySelectorAll("#mapStyleBar .msb-btn").forEach(b=>b.addEventListener("click",()=>{mapStyle=b.dataset.style;localStorage.setItem("wm2026map",mapStyle);applyBasemap();}));
+  document.querySelectorAll("#mapStyleBar .msb-btn").forEach(b=>b.addEventListener("click",()=>{mapStyle=b.dataset.style;qrx.core.storage.set("wm2026map",mapStyle);applyBasemap();}));
 }
 function updateVenueMarkers(){ if(!venueMap)return; venueMarkers.forEach(mk=>mk.setIcon(venueIcon(venueHasSel(mk._vd.v)))); }
 function renderVenues(){
@@ -2065,7 +2065,7 @@ function renderVenues(){
 }
 
 /* ===================== WM-Historie (Herren) ===================== */
-function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+const escapeHtml = qrx.core.escapeHtml;   // shared module (src/shared/qrx-core.js)
 // [year, host, teams, champion, runnerUp, third, fourth]
 const WC_HISTORY_M = [
   [1930,"Uruguay",13,"Uruguay","Argentina","United States","Yugoslavia"],

@@ -38,11 +38,8 @@
     return;
   }
 
-  function escapeHtml(s) {
-    return String(s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
+  // Basics come from the shared module (src/shared/qrx-core.js).
+  const escapeHtml = qrx.core.escapeHtml;
 
   marked.setOptions({
     gfm: true,
@@ -889,13 +886,7 @@
   // (via DuckDB-WASM, lazy-loaded from CDN only on first use).
   let tblSeq = 0;
 
-  function downloadBlob(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-  }
+  const downloadBlob = (blob, filename) => qrx.core.download(blob, filename);
 
   function tableToMatrix(table) {
     const matrix = [];

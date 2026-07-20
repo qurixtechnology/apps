@@ -113,11 +113,9 @@
   // -------------------------------------------------------------------------
   // Utilities
   // -------------------------------------------------------------------------
-  function escapeHtml(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
+  // Basics come from the shared module (src/shared/qrx-core.js).
+  const LOCALE = 'de-DE';            // app language; qrx.i18n takes over later
+  const escapeHtml = qrx.core.escapeHtml;
 
   function quoteIdent(name) {
     // DuckDB identifier quoting
@@ -129,22 +127,9 @@
     return "'" + String(val).replace(/'/g, "''") + "'";
   }
 
-  function formatBytes(b) {
-    if (b == null || isNaN(b)) return '\u2014';
-    if (b < 1024) return `${b} B`;
-    const u = ['KB', 'MB', 'GB', 'TB'];
-    let v = b / 1024, i = 0;
-    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-    return `${v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2)} ${u[i]}`;
-  }
+  const formatBytes = qrx.core.fmt.bytes;
 
-  function formatNumber(n) {
-    if (n == null) return '\u2014';
-    if (typeof n === 'bigint') return n.toLocaleString('de-DE');
-    const num = Number(n);
-    if (isNaN(num)) return '\u2014';
-    return num.toLocaleString('de-DE');
-  }
+  const formatNumber = (n) => qrx.core.fmt.number(n, LOCALE);
 
   function formatStat(v, type) {
     if (v == null) return '\u2014';
