@@ -21,6 +21,7 @@
     conn: null,
     fileMeta: null,         // mirrors the ACTIVE file: {name, size}
     files: [],              // [{id, name, size, vfsName, alias, handle, rows, profiled}]
+    remoteTables: [],       // table names on the connected DuckDB server
     activeFileId: null,     // id of the file currently being profiled
     bufferActive: false,    // when true, the active file is fully loaded into RAM
     rowCountTotal: 0,
@@ -421,9 +422,18 @@
         const alias = makeAlias(t, taken);
         taken.add(alias);
         const sqlRef = srv.remoteRef(t);
+        // quack strips the schema when forwarding a query, so only tables in the
+        // server's `main` schema are reachable even though all are listed.
         try {
           await runQuery(`CREATE OR REPLACE VIEW ${quoteIdent(alias)} AS SELECT * FROM ${sqlRef}`);
-        } catch (e) { console.warn('view create failed for', alias, e); }
+          await runQuery(`SELECT * FROM ${sqlRef} LIMIT 0`);   // views bind lazily — probe now
+        } catch (e) {
+          console.warn('view create failed for', alias, e);
+          try { await runQuery(`DROP VIEW IF EXISTS ${quoteIdent(alias)}`); } catch (_) {}
+          throw new Error(`Die Tabelle „${t}" ist über quack nicht erreichbar. `
+            + 'Der Server stellt nur Tabellen im Schema „main" bereit — Tabellen in anderen Schemata '
+            + 'werden zwar aufgelistet, können aber nicht gelesen werden.');
+        }
         let rows = null;
         try {
           const r = rowsFromQuery(await runQuery(`SELECT COUNT(*)::BIGINT AS c FROM ${sqlRef}`));
@@ -440,6 +450,7 @@
     } catch (e) {
       console.error(e);
       hideLoading();
+      renderFileList();
       showError('DuckDB-Tabellen konnten nicht eingebunden werden', e && e.message || String(e));
     }
   }
@@ -539,6 +550,8 @@
   async function srvFillTables() {
     const names = await srv.listTables(state.conn);
     if (!names.length) throw new Error('Auf diesem Server wurden keine Tabellen gefunden.');
+    state.remoteTables = names;
+    renderSqlTables();   // make them available as chips in the SQL editor
     const loaded = new Set(state.files.filter(f => f.kind === 'duckdb').map(f => f.name));
     document.getElementById('pp-srvTables').innerHTML = names.map(n =>
       `<label><input type="checkbox" value="${escapeHtml(n)}"${loaded.has(n) ? ' disabled' : ''}>`
@@ -3758,10 +3771,10 @@
   // Available-tables helper: one chip per loaded file (+ the `data` alias).
   function renderSqlTables() {
     if (!sqlTablesEl) return;
-    if (!state.files.length) { sqlTablesEl.innerHTML = ''; return; }
+    if (!state.files.length && !(state.remoteTables || []).length) { sqlTablesEl.innerHTML = ''; return; }
     const act = activeFileRec();
     const parts = ['<span class="pp-sql-tables-label">Tabellen:</span>'];
-    parts.push(
+    if (state.files.length) parts.push(
       `<button type="button" class="pp-sql-table-chip pp-sql-table-chip-active" `
       + `data-insert="data" title="Aktive Datei${act ? ' \u2014 ' + escapeHtml(act.name) : ''}">`
       + `data <small>aktiv</small></button>`);
@@ -3769,6 +3782,18 @@
       parts.push(
         `<button type="button" class="pp-sql-table-chip" data-insert="${escapeHtml(f.alias)}" `
         + `title="${escapeHtml(f.name)}">${escapeHtml(f.alias)}</button>`);
+    }
+    // Tables on a connected DuckDB server that are not loaded as a source can
+    // still be queried directly — insert them fully qualified.
+    const loaded = new Set(state.files.filter(f => f.kind === 'duckdb').map(f => f.name));
+    const rest = (state.remoteTables || []).filter(n => !loaded.has(n));
+    if (rest.length) {
+      parts.push(`<span class="pp-sql-tables-label">Remote (${escapeHtml(serverConn.uri || '')}):</span>`);
+      for (const n of rest) {
+        parts.push(
+          `<button type="button" class="pp-sql-table-chip" data-insert="${escapeHtml('remote.main.' + quoteIdent(n))}" `
+          + `title="Tabelle auf dem DuckDB-Server — nicht als Quelle geladen">${escapeHtml(n)}</button>`);
+      }
     }
     sqlTablesEl.innerHTML = parts.join('');
   }

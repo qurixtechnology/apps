@@ -1177,7 +1177,7 @@ body.pc-col-resizing { cursor: col-resize; user-select: none; }
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-115049</span>
+    &middot; v<span data-build-version>260720-123308</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2931,7 +2931,15 @@ body.pc-col-resizing { cursor: col-resize; user-select: none; }
     state.remote = { uri, table };
     state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null; state.colWidths = {};
     resetReview();
-    await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM ${srv.remoteRef(table)}`);
+    // quack strips the schema when forwarding a query, so only tables in the
+    // server's `main` schema are reachable even though all are listed.
+    try {
+      await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM ${srv.remoteRef(table)}`);
+      await conn.query('SELECT * FROM original LIMIT 0');   // views bind lazily — probe now
+    } catch (e) {
+      throw new Error(`Table “${table}” is not reachable through quack. The server only exposes `
+        + 'tables in the “main” schema — tables in other schemas are listed but cannot be read.');
+    }
     await finalizeSource('DDB', `${uri} · ${table}`, 'DuckDB server');
   }
 

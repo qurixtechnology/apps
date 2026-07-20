@@ -1497,7 +1497,15 @@
     state.remote = { uri, table };
     state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null; state.colWidths = {};
     resetReview();
-    await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM ${srv.remoteRef(table)}`);
+    // quack strips the schema when forwarding a query, so only tables in the
+    // server's `main` schema are reachable even though all are listed.
+    try {
+      await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM ${srv.remoteRef(table)}`);
+      await conn.query('SELECT * FROM original LIMIT 0');   // views bind lazily — probe now
+    } catch (e) {
+      throw new Error(`Table “${table}” is not reachable through quack. The server only exposes `
+        + 'tables in the “main” schema — tables in other schemas are listed but cannot be read.');
+    }
     await finalizeSource('DDB', `${uri} · ${table}`, 'DuckDB server');
   }
 
