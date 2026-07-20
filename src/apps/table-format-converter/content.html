@@ -39,6 +39,13 @@
           <label class="qrx-label" for="srvToken">Auth token</label>
           <input class="qrx-input" id="srvToken" type="password" autocomplete="off" placeholder="token">
         </div>
+        <div class="qrx-form-group">
+          <label class="checkbox-row">
+            <input type="checkbox" id="srvRemember">
+            <span class="qrx-label" style="margin: 0;">Remember this token on this device</span>
+          </label>
+          <p class="muted paste-modal-hint" id="srvRememberHint"></p>
+        </div>
         <p class="srv-status" id="srvStatus"></p>
         <div class="paste-modal-actions">
           <button class="qrx-btn" id="srvCancelBtn" type="button">Cancel</button>

@@ -1206,6 +1206,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           <label class="qrx-label" for="srvToken">Auth token</label>
           <input class="qrx-input" id="srvToken" type="password" autocomplete="off" placeholder="token">
         </div>
+        <div class="qrx-form-group">
+          <label class="checkbox-row">
+            <input type="checkbox" id="srvRemember">
+            <span class="qrx-label" style="margin: 0;">Remember this token on this device</span>
+          </label>
+          <p class="muted paste-modal-hint" id="srvRememberHint"></p>
+        </div>
         <p class="srv-status" id="srvStatus"></p>
         <div class="paste-modal-actions">
           <button class="qrx-btn" id="srvCancelBtn" type="button">Cancel</button>
@@ -1415,7 +1422,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-094311</span>
+    &middot; v<span data-build-version>260720-095727</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -5036,14 +5043,24 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     } else if (fmt === 'duckdb') {
       html += serverConn.connected
         ? `<p class="empty-note">Connected to <strong>${escapeHtml(serverConn.uri)}</strong>.</p>`
-        : `<div class="qrx-form-group">
+        : (() => {
+            const uri = tokenVault.lastUri() || 'quack:localhost';
+            const saved = tokenVault.has(uri);
+            return `<div class="qrx-form-group">
              <label class="qrx-label" for="ex_srv_uri">Server URI</label>
-             <input class="qrx-input" id="ex_srv_uri" type="text" value="quack:localhost" spellcheck="false">
+             <input class="qrx-input" id="ex_srv_uri" type="text" value="${escapeAttr(uri)}" spellcheck="false">
            </div>
            <div class="qrx-form-group">
              <label class="qrx-label" for="ex_srv_token">Auth token</label>
-             <input class="qrx-input" id="ex_srv_token" type="password" autocomplete="off" placeholder="token">
+             <input class="qrx-input" id="ex_srv_token" type="password" autocomplete="off" placeholder="${saved ? 'using saved token' : 'token'}">
+             ${saved
+                ? '<p class="empty-note">A saved token is used automatically. Type one here to override it.</p>'
+                : `<label class="checkbox-row" style="margin-top: .4rem;">
+                     <input type="checkbox" id="ex_srv_remember"${tokenVault.available() ? '' : ' disabled'}>
+                     <span class="qrx-label" style="margin: 0;">Remember this token on this device</span>
+                   </label>`}
            </div>`;
+          })();
       html += `<div class="qrx-form-group">
           <label class="qrx-label" for="ex_srv_table">Target table</label>
           <input class="qrx-input" id="ex_srv_table" type="text" value="${escapeAttr(srvDefaultTargetName())}" spellcheck="false">
@@ -5119,6 +5136,84 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // ============================ DuckDB server (quack) ============================
   // A connected server behaves exactly like a dropped .duckdb file: its tables
   // appear in the normal table picker. The same connection is reused for export.
+  // --- Token vault -------------------------------------------------------
+  // Opt-in, per-URI. The token is encrypted with AES-GCM; the key lives in
+  // IndexedDB as a NON-EXTRACTABLE CryptoKey, so it can never be read back out
+  // — the stored token is a blob, not plaintext, in the browser profile.
+  // Note this is not a defence against code on the same origin (which can just
+  // call decrypt); it keeps the token out of profile dumps, backups and syncs.
+  // The key is shared with the other qurix apps so one token covers all of them.
+  const VAULT_KEY = 'qrx_duckdb_conn';
+  const tokenVault = (() => {
+    let keyPromise = null;
+    function openIdb() {
+      return new Promise((res, rej) => {
+        const r = indexedDB.open('qrx_secrets', 1);
+        r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('keys')) r.result.createObjectStore('keys'); };
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+    }
+    function idbTx(db, mode, fn) {
+      return new Promise((res, rej) => {
+        const tx = db.transaction('keys', mode);
+        const rq = fn(tx.objectStore('keys'));
+        tx.onerror = () => rej(tx.error);
+        tx.oncomplete = () => res(rq && rq.result);
+      });
+    }
+    async function getKey() {
+      if (!keyPromise) keyPromise = (async () => {
+        const db = await openIdb();
+        const found = await idbTx(db, 'readonly', s => s.get(VAULT_KEY));
+        if (found) return found;
+        const k = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+        await idbTx(db, 'readwrite', s => s.put(k, VAULT_KEY));
+        return k;
+      })().catch(e => { keyPromise = null; throw e; });
+      return keyPromise;
+    }
+    const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+    const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    function readAll() {
+      try { const o = JSON.parse(localStorage.getItem(VAULT_KEY) || '{}'); return (o && o.entries) ? o : { entries: {} }; }
+      catch (_) { return { entries: {} }; }
+    }
+    function writeAll(o) { try { localStorage.setItem(VAULT_KEY, JSON.stringify(o)); } catch (_) {} }
+    return {
+      available() { try { return !!(window.localStorage && window.indexedDB && crypto.subtle); } catch (_) { return false; } },
+      has(uri) { return !!readAll().entries[uri]; },
+      lastUri() { return readAll().last || null; },
+      noteUri(uri) { const all = readAll(); all.last = uri; writeAll(all); },
+      async get(uri) {
+        const e = readAll().entries[uri];
+        if (!e) return null;
+        try {
+          const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(e.iv) }, await getKey(), unb64(e.ct));
+          return new TextDecoder().decode(pt);
+        } catch (_) { this.forget(uri); return null; }   // key gone / storage cleared
+      },
+      async put(uri, token) {
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await getKey(), new TextEncoder().encode(token));
+        const all = readAll();
+        all.entries[uri] = { iv: b64(iv), ct: b64(ct) };
+        all.last = uri;
+        writeAll(all);
+      },
+      forget(uri) {
+        const all = readAll();
+        if (uri) delete all.entries[uri]; else all.entries = {};
+        writeAll(all);
+      },
+    };
+  })();
+  // quack reports a bad token as a generic error — match loosely so a rotated
+  // token gets dropped instead of failing silently forever.
+  function srvIsAuthError(e) {
+    return /token|auth|unauthor|forbidden|401|403/i.test((e && e.message) || String(e));
+  }
+
   let serverConn = { connected: false, uri: null };
   function srvSetStatus(msg, cls) {
     const el = $('srvStatus'); if (!el) return;
@@ -5141,20 +5236,83 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const rows = (await conn.query("SELECT DISTINCT name FROM remote.sqlite_master WHERE type='table' ORDER BY name")).toArray();
     return rows.map(r => String(r.name));
   }
-  function srvOpenModal() {
-    srvSetStatus('');
+  // Reflect whether a token is already stored for the URI currently typed in.
+  function srvSyncRememberUi() {
+    const uri = ($('srvUri').value || '').trim();
+    const hint = $('srvRememberHint'), cb = $('srvRemember'), tok = $('srvToken');
+    if (!hint || !cb) return;
+    if (!tokenVault.available()) {
+      cb.checked = false; cb.disabled = true;
+      hint.textContent = 'Not available — this browser blocks local storage.';
+      return;
+    }
+    if (tokenVault.has(uri)) {
+      cb.checked = true;
+      tok.placeholder = 'using saved token';
+      hint.innerHTML = 'A token for this server is saved (encrypted). Leave the field empty to reuse it. '
+        + '<a href="#" id="srvForgetLink">Forget it</a>';
+      const fl = $('srvForgetLink');
+      if (fl) fl.addEventListener('click', e => {
+        e.preventDefault();
+        tokenVault.forget(uri);
+        $('srvToken').value = '';
+        srvSyncRememberUi();
+        srvSetStatus('Saved token deleted.', null);
+      });
+    } else {
+      tok.placeholder = 'token';
+      hint.textContent = 'Stored encrypted in this browser, per server URI. Shared with the other qurix apps.';
+    }
+  }
+  function srvOpenModal(msg) {
+    srvSetStatus(msg || '', msg ? 'err' : null);
+    const last = tokenVault.lastUri();
+    if (last) $('srvUri').value = last;
+    $('srvToken').value = '';
+    srvSyncRememberUi();
     $('srvModal').hidden = false;
     setTimeout(() => { const t = $('srvToken'); if (t) t.focus(); }, 0);
   }
   function srvCloseModal() { $('srvModal').hidden = true; }
-  // Connect, then present the server exactly like an attached DuckDB database.
+  // Lazy attach: if a token is remembered, connect straight away — no modal.
+  async function srvConnectClicked() {
+    const last = tokenVault.lastUri();
+    if (!last || !tokenVault.has(last)) { srvOpenModal(); return; }
+    const token = await tokenVault.get(last);
+    if (token === null) { srvOpenModal(); return; }
+    setStatus('Connecting to ' + last + '…');
+    try {
+      await srvLoadFrom(last, token);
+      setStatus('');
+    } catch (e) {
+      if (srvIsAuthError(e)) tokenVault.forget(last);
+      setStatus('');
+      srvOpenModal((srvIsAuthError(e) ? 'Saved token was rejected — enter it again. ' : 'Failed: ') + (e && e.message ? e.message : String(e)));
+    }
+  }
   async function srvConnectAndLoad() {
-    const uri = $('srvUri').value.trim(), token = $('srvToken').value;
+    const uri = $('srvUri').value.trim();
+    let token = $('srvToken').value;
     if (!uri) { srvSetStatus('Enter a server URI.', 'err'); return; }
+    if (!token && tokenVault.has(uri)) token = (await tokenVault.get(uri)) || '';
     const btn = $('srvGoBtn'); btn.disabled = true;
     srvSetStatus('Connecting…');
     try {
+      await srvLoadFrom(uri, token);
+      // Only persist once the server has actually accepted the token.
+      if ($('srvRemember').checked && token) await tokenVault.put(uri, token);
+      else if (!$('srvRemember').checked) tokenVault.forget(uri);
+    } catch (e) {
+      if (srvIsAuthError(e)) tokenVault.forget(uri);
+      srvSetStatus('Failed: ' + (e && e.message ? e.message : String(e)), 'err');
+      srvSyncRememberUi();
+    } finally { btn.disabled = false; }
+  }
+  // Connect, then present the server exactly like an attached DuckDB database.
+  async function srvLoadFrom(uri, token) {
+    try {
       await srvAttach(uri, token);
+      tokenVault.noteUri(uri);
       const names = await srvListTables();
       if (!names.length) throw new Error('No tables found on this server.');
       state.format = 'duckdb';
@@ -5179,8 +5337,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       setStatus('');
     } catch (e) {
       serverConn = { connected: false, uri: null };
-      srvSetStatus('Failed: ' + (e && e.message ? e.message : String(e)), 'err');
-    } finally { btn.disabled = false; }
+      throw e;   // callers decide whether to show the modal or an inline error
+    }
   }
   // Export target "DuckDB": write the current (filtered/edited) result to a table.
   async function exportToDuckServer() {
@@ -5188,10 +5346,24 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     if (!dst) throw new Error('Enter a target table name.');
     if (!serverConn.connected) {
       const uri = (($('ex_srv_uri') || {}).value || '').trim();
-      const token = (($('ex_srv_token') || {}).value) || '';
+      let token = (($('ex_srv_token') || {}).value) || '';
       if (!uri) throw new Error('Enter the server URI.');
+      const typed = !!token;
+      if (!token) token = (await tokenVault.get(uri)) || '';
       exportProgress.textContent = 'Connecting…';
-      await srvAttach(uri, token);
+      try {
+        await srvAttach(uri, token);
+      } catch (e) {
+        if (srvIsAuthError(e)) {
+          tokenVault.forget(uri);
+          renderExportOptions();
+          throw new Error((typed ? 'Token rejected.' : 'Saved token was rejected — enter it again.') + ' ' + (e.message || ''));
+        }
+        throw e;
+      }
+      tokenVault.noteUri(uri);
+      const rem = $('ex_srv_remember');
+      if (typed && rem && rem.checked) await tokenVault.put(uri, token);
     }
     const mode = (($('ex_srv_mode') || {}).value) || 'replace';
     exportProgress.textContent = 'Reading source…';
@@ -5216,13 +5388,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
   // The button sits inside the dropzone — stop the click from also opening the file picker.
   if ($('srvConnectBtn')) {
-    $('srvConnectBtn').addEventListener('click', e => { e.stopPropagation(); srvOpenModal(); });
+    $('srvConnectBtn').addEventListener('click', e => { e.stopPropagation(); srvConnectClicked(); });
     $('srvConnectBtn').addEventListener('keydown', e => e.stopPropagation());
   }
   if ($('srvCancelBtn')) $('srvCancelBtn').addEventListener('click', srvCloseModal);
   if ($('srvGoBtn')) $('srvGoBtn').addEventListener('click', srvConnectAndLoad);
   if ($('srvToken')) $('srvToken').addEventListener('keydown', e => { if (e.key === 'Enter') srvConnectAndLoad(); });
   if ($('srvModal')) $('srvModal').addEventListener('click', e => { if (e.target === $('srvModal')) srvCloseModal(); });
+  if ($('srvUri')) $('srvUri').addEventListener('input', srvSyncRememberUi);
 
   // DuckDB-WASM 1.28.0's autoloader can't fetch the json extension on this
   // build, so COPY ... (FORMAT JSON) is unavailable. We serialize JSON output
