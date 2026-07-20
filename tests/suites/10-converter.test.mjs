@@ -108,4 +108,22 @@ describe('converter', () => {
       page.assertNoErrors();
     } finally { await page.close(); }
   });
+
+  test('the SQL panel runs a query and pages through the result', async () => {
+    const page = await openApp(browser, 'table-format-converter.html');
+    try {
+      await load(page, 'pii.parquet');                       // 60 rows
+      await page.evaluate(() => { document.getElementById('sqlCard').open = true; });
+      await page.evaluate(() => {
+        document.getElementById('sqlEditor').value = 'SELECT kunde, betrag FROM data ORDER BY kunde';
+        document.getElementById('sqlRunBtn').click();
+      });
+      await page.waitForFunction(() => !document.getElementById('sqlResultWrap').hidden, { timeout: 60_000 });
+      const rows = await page.$$eval('#sqlResult tbody tr', tr => tr.length);
+      assert.ok(rows > 0, 'the query produced rows');
+      const numeric = await page.$$eval('#sqlResult tbody tr:first-child td', td => td.map(x => x.className));
+      assert.ok(numeric.includes('qrx-grid-num'), 'the numeric column is right-aligned');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
 });

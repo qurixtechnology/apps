@@ -109,3 +109,27 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .qrx-fileinfo-meta { font-size: 0.8125rem; color: var(--qrx-text-muted); }
+
+/* --- result grid + pager ------------------------------------------------- */
+.qrx-grid { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.qrx-grid th, .qrx-grid td {
+  padding: var(--qrx-s-2) var(--qrx-s-3);
+  border-bottom: 1px solid var(--qrx-border);
+  text-align: left; white-space: nowrap;
+}
+.qrx-grid thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--qrx-bg-subtle);
+  font-weight: 600; color: var(--qrx-text);
+}
+.qrx-grid tbody tr:hover td { background: var(--qrx-bg-subtle); }
+.qrx-grid-num { text-align: right; font-variant-numeric: tabular-nums; }
+.qrx-grid-null { color: var(--qrx-text-subtle); font-style: italic; }
+.qrx-grid-empty { color: var(--qrx-text-muted); text-align: center; padding: var(--qrx-s-4); }
+
+.qrx-pager {
+  display: flex; align-items: center; gap: var(--qrx-s-3);
+  margin-top: var(--qrx-s-3);
+}
+.qrx-pager[hidden] { display: none; }
+.qrx-pager-info { font-size: 0.8125rem; color: var(--qrx-text-muted); }

@@ -426,3 +426,101 @@ describe('widget: file info bar', () => {
     assert.equal(got.de, 'Andere Datei laden');
   });
 });
+
+describe('widget: result grid and pager', () => {
+  test('renders a query result with NULLs and right-aligned numbers', async () => {
+    const got = await page.evaluate(async () => {
+      await window.qrx.duckdb.init();
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const grid = window.qrx.ui.resultGrid(host);
+      const res = await window.qrx.duckdb.query(
+        "SELECT 1::BIGINT AS n, 'x' AS s, NULL::VARCHAR AS empty, DATE '2024-01-15' AS d");
+      const n = grid.render(res);
+      const cells = [...host.querySelectorAll('tbody td')].map(td => ({ t: td.textContent, c: td.className }));
+      const headers = [...host.querySelectorAll('thead th')].map(th => th.textContent);
+      host.remove();
+      return { n, cells, headers };
+    });
+    assert.equal(got.n, 1);
+    assert.deepEqual(got.headers, ['n', 's', 'empty', 'd']);
+    assert.equal(got.cells[0].c, 'qrx-grid-num', 'numbers are right-aligned');
+    assert.equal(got.cells[1].t, 'x');
+    assert.equal(got.cells[2].c, 'qrx-grid-null', 'NULL is marked, not printed as text');
+    assert.equal(got.cells[3].t, '2024-01-15', 'dates use the shared formatting');
+  });
+
+  test('an empty result says so instead of showing an empty table', async () => {
+    const got = await page.evaluate(async () => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const grid = window.qrx.ui.resultGrid(host);
+      const res = await window.qrx.duckdb.query('SELECT 1 AS a WHERE false');
+      const n = grid.render(res);
+      const txt = host.querySelector('.qrx-grid-empty').textContent;
+      host.remove();
+      return { n, txt };
+    });
+    assert.equal(got.n, 0);
+    assert.match(got.txt, /No rows/i);
+  });
+
+  test('the pager reports the range and disables what it must', async () => {
+    const got = await page.evaluate(() => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const seen = [];
+      const pg = window.qrx.ui.pager(host, { pageSize: 100, onPage: (p) => seen.push(p) });
+      const read = () => ({
+        info: host.querySelector('.qrx-pager-info').textContent,
+        prev: host.querySelector('[data-role="prev"]').disabled,
+        next: host.querySelector('[data-role="next"]').disabled,
+        hidden: host.hidden,
+      });
+      pg.set({ page: 0, total: 250, got: 100 });
+      const first = read();
+      pg.set({ page: 2, total: 250, got: 50 });
+      const last = read();
+      pg.set({ page: 0, total: 12, got: 12 });
+      const single = read();
+      pg.set({ page: 1, total: null, got: 100 });     // unknown total
+      const open = read();
+      host.querySelector('[data-role="prev"]').click();
+      host.querySelector('[data-role="next"]').click();
+      host.remove();
+      return { first, last, single, open, seen };
+    });
+    assert.match(got.first.info, /Rows 1–100 of 250 · page 1\/3/);
+    assert.equal(got.first.prev, true, 'no previous page on the first one');
+    assert.equal(got.first.next, false);
+    assert.match(got.last.info, /Rows 201–250 of 250 · page 3\/3/);
+    assert.equal(got.last.next, true, 'no next page on the last one');
+    assert.equal(got.single.hidden, true, 'a single page needs no pager');
+    assert.match(got.open.info, /Rows 101–200 · page 2/, 'unknown total: open-ended wording');
+    assert.deepEqual(got.seen, [0, 2], 'prev/next report the target page');
+  });
+
+  test('the pager speaks both languages', async () => {
+    const got = await page.evaluate(() => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const i = window.qrx.i18n;
+      const pg = window.qrx.ui.pager(host, { pageSize: 10 });
+      pg.set({ page: 0, total: 100, got: 10 });
+      i.setLang('en');
+      const en = host.querySelector('.qrx-pager-info').textContent;
+      const enPrev = host.querySelector('[data-role="prev"]').textContent;
+      i.setLang('de');
+      pg.set({ page: 0, total: 100, got: 10 });
+      const de = host.querySelector('.qrx-pager-info').textContent;
+      const dePrev = host.querySelector('[data-role="prev"]').textContent;
+      i.setLang('en');
+      host.remove();
+      return { en, enPrev, de, dePrev };
+    });
+    assert.match(got.en, /Rows 1–10 of 100/);
+    assert.match(got.de, /Zeilen 1–10 von 100/);
+    assert.match(got.enPrev, /Prev/);
+    assert.match(got.dePrev, /Zurück/);
+  });
+});

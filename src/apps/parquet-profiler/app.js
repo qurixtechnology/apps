@@ -3710,57 +3710,12 @@
     }
   }
 
+  // Shared widget (src/shared/qrx-ui.js). Numbers stay grouped here, as they
+  // always were in this app's German UI.
+  const sqlGrid = qrx.ui.resultGrid(sqlResult, { localeNumbers: true });
   function renderSqlResult(rows, res) {
-    if (!rows.length) {
-      sqlResult.innerHTML = '<div class="pp-sql-result-empty">Keine Zeilen.</div>';
-      return;
-    }
-    // Determine column order from the result schema; fall back to the first
-    // row's keys if the schema isn't available.
-    let columns = null;
-    try {
-      if (res && res.schema && res.schema.fields) {
-        columns = res.schema.fields.map(f => f.name);
-      }
-    } catch (_) { /* ignore */ }
-    if (!columns || !columns.length) columns = Object.keys(rows[0]);
-
-    // Detect which columns are numeric (right-align) by scanning the first
-    // batch of rows — cheaper than introspecting Arrow types and works fine
-    // for display purposes.
-    const numericCol = new Array(columns.length).fill(true);
-    const probeRows = Math.min(rows.length, 100);
-    for (let r = 0; r < probeRows; r++) {
-      const row = rows[r];
-      for (let c = 0; c < columns.length; c++) {
-        const v = row[columns[c]];
-        if (v == null) continue;
-        if (typeof v === 'number' || typeof v === 'bigint') continue;
-        // string that parses cleanly to number is still ok
-        if (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v)) continue;
-        numericCol[c] = false;
-      }
-    }
-
-    const parts = [];
-    parts.push('<table class="pp-sql-result-table"><thead><tr>');
-    for (const name of columns) parts.push(`<th>${escapeHtml(name)}</th>`);
-    parts.push('</tr></thead><tbody>');
-    for (const row of rows) {
-      parts.push('<tr>');
-      for (let c = 0; c < columns.length; c++) {
-        const v = row[columns[c]];
-        if (v == null) {
-          parts.push('<td class="pp-sql-cell-null">NULL</td>');
-        } else {
-          const cellClass = numericCol[c] ? ' class="pp-sql-cell-num"' : '';
-          parts.push(`<td${cellClass}>${escapeHtml(formatSqlCell(v))}</td>`);
-        }
-      }
-      parts.push('</tr>');
-    }
-    parts.push('</tbody></table>');
-    sqlResult.innerHTML = parts.join('');
+    if (res) { sqlGrid.render(res); return; }
+    sqlResult.innerHTML = `<div class="pp-sql-result-empty">${escapeHtml(qrx.i18n.t('grid.noRows'))}</div>`;
   }
 
   function formatSqlCell(v) {

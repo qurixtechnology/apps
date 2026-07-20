@@ -67,9 +67,6 @@
   const sqlParquetHint  = $('sqlParquetHint');
   const sqlExportBtn    = $('sqlExportBtn');
   const sqlPager        = $('sqlPager');
-  const sqlPrevBtn      = $('sqlPrevBtn');
-  const sqlNextBtn      = $('sqlNextBtn');
-  const sqlPageInfo     = $('sqlPageInfo');
 
   // ---------------------------------------------------------------- State
   const state = {
@@ -3143,6 +3140,12 @@
   }
 
   const SQL_PAGE_SIZE = 100;   // result rows fetched/displayed per page
+  // Shared widgets (src/shared/qrx-ui.js): read-only result table and pager.
+  const sqlGrid = qrx.ui.resultGrid(sqlResult);
+  const sqlPagerWidget = qrx.ui.pager(sqlPager, {
+    pageSize: SQL_PAGE_SIZE,
+    onPage: (p) => gotoSqlPage(p),
+  });
   const fmtDuration = qrx.core.fmt.duration;
   function sqlCellHtml(v) {
     if (v == null) return '<span class="null-val">null</span>';
@@ -3158,24 +3161,9 @@
   }
   // Render one page of an Arrow result; returns the number of rows rendered.
   function renderSqlResultPage(res) {
-    const fields = res.schema.fields.map(f => f.name);
-    const rows = res.toArray();
-    let html = '<table class="preview-grid"><thead><tr>';
-    if (!fields.length) html += '<th>—</th>';
-    for (const f of fields) html += `<th>${escapeHtml(f)}</th>`;
-    html += '</tr></thead><tbody>';
-    if (!rows.length) {
-      html += `<tr><td class="muted" colspan="${Math.max(1, fields.length)}">No rows</td></tr>`;
-    }
-    for (const r of rows) {
-      html += '<tr>';
-      for (const f of fields) html += `<td>${sqlCellHtml(r[f])}</td>`;
-      html += '</tr>';
-    }
-    html += '</tbody></table>';
-    sqlResult.innerHTML = html;
+    const n = sqlGrid.render(res);
     sqlResultWrap.hidden = false;
-    return rows.length;
+    return n;
   }
 
   // Fetch + show a single page via LIMIT/OFFSET — only SQL_PAGE_SIZE rows ever
@@ -3190,13 +3178,7 @@
     state.sqlPage = page;
     const res = await conn.query(`SELECT * FROM (\n${raw}\n) AS _q LIMIT ${SQL_PAGE_SIZE} OFFSET ${page * SQL_PAGE_SIZE}`);
     const got = renderSqlResultPage(res);
-    const start = (total === 0 || got === 0) ? 0 : page * SQL_PAGE_SIZE + 1;
-    const end = page * SQL_PAGE_SIZE + got;
-    sqlPageInfo.textContent = (total != null)
-      ? `Rows ${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()} · page ${page + 1}/${Math.max(1, (lastPage ?? 0) + 1)}`
-      : `Rows ${start.toLocaleString()}–${end.toLocaleString()} · page ${page + 1}`;
-    sqlPrevBtn.disabled = page <= 0;
-    sqlNextBtn.disabled = (lastPage != null) ? (page >= lastPage) : (got < SQL_PAGE_SIZE);
+    sqlPagerWidget.set({ page, total, got });
     sqlPager.hidden = false;
   }
 
@@ -3242,11 +3224,10 @@
     }
   }
 
-  async function gotoSqlPage(delta) {
+  async function gotoSqlPage(target) {
     if (_sqlRunning || !state.sqlQuery) return;
     _sqlRunning = true;
-    sqlPrevBtn.disabled = sqlNextBtn.disabled = true;
-    try { await showSqlPage(state.sqlPage + delta); }
+    try { await showSqlPage(target); }
     catch (err) { console.error(err); sqlStatus.className = 'sql-status is-error'; sqlStatus.textContent = 'Page failed: ' + (err && err.message ? err.message : String(err)); }
     finally { _sqlRunning = false; }
   }
@@ -3983,8 +3964,6 @@
   if (sqlEditor) sqlEditor.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runSqlEditor(); }
   });
-  if (sqlPrevBtn) sqlPrevBtn.addEventListener('click', () => gotoSqlPage(-1));
-  if (sqlNextBtn) sqlNextBtn.addEventListener('click', () => gotoSqlPage(1));
   if (sqlExportBtn) sqlExportBtn.addEventListener('click', exportSqlResultParquet);
   // The docs link sits inside the <summary> — don't toggle the panel when it's clicked.
   { const dl = $('sqlDocLink'); if (dl) dl.addEventListener('click', e => e.stopPropagation()); }

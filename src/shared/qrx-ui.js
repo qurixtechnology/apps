@@ -345,6 +345,127 @@
     return api;
   };
 
+  qrx.i18n.register('grid', {
+    de: {
+      prev: '‹ Zurück', next: 'Weiter ›', noRows: 'Keine Zeilen',
+      rangeOf: 'Zeilen {from}–{to} von {total} · Seite {page}/{pages}',
+      range: 'Zeilen {from}–{to} · Seite {page}',
+    },
+    en: {
+      prev: '‹ Prev', next: 'Next ›', noRows: 'No rows',
+      rangeOf: 'Rows {from}–{to} of {total} · page {page}/{pages}',
+      range: 'Rows {from}–{to} · page {page}',
+    },
+  });
+
+  /**
+   * Prev / page info / next. The wording and the disabled logic were written
+   * twice; the converter's version also handles the case where the total is
+   * unknown (a streamed query result), which is kept here.
+   *
+   * opts: { pageSize, onPage(page) }
+   */
+  ui.pager = function pager(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.pager: mount element not found');
+    const pageSize = opts.pageSize || 100;
+    el.className = 'qrx-pager';
+    el.innerHTML = '<button class="qrx-btn" type="button" data-role="prev"></button>'
+      + '<span class="qrx-pager-info" data-role="info"></span>'
+      + '<button class="qrx-btn" type="button" data-role="next"></button>';
+    const prev = el.querySelector('[data-role="prev"]');
+    const next = el.querySelector('[data-role="next"]');
+    const info = el.querySelector('[data-role="info"]');
+    let page = 0;
+
+    function labels() {
+      prev.textContent = qrx.i18n.t('grid.prev');
+      next.textContent = qrx.i18n.t('grid.next');
+    }
+    labels();
+    qrx.i18n.onChange(labels);
+    prev.addEventListener('click', () => opts.onPage && opts.onPage(Math.max(0, page - 1)));
+    next.addEventListener('click', () => opts.onPage && opts.onPage(page + 1));
+
+    const api = {
+      el,
+      /** total may be null when it is not known (then paging is open-ended). */
+      set({ page: p = 0, total = null, got = null } = {}) {
+        page = Math.max(0, p);
+        const n = (got == null) ? pageSize : got;
+        const lastPage = (total != null && total > 0) ? Math.ceil(total / pageSize) - 1 : null;
+        const from = (total === 0 || n === 0) ? 0 : page * pageSize + 1;
+        const to = page * pageSize + n;
+        const fmt = (x) => qrx.core.fmt.number(x, qrx.i18n.locale());
+        info.textContent = (total != null)
+          ? qrx.i18n.t('grid.rangeOf', { from: fmt(from), to: fmt(to), total: fmt(total),
+                                         page: page + 1, pages: Math.max(1, (lastPage ?? 0) + 1) })
+          : qrx.i18n.t('grid.range', { from: fmt(from), to: fmt(to), page: page + 1 });
+        prev.disabled = page <= 0;
+        next.disabled = (lastPage != null) ? (page >= lastPage) : (n < pageSize);
+        el.hidden = (total != null && total <= pageSize && page === 0);
+        return api;
+      },
+      hide() { el.hidden = true; return api; },
+      page: () => page,
+    };
+    return api;
+  };
+
+  /**
+   * A read-only result table: sticky header, NULL marked as such, numeric
+   * columns right-aligned. Values are rendered by qrx.duckdb.cellText, so a
+   * date looks the same here as in every other table — the converter used to
+   * format dates one way in its preview and another in its SQL results.
+   */
+  ui.resultGrid = function resultGrid(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.resultGrid: mount element not found');
+    const esc = qrx.core.escapeHtml;
+    // The apps genuinely disagree here: the profiler shows grouped numbers in
+    // its German UI, the converter shows them raw. That stays a choice.
+    const localeNumbers = !!opts.localeNumbers;
+    const cell = (v, type) => (localeNumbers && typeof v === 'number')
+      ? qrx.core.fmt.number(v, qrx.i18n.locale())
+      : qrx.duckdb.cellText(v, type);
+
+    const api = {
+      el,
+      clear() { el.innerHTML = ''; return api; },
+      /** @returns {number} rows rendered */
+      render(result) {
+        const fields = qrx.duckdb.fields(result.schema);
+        // Go through the shared conversion, not result.toArray(): Arrow hands
+        // DATE/TIMESTAMP back as raw numbers, and both apps used to print them
+        // as epoch milliseconds in their SQL results while their previews
+        // showed proper dates.
+        const rows = qrx.duckdb.rows(result);
+        let html = '<table class="qrx-grid"><thead><tr>';
+        if (!fields.length) html += '<th>—</th>';
+        for (const f of fields) html += `<th>${esc(f.name)}</th>`;
+        html += '</tr></thead><tbody>';
+        if (!rows.length) {
+          html += `<tr><td class="qrx-grid-empty" colspan="${Math.max(1, fields.length)}">`
+            + `${esc(qrx.i18n.t('grid.noRows'))}</td></tr>`;
+        }
+        for (const r of rows) {
+          html += '<tr>';
+          for (const f of fields) {
+            const v = r[f.name];
+            html += (v == null)
+              ? '<td class="qrx-grid-null">null</td>'
+              : `<td${f.typeClass === 't-number' ? ' class="qrx-grid-num"' : ''}>`
+                + `${esc(cell(v, f.type))}</td>`;
+          }
+          html += '</tr>';
+        }
+        el.innerHTML = html + '</tbody></table>';
+        return rows.length;
+      },
+    };
+    return api;
+  };
+
   /** A transient message. One container, reused. */
   let toastEl = null, toastTimer = null;
   ui.toast = function toast(message, kind, ms = 3200) {
