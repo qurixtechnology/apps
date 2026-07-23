@@ -22,10 +22,13 @@ Live: **[apps.qurix.tech](https://apps.qurix.tech)**
 
 ```bash
 npm run build        # regenerate every dist/<app>.html + dist/index.html
+npm test             # regression suite (see tests/README.md)
 ```
 
 Then open any file in `dist/` in a browser (double-click works). The generator has **zero
-dependencies** — only Node.js is required.
+dependencies** — only Node.js is required; the test suite adds `puppeteer-core`.
+
+Open work and findings live in [BACKLOG.md](BACKLOG.md).
 
 ## How it works
 
