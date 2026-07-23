@@ -147,4 +147,36 @@ describe('profiler', () => {
       page.assertNoErrors();
     } finally { await page.close(); }
   });
+
+  test('the SQL editor autocompletes real columns and values', async () => {
+    const page = await openProfiler();
+    try {
+      await loadFiles(page, 'pii.parquet');                  // real columns
+      await page.evaluate(() => document.querySelector('[data-tab="sql"]').click());
+      const ed = '#pp-sqlEditor';
+      // column completion in expression position
+      await page.evaluate((sel) => {
+        const ta = document.querySelector(sel);
+        ta.value = 'SELECT kun'; ta.selectionStart = ta.selectionEnd = ta.value.length;
+        ta.focus(); ta.dispatchEvent(new Event('input', { bubbles: true }));
+      }, ed);
+      await new Promise(r => setTimeout(r, 60));
+      const cols = await page.$$eval('.qrx-sql-pop-item .qrx-sql-pop-label', els => els.map(e => e.textContent));
+      assert.ok(cols.includes('kunde'), 'a real column from the file is offered: ' + JSON.stringify(cols));
+
+      // value completion from a DISTINCT query on that column
+      await page.evaluate((sel) => {
+        const ta = document.querySelector(sel);
+        ta.value = "SELECT * FROM data WHERE kategorie = '";
+        ta.selectionStart = ta.selectionEnd = ta.value.length;
+        ta.focus(); ta.dispatchEvent(new Event('input', { bubbles: true }));
+      }, ed);
+      await new Promise(r => setTimeout(r, 400));            // async DISTINCT query
+      const vals = await page.$$eval('.qrx-sql-pop-item .qrx-sql-pop-label', els => els.map(e => e.textContent));
+      assert.ok(vals.length > 0 && vals.every(v => v.startsWith("'")),
+        'real values, quoted as string literals: ' + JSON.stringify(vals));
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
 });
+

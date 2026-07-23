@@ -64,6 +64,12 @@ Three sections on purpose:
       infrastructure is in place; what is missing is the translation.
 
 ### Low
+- [ ] **Profiler SQL tab: a few strings stayed untranslated**
+      The SQL panel hint ("Direkter SQL-Zugriff …") and the "Beispiel:" label
+      (`content.html` ~226/236) were missed by the bilingual pass — they sit in
+      elements with nested markup, which the string extractor skipped. Small,
+      just needs `data-qrx-i18n` hooks + dictionary entries.
+
 
 - [ ] **wm2026-spielplan runs its own i18n next to `qrx.i18n`**
       Its `I18N`/`t()` layer and the `data-i18n` attribute predate the shared

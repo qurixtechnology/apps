@@ -3841,9 +3841,39 @@
     sqlEditor.value = SQL_DEFAULT_QUERY;
     state.sql.query = SQL_DEFAULT_QUERY;
     // Shared widget (src/shared/qrx-ui.js) — this app's behaviour became it.
+    // Autocompletion: every loaded file's view plus the reachable remote tables;
+    // columns are known for the active file (and its `data` alias). Values come
+    // from a DISTINCT query, quoted per the column's type.
     qrx.ui.sqlEditor(sqlEditor, {
       onRun: () => runSqlQuery(),
       onChange: (v) => { state.sql.query = v; },
+      completions: () => {
+        const cols = state.columns.map(c => c.name);
+        const columns = { data: cols };
+        const act = activeFileRec();
+        if (act) columns[act.alias] = cols;
+        const tables = state.files.map(f => f.alias)
+          .concat(['data'], (state.remoteTables || []));
+        return {
+          tables: [...new Set(tables)],
+          columns,
+          keywords: 'sql',
+          values: async (table, column, prefix) => {
+            const meta = state.columns.find(c => c.name === column);
+            if (!meta) return [];
+            const textual = /char|text|string|utf/i.test(meta.type);
+            const src = (table && table !== 'data') ? quoteIdent(table) : 'data';
+            try {
+              const res = await runQuery(
+                `SELECT DISTINCT ${quoteIdent(column)} AS v FROM ${src} `
+                + `WHERE ${quoteIdent(column)} IS NOT NULL `
+                + (prefix ? `AND CAST(${quoteIdent(column)} AS VARCHAR) ILIKE ${quoteString(prefix + '%')} ` : '')
+                + `ORDER BY 1 LIMIT 20`);
+              return rowsFromQuery(res).map(r => textual ? quoteString(String(r.v)) : String(r.v));
+            } catch (_) { return []; }
+          },
+        };
+      },
     });
   }
 

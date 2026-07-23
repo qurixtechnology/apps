@@ -4133,9 +4133,30 @@
   // ---------------------------------------------------------------- SQL editor wiring
   if (sqlEditor && !sqlEditor.value) sqlEditor.value = 'SELECT * FROM data\nLIMIT 100';
   if (sqlRunBtn) sqlRunBtn.addEventListener('click', runSqlEditor);
-  // Shared widget (src/shared/qrx-ui.js) — Ctrl/Cmd+Enter runs, Tab indents
-  // (this app used to lose focus on Tab).
-  if (sqlEditor) qrx.ui.sqlEditor(sqlEditor, { onRun: () => runSqlEditor() });
+  // Shared widget (src/shared/qrx-ui.js) — Ctrl/Cmd+Enter runs, Tab indents,
+  // and it autocompletes against the single source view `data`.
+  if (sqlEditor) qrx.ui.sqlEditor(sqlEditor, {
+    onRun: () => runSqlEditor(),
+    completions: () => ({
+      tables: ['data'],
+      columns: { data: visibleColumns().map(c => c.name) },
+      keywords: 'sql',
+      values: async (table, column, prefix) => {
+        if (!conn) return [];
+        const col = visibleColumns().find(c => c.name === column);
+        if (!col) return [];
+        const textual = /char|text|string|utf/i.test(col.type);
+        try {
+          const res = await conn.query(
+            `SELECT DISTINCT ${sqlIdent(column)} AS v FROM data `
+            + `WHERE ${sqlIdent(column)} IS NOT NULL `
+            + (prefix ? `AND CAST(${sqlIdent(column)} AS VARCHAR) ILIKE '${sqlEscape(prefix)}%' ` : '')
+            + `ORDER BY 1 LIMIT 20`);
+          return res.toArray().map(r => textual ? `'${sqlEscape(String(r.v))}'` : String(r.v));
+        } catch (_) { return []; }
+      },
+    }),
+  });
   if (sqlExportBtn) sqlExportBtn.addEventListener('click', exportSqlResultParquet);
   // The docs link sits inside the <summary> — don't toggle the panel when it's clicked.
   { const dl = $('sqlDocLink'); if (dl) dl.addEventListener('click', e => e.stopPropagation()); }

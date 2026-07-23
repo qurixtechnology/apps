@@ -133,3 +133,28 @@
 }
 .qrx-pager[hidden] { display: none; }
 .qrx-pager-info { font-size: 0.8125rem; color: var(--qrx-text-muted); }
+
+/* --- SQL autocompletion popup -------------------------------------------- */
+.qrx-sql-pop {
+  position: fixed; z-index: 70;
+  min-width: 180px; max-width: 340px; max-height: 15rem; overflow-y: auto;
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border-strong);
+  border-radius: var(--qrx-radius); box-shadow: var(--qrx-shadow-lg);
+  padding: 4px; font-family: var(--qrx-font-mono); font-size: 0.8125rem;
+}
+.qrx-sql-pop-item {
+  display: flex; align-items: center; gap: var(--qrx-s-2);
+  padding: 3px 6px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+}
+.qrx-sql-pop-item.is-active { background: var(--qrx-primary); color: #fff; }
+.qrx-sql-pop-kind {
+  flex: none; width: 16px; height: 16px; border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.625rem; font-weight: 700; color: #fff;
+}
+.qrx-sql-pop-item.is-active .qrx-sql-pop-kind { background: rgba(255,255,255,0.25); }
+.qrx-sql-pop-table   { background: var(--qrx-primary); }
+.qrx-sql-pop-column  { background: var(--qrx-success); }
+.qrx-sql-pop-keyword { background: var(--qrx-text-subtle); }
+.qrx-sql-pop-value   { background: var(--qrx-warning); }
+.qrx-sql-pop-label { overflow: hidden; text-overflow: ellipsis; }

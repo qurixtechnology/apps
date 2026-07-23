@@ -565,3 +565,160 @@ describe('widget: SQL editor behaviour', () => {
     assert.deepEqual(got.changes, ['SELECT 2'], 'edits are reported');
   });
 });
+
+describe('widget: SQL editor autocompletion', () => {
+  // A textarea plus a caret-positioned popup. The app supplies the schema and
+  // (optionally) an async values provider; the widget stays decoupled.
+  function makeEditor(page, completions) {
+    return page.evaluate((comp) => {
+      const ta = document.createElement('textarea');
+      ta.style.cssText = 'position:fixed;top:10px;left:10px;width:400px;height:120px;font:14px monospace';
+      document.body.appendChild(ta);
+      window.__ed = window.qrx.ui.sqlEditor(ta, { onRun: () => {}, completions: () => JSON.parse(comp) });
+      window.__ta = ta;
+      return true;
+    }, JSON.stringify(completions));
+  }
+  const SCHEMA = { tables: ['data', 'orders'], columns: { data: ['id', 'name', 'city'], orders: ['order_id'] }, keywords: 'sql' };
+
+  async function type(page, text, caretAfter) {
+    await page.evaluate((t, c) => {
+      const ta = window.__ta;
+      ta.value = t;
+      ta.selectionStart = ta.selectionEnd = (c == null ? t.length : c);
+      ta.focus();
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }, text, caretAfter);
+    await new Promise(r => setTimeout(r, 40));
+  }
+  const popup = (page) => page.$$eval('.qrx-sql-pop-item .qrx-sql-pop-label', els => els.map(e => e.textContent));
+
+  test('suggests table names after FROM', async () => {
+    const page = await openApp(browser, 'parquet-cleaner.html');
+    try {
+      await makeEditor(page, SCHEMA);
+      await type(page, 'SELECT * FROM d');
+      assert.deepEqual(await popup(page), ['data'], 'only the matching table');
+      await type(page, 'SELECT * FROM o');
+      assert.deepEqual(await popup(page), ['orders']);
+      await page.evaluate(() => window.__ta.remove());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('suggests columns after a dotted table name', async () => {
+    const page = await openApp(browser, 'parquet-cleaner.html');
+    try {
+      await makeEditor(page, SCHEMA);
+      await type(page, 'SELECT data.');
+      assert.deepEqual(await popup(page), ['id', 'name', 'city']);
+      await type(page, 'SELECT data.ci');
+      assert.deepEqual(await popup(page), ['city']);
+      await page.evaluate(() => window.__ta.remove());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('offers columns in expression position', async () => {
+    const page = await openApp(browser, 'parquet-cleaner.html');
+    try {
+      await makeEditor(page, SCHEMA);
+      await type(page, 'SELECT * FROM data WHERE ci');
+      assert.deepEqual(await popup(page), ['city'], 'a column matches "ci"');
+      await type(page, 'SELECT na');
+      assert.ok((await popup(page)).includes('name'));
+      await page.evaluate(() => window.__ta.remove());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('Enter accepts the active item and replaces the partial token', async () => {
+    const page = await openApp(browser, 'parquet-cleaner.html');
+    try {
+      await makeEditor(page, SCHEMA);
+      await type(page, 'SELECT * FROM da');
+      await page.evaluate(() => window.__ta.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+      const val = await page.evaluate(() => window.__ta.value);
+      assert.equal(val, 'SELECT * FROM data', 'the partial "da" became "data"');
+      await page.evaluate(() => window.__ta.remove());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('Escape closes the popup; Ctrl+Enter still runs', async () => {
+    const page = await openApp(browser, 'parquet-cleaner.html');
+    try {
+      await page.evaluate((comp) => {
+        const ta = document.createElement('textarea');
+        document.body.appendChild(ta);
+        window.__ran = 0;
+        window.qrx.ui.sqlEditor(ta, { onRun: () => { window.__ran++; }, completions: () => JSON.parse(comp) });
+        window.__ta2 = ta;
+      }, JSON.stringify(SCHEMA));
+      await page.evaluate(() => {
+        const ta = window.__ta2; ta.value = 'SELECT da'; ta.selectionStart = ta.selectionEnd = 9;
+        ta.focus(); ta.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await new Promise(r => setTimeout(r, 40));
+      const openBefore = (await page.$('.qrx-sql-pop')) != null;
+      await page.evaluate(() => window.__ta2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
+      const openAfter = (await page.$('.qrx-sql-pop')) != null;
+      await page.evaluate(() => window.__ta2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })));
+      const ran = await page.evaluate(() => window.__ran);
+      await page.evaluate(() => window.__ta2.remove());
+      assert.equal(openBefore, true, 'popup was open');
+      assert.equal(openAfter, false, 'Escape closed it');
+      assert.equal(ran, 1, 'Ctrl+Enter ran the query');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('completes values from the async provider after "col ="', async () => {
+    const page = await openApp(browser, 'parquet-cleaner.html');
+    try {
+      await page.evaluate(() => {
+        const ta = document.createElement('textarea');
+        document.body.appendChild(ta);
+        window.__ta3 = ta;
+        window.qrx.ui.sqlEditor(ta, {
+          onRun: () => {},
+          completions: () => ({
+            tables: ['data'], columns: { data: ['city'] }, keywords: 'sql',
+            values: async (table, column, prefix) =>
+              ["'Berlin'", "'Bremen'", "'Muenchen'"].filter(v => v.toLowerCase().includes(prefix.toLowerCase())),
+          }),
+        });
+      });
+      await page.evaluate(() => {
+        const ta = window.__ta3; ta.value = "SELECT * FROM data WHERE city = 'B";
+        ta.selectionStart = ta.selectionEnd = ta.value.length;
+        ta.focus(); ta.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await new Promise(r => setTimeout(r, 120));
+      const vals = await page.$$eval('.qrx-sql-pop-item .qrx-sql-pop-label', els => els.map(e => e.textContent));
+      assert.ok(vals.includes("'Berlin'") && vals.includes("'Bremen'"), 'quoted string values, filtered by prefix B');
+      assert.ok(!vals.includes("'Muenchen'"), 'a non-matching value is excluded');
+      await page.evaluate(() => window.__ta3.remove());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('without a completions provider it is behaviour-only (no popup)', async () => {
+    const page = await openApp(browser, 'parquet-cleaner.html');
+    try {
+      await page.evaluate(() => {
+        const ta = document.createElement('textarea');
+        document.body.appendChild(ta);
+        window.__ta4 = ta;
+        window.qrx.ui.sqlEditor(ta, { onRun: () => {} });
+        ta.value = 'SELECT da'; ta.selectionStart = ta.selectionEnd = 9;
+        ta.focus(); ta.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await new Promise(r => setTimeout(r, 40));
+      assert.equal(await page.$('.qrx-sql-pop'), null, 'no popup when no schema is provided');
+      await page.evaluate(() => window.__ta4.remove());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+});
