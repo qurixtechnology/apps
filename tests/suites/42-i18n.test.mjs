@@ -187,7 +187,8 @@ describe('i18n: dictionaries are complete', () => {
 
 describe('i18n: the shell language switch', () => {
   test('stays hidden while the app has no translations', async () => {
-    const page = await fresh();
+    // markdown-display has no app dictionary yet
+    const page = await openApp(browser, 'markdown-display.html');
     try {
       const hidden = await page.evaluate(() =>
         document.querySelector('[data-action="toggle-lang"]').hidden);
@@ -259,14 +260,80 @@ describe('i18n: the converter is bilingual end to end', () => {
     }
   });
 
-  test('the other apps still hide the switch until they are translated', async () => {
-    for (const file of ['parquet-cleaner.html', 'parquet-profiler.html']) {
+  test('the apps without a dictionary still hide the switch', async () => {
+    for (const file of ['markdown-display.html', 'secure-chat.html']) {
       const page = await openApp(browser, file);
       try {
         const hidden = await page.evaluate(() =>
           document.querySelector('[data-action="toggle-lang"]').hidden);
         assert.equal(hidden, true, `${file} has no app dictionary yet`);
       } finally { await page.close(); }
+    }
+  });
+});
+
+describe('i18n: cleaner and profiler are bilingual too', () => {
+  test('the cleaner flips markup, rule labels and the shell', async () => {
+    const page = await openApp(browser, 'parquet-cleaner.html', { query: 'qrxtest' });
+    try {
+      await page.evaluate(() => { window.qrx.core.storage.remove('qrx_lang'); window.qrx.i18n.setLang('en'); });
+      const read = () => page.evaluate(() => ({
+        switchHidden: document.querySelector('[data-action="toggle-lang"]').hidden,
+        drop: document.querySelector('.dz-title').textContent.trim(),
+        scan: document.getElementById('reviewScanBtn').textContent.trim(),
+        kpi: document.querySelector('.pc-kpi-label').textContent.trim(),
+        // a rule label built in JavaScript, not in the markup
+        rule: window.__qrx.cleaner.STEP_DEFS.dedupExact.label,
+      }));
+      const en = await read();
+      await page.evaluate(() => document.querySelector('[data-action="toggle-lang"]').click());
+      const de = await read();
+
+      assert.equal(en.switchHidden, false, 'the cleaner now offers the switch');
+      assert.equal(en.scan, 'Scan data');
+      assert.equal(en.kpi, 'Rows');
+      assert.equal(en.rule, 'Remove exact duplicates');
+
+      assert.equal(de.drop, 'Parquet-Datei hier ablegen oder klicken, um eine auszuwählen');
+      assert.equal(de.scan, 'Daten prüfen');
+      assert.equal(de.kpi, 'Zeilen');
+      assert.equal(de.rule, 'Exakte Duplikate entfernen', 'rule labels follow the language');
+      page.assertNoErrors();
+    } finally {
+      await page.evaluate(() => window.qrx.core.storage.remove('qrx_lang')).catch(() => {});
+      await page.close();
+    }
+  });
+
+  test('the profiler flips markup, KPI cards and column headers', async () => {
+    const page = await openApp(browser, 'parquet-profiler.html', { query: 'qrxtest' });
+    try {
+      await page.evaluate(() => { window.qrx.core.storage.remove('qrx_lang'); window.qrx.i18n.setLang('de'); });
+      const read = () => page.evaluate(() => ({
+        switchHidden: document.querySelector('[data-action="toggle-lang"]').hidden,
+        heading: document.querySelector('#pp-dropZone h2').textContent.trim(),
+        pick: document.getElementById('pp-pickBtn').textContent.trim(),
+        tab: document.querySelector('#pp-tab-preview .pp-tab-label').textContent.trim(),
+        tooltip: document.getElementById('pp-fullscreenBtn').getAttribute('title'),
+      }));
+      const de = await read();
+      await page.evaluate(() => document.querySelector('[data-action="toggle-lang"]').click());
+      const en = await read();
+
+      assert.equal(de.switchHidden, false, 'the profiler now offers the switch');
+      assert.equal(de.heading, 'Parquet-Dateien laden');
+      assert.equal(de.tab, 'Daten-Vorschau');
+      assert.match(de.tooltip, /^Vollbild für aktiven Tab/,
+        'the tooltip used to show a literal \u00FC escape');
+
+      assert.equal(en.heading, 'Load Parquet files');
+      assert.equal(en.pick, 'Choose files');
+      assert.equal(en.tab, 'Data preview');
+      assert.match(en.tooltip, /^Full screen/);
+      page.assertNoErrors();
+    } finally {
+      await page.evaluate(() => window.qrx.core.storage.remove('qrx_lang')).catch(() => {});
+      await page.close();
     }
   });
 });

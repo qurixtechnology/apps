@@ -109,6 +109,207 @@
   const paginationInfo = $('pp-paginationInfo');
   const pageJumpInput  = $('pp-pageJump');
 
+  // ---------------------------------------------------------------- i18n
+  // Registering an "app" namespace is what makes the language switch appear in
+  // the shell — it only offers one once the app itself can be translated.
+  qrx.i18n.register('app', {
+    en: {
+      filesHint: 'The selected file is profiled in the Columns, Preview and Pivot tabs. In the SQL tab every file is available as a view for joins. Add more files at any time by dropping them (here too) or with the button.',
+      perRow: '/row',
+      ofRows: 'of',
+      resultRows: 'result rows',
+      loadedFiles: 'Loaded files',
+      rowsUnit: 'rows',
+      columnsUnit: 'columns',
+      active: 'active',
+      inMemory: 'in memory',
+      noNulls: 'without NULL',
+      emptyCols: 'empty',
+      noStats: 'without statistics',
+      constant: 'constant',
+      keyCandidate: 'key candidate',
+      keyCandidates: 'key candidates',
+      computing: 'computing …',
+      distinctLabel: 'distinct',
+      noColumnsMatch: 'No columns match the current filters.',
+      noRows: 'No rows',
+      rowGroups: 'row groups',
+      compressed: 'Compressed',
+      uncompressed: 'Uncompressed',
+      avgRowSize: 'Ø row size',
+      dataTypes: 'Data types',
+      createdWith: 'Created with',
+      formatLabel: 'Format',
+      rowCount: 'Row count',
+      noFileLoaded: 'No file loaded.',
+      first100: 'First 100 rows',
+      emptyValue: '(empty)',
+      emptyString: '(empty string)',
+      loadingEngine: 'Initialising DuckDB …',
+      engineFailed: 'DuckDB could not be initialised',
+      registering: 'Registering files …',
+      filesFailed: 'Files could not be loaded',
+      attaching: 'Attaching DuckDB tables …',
+      attachFailed: 'DuckDB tables could not be attached',
+      readingMeta: 'Reading Parquet metadata …',
+      bufferingFile: 'Loading the active file into memory …',
+      profileFailed: 'The file could not be profiled',
+      kpiRows: 'Rows',
+      kpiColumns: 'Columns',
+      kpiFill: 'Fill rate',
+      kpiUnique: 'Uniqueness',
+      fileSize: 'File size',
+      colType: 'Type',
+      colName: 'Name',
+      colDataType: 'Data type',
+      colMin: 'Min',
+      colMax: 'Max',
+      colNull: 'Null',
+      colDistinct: 'Distinct',
+      colSize: 'Size',
+      letzteSeite: 'Last page',
+      nachsteSeite: 'Next page',
+      vorherigeSeite: 'Previous page',
+      ersteSeite: 'First page',
+      vollbildFU00fcrAktiven: 'Full screen for the active tab (Esc to leave)',
+      vollbild: 'Full screen',
+      ladtDieAktiveDatei: 'Loads the active file fully into memory. Faster profiling, but higher RAM usage. Other files stay referenced without being copied.',
+      strgEnter: 'Ctrl+Enter',
+      leeren: 'Clear',
+      mdashWAumlHlen: '— choose —',
+      zurUumlCksetzen: 'Reset',
+      berechnen: 'Compute',
+      keineWerteDefiniert: 'No values defined',
+      wert: '+ Value',
+      werte: 'Values',
+      keineSpaltenDimension: 'No column dimension',
+      feld: '+ Field',
+      spalten: 'Columns',
+      keineZeilenDimension: 'No row dimension',
+      feld2: '+ Field',
+      zeilen: 'Rows',
+      erstelleEinePivotAuswertung: 'Build a pivot over the whole data set — like a pivot table in Excel.',
+      vor: 'Next ›',
+      zuruck: '‹ Prev',
+      alleFilterEntfernen: 'Clear all filters',
+      alleFilterEntfernen2: 'Clear all filters',
+      statistikenBeziehenSichAuf: 'Statistics cover the whole data set, regardless of any filters.',
+      pivot: 'Pivot',
+      datenVorschau: 'Data preview',
+      attribute: 'Columns',
+      dateiMetadaten: 'File metadata',
+      duckdbWirdInitialisiertHellip: 'Initialising DuckDB …',
+      pivot2: 'Pivot',
+      vorschau: 'Preview',
+      spalten2: 'Columns',
+      duckdbTabelle: '+ DuckDB table',
+      dateiEnHinzufugen: '+ Add file(s)',
+      aktiveDateiInDen: 'Load the active file into memory',
+      connectWithDuckdb: 'Connect with DuckDB',
+      dateienAuswahlen: 'Choose files',
+      eineOderMehrereDateien: 'Drop one or more files here, or click to choose files',
+      parquetDateienLaden: 'Load Parquet files',
+    },
+    de: {
+      filesHint: 'Die markierte Datei wird in den Tabs Spalten, Vorschau und Pivot profiliert. Im SQL-Tab stehen alle Dateien als Views für Joins zur Verfügung. Weitere Dateien jederzeit per Drag & Drop (auch hierher) oder über die Schaltfläche hinzufügen.',
+      perRow: '/Zeile',
+      ofRows: 'von',
+      resultRows: 'Ergebnis-Zeilen',
+      loadedFiles: 'Geladene Dateien',
+      rowsUnit: 'Zeilen',
+      columnsUnit: 'Attribute',
+      active: 'aktiv',
+      inMemory: 'im Speicher',
+      noNulls: 'ohne NULL',
+      emptyCols: 'leer',
+      noStats: 'ohne Statistik',
+      constant: 'konstant',
+      keyCandidate: 'Schlüsselkandidat',
+      keyCandidates: 'Schlüsselkandidaten',
+      computing: 'wird berechnet …',
+      distinctLabel: 'eindeutig',
+      noColumnsMatch: 'Keine Attribute entsprechen den aktuellen Filtern.',
+      noRows: 'Keine Zeilen',
+      rowGroups: 'Zeilengruppen',
+      compressed: 'Komprimiert',
+      uncompressed: 'Unkomprimiert',
+      avgRowSize: 'Ø Zeilengröße',
+      dataTypes: 'Datentypen',
+      createdWith: 'Erzeugt mit',
+      formatLabel: 'Format',
+      rowCount: 'Zeilenanzahl',
+      noFileLoaded: 'Keine Datei geladen.',
+      first100: 'Erste 100 Zeilen',
+      emptyValue: '(leer)',
+      emptyString: '(leerer String)',
+      loadingEngine: 'DuckDB wird initialisiert …',
+      engineFailed: 'DuckDB konnte nicht initialisiert werden',
+      registering: 'Dateien werden registriert …',
+      filesFailed: 'Dateien konnten nicht geladen werden',
+      attaching: 'DuckDB-Tabellen werden eingebunden …',
+      attachFailed: 'DuckDB-Tabellen konnten nicht eingebunden werden',
+      readingMeta: 'Parquet-Metadaten werden gelesen …',
+      bufferingFile: 'Aktive Datei wird in den Speicher geladen …',
+      profileFailed: 'Datei konnte nicht profiliert werden',
+      kpiRows: 'Zeilen',
+      kpiColumns: 'Attribute',
+      kpiFill: 'Füllgrad',
+      kpiUnique: 'Eindeutigkeit',
+      fileSize: 'Dateigröße',
+      colType: 'Typ',
+      colName: 'Name',
+      colDataType: 'Datentyp',
+      colMin: 'Min',
+      colMax: 'Max',
+      colNull: 'Null',
+      colDistinct: 'Eindeutig',
+      colSize: 'Größe',
+      letzteSeite: 'Letzte Seite',
+      nachsteSeite: 'Nächste Seite',
+      vorherigeSeite: 'Vorherige Seite',
+      ersteSeite: 'Erste Seite',
+      vollbildFU00fcrAktiven: 'Vollbild für aktiven Tab (Esc zum Verlassen)',
+      vollbild: 'Vollbild',
+      ladtDieAktiveDatei: 'Lädt die aktive Datei vollständig in den Arbeitsspeicher. Schnelleres Profiling, aber höherer RAM-Verbrauch. Andere Dateien bleiben speicherschonend referenziert.',
+      strgEnter: 'Strg+Enter',
+      leeren: 'Leeren',
+      mdashWAumlHlen: '— wählen —',
+      zurUumlCksetzen: 'Zurücksetzen',
+      berechnen: 'Berechnen',
+      keineWerteDefiniert: 'Keine Werte definiert',
+      wert: '+ Wert',
+      werte: 'Werte',
+      keineSpaltenDimension: 'Keine Spalten-Dimension',
+      feld: '+ Feld',
+      spalten: 'Spalten',
+      keineZeilenDimension: 'Keine Zeilen-Dimension',
+      feld2: '+ Feld',
+      zeilen: 'Zeilen',
+      erstelleEinePivotAuswertung: 'Erstelle eine Pivot-Auswertung über den gesamten Datensatz — analog zu Excel. Felder für Zeilen und Spalten gruppieren, Werte werden aggregiert.',
+      vor: 'Vor ›',
+      zuruck: '‹ Zurück',
+      alleFilterEntfernen: 'Alle Filter entfernen',
+      alleFilterEntfernen2: 'Alle Filter entfernen',
+      statistikenBeziehenSichAuf: 'Statistiken beziehen sich auf den gesamten Datensatz, unabhängig von Filtern.',
+      pivot: 'Pivot',
+      datenVorschau: 'Daten-Vorschau',
+      attribute: 'Attribute',
+      dateiMetadaten: 'Datei-Metadaten',
+      duckdbWirdInitialisiertHellip: 'DuckDB wird initialisiert …',
+      pivot2: 'Pivot',
+      vorschau: 'Vorschau',
+      spalten2: 'Spalten',
+      duckdbTabelle: '+ DuckDB-Tabelle',
+      dateiEnHinzufugen: '+ Datei(en) hinzufügen',
+      aktiveDateiInDen: 'Aktive Datei in den Speicher laden',
+      connectWithDuckdb: 'Connect with DuckDB',
+      dateienAuswahlen: 'Dateien auswählen',
+      eineOderMehrereDateien: 'Eine oder mehrere Dateien hier ablegen oder klicken, um Dateien auszuwählen',
+      parquetDateienLaden: 'Parquet-Dateien laden',
+    },
+  });
+  const t = (k, p) => qrx.i18n.t('app.' + k, p);
+
   // -------------------------------------------------------------------------
   // Utilities
   // -------------------------------------------------------------------------
@@ -246,7 +447,7 @@
   function initDuckDB() {
     if (initPromise) return initPromise;
     initPromise = (async () => {
-      showLoading('DuckDB wird initialisiert \u2026');
+      showLoading(t('loadingEngine'));
       try {
         await qrx.duckdb.init();
         state.duckdb = qrx.duckdb.duckdb();
@@ -254,7 +455,7 @@
         state.conn = qrx.duckdb.conn();
       } catch (e) {
         console.error(e);
-        showError('DuckDB konnte nicht initialisiert werden', e && e.message || String(e));
+        showError(t('engineFailed'), e && e.message || String(e));
         hideLoading();
         initPromise = null;          // a failed start must stay retryable
         throw e;
@@ -296,7 +497,7 @@
     if (!incoming.length) return;
     exitSnapshotMode();  // a real file replaces the static snapshot view
     clearError();
-    showLoading('Dateien werden registriert \u2026');
+    showLoading(t('registering'));
     try {
       await initDuckDB();
       const FR = state.duckdb.DuckDBDataProtocol.BROWSER_FILEREADER;
@@ -347,7 +548,7 @@
     } catch (e) {
       console.error(e);
       hideLoading();
-      showError('Dateien konnten nicht geladen werden', e && e.message || String(e));
+      showError(t('filesFailed'), e && e.message || String(e));
     }
   }
 
@@ -361,7 +562,7 @@
     if (!names.length) return;
     exitSnapshotMode();
     clearError();
-    showLoading('DuckDB-Tabellen werden eingebunden …');
+    showLoading(t('attaching'));
     try {
       const taken = new Set(['data']);
       for (const f of state.files) taken.add(f.alias);
@@ -405,7 +606,7 @@
       console.error(e);
       hideLoading();
       renderFileList();
-      showError('DuckDB-Tabellen konnten nicht eingebunden werden', e && e.message || String(e));
+      showError(t('attachFailed'), e && e.message || String(e));
     }
   }
 
@@ -502,10 +703,10 @@
     PARQUET_SQL = rec.kind === 'duckdb' ? rec.sqlRef : `'${PARQUET_VFS}'`;
     state.fileMeta = { name: rec.name, size: rec.size };
 
-    showLoading('Parquet-Metadaten werden gelesen \u2026');
+    showLoading(t('readingMeta'));
     qrxTest.state('busy');
     try {
-      if (state.bufferActive) showLoading('Aktive Datei wird in den Speicher geladen \u2026');
+      if (state.bufferActive) showLoading(t('bufferingFile'));
       await applyRegistrationModes(id);
       try {
         await runQuery(`CREATE OR REPLACE VIEW data AS SELECT * FROM ${PARQUET_SQL}`);
@@ -582,7 +783,7 @@
     } catch (e) {
       console.error(e);
       hideLoading();
-      showError('Datei konnte nicht profiliert werden', e && e.message || String(e));
+      showError(t('profileFailed'), e && e.message || String(e));
     }
   }
 
@@ -651,17 +852,17 @@
     const parts = [];
     for (const f of state.files) {
       const isActive = f.id === state.activeFileId;
-      const rowsTxt = f.rows != null ? `${formatNumber(f.rows)} Zeilen` : '\u2014';
+      const rowsTxt = f.rows != null ? `${formatNumber(f.rows)} ${t('rowsUnit')}` : '\u2014';
       const attrsTxt = (isActive && state.columns.length)
-        ? ` \u00B7 ${state.columns.length} Attribute` : '';
+        ? ` \u00B7 ${state.columns.length} ${t('columnsUnit')}` : '';
       parts.push(
         `<li class="pp-file-item${isActive ? ' pp-file-item-active' : ''}" data-id="${escapeHtml(f.id)}">`
         + `<span class="pp-file-radio" aria-hidden="true"></span>`
         + FILE_ICON_SVG
         + `<span class="pp-file-meta">`
           + `<span class="pp-file-name">${escapeHtml(f.name)}`
-          + (isActive ? `<span class="pp-file-active-badge">aktiv</span>` : '')
-          + (isActive && f.mode === 'buffer' ? `<span class="pp-file-buffered-badge">im Speicher</span>` : '')
+          + (isActive ? `<span class="pp-file-active-badge">${escapeHtml(t('active'))}</span>` : '')
+          + (isActive && f.mode === 'buffer' ? `<span class="pp-file-buffered-badge">${escapeHtml(t('inMemory'))}</span>` : '')
           + `</span>`
           + `<span class="pp-file-detail">${f.kind === 'duckdb' ? 'DuckDB-Server · im Speicher' : formatBytes(f.size)} \u00B7 ${rowsTxt}${attrsTxt}`
           + ` \u00B7 View: <code>${escapeHtml(f.alias)}</code></span>`
@@ -734,32 +935,32 @@
     const k = computeQualityKpis();
 
     // Füllgrad sub-line
-    let fillSub = `${k.fullCols}/${k.N} ohne NULL`;
-    if (k.emptyCols) fillSub += ` \u00B7 ${k.emptyCols} leer`;
-    if (k.unknownCols) fillSub += ` \u00B7 ${k.unknownCols} ohne Statistik`;
+    let fillSub = `${k.fullCols}/${k.N} ${t('noNulls')}`;
+    if (k.emptyCols) fillSub += ` \u00B7 ${k.emptyCols} ${t('emptyCols')}`;
+    if (k.unknownCols) fillSub += ` \u00B7 ${k.unknownCols} ${t('noStats')}`;
 
     // Eindeutigkeit sub-line
     let uniqSub;
-    if (k.pending) uniqSub = 'wird berechnet \u2026';
+    if (k.pending) uniqSub = t('computing');
     else {
-      const segs = [`${k.keyCands} Schl\u00FCsselkandidat${k.keyCands === 1 ? '' : 'en'}`];
-      if (k.constCols) segs.push(`${k.constCols} konstant`);
+      const segs = [`${k.keyCands} ${k.keyCands === 1 ? t('keyCandidate') : t('keyCandidates')}`];
+      if (k.constCols) segs.push(`${k.constCols} ${t('constant')}`);
       uniqSub = segs.join(' \u00B7 ');
     }
 
     const cards = [
-      { label: 'Zeilen',
+      { label: t('kpiRows'),
         value: formatNumber(state.rowCountTotal),
         sub: fm.num_rows != null ? `Footer: ${formatNumber(Number(fm.num_rows))}` : '' },
-      { label: 'Attribute',
+      { label: t('kpiColumns'),
         value: String(state.columns.length),
         sub: countByCategory() },
-      { label: 'F\u00FCllgrad',
+      { label: t('kpiFill'),
         value: fmtPct(k.fillRate),
         sub: fillSub,
         barPct: k.fillRate != null ? Math.round(k.fillRate * 1000) / 10 : null,
         barClass: '' },
-      { label: 'Eindeutigkeit',
+      { label: t('kpiUnique'),
         value: k.pending ? '\u2026' : fmtPct(k.uniqAvg),
         sub: uniqSub,
         pending: k.pending,
@@ -798,23 +999,23 @@
     const avgRowBytes = rows > 0 && uncompressed > 0 ? uncompressed / rows : null;
 
     const items = [];
-    items.push(['Dateigr\u00F6\u00DFe', formatBytes(state.fileMeta.size)]);
+    items.push([t('fileSize'), formatBytes(state.fileMeta.size)]);
     if (compressed) {
-      items.push(['Komprimiert',
+      items.push([t('compressed'),
         `${formatBytes(compressed)}${compressionRatio ? ` (${compressionRatio.toFixed(2)}\u00D7)` : ''}`]);
     }
-    if (uncompressed) items.push(['Unkomprimiert', formatBytes(uncompressed)]);
+    if (uncompressed) items.push([t('uncompressed'), formatBytes(uncompressed)]);
     if (rgCount) {
-      items.push(['Row Groups',
+      items.push([t('rowGroups'),
         rows && rgCount
-          ? `${formatNumber(rgCount)} (\u2300 ${formatNumber(Math.round(rows / rgCount))} Zeilen)`
+          ? `${formatNumber(rgCount)} (\u2300 ${formatNumber(Math.round(rows / rgCount))} ${t('rowsUnit')})`
           : formatNumber(rgCount)]);
     }
-    if (avgRowBytes != null) items.push(['\u00D8 Zeilengr\u00F6\u00DFe', `${formatBytes(avgRowBytes)}/Zeile`]);
+    if (avgRowBytes != null) items.push([t('avgRowSize'), `${formatBytes(avgRowBytes)}${t('perRow')}`]);
     const mix = countByCategory();
-    if (mix) items.push(['Datentypen', mix]);
-    if (fm.created_by) items.push(['Erzeugt mit', truncate(String(fm.created_by), 40)]);
-    if (fm.format_version != null) items.push(['Format', `v${fm.format_version}`]);
+    if (mix) items.push([t('dataTypes'), mix]);
+    if (fm.created_by) items.push([t('createdWith'), truncate(String(fm.created_by), 40)]);
+    if (fm.format_version != null) items.push([t('formatLabel'), `v${fm.format_version}`]);
 
     metaTech.innerHTML = items.map(([label, val]) =>
       `<span class="pp-meta-tech-item"><span class="pp-meta-tech-label">${escapeHtml(label)}</span>`
@@ -850,15 +1051,20 @@
   // popover UIs, and the cell renderers below.
   const COLS_FIELDS = [
     { id: 'chevron',    label: '',          sortable: false, filterable: false, width: '36px', titleAttr: '' },
-    { id: 'category',   label: 'Typ',       sortable: true,  filterable: true,  filterKind: 'values', width: '60px',  align: 'center' },
-    { id: 'name',       label: 'Name',      sortable: true,  filterable: true,  filterKind: 'search', width: null },
-    { id: 'type',       label: 'Datentyp',  sortable: true,  filterable: true,  filterKind: 'values', width: '130px' },
-    { id: 'min',        label: 'Min',       sortable: true,  filterable: true,  filterKind: 'search', width: '150px' },
-    { id: 'max',        label: 'Max',       sortable: true,  filterable: true,  filterKind: 'search', width: '150px' },
-    { id: 'nullPct',    label: 'Null',      sortable: true,  filterable: true,  filterKind: 'range',  width: '110px' },
-    { id: 'distinct',   label: 'Eindeutig', sortable: true,  filterable: true,  filterKind: 'range',  width: '110px' },
-    { id: 'compressed', label: 'Gr\u00F6\u00DFe', sortable: true, filterable: true, filterKind: 'range', width: '110px' },
+    { id: 'category',   labelKey: 'colType',     sortable: true,  filterable: true,  filterKind: 'values', width: '60px',  align: 'center' },
+    { id: 'name',       labelKey: 'colName',     sortable: true,  filterable: true,  filterKind: 'search', width: null },
+    { id: 'type',       labelKey: 'colDataType', sortable: true,  filterable: true,  filterKind: 'values', width: '130px' },
+    { id: 'min',        labelKey: 'colMin',      sortable: true,  filterable: true,  filterKind: 'search', width: '150px' },
+    { id: 'max',        labelKey: 'colMax',      sortable: true,  filterable: true,  filterKind: 'search', width: '150px' },
+    { id: 'nullPct',    labelKey: 'colNull',     sortable: true,  filterable: true,  filterKind: 'range',  width: '110px' },
+    { id: 'distinct',   labelKey: 'colDistinct', sortable: true,  filterable: true,  filterKind: 'range',  width: '110px' },
+    { id: 'compressed', labelKey: 'colSize',     sortable: true,  filterable: true,  filterKind: 'range',  width: '110px' },
   ];
+  // The table is built once but its headers must follow the language.
+  for (const f of COLS_FIELDS) {
+    if (!f.labelKey) continue;
+    Object.defineProperty(f, 'label', { enumerable: true, get() { return t(f.labelKey); } });
+  }
 
   // Accessor: returns the typed value of `fieldId` for sorting/filtering.
   // null/undefined means "no value" (sorts last; range filter ignores).
@@ -974,7 +1180,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `<td colspan="${COLS_FIELDS.length}"
         style="text-align:center;color:var(--qrx-text-muted);padding:1.5rem;">
-        Keine Attribute entsprechen den aktuellen Filtern.</td>`;
+        ${escapeHtml(t('noColumnsMatch'))}</td>`;
       tbody.appendChild(tr);
       return;
     }
@@ -1236,8 +1442,8 @@
     const view = computeColsView();
     const total = state.columns.length;
     if (view.length === total) {
-      colsMeta.innerHTML = `<strong>${formatNumber(total)}</strong> Attribute`;
-      if (sum) sum.textContent = `${formatNumber(total)} Attribute`;
+      colsMeta.innerHTML = `<strong>${formatNumber(total)}</strong> ${escapeHtml(t('columnsUnit'))}`;
+      if (sum) sum.textContent = `${formatNumber(total)} ${t('columnsUnit')}`;
     } else {
       colsMeta.innerHTML = `<strong>${formatNumber(view.length)}</strong> von <strong>${formatNumber(total)}</strong> Attributen gefiltert`;
       if (sum) sum.textContent = `${formatNumber(view.length)} von ${formatNumber(total)} Attributen`;
@@ -1506,7 +1712,7 @@
       return '<span class="pp-col-distinct-empty">\u2014</span>';
     }
     return `<span class="pp-col-distinct-val">${escapeHtml(formatNumber(col.distinctCount))}</span>`
-         + `<span class="pp-col-distinct-label">eindeutig</span>`;
+         + `<span class="pp-col-distinct-label">${escapeHtml(t('distinctLabel'))}</span>`;
   }
 
   function updateDistinctCell(col) {
@@ -2482,14 +2688,14 @@
       const from = total === 0 ? 0 : offset + 1;
       const to   = Math.min(offset + rows.length, total);
       previewMeta.textContent = total === 0
-        ? 'Keine Zeilen'
+        ? t('noRows')
         : `Zeile ${formatNumber(from)}–${formatNumber(to)} von ${formatNumber(total)}`;
       // Mirror a compact form into the section summary
       const sum = document.getElementById('pp-previewSummaryCount');
       if (sum) {
         const grand = state.rowCountTotal;
-        if (total === grand) sum.textContent = `${formatNumber(total)} Zeilen`;
-        else sum.textContent = `${formatNumber(total)} von ${formatNumber(grand)} Zeilen`;
+        if (total === grand) sum.textContent = `${formatNumber(total)} ${t('rowsUnit')}`;
+        else sum.textContent = `${formatNumber(total)} ${t('ofRows')} ${formatNumber(grand)} ${t('rowsUnit')}`;
       }
       renderPagination(pageCount);
     } catch (e) {
@@ -3123,7 +3329,7 @@
         ? `${pivoted.rowCount.toLocaleString('de-DE')} Zeilen \u00B7 Spalten gek\u00FCrzt auf Top ${PIVOT_MAX_COL_VALUES} (von ${pivoted.totalColValues}) \u00B7 ${elapsed}s`
         : `${pivoted.rowCount.toLocaleString('de-DE')} Zeilen \u00B7 ${elapsed}s`;
       setPivotStatus(note, pivoted.truncated ? 'warning' : null);
-      if (pivotSummary) pivotSummary.textContent = `${pivoted.rowCount.toLocaleString('de-DE')} Ergebnis-Zeilen`;
+      if (pivotSummary) pivotSummary.textContent = `${formatNumber(pivoted.rowCount)} ${t('resultRows')}`;
     } catch (e) {
       console.error('pivot failed', e);
       setPivotStatus('Fehler: ' + (e && e.message || String(e)), 'error');
@@ -3724,6 +3930,14 @@
   // -------------------------------------------------------------------------
   // File pick / drop handlers
   // -------------------------------------------------------------------------
+  // parts of this screen are drawn by JS and need a redraw when the language changes
+  qrx.i18n.onChange(() => {
+    try {
+      renderFileList();
+      if (state.columns.length) { renderMetaCards(); renderColumns(); }
+    } catch (_) { /* nothing loaded yet */ }
+  });
+
   pickBtn.addEventListener('click', () => fileInput.click());
   addFilesBtn.addEventListener('click', () => fileInput.click());
   // DuckDB server. The connect button sits inside the clickable drop zone, so

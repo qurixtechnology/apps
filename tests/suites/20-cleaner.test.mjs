@@ -16,6 +16,17 @@ let browser;
 before(async () => { rmSync(DL, { recursive: true, force: true }); browser = await launch(); });
 after(async () => { await browser?.close(); });
 
+// Assertions below read visible text, so the language must be explicit — it is
+// stored per browser profile and the suites share one.
+async function openCleaner(opts) {
+  const page = await openApp(browser, 'parquet-cleaner.html', opts);
+  await page.evaluate(() => {
+    window.qrx.core.storage.remove('qrx_lang');
+    window.qrx.i18n.setLang('en');            // this app's default
+  });
+  return page;
+}
+
 async function load(page, file) {
   await page.waitForSelector('#filePicker', { timeout: 30_000 });
   await (await page.$('#filePicker')).uploadFile(join(FIX, file));
@@ -39,7 +50,7 @@ async function scanAndApply(page) {
 
 describe('cleaner', () => {
   test('loads a Parquet file and previews it', async () => {
-    const page = await openApp(browser, 'parquet-cleaner.html');
+    const page = await openCleaner();
     try {
       await load(page, 'tiny.parquet');
       assert.match(await text(page, '.qrx-fileinfo-meta'), /Parquet · .* · 5 cols · 6 rows/);
@@ -51,7 +62,7 @@ describe('cleaner', () => {
   });
 
   test('dedup removes the duplicate row', async () => {
-    const page = await openApp(browser, 'parquet-cleaner.html', { query: 'qrxtest' });
+    const page = await openCleaner({ query: 'qrxtest' });
     try {
       await load(page, 'tiny.parquet');
       // drive it exactly like a user: pick the rule, add it, look at "Cleaned"
@@ -66,7 +77,7 @@ describe('cleaner', () => {
   });
 
   test('scan finds PII in the fixture and apply creates rules', async () => {
-    const page = await openApp(browser, 'parquet-cleaner.html');
+    const page = await openCleaner();
     try {
       await load(page, 'pii.parquet');
       const { summary, clicked } = await scanAndApply(page);
@@ -83,7 +94,7 @@ describe('cleaner', () => {
   });
 
   test('anonymised export: values replaced, structure and statistics kept', async () => {
-    const page = await openApp(browser, 'parquet-cleaner.html', { downloadPath: DL });
+    const page = await openCleaner({ downloadPath: DL });
     try {
       await load(page, 'pii.parquet');
       await scanAndApply(page);
@@ -120,7 +131,7 @@ describe('cleaner', () => {
   });
 
   test('numeric anonymisation keeps sign and magnitude (level 2)', async () => {
-    const page = await openApp(browser, 'parquet-cleaner.html', { query: 'qrxtest' });
+    const page = await openCleaner({ query: 'qrxtest' });
     try {
       await load(page, 'pii.parquet');
       // level 2 = numeric pseudonymisation on top of the PII rules

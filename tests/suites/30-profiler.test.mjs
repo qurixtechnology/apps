@@ -11,6 +11,17 @@ let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
 
+// The language is stored per browser profile and the suites share one, so a
+// test that asserts on visible text has to state which language it expects.
+async function openProfiler(opts) {
+  const page = await openApp(browser, 'parquet-profiler.html', opts);
+  await page.evaluate(() => {
+    window.qrx.core.storage.remove('qrx_lang');
+    window.qrx.i18n.setLang('de');            // this app's default
+  });
+  return page;
+}
+
 async function loadFiles(page, ...files) {
   await page.waitForSelector('#pp-fileInput', { timeout: 30_000 });
   await settle(page, 'profile', async () => {
@@ -23,7 +34,7 @@ const cards = (page) => page.$$eval('.pp-meta-card', els =>
 
 describe('profiler', () => {
   test('profiles a Parquet file from its footer', async () => {
-    const page = await openApp(browser, 'parquet-profiler.html');
+    const page = await openProfiler();
     try {
       await loadFiles(page, 'tiny.parquet');
       const c = await cards(page);
@@ -38,7 +49,7 @@ describe('profiler', () => {
   });
 
   test('lists every column with its type', async () => {
-    const page = await openApp(browser, 'parquet-profiler.html', { query: 'qrxtest' });
+    const page = await openProfiler({ query: 'qrxtest' });
     try {
       await loadFiles(page, 'tiny.parquet');
       const cols = await page.evaluate(() => window.__qrx.profiler.state.columns.map(c => [c.name, c.category]));
@@ -53,7 +64,7 @@ describe('profiler', () => {
   });
 
   test('handles several files and switches the active one', async () => {
-    const page = await openApp(browser, 'parquet-profiler.html', { query: 'qrxtest' });
+    const page = await openProfiler({ query: 'qrxtest' });
     try {
       await loadFiles(page, 'tiny.parquet', 'pii.parquet');
       const files = await page.evaluate(() => window.__qrx.profiler.state.files.map(f => [f.name, f.alias]));
@@ -81,7 +92,7 @@ describe('profiler', () => {
   });
 
   test('SQL editor queries the active file through the data view', async () => {
-    const page = await openApp(browser, 'parquet-profiler.html');
+    const page = await openProfiler();
     try {
       await loadFiles(page, 'tiny.parquet');
       await page.evaluate(() => document.querySelector('[data-tab="sql"]').click());
@@ -103,7 +114,7 @@ describe('profiler', () => {
   });
 
   test('a self-join works (would break on a streaming source)', async () => {
-    const page = await openApp(browser, 'parquet-profiler.html');
+    const page = await openProfiler();
     try {
       await loadFiles(page, 'tiny.parquet');
       await page.evaluate(() => document.querySelector('[data-tab="sql"]').click());
@@ -122,7 +133,7 @@ describe('profiler', () => {
 
   // Regression: the connect button sits inside the clickable drop zone.
   test('“Connect with DuckDB” does not open the file dialog', async () => {
-    const page = await openApp(browser, 'parquet-profiler.html');
+    const page = await openProfiler();
     try {
       await page.waitForSelector('#pp-srvConnectBtn', { timeout: 30_000 });
       await page.evaluate(() => {

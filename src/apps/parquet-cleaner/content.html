@@ -7,37 +7,37 @@
 
     <!-- Drop zone (initial state) -->
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
-         aria-label="Drop a Parquet file here or click to pick one">
-      <p class="dz-title">Drop a Parquet file here, or click to pick one</p>
-      <p class="dz-sub">Parquet (.parquet / .pq) · everything runs locally in your browser — no upload</p>
+         data-qrx-i18n-aria-label="app.dropAParquetFile" aria-label="Drop a Parquet file here or click to pick one">
+      <p class="dz-title" data-qrx-i18n="app.dropAParquetFile2">Drop a Parquet file here, or click to pick one</p>
+      <p class="dz-sub" data-qrx-i18n="app.parquetParquetPqEverything">Parquet (.parquet / .pq) · everything runs locally in your browser — no upload</p>
       <input type="file" id="filePicker" hidden accept=".parquet,.pq">
       <div class="qds-dz-actions">
-        <button class="qrx-btn" id="srvConnectBtn" type="button">Connect with DuckDB</button>
+        <button class="qrx-btn" id="srvConnectBtn" type="button" data-qrx-i18n="app.connectWithDuckdb">Connect with DuckDB</button>
       </div>
     </div>
 
     <!-- DuckDB server: export the cleaned result back to a table -->
     <div id="srvExpModal" class="qds-modal" hidden>
       <div class="qds-card">
-        <h3 class="qds-title">Export to DuckDB</h3>
-        <p class="qds-hint">Writes the cleaned result — all applied rules included — to a table on the DuckDB server.</p>
+        <h3 class="qds-title" data-qrx-i18n="app.exportToDuckdb2">Export to DuckDB</h3>
+        <p class="qds-hint" data-qrx-i18n="app.writesTheCleanedResult">Writes the cleaned result — all applied rules included — to a table on the DuckDB server.</p>
         <div id="srvExpConn"></div>
         <div class="qrx-form-group">
-          <label class="qrx-label" for="srvExpTable">Target table</label>
+          <label class="qrx-label" for="srvExpTable" data-qrx-i18n="app.targetTable">Target table</label>
           <input class="qrx-input" id="srvExpTable" spellcheck="false" placeholder="cleaned_table">
         </div>
         <div class="qrx-form-group">
-          <label class="qrx-label" for="srvExpMode">If the table exists</label>
+          <label class="qrx-label" for="srvExpMode" data-qrx-i18n="app.ifTheTableExists">If the table exists</label>
           <select class="qrx-select" id="srvExpMode">
-            <option value="replace">Replace</option>
-            <option value="create">Create new (fail if it exists)</option>
-            <option value="append">Append</option>
+            <option value="replace" data-qrx-i18n="app.replace">Replace</option>
+            <option value="create" data-qrx-i18n="app.createNewFailIf">Create new (fail if it exists)</option>
+            <option value="append" data-qrx-i18n="app.append">Append</option>
           </select>
         </div>
         <p class="qds-status" id="srvExpStatus"></p>
         <div class="qds-actions">
-          <button class="qrx-btn" id="srvExpCancelBtn" type="button">Cancel</button>
-          <button class="qrx-btn qrx-btn-primary" id="srvExpGoBtn" type="button">Export</button>
+          <button class="qrx-btn" id="srvExpCancelBtn" type="button" data-qrx-i18n="app.cancel">Cancel</button>
+          <button class="qrx-btn qrx-btn-primary" id="srvExpGoBtn" type="button" data-qrx-i18n="app.export2">Export</button>
         </div>
       </div>
     </div>
@@ -59,36 +59,36 @@
 
       <!-- Summary KPIs -->
       <div class="qrx-card pc-summary" id="summaryCard">
-        <div class="pc-kpi"><div class="pc-kpi-label">Rows</div><div class="pc-kpi-value" id="sumRows">—</div></div>
-        <div class="pc-kpi"><div class="pc-kpi-label">Columns</div><div class="pc-kpi-value" id="sumCols">—</div></div>
-        <div class="pc-kpi"><div class="pc-kpi-label">Duplicates removed</div><div class="pc-kpi-value" id="sumDupes">—</div></div>
-        <div class="pc-kpi"><div class="pc-kpi-label">Conversion failures</div><div class="pc-kpi-value" id="sumFails">—</div></div>
-        <div class="pc-kpi"><div class="pc-kpi-label">Anonymized cols</div><div class="pc-kpi-value" id="sumAnon">—</div></div>
-        <div class="pc-kpi"><div class="pc-kpi-label">PII columns</div><div class="pc-kpi-value" id="sumPii">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label" data-qrx-i18n="app.rows">Rows</div><div class="pc-kpi-value" id="sumRows">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label" data-qrx-i18n="app.columns">Columns</div><div class="pc-kpi-value" id="sumCols">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label" data-qrx-i18n="app.duplicatesRemoved">Duplicates removed</div><div class="pc-kpi-value" id="sumDupes">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label" data-qrx-i18n="app.conversionFailures">Conversion failures</div><div class="pc-kpi-value" id="sumFails">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label" data-qrx-i18n="app.anonymizedCols">Anonymized cols</div><div class="pc-kpi-value" id="sumAnon">—</div></div>
+        <div class="pc-kpi"><div class="pc-kpi-label" data-qrx-i18n="app.piiColumns">PII columns</div><div class="pc-kpi-value" id="sumPii">—</div></div>
       </div>
 
       <!-- Combined cleaning + PII review -->
       <details class="qrx-card pc-analyze pc-review" id="reviewCard">
         <summary>
-          <span class="pc-analyze-title">Clean &amp; anonymize</span>
-          <span class="pc-analyze-hint">scan for quality issues and PII, then review &amp; apply suggested rules per attribute</span>
+          <span class="pc-analyze-title" data-qrx-i18n="app.cleanAmpAnonymize">Clean &amp; anonymize</span>
+          <span class="pc-analyze-hint" data-qrx-i18n="app.scanForQualityIssues">scan for quality issues and PII, then review &amp; apply suggested rules per attribute</span>
           <svg class="pc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>
         </summary>
         <div class="pc-analyze-body">
           <div class="pc-add">
-            <button class="qrx-btn qrx-btn-primary" id="reviewScanBtn" type="button">Scan data</button>
-            <span class="pc-pii-srclabel muted">Protection level</span>
-            <span class="pc-toggle pc-level" role="group" aria-label="Protection level">
-              <button class="qrx-btn qrx-btn-sm is-active" data-level="1" type="button">1 · PII</button>
-              <button class="qrx-btn qrx-btn-sm" data-level="2" type="button">2 · + numbers</button>
-              <button class="qrx-btn qrx-btn-sm" data-level="3" type="button">3 · full</button>
+            <button class="qrx-btn qrx-btn-primary" id="reviewScanBtn" type="button" data-qrx-i18n="app.scanData">Scan data</button>
+            <span class="pc-pii-srclabel muted" data-qrx-i18n="app.protectionLevel2">Protection level</span>
+            <span class="pc-toggle pc-level" role="group" data-qrx-i18n-aria-label="app.protectionLevel" aria-label="Protection level">
+              <button class="qrx-btn qrx-btn-sm is-active" data-level="1" type="button" data-qrx-i18n="app.1Pii">1 · PII</button>
+              <button class="qrx-btn qrx-btn-sm" data-level="2" type="button" data-qrx-i18n="app.2Numbers">2 · + numbers</button>
+              <button class="qrx-btn qrx-btn-sm" data-level="3" type="button" data-qrx-i18n="app.3Full">3 · full</button>
             </span>
-            <span class="pc-pii-srclabel muted">PII source</span>
-            <span class="pc-toggle pc-pii-source" role="group" aria-label="PII scan source">
-              <button class="qrx-btn qrx-btn-sm" data-pii-src="original" type="button">Original</button>
-              <button class="qrx-btn qrx-btn-sm is-active" data-pii-src="cleaned" type="button">Cleaned</button>
+            <span class="pc-pii-srclabel muted" data-qrx-i18n="app.piiSource">PII source</span>
+            <span class="pc-toggle pc-pii-source" role="group" data-qrx-i18n-aria-label="app.piiScanSource" aria-label="PII scan source">
+              <button class="qrx-btn qrx-btn-sm" data-pii-src="original" type="button" data-qrx-i18n="app.original2">Original</button>
+              <button class="qrx-btn qrx-btn-sm is-active" data-pii-src="cleaned" type="button" data-qrx-i18n="app.cleaned2">Cleaned</button>
             </span>
-            <button class="qrx-btn" id="reviewApplyAllBtn" type="button" hidden>Apply all suggestions</button>
+            <button class="qrx-btn" id="reviewApplyAllBtn" type="button" hidden data-qrx-i18n="app.applyAllSuggestions">Apply all suggestions</button>
             <span class="muted" id="reviewSummary"></span>
           </div>
           <div class="pc-level-desc muted" id="reviewLevelDesc"></div>
@@ -99,14 +99,14 @@
       <!-- Column structure / pattern analysis (assistance) -->
       <details class="qrx-card pc-analyze" id="analyzeCard">
         <summary>
-          <span class="pc-analyze-title">Column structure — pattern analysis</span>
-          <span class="pc-analyze-hint">A = uppercase · a = lowercase · 9 = digit · other chars kept</span>
+          <span class="pc-analyze-title" data-qrx-i18n="app.columnStructurePatternAnalysis">Column structure — pattern analysis</span>
+          <span class="pc-analyze-hint" data-qrx-i18n="app.aUppercaseALowercase">A = uppercase · a = lowercase · 9 = digit · other chars kept</span>
           <svg class="pc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>
         </summary>
         <div class="pc-analyze-body">
           <div class="pc-add">
-            <select class="qrx-select" id="analyzeCol" aria-label="Column to analyze"></select>
-            <button class="qrx-btn qrx-btn-primary" id="analyzeBtn" type="button">Analyze patterns</button>
+            <select class="qrx-select" id="analyzeCol" data-qrx-i18n-aria-label="app.columnToAnalyze" aria-label="Column to analyze"></select>
+            <button class="qrx-btn qrx-btn-primary" id="analyzeBtn" type="button" data-qrx-i18n="app.analyzePatterns">Analyze patterns</button>
           </div>
           <div id="analyzeResults"></div>
         </div>
@@ -114,12 +114,12 @@
 
       <!-- Layout switcher -->
       <div class="pc-layoutbar">
-        <span class="pc-layoutbar-label">Layout</span>
-        <div class="pc-toggle" role="group" aria-label="Layout">
-          <button class="qrx-btn qrx-btn-sm is-active" data-layout="default" type="button">Default</button>
+        <span class="pc-layoutbar-label" data-qrx-i18n="app.layout2">Layout</span>
+        <div class="pc-toggle" role="group" data-qrx-i18n-aria-label="app.layout" aria-label="Layout">
+          <button class="qrx-btn qrx-btn-sm is-active" data-layout="default" type="button" data-qrx-i18n="app.default">Default</button>
           <button class="qrx-btn qrx-btn-sm" data-layout="split" type="button">50 / 50</button>
-          <button class="qrx-btn qrx-btn-sm" data-layout="pipeline" type="button" title="Pipeline full width">Pipeline ⤢</button>
-          <button class="qrx-btn qrx-btn-sm" data-layout="preview" type="button" title="Preview full width">Preview ⤢</button>
+          <button class="qrx-btn qrx-btn-sm" data-layout="pipeline" type="button" data-qrx-i18n-title="app.pipelineFullWidth" title="Pipeline full width" data-qrx-i18n="app.pipeline">Pipeline ⤢</button>
+          <button class="qrx-btn qrx-btn-sm" data-layout="preview" type="button" data-qrx-i18n-title="app.previewFullWidth" title="Preview full width" data-qrx-i18n="app.preview">Preview ⤢</button>
         </div>
       </div>
 
@@ -128,67 +128,67 @@
         <!-- Pipeline panel -->
         <div class="qrx-card pc-pipeline">
           <h3 class="section-title">
-            Cleaning pipeline
+            <span data-qrx-i18n="app.cleaningPipeline">Cleaning pipeline</span>
             <span class="section-title-right">
-              <button class="qrx-btn qrx-btn-sm" id="expandAllBtn" type="button" title="Expand all steps">Expand all</button>
-              <button class="qrx-btn qrx-btn-sm" id="collapseAllBtn" type="button" title="Collapse all steps">Collapse all</button>
-              <span class="muted" id="pipelineCount">0 steps</span>
+              <button class="qrx-btn qrx-btn-sm" id="expandAllBtn" type="button" data-qrx-i18n-title="app.expandAllSteps" title="Expand all steps" data-qrx-i18n="app.expandAll">Expand all</button>
+              <button class="qrx-btn qrx-btn-sm" id="collapseAllBtn" type="button" data-qrx-i18n-title="app.collapseAllSteps" title="Collapse all steps" data-qrx-i18n="app.collapseAll">Collapse all</button>
+              <span class="muted" id="pipelineCount" data-qrx-i18n="app.0Steps">0 steps</span>
             </span>
           </h3>
 
           <div class="pc-add">
-            <select class="qrx-select" id="addStepSelect" aria-label="Choose a cleaning step">
+            <select class="qrx-select" id="addStepSelect" data-qrx-i18n-aria-label="app.chooseACleaningStep" aria-label="Choose a cleaning step">
               <optgroup label="Row-based">
-                <option value="dedupExact">Remove exact duplicates</option>
-                <option value="dedupKeys">Remove duplicates by key columns</option>
-                <option value="dropNulls">Drop rows with null / empty values</option>
-                <option value="filter">Filter rows (SQL WHERE)</option>
+                <option value="dedupExact" data-qrx-i18n="app.removeExactDuplicates">Remove exact duplicates</option>
+                <option value="dedupKeys" data-qrx-i18n="app.removeDuplicatesByKey">Remove duplicates by key columns</option>
+                <option value="dropNulls" data-qrx-i18n="app.dropRowsWithNull">Drop rows with null / empty values</option>
+                <option value="filter" data-qrx-i18n="app.filterRowsSqlWhere">Filter rows (SQL WHERE)</option>
               </optgroup>
               <optgroup label="Column-based">
-                <option value="cast">Convert type</option>
-                <option value="parseNumber">Parse number (locale → numeric)</option>
-                <option value="parseDate">Parse date (formats + generalize)</option>
-                <option value="regexReplace">Regex replace (search &amp; replace)</option>
-                <option value="regexExtract">Regex extract</option>
-                <option value="trim">Trim &amp; collapse whitespace</option>
-                <option value="case">Change case (UPPER / lower)</option>
-                <option value="emptyToNull">Empty → NULL</option>
-                <option value="rename">Rename column</option>
-                <option value="drop">Drop column</option>
+                <option value="cast" data-qrx-i18n="app.convertType">Convert type</option>
+                <option value="parseNumber" data-qrx-i18n="app.parseNumberLocaleNumeric">Parse number (locale → numeric)</option>
+                <option value="parseDate" data-qrx-i18n="app.parseDateFormatsGeneralize">Parse date (formats + generalize)</option>
+                <option value="regexReplace" data-qrx-i18n="app.regexReplaceSearchAmp">Regex replace (search &amp; replace)</option>
+                <option value="regexExtract" data-qrx-i18n="app.regexExtract">Regex extract</option>
+                <option value="trim" data-qrx-i18n="app.trimAmpCollapseWhitespace">Trim &amp; collapse whitespace</option>
+                <option value="case" data-qrx-i18n="app.changeCaseUpperLower">Change case (UPPER / lower)</option>
+                <option value="emptyToNull" data-qrx-i18n="app.emptyNull">Empty → NULL</option>
+                <option value="rename" data-qrx-i18n="app.renameColumn">Rename column</option>
+                <option value="drop" data-qrx-i18n="app.dropColumn">Drop column</option>
               </optgroup>
               <optgroup label="Anonymization">
-                <option value="synth">Replace with synthetic data (Faker / consistent)</option>
-                <option value="hash">Hash / pseudonymize (salted)</option>
-                <option value="shuffle">Shuffle / bootstrap</option>
-                <option value="numRound">Round / bucket (number)</option>
-                <option value="numNoise">Add noise (number)</option>
-                <option value="numRandom">Randomize number (in range)</option>
-                <option value="coarsen">Coarsen amounts (sum-preserving)</option>
-                <option value="recalcSaldo">Recompute running balance</option>
+                <option value="synth" data-qrx-i18n="app.replaceWithSyntheticData">Replace with synthetic data (Faker / consistent)</option>
+                <option value="hash" data-qrx-i18n="app.hashPseudonymizeSalted">Hash / pseudonymize (salted)</option>
+                <option value="shuffle" data-qrx-i18n="app.shuffleBootstrap">Shuffle / bootstrap</option>
+                <option value="numRound" data-qrx-i18n="app.roundBucketNumber">Round / bucket (number)</option>
+                <option value="numNoise" data-qrx-i18n="app.addNoiseNumber">Add noise (number)</option>
+                <option value="numRandom" data-qrx-i18n="app.randomizeNumberInRange">Randomize number (in range)</option>
+                <option value="coarsen" data-qrx-i18n="app.coarsenAmountsSumPreserving">Coarsen amounts (sum-preserving)</option>
+                <option value="recalcSaldo" data-qrx-i18n="app.recomputeRunningBalance">Recompute running balance</option>
               </optgroup>
             </select>
-            <button class="qrx-btn qrx-btn-primary" id="addStepBtn" type="button">Add step</button>
+            <button class="qrx-btn qrx-btn-primary" id="addStepBtn" type="button" data-qrx-i18n="app.addStep">Add step</button>
           </div>
 
           <div class="pc-salt">
-            <label class="qrx-label" for="saltInput">Salt for pseudonymization</label>
+            <label class="qrx-label" for="saltInput" data-qrx-i18n="app.saltForPseudonymization">Salt for pseudonymization</label>
             <input class="qrx-input" id="saltInput" type="text" spellcheck="false"
-                   placeholder="optional — same salt ⇒ same pseudonym across columns/runs">
+                   data-qrx-i18n-placeholder="app.optionalSameSaltSame" placeholder="optional — same salt ⇒ same pseudonym across columns/runs">
           </div>
 
           <div id="stepsList" class="pc-steps"></div>
-          <p class="pc-empty muted" id="stepsEmpty">No steps yet. Add one above to start cleaning — the preview updates live.</p>
+          <p class="pc-empty muted" id="stepsEmpty" data-qrx-i18n="app.noStepsYetAdd">No steps yet. Add one above to start cleaning — the preview updates live.</p>
         </div>
 
         <!-- Preview panel -->
         <div class="qrx-card pc-preview">
           <h3 class="section-title">
-            Preview
+            <span data-qrx-i18n="app.previewTitle">Preview</span>
             <span class="section-title-right">
-              <span class="pc-toggle" role="tablist" aria-label="Original or cleaned data">
-                <button class="qrx-btn qrx-btn-sm is-active" id="viewOriginalBtn" type="button" role="tab">Original</button>
-                <button class="qrx-btn qrx-btn-sm" id="viewCleanedBtn" type="button" role="tab">Cleaned</button>
-                <button class="qrx-btn qrx-btn-sm" id="viewCompareBtn" type="button" role="tab">Compare</button>
+              <span class="pc-toggle" role="tablist" data-qrx-i18n-aria-label="app.originalOrCleanedData" aria-label="Original or cleaned data">
+                <button class="qrx-btn qrx-btn-sm is-active" id="viewOriginalBtn" type="button" role="tab" data-qrx-i18n="app.original">Original</button>
+                <button class="qrx-btn qrx-btn-sm" id="viewCleanedBtn" type="button" role="tab" data-qrx-i18n="app.cleaned">Cleaned</button>
+                <button class="qrx-btn qrx-btn-sm" id="viewCompareBtn" type="button" role="tab" data-qrx-i18n="app.compare">Compare</button>
               </span>
             </span>
           </h3>
@@ -198,9 +198,9 @@
           </div>
           <p class="pc-preview-hint" id="previewHint"></p>
           <div class="sql-pager" id="pager" hidden>
-            <button class="qrx-btn" id="prevBtn" type="button">‹ Prev</button>
+            <button class="qrx-btn" id="prevBtn" type="button" data-qrx-i18n="app.prev">‹ Prev</button>
             <span class="sql-page-info" id="pageInfo"></span>
-            <button class="qrx-btn" id="nextBtn" type="button">Next ›</button>
+            <button class="qrx-btn" id="nextBtn" type="button" data-qrx-i18n="app.next">Next ›</button>
           </div>
         </div>
 
@@ -208,10 +208,10 @@
 
       <!-- Export -->
       <div class="qrx-card">
-        <h3 class="section-title">Export</h3>
+        <h3 class="section-title" data-qrx-i18n="app.export">Export</h3>
         <div class="pc-export">
-          <button class="qrx-btn qrx-btn-primary" id="exportBtn" type="button">Export cleaned Parquet</button>
-          <button class="qrx-btn" id="exportSrvBtn" type="button">Export to DuckDB…</button>
+          <button class="qrx-btn qrx-btn-primary" id="exportBtn" type="button" data-qrx-i18n="app.exportCleanedParquet">Export cleaned Parquet</button>
+          <button class="qrx-btn" id="exportSrvBtn" type="button" data-qrx-i18n="app.exportToDuckdb">Export to DuckDB…</button>
           <span class="sql-status" id="exportStatus"></span>
         </div>
       </div>

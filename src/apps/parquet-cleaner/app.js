@@ -120,6 +120,257 @@
     return Number(r.toArray()[0].c);
   }
 
+  // ---------------------------------------------------------------- i18n
+  // Registering an "app" namespace is what makes the language switch appear in
+  // the shell — it only offers one once the app itself can be translated.
+  qrx.i18n.register('app', {
+    en: {
+      step: 'step',
+      steps: 'steps',
+      colsUnit: 'cols',
+      rowsUnit: 'rows',
+      cleaningPipeline: 'Cleaning pipeline',
+      previewTitle: 'Preview',
+      comparedRows: 'Compared rows',
+      cleanedRows: 'Cleaned rows',
+      lbl_cast: 'Convert type',
+      lbl_trim: 'Trim & collapse whitespace',
+      lbl_case: 'Change case',
+      lbl_regexReplace: 'Regex replace',
+      lbl_regexExtract: 'Regex extract',
+      lbl_parseNumber: 'Parse number',
+      lbl_emptyToNull: 'Empty → NULL',
+      lbl_hash: 'Hash / pseudonymize',
+      lbl_synth: 'Replace with synthetic data',
+      lbl_shuffle: 'Shuffle / bootstrap',
+      lbl_numRound: 'Round / bucket (number)',
+      lbl_numNoise: 'Add noise (number)',
+      lbl_numRandom: 'Randomize (in range)',
+      lbl_parseDate: 'Parse date',
+      lbl_coarsen: 'Coarsen amounts (sum-preserving)',
+      lbl_recalcSaldo: 'Recompute running balance',
+      lbl_rename: 'Rename column',
+      lbl_drop: 'Drop column',
+      lbl_dedupExact: 'Remove exact duplicates',
+      lbl_dedupKeys: 'Remove duplicates by keys',
+      lbl_dropNulls: 'Drop null / empty rows',
+      lbl_filter: 'Filter rows (WHERE)',
+      lbl_direct: 'Direct identifier',
+      lbl_quasi: 'Quasi-identifier',
+      lbl_sensitive: 'Sensitive (special category)',
+      'lbl_1': '1 · Pseudonymize PII',
+      'lbl_2': '2 · + numeric',
+      'lbl_3': '3 · Full anonymization',
+      originalOrCleanedData: 'Original or cleaned data',
+      optionalSameSaltSame: 'optional — same salt ⇒ same pseudonym across columns/runs',
+      chooseACleaningStep: 'Choose a cleaning step',
+      collapseAllSteps: 'Collapse all steps',
+      expandAllSteps: 'Expand all steps',
+      previewFullWidth: 'Preview full width',
+      pipelineFullWidth: 'Pipeline full width',
+      layout: 'Layout',
+      columnToAnalyze: 'Column to analyze',
+      piiScanSource: 'PII scan source',
+      protectionLevel: 'Protection level',
+      dropAParquetFile: 'Drop a Parquet file here or click to pick one',
+      exportToDuckdb: 'Export to DuckDB…',
+      exportCleanedParquet: 'Export cleaned Parquet',
+      export: 'Export',
+      next: 'Next ›',
+      prev: '‹ Prev',
+      compare: 'Compare',
+      cleaned: 'Cleaned',
+      original: 'Original',
+      noStepsYetAdd: 'No steps yet. Add one above to start cleaning — the preview updates live.',
+      saltForPseudonymization: 'Salt for pseudonymization',
+      addStep: 'Add step',
+      recomputeRunningBalance: 'Recompute running balance',
+      coarsenAmountsSumPreserving: 'Coarsen amounts (sum-preserving)',
+      randomizeNumberInRange: 'Randomize number (in range)',
+      addNoiseNumber: 'Add noise (number)',
+      roundBucketNumber: 'Round / bucket (number)',
+      shuffleBootstrap: 'Shuffle / bootstrap',
+      hashPseudonymizeSalted: 'Hash / pseudonymize (salted)',
+      replaceWithSyntheticData: 'Replace with synthetic data (Faker / consistent)',
+      dropColumn: 'Drop column',
+      renameColumn: 'Rename column',
+      emptyNull: 'Empty → NULL',
+      changeCaseUpperLower: 'Change case (UPPER / lower)',
+      trimAmpCollapseWhitespace: 'Trim & collapse whitespace',
+      regexExtract: 'Regex extract',
+      regexReplaceSearchAmp: 'Regex replace (search & replace)',
+      parseDateFormatsGeneralize: 'Parse date (formats + generalize)',
+      parseNumberLocaleNumeric: 'Parse number (locale → numeric)',
+      convertType: 'Convert type',
+      filterRowsSqlWhere: 'Filter rows (SQL WHERE)',
+      dropRowsWithNull: 'Drop rows with null / empty values',
+      removeDuplicatesByKey: 'Remove duplicates by key columns',
+      removeExactDuplicates: 'Remove exact duplicates',
+      '0Steps': '0 steps',
+      collapseAll: 'Collapse all',
+      expandAll: 'Expand all',
+      preview: 'Preview ⤢',
+      pipeline: 'Pipeline ⤢',
+      default: 'Default',
+      layout2: 'Layout',
+      analyzePatterns: 'Analyze patterns',
+      aUppercaseALowercase: 'A = uppercase · a = lowercase · 9 = digit · other chars kept',
+      columnStructurePatternAnalysis: 'Column structure — pattern analysis',
+      applyAllSuggestions: 'Apply all suggestions',
+      cleaned2: 'Cleaned',
+      original2: 'Original',
+      piiSource: 'PII source',
+      '3Full': '3 · full',
+      '2Numbers': '2 · + numbers',
+      '1Pii': '1 · PII',
+      protectionLevel2: 'Protection level',
+      scanData: 'Scan data',
+      scanForQualityIssues: 'scan for quality issues and PII, then review & apply suggested rules per attribute',
+      cleanAmpAnonymize: 'Clean & anonymize',
+      piiColumns: 'PII columns',
+      anonymizedCols: 'Anonymized cols',
+      conversionFailures: 'Conversion failures',
+      duplicatesRemoved: 'Duplicates removed',
+      columns: 'Columns',
+      rows: 'Rows',
+      export2: 'Export',
+      cancel: 'Cancel',
+      append: 'Append',
+      createNewFailIf: 'Create new (fail if it exists)',
+      replace: 'Replace',
+      ifTheTableExists: 'If the table exists',
+      targetTable: 'Target table',
+      writesTheCleanedResult: 'Writes the cleaned result — all applied rules included — to a table on the DuckDB server.',
+      exportToDuckdb2: 'Export to DuckDB',
+      connectWithDuckdb: 'Connect with DuckDB',
+      parquetParquetPqEverything: 'Parquet (.parquet / .pq) · everything runs locally in your browser — no upload',
+      dropAParquetFile2: 'Drop a Parquet file here, or click to pick one',
+    },
+    de: {
+      step: 'Schritt',
+      steps: 'Schritte',
+      colsUnit: 'Spalten',
+      rowsUnit: 'Zeilen',
+      cleaningPipeline: 'Bereinigungs-Pipeline',
+      previewTitle: 'Vorschau',
+      comparedRows: 'Verglichene Zeilen',
+      cleanedRows: 'Bereinigte Zeilen',
+      lbl_cast: 'Typ konvertieren',
+      lbl_trim: 'Leerzeichen kürzen & zusammenfassen',
+      lbl_case: 'Groß-/Kleinschreibung ändern',
+      lbl_regexReplace: 'Regex ersetzen',
+      lbl_regexExtract: 'Regex-Extraktion',
+      lbl_parseNumber: 'Zahl parsen',
+      lbl_emptyToNull: 'Leer → NULL',
+      lbl_hash: 'Hashen / pseudonymisieren',
+      lbl_synth: 'Durch synthetische Daten ersetzen',
+      lbl_shuffle: 'Mischen / Bootstrap',
+      lbl_numRound: 'Runden / gruppieren (Zahl)',
+      lbl_numNoise: 'Rauschen hinzufügen (Zahl)',
+      lbl_numRandom: 'Zufällig ersetzen (im Wertebereich)',
+      lbl_parseDate: 'Datum parsen',
+      lbl_coarsen: 'Beträge vergröbern (summenerhaltend)',
+      lbl_recalcSaldo: 'Laufenden Saldo neu berechnen',
+      lbl_rename: 'Spalte umbenennen',
+      lbl_drop: 'Spalte entfernen',
+      lbl_dedupExact: 'Exakte Duplikate entfernen',
+      lbl_dedupKeys: 'Duplikate über Schlüsselspalten entfernen',
+      lbl_dropNulls: 'Zeilen mit leeren Werten entfernen',
+      lbl_filter: 'Zeilen filtern (WHERE)',
+      lbl_direct: 'Direkter Identifikator',
+      lbl_quasi: 'Quasi-Identifikator',
+      lbl_sensitive: 'Sensibel (besondere Kategorie)',
+      'lbl_1': '1 · PII pseudonymisieren',
+      'lbl_2': '2 · + numerisch',
+      'lbl_3': '3 · Vollständige Anonymisierung',
+      originalOrCleanedData: 'Originale oder bereinigte Daten',
+      optionalSameSaltSame: 'optional — gleiches Salt ⇒ gleiches Pseudonym über Spalten und Läufe hinweg',
+      chooseACleaningStep: 'Bereinigungsschritt wählen',
+      collapseAllSteps: 'Alle Schritte einklappen',
+      expandAllSteps: 'Alle Schritte ausklappen',
+      previewFullWidth: 'Vorschau über volle Breite',
+      pipelineFullWidth: 'Pipeline über volle Breite',
+      layout: 'Layout',
+      columnToAnalyze: 'Zu analysierende Spalte',
+      piiScanSource: 'Quelle für die PII-Suche',
+      protectionLevel: 'Schutzstufe',
+      dropAParquetFile: 'Parquet-Datei hier ablegen oder klicken, um eine auszuwählen',
+      exportToDuckdb: 'Nach DuckDB exportieren …',
+      exportCleanedParquet: 'Bereinigtes Parquet exportieren',
+      export: 'Export',
+      next: 'Weiter ›',
+      prev: '‹ Zurück',
+      compare: 'Vergleich',
+      cleaned: 'Bereinigt',
+      original: 'Original',
+      noStepsYetAdd: 'Noch keine Schritte. Oben einen hinzufügen, um mit dem Bereinigen zu beginnen — die Vorschau aktualisiert sich live.',
+      saltForPseudonymization: 'Salt für die Pseudonymisierung',
+      addStep: 'Schritt hinzufügen',
+      recomputeRunningBalance: 'Laufenden Saldo neu berechnen',
+      coarsenAmountsSumPreserving: 'Beträge vergröbern (summenerhaltend)',
+      randomizeNumberInRange: 'Zahl zufällig ersetzen (im Wertebereich)',
+      addNoiseNumber: 'Rauschen hinzufügen (Zahl)',
+      roundBucketNumber: 'Runden / gruppieren (Zahl)',
+      shuffleBootstrap: 'Mischen / Bootstrap',
+      hashPseudonymizeSalted: 'Hashen / pseudonymisieren (mit Salt)',
+      replaceWithSyntheticData: 'Durch synthetische Daten ersetzen (Faker / konsistent)',
+      dropColumn: 'Spalte entfernen',
+      renameColumn: 'Spalte umbenennen',
+      emptyNull: 'Leer → NULL',
+      changeCaseUpperLower: 'Groß-/Kleinschreibung ändern (GROSS / klein)',
+      trimAmpCollapseWhitespace: 'Leerzeichen kürzen & zusammenfassen',
+      regexExtract: 'Regex-Extraktion',
+      regexReplaceSearchAmp: 'Regex ersetzen (Suchen & Ersetzen)',
+      parseDateFormatsGeneralize: 'Datum parsen (Formate + generalisieren)',
+      parseNumberLocaleNumeric: 'Zahl parsen (Gebietsschema → numerisch)',
+      convertType: 'Typ konvertieren',
+      filterRowsSqlWhere: 'Zeilen filtern (SQL WHERE)',
+      dropRowsWithNull: 'Zeilen mit leeren Werten entfernen',
+      removeDuplicatesByKey: 'Duplikate über Schlüsselspalten entfernen',
+      '0Steps': '0 Schritte',
+      collapseAll: 'Alle einklappen',
+      expandAll: 'Alle ausklappen',
+      preview: 'Vorschau ⤢',
+      pipeline: 'Pipeline ⤢',
+      default: 'Standard',
+      layout2: 'Layout',
+      analyzePatterns: 'Muster analysieren',
+      aUppercaseALowercase: 'A = Großbuchstabe · a = Kleinbuchstabe · 9 = Ziffer · andere Zeichen bleiben',
+      columnStructurePatternAnalysis: 'Spaltenstruktur — Musteranalyse',
+      applyAllSuggestions: 'Alle Vorschläge anwenden',
+      cleaned2: 'Bereinigt',
+      original2: 'Original',
+      piiSource: 'PII-Quelle',
+      '3Full': '3 · vollständig',
+      '2Numbers': '2 · + Zahlen',
+      '1Pii': '1 · PII',
+      protectionLevel2: 'Schutzstufe',
+      scanData: 'Daten prüfen',
+      scanForQualityIssues: 'auf Qualitätsprobleme und PII prüfen, dann die vorgeschlagenen Regeln je Attribut sichten & anwenden',
+      cleanAmpAnonymize: 'Bereinigen & anonymisieren',
+      piiColumns: 'PII-Spalten',
+      anonymizedCols: 'Anonymisierte Spalten',
+      conversionFailures: 'Fehlgeschlagene Konvertierungen',
+      duplicatesRemoved: 'Entfernte Duplikate',
+      columns: 'Spalten',
+      rows: 'Zeilen',
+      export2: 'Exportieren',
+      cancel: 'Abbrechen',
+      append: 'Anhängen',
+      createNewFailIf: 'Neu anlegen (Fehler, falls vorhanden)',
+      replace: 'Ersetzen',
+      ifTheTableExists: 'Falls die Tabelle existiert',
+      targetTable: 'Zieltabelle',
+      writesTheCleanedResult: 'Schreibt das bereinigte Ergebnis — inklusive aller angewandten Regeln — in eine Tabelle auf dem DuckDB-Server.',
+      exportToDuckdb2: 'Nach DuckDB exportieren',
+      connectWithDuckdb: 'Mit DuckDB verbinden',
+      parquetParquetPqEverything: 'Parquet (.parquet / .pq) · läuft vollständig lokal im Browser — kein Upload',
+      dropAParquetFile2: 'Parquet-Datei hier ablegen oder klicken, um eine auszuwählen',
+      removeExactDuplicates: 'Exakte Duplikatzeilen entfernen',
+    },
+  });
+  const t = (k, p) => qrx.i18n.t('app.' + k, p);
+
   // ---- Step registry: kind -> { label, group, impact, complete, defaults, compile, title, cellExpr? } ----
   const TYPE_OPTIONS = ['VARCHAR', 'BIGINT', 'INTEGER', 'DOUBLE', 'DECIMAL(18,2)', 'BOOLEAN', 'DATE', 'TIMESTAMP', 'TIME'];
   function firstCol() { return state.schema.length ? state.schema[0].name : ''; }
@@ -913,7 +1164,7 @@
     </div>`;
   }
   function renderSteps() {
-    pipelineCount.textContent = state.pipeline.length + (state.pipeline.length === 1 ? ' step' : ' steps');
+    pipelineCount.textContent = state.pipeline.length + ' ' + (state.pipeline.length === 1 ? t('step') : t('steps'));
     stepsEmpty.hidden = state.pipeline.length > 0;
     stepsList.innerHTML = state.pipeline.map((s, i) => buildStepCard(s, i)).join('');
   }
@@ -1108,10 +1359,10 @@
     return escapeHtml(cellText(v, type));
   }
   function renderPreviewStats(total, cols) {
-    const rowLabel = state.view === 'compare' ? 'Compared rows' : (state.view === 'cleaned' ? 'Cleaned rows' : 'Rows');
+    const rowLabel = state.view === 'compare' ? t('comparedRows') : (state.view === 'cleaned' ? t('cleanedRows') : t('rows'));
     previewStats.innerHTML =
-      `<div class="preview-stat"><div class="preview-stat-label">${rowLabel}</div><div class="preview-stat-value">${fmtN(total)}</div></div>` +
-      `<div class="preview-stat"><div class="preview-stat-label">Columns</div><div class="preview-stat-value">${fmtN(cols)}</div></div>`;
+      `<div class="preview-stat"><div class="preview-stat-label">${escapeHtml(rowLabel)}</div><div class="preview-stat-value">${fmtN(total)}</div></div>` +
+      `<div class="preview-stat"><div class="preview-stat-label">${escapeHtml(t('columns'))}</div><div class="preview-stat-value">${fmtN(cols)}</div></div>`;
     if (previewHint) {
       if (state.view === 'compare') {
         const misaligned = state.rowCountCleaned !== state.rowCountOriginal;
@@ -1232,7 +1483,7 @@
     analyzeResults.innerHTML = '';
     fileIcon.textContent = icon;
     fileName.textContent = name;
-    fileMeta.textContent = `${metaPrefix} · ${fmtN(state.schema.length)} cols · ${fmtN(state.rowCountOriginal)} rows`;
+    fileMeta.textContent = `${metaPrefix} · ${fmtN(state.schema.length)} ${t('colsUnit')} · ${fmtN(state.rowCountOriginal)} ${t('rowsUnit')}`;
     state.loaded = true;
     dropzone.hidden = true; fileInfo.hidden = false; workspace.hidden = false;
     { const ch = $('pcConvertHint'); if (ch) ch.hidden = true; }
@@ -1846,6 +2097,25 @@
     addStep(sug.kind, sug.params, { _reviewAnon: col });
     renderReview();
   }
+
+  // Labels are looked up lazily so they follow the language: the tables below
+  // are built once, but qrx.i18n can change under them. Falls back to the
+  // English literal when a key has no entry.
+  function translatable(table, prefix) {
+    for (const [k, def] of Object.entries(table)) {
+      if (!def || typeof def !== 'object' || !('label' in def)) continue;
+      const fallback = def.label;
+      const key = 'app.' + prefix + k;
+      Object.defineProperty(def, 'label', {
+        enumerable: true,
+        get() { const v = qrx.i18n.t(key); return v === key ? fallback : v; },
+      });
+    }
+  }
+  translatable(STEP_DEFS, 'lbl_');
+  translatable(PII_LEVELS, 'lbl_');
+  translatable(LEVEL_INFO, 'lbl_');
+
   // ---- Combined cleaning + PII review table ----
   async function scanData() {
     if (!conn || !state.schema.length) return;
@@ -1944,6 +2214,8 @@
   prevBtn.addEventListener('click', () => { state.page--; renderPreview().catch(e => console.error(e)); });
   nextBtn.addEventListener('click', () => { state.page++; renderPreview().catch(e => console.error(e)); });
   exportBtn.addEventListener('click', exportCleaned);
+  // parts of the screen are drawn by JS and need a redraw when the language changes
+  qrx.i18n.onChange(() => { try { if (state.loaded) renderPreview(); renderSteps(); } catch (_) {} });
   // DuckDB server: the connect button sits inside the clickable dropzone, so it
   // must stop the click from also opening the file picker.
   if ($('srvConnectBtn')) {
