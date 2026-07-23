@@ -43,8 +43,13 @@ Three sections on purpose:
 
 - [ ] **secure-chat: guard the localStorage accesses**
       6 direct `localStorage.*` calls without try/catch (identity, contacts).
-      They throw in private windows. `qrx.core.storage` already handles this and
-      is loaded by the app.
+      Reading `window.localStorage` itself throws a `SecurityError` when the
+      browser is configured to block site data (Chrome/Edge/Firefox setting, or
+      enterprise policy) — not in a normal incognito window, where it works and
+      is merely cleared on close. The first call sits in `init()`, so the whole
+      start sequence aborts: verified with blocked storage, the app hangs with
+      "Lädt…" and never loads contacts or connects. `qrx.core.storage` already
+      handles this and is loaded by the app.
 
 - [ ] **Profiler: bound the memory use of DuckDB server tables**
       A remote table is copied into memory in full (`addRemoteTables`), because
