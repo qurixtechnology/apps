@@ -21,6 +21,24 @@ function fmtVersion(ms) {
        + `-${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
 }
 
+// Documentation can be bilingual: docs.html holds the app's own language and
+// an optional docs.<other>.html the translation. Both are embedded, wrapped in
+// a language marker, and qrx.i18n shows the matching one. Docs are prose — one
+// data-qrx-i18n key per sentence would be unreadable and unmaintainable.
+function buildDocs(appRel, lang) {
+  const other = lang === 'de' ? 'en' : 'de';
+  const otherPath = `${appRel}/docs.${other}.html`;
+  const own = trimNl(rd(`${appRel}/docs.html`));
+  if (!existsSync(join(ROOT, otherPath))) return own;
+  return `<div data-qrx-docs="${lang}">
+${own}
+</div>
+`
+       + `<div data-qrx-docs="${other}" hidden>
+${trimNl(rd(otherPath))}
+</div>`;
+}
+
 function buildApp(appRel) {
   const cfg = JSON.parse(rd(`${appRel}/app.config.json`));
   const title = cfg.title || `${cfg.name} – qurix`;
@@ -51,7 +69,7 @@ function buildApp(appRel) {
     ...(includeShellCss ? ['src/shell/shell.css'] : []),
     'src/shell/shell.js', 'src/shell/chrome.html',
     `${appRel}/app.config.json`, `${appRel}/app.css`, `${appRel}/app.js`,
-    `${appRel}/content.html`, `${appRel}/docs.html`,
+    `${appRel}/content.html`, `${appRel}/docs.html`, `${appRel}/docs.de.html`, `${appRel}/docs.en.html`,
     ...(cfg.inlineStyles || []).map((p) => `${appRel}/${p}`),
     ...(cfg.inlineScripts || []).map((p) => `${appRel}/${p}`),
   ];
@@ -61,7 +79,7 @@ function buildApp(appRel) {
   const chrome = trimNl(fillSlots(rd('src/shell/chrome.html'), {
     '{{APP_NAME}}': cfg.name,
     '{{BUILD_VERSION}}': version,
-    '<!--SLOT:app-docs-->': trimNl(rd(`${appRel}/docs.html`)),
+    '<!--SLOT:app-docs-->': buildDocs(appRel, cfg.lang),
     '<!--SLOT:app-content-->': trimNl(rd(`${appRel}/content.html`)),
   }));
 

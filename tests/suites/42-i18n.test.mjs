@@ -337,3 +337,51 @@ describe('i18n: cleaner and profiler are bilingual too', () => {
     }
   });
 });
+
+describe('i18n: the documentation switches with the language', () => {
+  // Docs are prose: one key per sentence would be unreadable, so each app ships
+  // docs.html plus docs.<other>.html and the matching block is shown.
+  const CASES = [
+    ['table-format-converter.html', 'en', /A browser-only tool/, 'de', /Ein reines Browser-Werkzeug/],
+    ['parquet-cleaner.html', 'en', /A browser-only tool/, 'de', /Ein reines Browser-Werkzeug/],
+    ['parquet-profiler.html', 'de', /browserbasierte Anwendung/, 'en', /A browser-based tool/],
+  ];
+
+  for (const [file, langA, reA, langB, reB] of CASES) {
+    test(`${file} has both languages, one visible at a time`, async () => {
+      const page = await openApp(browser, file);
+      try {
+        const read = () => page.evaluate(() => {
+          const blocks = [...document.querySelectorAll('[data-qrx-docs]')];
+          const shown = blocks.filter(b => !b.hidden);
+          return {
+            count: blocks.length,
+            shownCount: shown.length,
+            lang: shown[0] && shown[0].getAttribute('data-qrx-docs'),
+            text: shown[0] ? shown[0].textContent.replace(/\s+/g, ' ').trim().slice(0, 200) : '',
+          };
+        });
+
+        await page.evaluate((l) => {
+          window.qrx.core.storage.remove('qrx_lang');
+          window.qrx.i18n.setLang(l);
+        }, langA);
+        const a = await read();
+        assert.equal(a.count, 2, 'both language variants are embedded');
+        assert.equal(a.shownCount, 1, 'exactly one is visible');
+        assert.equal(a.lang, langA);
+        assert.match(a.text, reA);
+
+        await page.evaluate((l) => window.qrx.i18n.setLang(l), langB);
+        const b = await read();
+        assert.equal(b.shownCount, 1);
+        assert.equal(b.lang, langB);
+        assert.match(b.text, reB);
+        page.assertNoErrors();
+      } finally {
+        await page.evaluate(() => window.qrx.core.storage.remove('qrx_lang')).catch(() => {});
+        await page.close();
+      }
+    });
+  }
+});

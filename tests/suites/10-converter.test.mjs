@@ -14,6 +14,17 @@ let browser;
 before(async () => { rmSync(DL, { recursive: true, force: true }); browser = await launch(); });
 after(async () => { await browser?.close(); });
 
+// Assertions read visible text ("Done." vs "Fertig."), so the language must be
+// explicit — it is stored per browser profile and the suites share one.
+async function openConverter(opts) {
+  const page = await openApp(browser, 'table-format-converter.html', opts);
+  await page.evaluate(() => {
+    window.qrx.core.storage.remove('qrx_lang');
+    window.qrx.i18n.setLang('en');            // this app's default
+  });
+  return page;
+}
+
 async function load(page, file) {
   await page.waitForSelector('#filePicker', { timeout: 30_000 });
   await (await page.$('#filePicker')).uploadFile(join(FIX, file));
@@ -23,7 +34,7 @@ async function load(page, file) {
 
 describe('converter', () => {
   test('reads CSV and previews every row', async () => {
-    const page = await openApp(browser, 'table-format-converter.html');
+    const page = await openConverter();
     try {
       await load(page, 'tiny.csv');
       const rows = await tableRows(page, '#previewGrid');
@@ -37,7 +48,7 @@ describe('converter', () => {
 
   test('reads Parquet, NDJSON and JSON with the same shape', async () => {
     for (const f of ['tiny.parquet', 'tiny.ndjson', 'tiny.json']) {
-      const page = await openApp(browser, 'table-format-converter.html');
+      const page = await openConverter();
       try {
         await load(page, f);
         const rows = await tableRows(page, '#previewGrid');
@@ -49,7 +60,7 @@ describe('converter', () => {
   });
 
   test('CSV → Parquet export keeps the data', async () => {
-    const page = await openApp(browser, 'table-format-converter.html', { downloadPath: DL });
+    const page = await openConverter({ downloadPath: DL });
     try {
       await load(page, 'tiny.csv');
       await page.evaluate(() => document.querySelector('.format-chip[data-format="parquet"]').click());
@@ -70,7 +81,7 @@ describe('converter', () => {
   test('CSV → NDJSON export keeps the data', async () => {
     const dl = DL + '-ndjson';
     rmSync(dl, { recursive: true, force: true });
-    const page = await openApp(browser, 'table-format-converter.html', { downloadPath: dl });
+    const page = await openConverter({ downloadPath: dl });
     try {
       await load(page, 'tiny.csv');
       await page.evaluate(() => document.querySelector('.format-chip[data-format="ndjson"]').click());
@@ -88,7 +99,7 @@ describe('converter', () => {
   // Regression: the button lives inside the clickable dropzone, so its click
   // used to bubble up and open the file dialog on top of the modal.
   test('“Connect with DuckDB” does not open the file dialog', async () => {
-    const page = await openApp(browser, 'table-format-converter.html');
+    const page = await openConverter();
     try {
       await page.waitForSelector('#srvConnectBtn', { timeout: 30_000 });
       await page.evaluate(() => {
@@ -110,7 +121,7 @@ describe('converter', () => {
   });
 
   test('the SQL panel runs a query and pages through the result', async () => {
-    const page = await openApp(browser, 'table-format-converter.html');
+    const page = await openConverter();
     try {
       await load(page, 'pii.parquet');                       // 60 rows
       await page.evaluate(() => { document.getElementById('sqlCard').open = true; });

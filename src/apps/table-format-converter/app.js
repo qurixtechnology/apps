@@ -172,6 +172,40 @@
   // the shell: it only offers one once the app itself can be translated.
   qrx.i18n.register('app', {
     de: {
+      autoDetectedHint: 'automatisch erkannt — zum Anpassen klicken',
+      overridesActive: 'manuelle Anpassungen aktiv',
+      sqlSyntaxLink: 'DuckDB-SQL-Syntax',
+      fDelimiter: 'Trennzeichen',
+      fEncoding: 'Zeichensatz',
+      fQuote: 'Anführungszeichen',
+      fNullStrings: 'NULL-Werte',
+      fSkipRows: 'Zeilen überspringen',
+      fDecimalSep: 'Dezimaltrennzeichen',
+      fDateFormat: 'Datumsformat',
+      fRange: 'Bereich',
+      fTable: 'Tabelle',
+      fHasHeader: 'Enthält Kopfzeile',
+      oCompression: 'Komprimierung',
+      oRowGroup: 'Row-Group-Größe',
+      oSheet: 'Tabellenblatt',
+      oSheetName: 'Name des Tabellenblatts',
+      oWriteHeader: 'Kopfzeile schreiben',
+      oTargetTable: 'Zieltabelle',
+      oIfExists: 'Falls die Tabelle existiert',
+      oServerUri: 'Server-URI',
+      oAuthToken: 'Auth-Token',
+      oReplace: 'Ersetzen',
+      oCreateNew: 'Neu anlegen (Fehler, falls vorhanden)',
+      oAppend: 'Anhängen',
+      sColumns: 'Spalten',
+      sRows: 'Zeilen',
+      vNone: 'keines',
+      vWhitespace: 'Leerzeichen',
+      vComma: ', (Komma)',
+      vSemicolon: '; (Semikolon)',
+      vPipe: '| (Pipe)',
+      vTab: '\\t (Tab)',
+      vDot: '. (Punkt)',
       dropAria: 'Datei hier ablegen oder klicken, um eine auszuwählen',
       dropTitle: 'Datei hier ablegen oder klicken, um eine auszuwählen',
       dropFormats: 'CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · bis ca. 1 GB',
@@ -217,6 +251,40 @@
       exportDone: 'Fertig.',
     },
     en: {
+      autoDetectedHint: 'auto-detected — click to adjust',
+      overridesActive: 'overrides active',
+      sqlSyntaxLink: 'DuckDB SQL syntax',
+      fDelimiter: 'Delimiter',
+      fEncoding: 'Encoding',
+      fQuote: 'Quote',
+      fNullStrings: 'NULL strings',
+      fSkipRows: 'Skip rows',
+      fDecimalSep: 'Decimal separator',
+      fDateFormat: 'Date format',
+      fRange: 'Range',
+      fTable: 'Table',
+      fHasHeader: 'Has header row',
+      oCompression: 'Compression',
+      oRowGroup: 'Row group size',
+      oSheet: 'Sheet',
+      oSheetName: 'Sheet name',
+      oWriteHeader: 'Write header',
+      oTargetTable: 'Target table',
+      oIfExists: 'If the table exists',
+      oServerUri: 'Server URI',
+      oAuthToken: 'Auth token',
+      oReplace: 'Replace',
+      oCreateNew: 'Create new (fail if it exists)',
+      oAppend: 'Append',
+      sColumns: 'Columns',
+      sRows: 'Rows',
+      vNone: 'none',
+      vWhitespace: 'whitespace',
+      vComma: ', (comma)',
+      vSemicolon: '; (semicolon)',
+      vPipe: '| (pipe)',
+      vTab: '\\t (tab)',
+      vDot: '. (dot)',
       dropAria: 'Drop a file here or click to pick one',
       dropTitle: 'Drop a file here, or click to pick one',
       dropFormats: 'CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · up to ~1 GB',
@@ -1479,35 +1547,35 @@
     let html = '';
 
     if (state.format === 'csv') {
-      html += renderField('Delimiter', selectMarkup('h_delim', [
+      html += renderField(t('fDelimiter'), selectMarkup('h_delim', [
         { v: ',', label: ', (comma)' },
         { v: ';', label: '; (semicolon)' },
         { v: '\t', label: '\\t (tab)' },
         { v: '|', label: '| (pipe)' },
       ], e.delim, true), e, 'delim');
-      html += renderField('Quote', selectMarkup('h_quote', [
+      html += renderField(t('fQuote'), selectMarkup('h_quote', [
         { v: '"', label: '"' },
         { v: "'", label: "'" },
         { v: '', label: 'none' },
       ], e.quote, true), e, 'quote');
-      html += renderField('Encoding', selectMarkup('h_enc', [
+      html += renderField(t('fEncoding'), selectMarkup('h_enc', [
         { v: 'utf-8', label: 'utf-8' },
         { v: 'latin-1', label: 'latin-1 (ISO-8859-1 / Windows-1252)' },
         { v: 'utf-16', label: 'utf-16' },
       ], e.encoding, false), e, 'encoding');
-      html += renderField('Skip rows', `<input class="qrx-input" id="h_skip" type="number" min="0" value="${e.skip ?? 0}">`, e, 'skip');
+      html += renderField(t('fSkipRows'), `<input class="qrx-input" id="h_skip" type="number" min="0" value="${e.skip ?? 0}">`, e, 'skip');
       html += `<div class="qrx-form-group"><label class="checkbox-row">
         <input type="checkbox" id="h_header" ${e.header ? 'checked' : ''}>
-        <span class="qrx-label" style="margin: 0;">Has header row</span>
+        <span class="qrx-label" style="margin: 0;">${escapeHtml(t('fHasHeader'))}</span>
       </label></div>`;
-      html += renderField('Decimal separator', selectMarkup('h_decimal', [
+      html += renderField(t('fDecimalSep'), selectMarkup('h_decimal', [
         { v: '.', label: '. (dot)' },
         { v: ',', label: ', (comma)' },
       ], e.decimal, false), e, 'decimal');
-      html += renderField('Date format', `<input class="qrx-input" id="h_dateformat" type="text"
+      html += renderField(t('fDateFormat'), `<input class="qrx-input" id="h_dateformat" type="text"
         value="${escapeAttr(e.dateformat || '')}" spellcheck="false"
         placeholder="auto-detect — e.g. %d.%m.%Y or %Y-%m-%d">`, e, 'dateformat');
-      html += renderField('NULL strings', `<div class="tag-chip-input" id="h_nulls"></div>`, e, 'nulls');
+      html += renderField(t('fNullStrings'), `<div class="tag-chip-input" id="h_nulls"></div>`, e, 'nulls');
       html += `<div class="qrx-form-group"><label class="checkbox-row">
         <input type="checkbox" id="h_tolerant" ${e.tolerant ? 'checked' : ''}>
         <span class="qrx-label" style="margin: 0;">Tolerate malformed rows
@@ -1526,7 +1594,7 @@
       const opts = state.duckdbTables.map(t =>
         `<option value="${escapeAttr(t.qualified)}" ${t.qualified === e.table ? 'selected' : ''}>${escapeHtml(t.schema)}.${escapeHtml(t.name)}</option>`
       ).join('');
-      html += renderField('Table', `<select class="qrx-select" id="h_table">${opts}</select>`, e, 'table');
+      html += renderField(t('fTable'), `<select class="qrx-select" id="h_table">${opts}</select>`, e, 'table');
       html += `<p class="muted" style="font-size: 0.8125rem; margin-top: var(--qrx-s-2);">
         ${state.duckdbTables.length} table${state.duckdbTables.length === 1 ? '' : 's'} in this database.
         Pick one to read from. Schema and types come straight from the file.
@@ -1537,7 +1605,7 @@
       const opts = state.markdownTables.map((t, i) =>
         `<option value="${i}" ${i === sel ? 'selected' : ''}>${escapeHtml(t.name)} (${t.rows.length} rows)</option>`
       ).join('');
-      html += renderField('Table', `<select class="qrx-select" id="h_mdtable">${opts}</select>`, e, 'mdTable');
+      html += renderField(t('fTable'), `<select class="qrx-select" id="h_mdtable">${opts}</select>`, e, 'mdTable');
       html += `<p class="muted" style="font-size: 0.8125rem; margin-top: var(--qrx-s-2);">
         ${state.markdownTables.length} table${state.markdownTables.length === 1 ? '' : 's'} found.
         Column types are inferred (Markdown carries none).
@@ -1549,10 +1617,10 @@
         const opts = state.pasteTables.map((t, i) =>
           `<option value="${i}" ${i === sel ? 'selected' : ''}>${escapeHtml(t.name)} (${t.matrix.length} rows)</option>`
         ).join('');
-        html += renderField('Table', `<select class="qrx-select" id="h_pastetable">${opts}</select>`, e, 'pasteTable');
+        html += renderField(t('fTable'), `<select class="qrx-select" id="h_pastetable">${opts}</select>`, e, 'pasteTable');
       }
       if (state.pasteSource === 'text') {
-        html += renderField('Delimiter', selectMarkup('h_pastedelim', [
+        html += renderField(t('fDelimiter'), selectMarkup('h_pastedelim', [
           { v: '\t', label: '\\t (tab)' },
           { v: ',',  label: ', (comma)' },
           { v: ';',  label: '; (semicolon)' },
@@ -1615,10 +1683,10 @@
       const sheetOpts = state.sheets.map(s =>
         `<option value="${s.name}" ${s.name === e.sheet ? 'selected' : ''}>${s.name}</option>`).join('');
       html += `<div class="qrx-form-group">
-        <label class="qrx-label" for="h_sheet">Sheet</label>
+        <label class="qrx-label" for="h_sheet">${escapeHtml(t('oSheet'))}</label>
         <select class="qrx-select" id="h_sheet">${sheetOpts}</select>
       </div>`;
-      html += renderField('Range', `<input class="qrx-input" id="h_range" type="text"
+      html += renderField(t('fRange'), `<input class="qrx-input" id="h_range" type="text"
         value="${(e.range || '').replace(/"/g,'&quot;')}"
         placeholder="A1:Z1000">`, e, 'range');
       html += `<div class="qrx-form-group"><label class="checkbox-row">
@@ -1810,9 +1878,7 @@
     const hint = $('heuristicSummaryHint');
     if (hint) {
       const hasUserOverride = state.user && Object.keys(state.user).length > 0;
-      hint.textContent = hasUserOverride
-        ? 'overrides active'
-        : 'auto-detected — click to adjust';
+      hint.textContent = hasUserOverride ? t('overridesActive') : t('autoDetectedHint');
     }
     if (focusId) {
       const el = document.getElementById(focusId);
@@ -1886,7 +1952,7 @@
       if (hint) hint.textContent = 'detection incomplete — please check';
     } else {
       heuristicPanel.open = false;
-      if (hint) hint.textContent = 'auto-detected — click to adjust';
+      if (hint) hint.textContent = t('autoDetectedHint');
     }
   }
 
@@ -2957,11 +3023,11 @@
       : `${visible} <span class="approx">of ${total}</span>`;
     previewStats.innerHTML = `
       <div class="preview-stat">
-        <div class="preview-stat-label">Columns</div>
+        <div class="preview-stat-label">${escapeHtml(t('sColumns'))}</div>
         <div class="preview-stat-value">${colsHtml}</div>
       </div>
       <div class="preview-stat">
-        <div class="preview-stat-label">Rows</div>
+        <div class="preview-stat-label">${escapeHtml(t('sRows'))}</div>
         <div class="preview-stat-value">${
           state.rowCountEstimate ?
             (state.rowCountEstimate.exact ? '' : '<span class="approx">≈</span> ') +
@@ -3390,7 +3456,7 @@
     let html = '';
     if (fmt === 'csv') {
       html += `<div class="qrx-form-group">
-        <label class="qrx-label" for="ex_delim">Delimiter</label>
+        <label class="qrx-label" for="ex_delim">${escapeHtml(t('fDelimiter'))}</label>
         <select class="qrx-select" id="ex_delim">
           <option value=",">, (comma)</option>
           <option value=";">; (semicolon)</option>
@@ -3399,7 +3465,7 @@
         </select>
       </div>
       <div class="qrx-form-group">
-        <label class="qrx-label" for="ex_compression">Compression</label>
+        <label class="qrx-label" for="ex_compression">${escapeHtml(t('oCompression'))}</label>
         <select class="qrx-select" id="ex_compression">
           <option value="none">None</option>
           <option value="gzip">gzip</option>
@@ -3411,7 +3477,7 @@
       </label></div>`;
     } else if (fmt === 'parquet') {
       html += `<div class="qrx-form-group">
-        <label class="qrx-label" for="ex_compression">Compression</label>
+        <label class="qrx-label" for="ex_compression">${escapeHtml(t('oCompression'))}</label>
         <select class="qrx-select" id="ex_compression">
           <option value="snappy" selected>snappy</option>
           <option value="zstd">zstd</option>
@@ -3420,7 +3486,7 @@
         </select>
       </div>
       <div class="qrx-form-group">
-        <label class="qrx-label" for="ex_rowgroup">Row group size</label>
+        <label class="qrx-label" for="ex_rowgroup">${escapeHtml(t('oRowGroup'))}</label>
         <input class="qrx-input" id="ex_rowgroup" type="number" value="100000" min="1024">
       </div>`;
     } else if (fmt === 'json') {
@@ -3437,7 +3503,7 @@
       html += `<p class="empty-note">No options — a standalone HTML document with one table (max ${HTML_EXPORT_ROW_LIMIT.toLocaleString('en-US')} rows).</p>`;
     } else if (fmt === 'xlsx' || fmt === 'ods') {
       html += `<div class="qrx-form-group">
-        <label class="qrx-label" for="ex_sheet">Sheet name</label>
+        <label class="qrx-label" for="ex_sheet">${escapeHtml(t('oSheetName'))}</label>
         <input class="qrx-input" id="ex_sheet" type="text" value="Sheet1">
       </div>
       <div class="qrx-form-group"><label class="checkbox-row">
@@ -3451,11 +3517,11 @@
             const uri = tokenVault.lastUri() || 'quack:localhost';
             const saved = tokenVault.has(uri);
             return `<div class="qrx-form-group">
-             <label class="qrx-label" for="ex_srv_uri">Server URI</label>
+             <label class="qrx-label" for="ex_srv_uri">${escapeHtml(t('oServerUri'))}</label>
              <input class="qrx-input" id="ex_srv_uri" type="text" value="${escapeAttr(uri)}" spellcheck="false">
            </div>
            <div class="qrx-form-group">
-             <label class="qrx-label" for="ex_srv_token">Auth token</label>
+             <label class="qrx-label" for="ex_srv_token">${escapeHtml(t('oAuthToken'))}</label>
              <input class="qrx-input" id="ex_srv_token" type="password" autocomplete="off" placeholder="${saved ? 'using saved token' : 'token'}">
              ${saved
                 ? '<p class="empty-note">A saved token is used automatically. Type one here to override it.</p>'
@@ -3466,15 +3532,15 @@
            </div>`;
           })();
       html += `<div class="qrx-form-group">
-          <label class="qrx-label" for="ex_srv_table">Target table</label>
+          <label class="qrx-label" for="ex_srv_table">${escapeHtml(t('oTargetTable'))}</label>
           <input class="qrx-input" id="ex_srv_table" type="text" value="${escapeAttr(srvDefaultTargetName())}" spellcheck="false">
         </div>
         <div class="qrx-form-group">
-          <label class="qrx-label" for="ex_srv_mode">If the table exists</label>
+          <label class="qrx-label" for="ex_srv_mode">${escapeHtml(t('oIfExists'))}</label>
           <select class="qrx-select" id="ex_srv_mode">
-            <option value="replace">Replace</option>
-            <option value="create">Create new (fail if it exists)</option>
-            <option value="append">Append</option>
+            <option value="replace">${escapeHtml(t('oReplace'))}</option>
+            <option value="create">${escapeHtml(t('oCreateNew'))}</option>
+            <option value="append">${escapeHtml(t('oAppend'))}</option>
           </select>
         </div>`;
     }
@@ -3484,7 +3550,13 @@
   targetFormat.addEventListener('change', renderExportOptions);
   // options and the export button label are rendered by JS, so they need a
   // nudge when the language changes
-  qrx.i18n.onChange(() => { try { renderExportOptions(); } catch (_) {} });
+  // several panels are drawn by JS, so they need a redraw when the language changes
+  qrx.i18n.onChange(() => {
+    try {
+      renderExportOptions();
+      if (state.format) { renderHeuristicPanel(); renderPreviewStats(); }
+    } catch (_) { /* nothing loaded yet */ }
+  });
 
   exportBtn.addEventListener('click', async () => {
     if (state.snapshotMode) return;  // export needs the live source file

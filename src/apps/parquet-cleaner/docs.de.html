@@ -1,0 +1,293 @@
+    <h2>Parquet Cleaner</h2>
+    <p>
+      Ein reines Browser-Werkzeug, um eine <strong>Parquet-Datei zu bereinigen und zu
+      anonymisieren</strong>. Du baust eine geordnete <strong>Bereinigungs-Pipeline</strong> aus
+      kleinen, kombinierbaren Schritten; eine Live-Vorschau zeigt vollständig transparent, wo jede
+      Umwandlung <em>greift</em>, <em>fehlschlägt</em> oder <em>ohne Wirkung</em> bleibt.
+      <strong>Deine Daten verlassen den Browser nicht</strong> — alles läuft lokal auf DuckDB-WASM.
+    </p>
+
+    <h3>Ablauf</h3>
+    <ol>
+      <li>Eine <code>.parquet</code>-Datei in den Ablagebereich ziehen oder klicken, um eine
+          auszuwählen. Die Datei wird lazy gelesen (Bereichszugriffe), sodass selbst große Dateien
+          sofort öffnen.</li>
+      <li>Bereinigungsschritte im Bereich <em>Bereinigungs-Pipeline</em> hinzufügen. Die Schritte
+          laufen von oben nach unten; jeder verarbeitet das Ergebnis des vorherigen. Schritte lassen
+          sich jederzeit ein-/ausschalten, umsortieren (▲ ▼) oder entfernen.</li>
+      <li>Die Wirkungs-Markierungen an jedem Schritt und die eingefärbte Vorher-→-Nachher-Stichprobe
+          beobachten. Die Vorschau lässt sich zwischen <strong>Original</strong> und
+          <strong>Bereinigt</strong> umschalten.</li>
+      <li>Auf <strong>Bereinigtes Parquet exportieren</strong> klicken, um das Ergebnis
+          herunterzuladen. Erst zu diesem Zeitpunkt wird die vollständige Datei geschrieben.</li>
+    </ol>
+    <p>
+      <strong>Layout &amp; Navigation:</strong> Die Leiste <em>Layout</em> wechselt zwischen Standard,
+      <em>50 / 50</em> sowie <em>Pipeline</em> oder <em>Vorschau</em> über die volle Breite.
+      Pipeline-Schritte sind einklappbar — ein Klick auf die Kopfzeile klappt einen Schritt auf oder zu
+      (der zuletzt hinzugefügte wird geöffnet, die übrigen eingeklappt); dazu gibt es
+      <em>Alle ausklappen</em> / <em>Alle einklappen</em>. In der Vorschau fügt ein Klick auf eine
+      <strong>Spaltenüberschrift</strong> eine Spaltenregel mit dieser Spalte hinzu; Spalten mit
+      bereits vorhandenem Schritt sind markiert (grüne Unterstreichung und Punkt, mit einem Tooltip,
+      der die Schritte auflistet).
+    </p>
+
+    <h3>Transparenz — OK / fehlgeschlagen / ohne Wirkung</h3>
+    <p>
+      Für den gerade bearbeiteten Schritt zeigen die Markierungen exakte Anzahlen über die
+      <em>gesamte</em> Datei, und die Stichprobentabelle färbt jede Zeile ein:
+    </p>
+    <ul>
+      <li><strong>Typkonvertierung:</strong> <span style="color:#1FA888">grün = konvertiert</span>,
+          <span style="color:#C8362A">rot = nicht konvertierbar → wird NULL</span>,
+          grau = Wert war bereits NULL (ohne Wirkung). Die drei Zahlen ergeben immer die
+          Gesamtzeilenzahl.</li>
+      <li><strong>Trim / Groß-Kleinschreibung / Leer→NULL / Hashing:</strong> wie viele Zellen sich
+          <em>geändert</em> haben und wie viele <em>unverändert</em> blieben.</li>
+      <li><strong>Zeilenoperationen (Dedup, Null entfernen, Filter):</strong> Zeilen hinein → Zeilen
+          heraus, und wie viele entfernt wurden.</li>
+    </ul>
+
+    <h3>Spaltenstruktur — Musteranalyse</h3>
+    <p>
+      Um eine unsaubere Spalte vor dem Bereinigen zu verstehen, öffne
+      <strong>Spaltenstruktur — Musteranalyse</strong>, wähle eine Spalte und klicke auf
+      <em>Muster analysieren</em> — oder schneller: klicke auf eine
+      <strong>Spaltenüberschrift in der Vorschau</strong> und wähle <em>Wertemuster analysieren</em>
+      (das Ergebnis öffnet sich für diese Spalte in diesem Bereich). Jeder Wert wird auf eine Maske
+      reduziert — <code>A</code> = Großbuchstabe, <code>a</code> = Kleinbuchstabe, <code>9</code> =
+      Ziffer, jedes andere Zeichen bleibt wörtlich erhalten (Unicode-Buchstaben inklusive Umlaute
+      werden erkannt). Die häufigsten Masken werden mit Anzahl, Anteil und einem Beispiel gelistet,
+      dazu ein <strong>abgeleiteter regulärer Ausdruck</strong>, den du direkt in einen Schritt
+      <em>Regex ersetzen/extrahieren</em> übernehmen kannst. Beispiel:
+      <code>+49 89 1234</code> → Maske <code>+99 99 9999</code> → Regex
+      <code>^\+\d{2} \d{2} \d{4}$</code>.
+      Zwei Sichten: <strong>Exakte Länge</strong> behält die Lauflänge (<code>999</code> ⇒
+      <code>\d{3}</code>), während <strong>Kompakt</strong> jede Folge zu <code>9+</code>
+      zusammenfasst (Regex <code>\d+</code>) — so fallen <code>9</code>, <code>99</code>,
+      <code>999</code> … zu einem Muster zusammen. Zwischen beiden lässt sich umschalten; Null- und
+      Leerwerte werden getrennt ausgewiesen.
+    </p>
+
+    <h3>Bereinigen &amp; anonymisieren (heuristische Vorschläge)</h3>
+    <p>
+      Öffne <strong>Bereinigen &amp; anonymisieren</strong> und klicke auf <em>Daten prüfen</em>. Ein
+      einziger Durchlauf prüft die Daten auf Qualitätsprobleme <em>und</em> auf PII und stellt alles in
+      einer Tabelle dar — eine Zeile je <strong>Attribut (Spalte)</strong>, mit einer Spalte
+      <strong>Bereinigung</strong> und einer Spalte <strong>Anonymisierung</strong>. So siehst du alle
+      vorgeschlagenen Regeln auf einen Blick und kannst sie einzeln <em>anwenden</em> oder mit
+      <em>Alle Vorschläge anwenden</em> auf einmal (zuerst Bereinigung, dann Anonymisierung).
+      Korrekturen für die gesamte Tabelle (etwa exakte Duplikate) erscheinen als Banner über der
+      Tabelle.
+    </p>
+    <p>
+      Ein Schalter für die <strong>Schutzstufe</strong> bestimmt, <em>wie viel</em> anonymisiert wird
+      (die Bereinigung bleibt immer gleich). Die Anonymisierungsspalte und <em>Alle anwenden</em>
+      folgen der gewählten Stufe:
+    </p>
+    <ul>
+      <li><strong>Stufe 1 · PII pseudonymisieren</strong> — deterministische Pseudonyme für
+          <em>direkte Identifikatoren</em> (Name, E-Mail, Telefon, IBAN, Adresse, Ausweisnummer …)
+          und <em>sensible</em> Felder; Verknüpfbarkeit und Konsistenz bleiben erhalten.
+          Quasi-Identifikatoren, Datumsangaben und numerische Werte bleiben unverändert.</li>
+      <li><strong>Stufe 2 · + numerisch</strong> — Stufe 1 plus <em>Quasi-Identifikatoren</em> (PLZ,
+          Ort, Land …) und <em>Datumsangaben</em>, außerdem werden <em>numerische Kennzahlen</em> mit
+          <em>relativem Rauschen von ±10 %</em> verändert — das erhält Vorzeichen, Nullwerte,
+          Größenordnung und zwei Nachkommastellen (Struktur) sowie Verteilung und Mittelwert
+          (Statistik), verbirgt aber den konkreten Wert. (Für additive Betragsspalten kannst du einen
+          Schritt weiterhin auf <em>Vergröbern</em> umstellen, um exakte Summen je Kategorie zu
+          erhalten.)</li>
+      <li><strong>Stufe 3 · Vollständige Anonymisierung</strong> — alles wird zufällig und
+          unumkehrbar ersetzt: PII → <em>zufällige</em> synthetische Werte (keine Verknüpfbarkeit),
+          Zahlen → <em>Zufallswert</em> innerhalb ihres Wertebereichs, Freitext → synthetisch. Nur die
+          Datenstruktur bleibt; weder PII noch numerische Werte lassen sich re-identifizieren.</li>
+    </ul>
+    <p>
+      Die <strong>Bereinigungs</strong>-Vorschläge entstehen lokal aus einer Stichprobe plus einigen
+      Aggregaten über die gesamte Tabelle und decken ab: <strong>überflüssige Leerzeichen</strong>
+      (→ Trim), <strong>leere Zeichenketten</strong>, die NULL sein sollten (→ Leer → NULL),
+      <strong>als Text gespeicherte Zahlen</strong> (→ Zahl parsen, mit automatisch erkanntem
+      Dezimaltrennzeichen), <strong>als Text gespeicherte Datumsangaben</strong> (→ Datum parsen, mit
+      automatisch erkanntem Format), <strong>boolesch wirkende</strong> Spalten (→ Typ konvertieren),
+      <strong>vollständig leere Spalten</strong> (→ Spalte entfernen) und <strong>exakte
+      Duplikatzeilen</strong> (→ Duplikate entfernen). Jeder Vorschlag zeigt eine
+      <strong>Konfidenz</strong> und eine kurze Begründung; <em>Alle anwenden</em> fügt sie in
+      sinnvoller Reihenfolge hinzu (Trim → Leer→NULL → Parsen/Konvertieren → Duplikate → Entfernen).
+      Live-Vorschau und der Wirkungsbereich je Schritt zeigen genau, was jeder Schritt tut — bitte vor
+      dem Export prüfen.
+    </p>
+
+    <h3>PII-Erkennung</h3>
+    <p>
+      Die Spalte <strong>PII / Sensibilität</strong> setzt auf der Bereinigung auf: Standardmäßig zieht
+      sie ihre Stichprobe aus den <strong>bereinigten</strong> Daten (umschaltbar über
+      <em>Original / Bereinigt</em> im Schalter für die PII-Quelle), sodass geparste Datumsangaben,
+      getrimmte Zeichenketten und <code>'' → NULL</code>-Umwandlungen die Erkennung verbessern.
+      Gefunden werden Spalten, die wahrscheinlich personenbezogene Daten enthalten. Die Erkennung
+      arbeitet zweistufig und vollständig lokal: über den <strong>Spaltennamen</strong> (etwa
+      <code>email</code>, <code>telefon</code>, <code>iban</code>, <code>geburtsdatum</code>,
+      <code>plz</code>) und über den <strong>Inhalt</strong> — eine Stichprobe der Werte wird gegen
+      Formatmuster geprüft (E-Mail, IBAN, Telefon, Kreditkarte inklusive Luhn-Prüfung, UUID, IP).
+      Inhaltliche Evidenz (≥ 60 % der geprüften Werte) schlägt den Namen, sodass auch eine kryptisch
+      benannte Spalte erkannt wird.
+    </p>
+    <p>Erkannte Spalten werden in drei Sensibilitätsstufen eingeordnet, dargestellt als farbige
+      Markierungen in der Liste und in den Spaltenüberschriften der Vorschau:</p>
+    <ul>
+      <li><strong>Direkter Identifikator</strong> — identifiziert eine Person für sich allein (Name,
+          E-Mail, Telefon, IBAN, Steuer-/Ausweisnummer, Adresse, Kundennummer).</li>
+      <li><strong>Quasi-Identifikator</strong> — identifiziert in Kombination mit anderen
+          (Geburtsdatum, Postleitzahl, Ort, Geschlecht, Alter, Staatsangehörigkeit).</li>
+      <li><strong>Sensibel (besondere Kategorie)</strong> — Gesundheit, Religion, politische
+          Ausrichtung bzw. Gewerkschaft, Einkommen.</li>
+    </ul>
+    <p>
+      Zu jeder Spalte gehört eine <strong>vorgeschlagene Anonymisierungsregel</strong>, die zu ihrem
+      Typ passt (etwa E-Mail → synthetische E-Mail, Personenname → synthetischer Name, wiederkehrender
+      Geschäftspartner → synthetische Daten im Modus <em>konsistent</em>, IBAN → Hash, Geburtsdatum →
+      Datum parsen und auf das Jahr generalisieren, Einkommen → Runden/Gruppieren).
+      Ein Klick auf <em>Anwenden</em> fügt diesen Schritt zur Pipeline hinzu, <em>Alle Vorschläge
+      anwenden</em> übernimmt alle erkannten Spalten auf einmal. Die Erkennung ist ein heuristischer
+      Ausgangspunkt — bitte das Ergebnis vor dem Export immer prüfen.
+    </p>
+
+    <h3>Bereinigungsschritte</h3>
+    <p><strong>Zeilenbasiert</strong></p>
+    <ul>
+      <li><strong>Exakte Duplikate entfernen</strong> — entfernt Zeilen, die über alle Spalten hinweg
+          identisch sind (<code>SELECT DISTINCT *</code>).</li>
+      <li><strong>Duplikate über Schlüsselspalten entfernen</strong> — ein Duplikat sind gleiche Werte
+          in den gewählten Schlüsselspalten; behält je Gruppe den ersten oder letzten Eintrag
+          (wahlweise nach einer Spalte sortiert).</li>
+      <li><strong>Zeilen mit leeren Werten entfernen</strong> — entfernt eine Zeile, sobald eine
+          ausgewählte Spalte NULL ist (wahlweise auch leer bzw. nur Leerzeichen).</li>
+      <li><strong>Zeilen filtern</strong> — ein freier SQL-<code>WHERE</code>-Ausdruck über die
+          ursprünglichen Spaltennamen.</li>
+    </ul>
+    <p><strong>Spaltenbasiert</strong></p>
+    <ul>
+      <li><strong>Typ konvertieren</strong> — sichere Konvertierung; nicht passende Werte werden NULL
+          (und als Fehlschläge gezählt). Für die Ziele <strong>DATE / TIMESTAMP / TIME</strong> kannst
+          du ein oder mehrere <strong>Datums-/Zeitmuster</strong> angeben (etwa
+          <code>DD.MM.YYYY</code>). Mehrere Muster (eines je Zeile) werden der Reihe nach probiert,
+          sodass eine Spalte mit gemischten Schreibweisen — <code>DD.MM.YYYY</code> und
+          <code>MM/DD/YYYY</code> — je Wert korrekt geparst wird. Platzhalter:
+          <code>YYYY YY</code> · <code>MM</code> (Monat) <code>DD</code> ·
+          <code>HH</code> (24 h) <code>hh</code> (12 h) <code>mm</code> (Minuten) <code>SS</code>;
+          alternativ ein rohes strptime-Format wie <code>%d.%m.%Y</code> einfügen. Leer lassen für
+          automatisches ISO-Parsen. (Umgesetzt mit DuckDB <code>try_strptime</code>.)</li>
+      <li><strong>Zahl parsen (Gebietsschema)</strong> — für als Text gespeicherte Zahlen. Wähle das
+          Dezimaltrennzeichen (deutsch <code>1.234,56</code> oder US <code>1,234.56</code>);
+          Tausendertrennzeichen, Leerzeichen und Währungssymbole werden automatisch entfernt,
+          anschließend wird der Wert nach DOUBLE / DECIMAL / INTEGER konvertiert. Nicht-Zahlen werden
+          NULL (als Fehlschläge gezählt).</li>
+      <li><strong>Datum parsen</strong> — für als Text gespeicherte Datumsangaben. Wähle den Zieltyp
+          (<strong>Datum / Zeitstempel / Uhrzeit</strong>) und gib ein oder mehrere
+          <strong>Datums-/Zeitmuster</strong> an oder wähle eine Vorlage (DE <code>DD.MM.YYYY</code>,
+          US <code>MM/DD/YYYY</code>, ISO, …). Mehrere Muster (eines je Zeile) werden der Reihe nach
+          probiert, sodass eine Spalte mit gemischten Schreibweisen je Wert korrekt geparst wird; leer
+          lassen für automatisches ISO-Parsen. Nicht parsbare Werte werden NULL (als Fehlschläge
+          gezählt). Die Option <strong>Generalisieren</strong> reduziert das geparste Datum auf den
+          Beginn von <em>Monat / Quartal / Jahr</em> — eine datenschutzfreundliche Art, um
+          Quasi-Identifikatoren wie ein Geburtsdatum zu vergröbern. Umgesetzt mit DuckDB
+          <code>try_strptime</code> + <code>date_trunc</code>.</li>
+      <li><strong>Regex ersetzen (Suchen &amp; Ersetzen)</strong> — DuckDB
+          <code>regexp_replace</code> mit Suchmuster und Ersetzung (<code>\1</code> für
+          Fanggruppen); Schalter für <em>global</em> und <em>Groß-/Kleinschreibung ignorieren</em>.
+          Vorlagen decken häufige Aufräumarbeiten ab (Leerzeichen zusammenfassen, nur Ziffern,
+          <code>[..]</code>-Tags entfernen). Der wichtigste Anwendungsfall beim Bereinigen von
+          VARCHAR-Spalten.</li>
+      <li><strong>Regex extrahieren</strong> — holt einen Treffer oder eine Fanggruppe heraus
+          (<code>regexp_extract</code>), etwa die Domain aus einer E-Mail (<code>@(.*)$</code>,
+          Gruppe 1). Nicht passende Zeilen werden NULL.</li>
+      <li><strong>Leerzeichen kürzen &amp; zusammenfassen</strong>,
+          <strong>Groß-/Kleinschreibung ändern</strong> (GROSS/klein),
+          <strong>Leer → NULL</strong>.</li>
+      <li>Spalte <strong>umbenennen</strong> / <strong>entfernen</strong>.</li>
+    </ul>
+    <p><strong>Anonymisierung &amp; Pseudonymisierung</strong></p>
+    <p>
+      Zwei grundsätzliche Modi (je Schritt wählbar): <strong>Deterministisch</strong> — dieselbe
+      Eingabe ergibt immer dieselbe Ausgabe, sodass Verknüpfungen und die Konsistenz wiederkehrender
+      Werte erhalten bleiben (das wiederkehrende Pseudonym lässt sich allerdings über andere Attribute
+      weiterhin verknüpfen); <strong>Zufällig</strong> — jede Zeile ist unabhängig, was diese
+      Verknüpfung bricht, aber die Konsistenz zerstört. Determinismus entsteht aus
+      <code>hash(Wert + Salt)</code>, Zufall aus einer neuen Ziehung je Zeile (jeder Lauf
+      unterscheidet sich also).
+    </p>
+    <ul>
+      <li><strong>Durch synthetische Daten ersetzen (Faker / konsistent)</strong> — ersetzt Werte
+          durch realistische synthetische Daten und behält die Struktur; NULL bleibt NULL. Wähle,
+          <em>was erzeugt</em> werden soll (vollständiger Name / Vorname / Nachname, Firma, E-Mail,
+          Telefon, Ort, Land, Straße, PLZ, <em>IBAN</em> (deutsch, mit gültiger Mod-97-Prüfziffer),
+          <em>BIC</em>, <em>Text / Notizen</em> (Lorem ipsum) oder <em>Auto-Entität</em>) und eine
+          <em>Methode</em>:
+          <ul>
+            <li><strong>Konsistent &amp; kollisionsfrei (k-Anonymität)</strong> — die Wahl, die
+                Auswertbarkeit erhält. Jeder eindeutige Wert wird auf <em>ein</em> stabiles,
+                kollisionsfreies Pseudonym abgebildet (über einen gesalzenen <code>dense_rank</code>),
+                sodass <code>GROUP BY</code>-Summen exakt bleiben und Verknüpfungsschlüssel erhalten
+                werden. Für vollständigen Namen / Firma / Auto-Entität arbeitet die Methode
+                typbewusst (Person → Personenname, Organisation → „… GmbH/AG“). Behörden (Finanzamt,
+                Stadt, Krankenkasse …) werden standardmäßig als Organisationen pseudonymisiert;
+                aktiviere <em>Behörden beibehalten</em>, um sie unverändert zu lassen (etwa für
+                Auswertungen, in denen sie keine personenbezogenen Daten sind). Für
+                <em>E-Mail, Telefon, PLZ, Straße</em> werden kollisionsfreie Werte in der jeweiligen
+                Form erzeugt (etwa <code>anna.mueller@example.org</code>, <code>00001</code>). Der
+                Parameter <strong>k</strong> fasst Werte, die seltener als k-mal vorkommen, zu einem
+                gemeinsamen Sammel-Eintrag zusammen, sodass niemand einzeln heraussticht;
+                <code>k = 0</code> (oder <code>1</code>) schaltet diese Bündelung ab.</li>
+            <li><strong>Deterministisch</strong> — je Wert, gleiche Eingabe → gleicher Fake
+                (Verknüpfungen bleiben, zwei verschiedene Werte können aber kollidieren).
+                <strong>Zufällig</strong> — jede Zeile unabhängig. Beispiel:
+                <code>Thomas Müller → Fritz Schmidt</code>.</li>
+          </ul>
+          Der konsistente Modus braucht einen ausreichend großen Wertebereich und wird daher für
+          vollständigen Namen, Firma, Auto-Entität, E-Mail, Telefon, PLZ, Straße und IBAN angeboten;
+          BIC, Text/Notizen sowie Vor-/Nachname, Ort und Land nutzen den deterministischen Modus.</li>
+      <li><strong>Beträge vergröbern (summenerhaltend)</strong> — rundet eine Betragsspalte, um
+          eindeutige Wertefingerabdrücke zu entfernen (etwa exakte Gehälter), und erhält dabei die
+          <strong>exakte Summe innerhalb jeder Gruppe</strong> (standardmäßig je Kategorie) — Monats-
+          und Kategoriesummen bleiben also unverändert. Führe anschließend
+          <strong>Laufenden Saldo neu berechnen</strong> aus, damit der Saldo stimmig bleibt.</li>
+      <li><strong>Hashen / pseudonymisieren</strong> — <code>sha256(Wert + Salt)</code>
+          (deterministisch). Das Salt geheim halten; bei kleinen Wertebereichen (etwa Geschlecht)
+          schwach — dort besser generalisieren.</li>
+      <li><strong>Mischen / Bootstrap</strong> — ersetzt jeden Wert durch einen anderen Wert aus
+          derselben Spalte. Die Verteilung der Spalte bleibt exakt erhalten, die Zeilenzuordnung wird
+          gebrochen. Deterministisch = stabile Zuordnung, Zufällig = Bootstrap. Funktioniert für
+          Zahlen, Datumsangaben und Kategorien (lädt die Spalte in den Speicher).</li>
+      <li><strong>Runden / gruppieren</strong> (Zahl) — vergröbert auf ein Vielfaches
+          (Mikroaggregation); deterministisch, erhält Aggregate näherungsweise und erzeugt
+          k-Anonymität. <strong>Rauschen hinzufügen</strong> (Zahl) — um null zentrierte Streuung,
+          das Ergebnis bleibt eine Zahl (deterministisch oder zufällig).
+          Um Datumsangaben auf Monat / Quartal / Jahr zu generalisieren, nutze die Option
+          <strong>Generalisieren</strong> von <strong>Datum parsen</strong> weiter oben.</li>
+    </ul>
+    <p class="muted">
+      Hinweis: Pseudonymisierte Daten bleiben personenbezogene Daten. Für echte Anonymität mehrere
+      Techniken kombinieren (etwa Faker für direkte Identifikatoren + Generalisierung für
+      Quasi-Identifikatoren wie PLZ oder Geburtsdatum) und die Spaltenstruktur bzw. die k-Anonymität
+      prüfen. Differential Privacy (kalibriertes Rauschen mit formalen Garantien) ist eine mögliche
+      künftige Ergänzung.
+    </p>
+
+    <h3>Hinweise &amp; Grenzen (v1)</h3>
+    <ul>
+      <li>Die Spaltenauswahl listet die <em>ursprünglichen</em> Spalten der Datei. Wenn du eine Spalte
+          früh <em>umbenennst</em> oder <em>entfernst</em> und ein späterer Schritt noch den alten
+          Namen verwendet, schlägt dieser Schritt fehl — sortiere so um, dass Umbenennungen und
+          Entfernungen zuletzt kommen, oder passe die Referenz an.</li>
+      <li>Regex- und Zahl-Parsing-Schritte arbeiten auf der <em>Text</em>-Form der Spalte. Bei einer
+          bereits typisierten Spalte wird das Ergebnis VARCHAR — führe sie also <strong>vor</strong>
+          einer Typkonvertierung aus (die Reihenfolge der Pipeline bestimmst du). Zum Parsen von
+          Datumsangaben besser die Muster von <em>Typ konvertieren</em> nutzen statt Regex.</li>
+      <li>Das Entfernen exakter Duplikate vergleicht alle Spalten; verschachtelte Typen
+          (LIST/STRUCT/MAP) sind unter Umständen nicht vergleichbar und können einen Fehler
+          verursachen — solche Spalten vorher entfernen oder konvertieren.</li>
+      <li>Hashing ist <em>Pseudonymisierung</em>, keine garantierte Anonymität: mit bekanntem Salt und
+          kleinem Wertebereich lassen sich Werte durch Ausprobieren ermitteln. Für stärkeren Schutz mit
+          Generalisierung kombinieren (geplant).</li>
+      <li>DuckDB-WASM wird von einem öffentlichen CDN geladen, beim ersten Laden ist daher ein
+          Internetzugang nötig; die Datei selbst wird niemals hochgeladen.</li>
+    </ul>

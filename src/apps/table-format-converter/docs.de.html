@@ -1,0 +1,162 @@
+    <h2>Table Format Converter</h2>
+    <p>
+      Ein reines Browser-Werkzeug, um strukturierte Tabellendaten zu lesen (CSV, Parquet, JSON,
+      NDJSON, Excel, ODS, Apple Numbers, DuckDB, SQLite, Markdown, HTML), ihre Struktur zu
+      prüfen, die Parsing-Heuristik anzupassen und in ein anderes Format zu exportieren.
+      <strong>Deine Daten verlassen den Browser nicht</strong> — alles wird lokal mit
+      DuckDB-WASM und SheetJS verarbeitet.
+    </p>
+
+    <h3>Ablauf</h3>
+    <ol>
+      <li>Eine Datei in den Ablagebereich ziehen oder klicken, um eine auszuwählen. Du kannst auch
+          <strong>mehrere Dateien gleichzeitig</strong> wählen — siehe <em>Mehrere Dateien</em> unten.</li>
+      <li>Die App erkennt Format und Parsing-Parameter anhand einer kleinen Stichprobe
+          und zeigt eine Vorschau der ersten 10 Zeilen samt Schema.</li>
+      <li>Jeden Parameter links anpassen — die Vorschau läuft live neu
+          (entprellt, ca. 300 ms).</li>
+      <li>Zielformat und Optionen wählen, dann auf <em>Exportieren</em> klicken. Erst zu
+          diesem Zeitpunkt wird die vollständige Datei gelesen.</li>
+    </ol>
+
+    <h3>Stichprobe zuerst — Performance</h3>
+    <p>
+      Das Ablegen erfolgt unabhängig von der Dateigröße sofort, und die erste Vorschau erscheint
+      innerhalb von ca. 100 ms — auch bei Dateien von mehreren Gigabyte:
+    </p>
+    <ul>
+      <li><strong>Dateien &gt; 512&nbsp;KB</strong> — als lazy
+          <code>FileReader</code>-Handle registriert (es werden keine Bytes geladen). Ein kleines
+          <strong>512&nbsp;KB großes Kopfstück</strong> wird vorab in den WASM-Speicher geladen und
+          für alle Vorschau- und Erkennungsabfragen genutzt — der Rest der Datei wird dabei nie
+          angefasst.</li>
+      <li><strong>Dateien ≤ 512&nbsp;KB</strong> — einmal vollständig in den Speicher geladen
+          und für Vorschau wie Export wiederverwendet.</li>
+      <li><strong>Parquet</strong> — DuckDB beschränkt den Zugriff auf die benötigten Spalten und
+          Row-Groups, sodass selbst vollständige Lesevorgänge nur holen, was die Abfrage braucht.</li>
+      <li><strong>JSON (Array)</strong> — ein JSON-Array ist ein einziger Wert, ein vollständiges
+          Lesen würde also die ganze Datei laden. Die <em>Vorschau</em> parst stattdessen nur ein
+          Kopfstück und entnimmt die ersten vollständigen Elemente; das komplette Array wird erst
+          beim Export gelesen.</li>
+      <li><strong>SQLite</strong> — wird mit sql.js gelesen, das die gesamte Datenbank in den
+          Speicher lädt (praktikabel bis ca. 1&nbsp;GB). Der SQLite-Scanner von DuckDB-WASM kann
+          keine lazy registrierte Browser-Datei öffnen, daher lassen sich größere Datenbanken nicht
+          im Browser öffnen — wandle die benötigte Tabelle vorher nach Parquet um (siehe unten).</li>
+      <li><strong>Excel / ODS / Numbers</strong> — müssen vollständig geladen werden (SheetJS
+          arbeitet nicht streamend), werden aber in einem kompakten (<code>dense</code>) Modell
+          geparst; die Heuristik betrachtet nur die ersten 100 Zeilen je Blatt.</li>
+      <li><strong>Markdown</strong> — Tabellenerkennung und Vorschau parsen nur ein 1&nbsp;MB
+          großes Kopfstück; beim Export wird die vollständige Datei erneut geparst.</li>
+      <li><strong>Export</strong> — liest immer die <em>vollständige</em> Datei; dies ist die
+          einzige Phase, in der der gesamte Datenbestand angefasst wird.</li>
+    </ul>
+
+    <h3>Mehrere Dateien (zusammenführen)</h3>
+    <p>
+      Wähle oder ziehe <strong>mehrere Dateien gleichzeitig</strong>, um sie zu einer Tabelle zu
+      stapeln (etwa monatliche CSV-Exporte oder einen partitionierten Parquet-Satz). Unterstützt für
+      <strong>CSV/TSV, Parquet, JSON und NDJSON</strong>; alle Dateien müssen
+      <strong>vom selben Typ sein und dieselbe Struktur haben</strong> (identische Spalten und Typen).
+      Weicht die Struktur einer Datei ab, bricht der Import mit einer Fehlermeldung ab, die Datei und
+      Abweichung benennt. Die Erkennung (Trennzeichen, Kopfzeile, …) läuft auf der ersten Datei und
+      gilt für alle; die zusammengeführten Daten werden über DuckDB gelesen und verhalten sich für
+      Vorschau, Filter und Export wie eine einzige Quelle. Andere Formate (Excel/ODS/Numbers, SQLite,
+      DuckDB, Markdown, HTML) werden einzeln importiert.
+    </p>
+
+    <h3>SQL-Editor</h3>
+    <p>
+      Über die Karte <strong>SQL</strong> kannst du lesende Abfragen auf die aktuelle Quelle
+      ausführen, die als View namens <code>data</code> bereitsteht — etwa
+      <code>SELECT region, sum(umsatz) FROM data GROUP BY region ORDER BY 2 DESC</code>.
+      Ausführen per Schaltfläche oder <kbd>Strg</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd>. Die Abfrage
+      berücksichtigt die Parsing-Heuristik (Trennzeichen, Kopfzeile, gewähltes Blatt bzw. gewählte
+      Tabelle, Zusammenführung mehrerer Dateien) und funktioniert für jede Quelle — CSV, Parquet,
+      JSON/NDJSON, Excel/ODS/Numbers, SQLite, DuckDB, Markdown und eingefügte Daten (Quellen außer
+      DuckDB werden dafür einmal materialisiert). Abfragen werden als Unterabfrage gekapselt, es
+      sind also nur Lesezugriffe möglich.
+    </p>
+    <p>
+      Ergebnisse werden <strong>zu 100 Zeilen je Seite</strong> geblättert (Zurück / Weiter): jede
+      Seite wird mit <code>LIMIT/OFFSET</code> geholt, sodass immer nur 100 Zeilen im Browser
+      landen — große Ergebnismengen sprengen den Speicher also nicht.
+      <strong>Ergebnis → Parquet</strong> schreibt das <em>vollständige</em> Abfrageergebnis
+      (alle Zeilen, nicht nur die aktuelle Seite) über DuckDB <code>COPY</code> direkt in eine
+      Parquet-Datei (zstd-komprimiert), ohne jede Zeile im Browser aufzubauen.
+    </p>
+    <p>
+      Bei großen Dateien in einem <strong>zeilenorientierten</strong> Format (CSV, JSON, Excel — oder
+      mehreren zusammengeführten Dateien) erscheint ein Hinweis: jede Abfrage liest die gesamte Datei
+      erneut. Für komplexe oder wiederholte Auswertungen daher
+      <strong>zuerst nach Parquet exportieren</strong> und die Abfragen auf der Parquet-Datei
+      ausführen — sie ist spaltenorientiert und wird gezielt gelesen, wodurch Auswertungen drastisch
+      schneller und speicherschonender werden.
+    </p>
+
+    <h3>Unterstützte Formate</h3>
+    <ul>
+      <li><strong>CSV / TSV</strong> — erkennt Zeichensatz, BOM, Zeilenende,
+          Trennzeichen, Anführungszeichen, zu überspringende Zeilen und Kopfzeile automatisch.</li>
+      <li><strong>Parquet</strong> — das Schema wird direkt aus den Metadaten gelesen, eine
+          Heuristik ist nicht nötig.</li>
+      <li><strong>JSON (Array)</strong> — die vollständige Datei wird geparst (ein JSON-Array ist
+          ein einziger Wert). Bei Dateien &gt; 100&nbsp;MB schlägt die App stattdessen NDJSON vor.</li>
+      <li><strong>NDJSON / JSON Lines</strong> — das Schema wird aus den ersten ca. 100 Zeilen
+          abgeleitet.</li>
+      <li><strong>Excel (.xlsx / .xls), OpenDocument (.ods / .fods) und Apple Numbers
+          (.numbers)</strong> — werden alle über SheetJS auf demselben Weg gelesen: Blattauswahl,
+          Erkennung des Datenbereichs (umschließendes Rechteck), Kopfzeile sowie ein visueller
+          Bereichswähler. Formeln werden als ihre zwischengespeicherten Werte gelesen.
+          <strong>ODS</strong> steht auch als Exportziel zur Verfügung.</li>
+      <li><strong>HTML (.html / .htm)</strong> — alle <code>&lt;table&gt;</code>-Elemente werden
+          extrahiert (Auswahl über das Feld <em>Tabelle</em>). Ebenfalls als Exportziel verfügbar
+          (ein eigenständiges HTML-Dokument mit einer Tabelle).</li>
+      <li><strong>DuckDB (.duckdb / .ddb / .db)</strong> — wird schreibgeschützt eingebunden;
+          wähle die zu lesende Tabelle. Schema und Typen stammen direkt aus der Datei. Auch als
+          Exportziel verfügbar.</li>
+      <li><strong>SQLite (.sqlite / .sqlite3 / .db)</strong> — wird über sql.js gelesen, das die
+          gesamte Datenbank in den Speicher lädt (praktikabel bis ca. 1&nbsp;GB); wähle die zu
+          lesende Tabelle und wandle sie in ein beliebiges unterstütztes Exportformat um. Größere
+          Datenbanken lassen sich nicht im Browser öffnen (der SQLite-Scanner von DuckDB-WASM kann
+          keine lazy registrierte Datei öffnen) — wandle die benötigte Tabelle zuvor mit der
+          DuckDB-CLI nach Parquet um, etwa
+          <code>duckdb -c "INSTALL sqlite; LOAD sqlite; COPY (SELECT * FROM sqlite_scan('db.sqlite','meine_tabelle')) TO 'meine_tabelle.parquet' (FORMAT parquet);"</code>,
+          und importiere das Parquet hier. (<code>.db</code> wird anhand der Magic Bytes automatisch
+          als SQLite oder DuckDB erkannt.)</li>
+      <li><strong>Aus der Zwischenablage einfügen</strong> — die Schaltfläche
+          <em>Tabelle aus Zwischenablage</em> importiert eine aus Excel/Sheets, einer Browser-Tabelle
+          oder als CSV/TSV-Text kopierte Tabelle. Formatierte HTML-Tabellen werden direkt gelesen;
+          bei reinem Text wird das Trennzeichen (Tab / <code>;</code> / <code>|</code> /
+          <code>,</code> / Leerzeichen / <strong>Markdown</strong>) automatisch erkannt und lässt
+          sich überschreiben, die erste Zeile gilt als Kopfzeile (umschaltbar). Bei mehreren
+          Tabellen → Auswahl über das Feld <em>Tabelle</em>.</li>
+      <li><strong>Quell-Editor / neue Tabelle</strong> — eingefügter Text erscheint in einem
+          bearbeitbaren <em>Quell-Editor</em> mit Live-Vorschau; <em>Neue / leere Tabelle</em> öffnet
+          einen leeren Editor, um eine Tabelle von Grund auf anzulegen (etwa als Markdown-Tabelle).
+          Eine als HTML eingefügte Tabelle lässt sich über <em>Als Text bearbeiten</em> in den
+          Editor übernehmen.</li>
+      <li><strong>Markdown (.md / .markdown)</strong> — Pipe-Tabellen im GitHub-Stil.
+          Alle Tabellen der Datei werden erkannt; die zu lesende wählst du über das Feld
+          <em>Tabelle</em> (benannt nach der nächstgelegenen vorangehenden Überschrift). Spaltentypen
+          werden abgeleitet (Markdown enthält keine). Ebenfalls als Exportziel verfügbar — erzeugt
+          eine GFM-Pipe-Tabelle (Zellen mit <code>|</code> oder Zeilenumbrüchen werden maskiert;
+          begrenzt auf 50.000 Zeilen).</li>
+    </ul>
+
+    <h3>Hinweise &amp; Grenzen (v1)</h3>
+    <ul>
+      <li>Excel-Blätter mit mehreren getrennten Datenbereichen: nur der erste bzw. größte wird
+          erkannt. Über den Bereichswähler lässt sich ein anderer Block manuell wählen.</li>
+      <li>Verschachtelte Strukturen (Struct/List/Map) erscheinen in der Vorschau als
+          JSON-Zeichenketten; der Parquet-Export erhält die nativen Typen.</li>
+      <li>Blockiert dein Browser <code>SharedArrayBuffer</code> über Origin-Grenzen hinweg
+          (typisch bei <code>file://</code>), weicht DuckDB auf den einkernigen MVP-Build aus —
+          etwas langsamer, aber ansonsten voll funktionsfähig.</li>
+      <li>Externe Bibliotheken (DuckDB-WASM, SheetJS) werden von öffentlichen CDNs geladen. Beim
+          ersten Laden ist daher ein Internetzugang nötig; Browser cachen anschließend aggressiv.</li>
+      <li>Alles läuft in einem 32-Bit-WebAssembly-Speicher (Obergrenze ca. 2–4&nbsp;GB).
+          Formate, die vollständig gelesen werden müssen — JSON-Arrays beim Export, Excel/ODS/Numbers
+          sowie SQLite über den sql.js-Weg — können diese Grenze bei sehr großen Dateien erreichen.
+          Der speichersparendste Weg ist, nach <strong>Parquet</strong> zu wandeln und von dort
+          weiterzuarbeiten.</li>
+    </ul>

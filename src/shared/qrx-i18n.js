@@ -100,6 +100,12 @@
         if (val !== key) el.setAttribute(a, val);
       });
     }
+    // Whole blocks per language — used for the documentation, which is prose:
+    // one key per sentence would be unreadable and unmaintainable.
+    const blocks = scope.querySelectorAll('[data-qrx-docs]');
+    if (blocks.length) {
+      blocks.forEach(el => { el.hidden = el.getAttribute('data-qrx-docs') !== current; });
+    }
   }
 
   function setLang(lang) {

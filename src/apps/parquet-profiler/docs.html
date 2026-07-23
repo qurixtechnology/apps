@@ -18,7 +18,7 @@
         ohne dass die eigentlichen Daten gescannt werden müssen.
       </li>
       <li>
-        Drei Tabs bieten unterschiedliche Sichten auf den Datensatz:
+        Vier Tabs bieten unterschiedliche Sichten auf den Datensatz:
         <strong>Attribute</strong> (Profiling der einzelnen Spalten),
         <strong>Daten-Vorschau</strong> (zeilenweise Anzeige mit Filter &amp; Paginierung),
         <strong>Pivot</strong> (Excel-Style Auswertung) und <strong>SQL</strong>
@@ -158,14 +158,17 @@
         durch Filter nicht ungültig.
       </li>
       <li>
-        Die gesamte Datei wird in den Browser-Speicher geladen. Für Dateien über 2&ndash;4
-        GB empfehlen sich Desktop-Browser mit ausreichend RAM.
+        Dateien werden per Bytebereich referenziert, ihre Größe ist also nicht der
+        begrenzende Faktor. Nur die <em>aktive</em> Datei lässt sich optional in den Speicher
+        laden (<em>Aktive Datei in den Speicher laden</em>) &mdash; schneller bei wiederholten
+        Abfragen, dafür mit RAM-Bedarf. DuckDB-WASM arbeitet in einem 32-Bit-Speicher
+        (ca. 2&ndash;4&nbsp;GB), in den das Puffern passen muss.
       </li>
     </ul>
 
     <h3>Technologie</h3>
     <ul>
-      <li><strong>DuckDB-WASM <code>@1.32.0</code></strong> &mdash; In-Browser-SQL-Engine mit nativer Parquet-Unterstützung.</li>
+      <li><strong>DuckDB-WASM</strong> &mdash; In-Browser-SQL-Engine mit nativer Parquet-Unterstützung.</li>
       <li><strong>Chart.js <code>@4.4.1</code></strong> &mdash; Visualisierungen.</li>
       <li>
         Beide Bibliotheken werden via CDN geladen &mdash; bei der ersten Nutzung wird daher

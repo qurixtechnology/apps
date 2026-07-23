@@ -1144,6 +1144,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
 <section id="qrx-docs" class="qrx-shell-docs" hidden>
   <div class="qrx-shell-docs-inner">
+<div data-qrx-docs="en">
     <h2>Table Format Converter</h2>
     <p>
       A browser-only tool to read structured tabular data (CSV, Parquet, JSON, NDJSON,
@@ -1300,6 +1301,171 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           files. Converting to <strong>Parquet</strong> and continuing from there is
           the most memory-efficient path.</li>
     </ul>
+</div>
+<div data-qrx-docs="de" hidden>
+    <h2>Table Format Converter</h2>
+    <p>
+      Ein reines Browser-Werkzeug, um strukturierte Tabellendaten zu lesen (CSV, Parquet, JSON,
+      NDJSON, Excel, ODS, Apple Numbers, DuckDB, SQLite, Markdown, HTML), ihre Struktur zu
+      prüfen, die Parsing-Heuristik anzupassen und in ein anderes Format zu exportieren.
+      <strong>Deine Daten verlassen den Browser nicht</strong> — alles wird lokal mit
+      DuckDB-WASM und SheetJS verarbeitet.
+    </p>
+
+    <h3>Ablauf</h3>
+    <ol>
+      <li>Eine Datei in den Ablagebereich ziehen oder klicken, um eine auszuwählen. Du kannst auch
+          <strong>mehrere Dateien gleichzeitig</strong> wählen — siehe <em>Mehrere Dateien</em> unten.</li>
+      <li>Die App erkennt Format und Parsing-Parameter anhand einer kleinen Stichprobe
+          und zeigt eine Vorschau der ersten 10 Zeilen samt Schema.</li>
+      <li>Jeden Parameter links anpassen — die Vorschau läuft live neu
+          (entprellt, ca. 300 ms).</li>
+      <li>Zielformat und Optionen wählen, dann auf <em>Exportieren</em> klicken. Erst zu
+          diesem Zeitpunkt wird die vollständige Datei gelesen.</li>
+    </ol>
+
+    <h3>Stichprobe zuerst — Performance</h3>
+    <p>
+      Das Ablegen erfolgt unabhängig von der Dateigröße sofort, und die erste Vorschau erscheint
+      innerhalb von ca. 100 ms — auch bei Dateien von mehreren Gigabyte:
+    </p>
+    <ul>
+      <li><strong>Dateien &gt; 512&nbsp;KB</strong> — als lazy
+          <code>FileReader</code>-Handle registriert (es werden keine Bytes geladen). Ein kleines
+          <strong>512&nbsp;KB großes Kopfstück</strong> wird vorab in den WASM-Speicher geladen und
+          für alle Vorschau- und Erkennungsabfragen genutzt — der Rest der Datei wird dabei nie
+          angefasst.</li>
+      <li><strong>Dateien ≤ 512&nbsp;KB</strong> — einmal vollständig in den Speicher geladen
+          und für Vorschau wie Export wiederverwendet.</li>
+      <li><strong>Parquet</strong> — DuckDB beschränkt den Zugriff auf die benötigten Spalten und
+          Row-Groups, sodass selbst vollständige Lesevorgänge nur holen, was die Abfrage braucht.</li>
+      <li><strong>JSON (Array)</strong> — ein JSON-Array ist ein einziger Wert, ein vollständiges
+          Lesen würde also die ganze Datei laden. Die <em>Vorschau</em> parst stattdessen nur ein
+          Kopfstück und entnimmt die ersten vollständigen Elemente; das komplette Array wird erst
+          beim Export gelesen.</li>
+      <li><strong>SQLite</strong> — wird mit sql.js gelesen, das die gesamte Datenbank in den
+          Speicher lädt (praktikabel bis ca. 1&nbsp;GB). Der SQLite-Scanner von DuckDB-WASM kann
+          keine lazy registrierte Browser-Datei öffnen, daher lassen sich größere Datenbanken nicht
+          im Browser öffnen — wandle die benötigte Tabelle vorher nach Parquet um (siehe unten).</li>
+      <li><strong>Excel / ODS / Numbers</strong> — müssen vollständig geladen werden (SheetJS
+          arbeitet nicht streamend), werden aber in einem kompakten (<code>dense</code>) Modell
+          geparst; die Heuristik betrachtet nur die ersten 100 Zeilen je Blatt.</li>
+      <li><strong>Markdown</strong> — Tabellenerkennung und Vorschau parsen nur ein 1&nbsp;MB
+          großes Kopfstück; beim Export wird die vollständige Datei erneut geparst.</li>
+      <li><strong>Export</strong> — liest immer die <em>vollständige</em> Datei; dies ist die
+          einzige Phase, in der der gesamte Datenbestand angefasst wird.</li>
+    </ul>
+
+    <h3>Mehrere Dateien (zusammenführen)</h3>
+    <p>
+      Wähle oder ziehe <strong>mehrere Dateien gleichzeitig</strong>, um sie zu einer Tabelle zu
+      stapeln (etwa monatliche CSV-Exporte oder einen partitionierten Parquet-Satz). Unterstützt für
+      <strong>CSV/TSV, Parquet, JSON und NDJSON</strong>; alle Dateien müssen
+      <strong>vom selben Typ sein und dieselbe Struktur haben</strong> (identische Spalten und Typen).
+      Weicht die Struktur einer Datei ab, bricht der Import mit einer Fehlermeldung ab, die Datei und
+      Abweichung benennt. Die Erkennung (Trennzeichen, Kopfzeile, …) läuft auf der ersten Datei und
+      gilt für alle; die zusammengeführten Daten werden über DuckDB gelesen und verhalten sich für
+      Vorschau, Filter und Export wie eine einzige Quelle. Andere Formate (Excel/ODS/Numbers, SQLite,
+      DuckDB, Markdown, HTML) werden einzeln importiert.
+    </p>
+
+    <h3>SQL-Editor</h3>
+    <p>
+      Über die Karte <strong>SQL</strong> kannst du lesende Abfragen auf die aktuelle Quelle
+      ausführen, die als View namens <code>data</code> bereitsteht — etwa
+      <code>SELECT region, sum(umsatz) FROM data GROUP BY region ORDER BY 2 DESC</code>.
+      Ausführen per Schaltfläche oder <kbd>Strg</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd>. Die Abfrage
+      berücksichtigt die Parsing-Heuristik (Trennzeichen, Kopfzeile, gewähltes Blatt bzw. gewählte
+      Tabelle, Zusammenführung mehrerer Dateien) und funktioniert für jede Quelle — CSV, Parquet,
+      JSON/NDJSON, Excel/ODS/Numbers, SQLite, DuckDB, Markdown und eingefügte Daten (Quellen außer
+      DuckDB werden dafür einmal materialisiert). Abfragen werden als Unterabfrage gekapselt, es
+      sind also nur Lesezugriffe möglich.
+    </p>
+    <p>
+      Ergebnisse werden <strong>zu 100 Zeilen je Seite</strong> geblättert (Zurück / Weiter): jede
+      Seite wird mit <code>LIMIT/OFFSET</code> geholt, sodass immer nur 100 Zeilen im Browser
+      landen — große Ergebnismengen sprengen den Speicher also nicht.
+      <strong>Ergebnis → Parquet</strong> schreibt das <em>vollständige</em> Abfrageergebnis
+      (alle Zeilen, nicht nur die aktuelle Seite) über DuckDB <code>COPY</code> direkt in eine
+      Parquet-Datei (zstd-komprimiert), ohne jede Zeile im Browser aufzubauen.
+    </p>
+    <p>
+      Bei großen Dateien in einem <strong>zeilenorientierten</strong> Format (CSV, JSON, Excel — oder
+      mehreren zusammengeführten Dateien) erscheint ein Hinweis: jede Abfrage liest die gesamte Datei
+      erneut. Für komplexe oder wiederholte Auswertungen daher
+      <strong>zuerst nach Parquet exportieren</strong> und die Abfragen auf der Parquet-Datei
+      ausführen — sie ist spaltenorientiert und wird gezielt gelesen, wodurch Auswertungen drastisch
+      schneller und speicherschonender werden.
+    </p>
+
+    <h3>Unterstützte Formate</h3>
+    <ul>
+      <li><strong>CSV / TSV</strong> — erkennt Zeichensatz, BOM, Zeilenende,
+          Trennzeichen, Anführungszeichen, zu überspringende Zeilen und Kopfzeile automatisch.</li>
+      <li><strong>Parquet</strong> — das Schema wird direkt aus den Metadaten gelesen, eine
+          Heuristik ist nicht nötig.</li>
+      <li><strong>JSON (Array)</strong> — die vollständige Datei wird geparst (ein JSON-Array ist
+          ein einziger Wert). Bei Dateien &gt; 100&nbsp;MB schlägt die App stattdessen NDJSON vor.</li>
+      <li><strong>NDJSON / JSON Lines</strong> — das Schema wird aus den ersten ca. 100 Zeilen
+          abgeleitet.</li>
+      <li><strong>Excel (.xlsx / .xls), OpenDocument (.ods / .fods) und Apple Numbers
+          (.numbers)</strong> — werden alle über SheetJS auf demselben Weg gelesen: Blattauswahl,
+          Erkennung des Datenbereichs (umschließendes Rechteck), Kopfzeile sowie ein visueller
+          Bereichswähler. Formeln werden als ihre zwischengespeicherten Werte gelesen.
+          <strong>ODS</strong> steht auch als Exportziel zur Verfügung.</li>
+      <li><strong>HTML (.html / .htm)</strong> — alle <code>&lt;table&gt;</code>-Elemente werden
+          extrahiert (Auswahl über das Feld <em>Tabelle</em>). Ebenfalls als Exportziel verfügbar
+          (ein eigenständiges HTML-Dokument mit einer Tabelle).</li>
+      <li><strong>DuckDB (.duckdb / .ddb / .db)</strong> — wird schreibgeschützt eingebunden;
+          wähle die zu lesende Tabelle. Schema und Typen stammen direkt aus der Datei. Auch als
+          Exportziel verfügbar.</li>
+      <li><strong>SQLite (.sqlite / .sqlite3 / .db)</strong> — wird über sql.js gelesen, das die
+          gesamte Datenbank in den Speicher lädt (praktikabel bis ca. 1&nbsp;GB); wähle die zu
+          lesende Tabelle und wandle sie in ein beliebiges unterstütztes Exportformat um. Größere
+          Datenbanken lassen sich nicht im Browser öffnen (der SQLite-Scanner von DuckDB-WASM kann
+          keine lazy registrierte Datei öffnen) — wandle die benötigte Tabelle zuvor mit der
+          DuckDB-CLI nach Parquet um, etwa
+          <code>duckdb -c "INSTALL sqlite; LOAD sqlite; COPY (SELECT * FROM sqlite_scan('db.sqlite','meine_tabelle')) TO 'meine_tabelle.parquet' (FORMAT parquet);"</code>,
+          und importiere das Parquet hier. (<code>.db</code> wird anhand der Magic Bytes automatisch
+          als SQLite oder DuckDB erkannt.)</li>
+      <li><strong>Aus der Zwischenablage einfügen</strong> — die Schaltfläche
+          <em>Tabelle aus Zwischenablage</em> importiert eine aus Excel/Sheets, einer Browser-Tabelle
+          oder als CSV/TSV-Text kopierte Tabelle. Formatierte HTML-Tabellen werden direkt gelesen;
+          bei reinem Text wird das Trennzeichen (Tab / <code>;</code> / <code>|</code> /
+          <code>,</code> / Leerzeichen / <strong>Markdown</strong>) automatisch erkannt und lässt
+          sich überschreiben, die erste Zeile gilt als Kopfzeile (umschaltbar). Bei mehreren
+          Tabellen → Auswahl über das Feld <em>Tabelle</em>.</li>
+      <li><strong>Quell-Editor / neue Tabelle</strong> — eingefügter Text erscheint in einem
+          bearbeitbaren <em>Quell-Editor</em> mit Live-Vorschau; <em>Neue / leere Tabelle</em> öffnet
+          einen leeren Editor, um eine Tabelle von Grund auf anzulegen (etwa als Markdown-Tabelle).
+          Eine als HTML eingefügte Tabelle lässt sich über <em>Als Text bearbeiten</em> in den
+          Editor übernehmen.</li>
+      <li><strong>Markdown (.md / .markdown)</strong> — Pipe-Tabellen im GitHub-Stil.
+          Alle Tabellen der Datei werden erkannt; die zu lesende wählst du über das Feld
+          <em>Tabelle</em> (benannt nach der nächstgelegenen vorangehenden Überschrift). Spaltentypen
+          werden abgeleitet (Markdown enthält keine). Ebenfalls als Exportziel verfügbar — erzeugt
+          eine GFM-Pipe-Tabelle (Zellen mit <code>|</code> oder Zeilenumbrüchen werden maskiert;
+          begrenzt auf 50.000 Zeilen).</li>
+    </ul>
+
+    <h3>Hinweise &amp; Grenzen (v1)</h3>
+    <ul>
+      <li>Excel-Blätter mit mehreren getrennten Datenbereichen: nur der erste bzw. größte wird
+          erkannt. Über den Bereichswähler lässt sich ein anderer Block manuell wählen.</li>
+      <li>Verschachtelte Strukturen (Struct/List/Map) erscheinen in der Vorschau als
+          JSON-Zeichenketten; der Parquet-Export erhält die nativen Typen.</li>
+      <li>Blockiert dein Browser <code>SharedArrayBuffer</code> über Origin-Grenzen hinweg
+          (typisch bei <code>file://</code>), weicht DuckDB auf den einkernigen MVP-Build aus —
+          etwas langsamer, aber ansonsten voll funktionsfähig.</li>
+      <li>Externe Bibliotheken (DuckDB-WASM, SheetJS) werden von öffentlichen CDNs geladen. Beim
+          ersten Laden ist daher ein Internetzugang nötig; Browser cachen anschließend aggressiv.</li>
+      <li>Alles läuft in einem 32-Bit-WebAssembly-Speicher (Obergrenze ca. 2–4&nbsp;GB).
+          Formate, die vollständig gelesen werden müssen — JSON-Arrays beim Export, Excel/ODS/Numbers
+          sowie SQLite über den sql.js-Weg — können diese Grenze bei sehr großen Dateien erreichen.
+          Der speichersparendste Weg ist, nach <strong>Parquet</strong> zu wandeln und von dort
+          weiterzuarbeiten.</li>
+    </ul>
+</div>
   </div>
 </section>
 
@@ -1430,8 +1596,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
             <span class="sql-summary-title">SQL</span>
             <span class="sql-summary-hint">
               <span data-qrx-i18n="app.sqlHint">query the source as</span> <code>data</code> ·
-              <a href="https://duckdb.org/docs/1.3/sql/introduction" target="_blank"
-                 rel="noopener noreferrer" id="sqlDocLink">DuckDB SQL syntax (v1.3.2)</a>
+              <a href="https://duckdb.org/docs/stable/sql/introduction" target="_blank"
+                 rel="noopener noreferrer" id="sqlDocLink"
+                 data-qrx-i18n="app.sqlSyntaxLink">DuckDB SQL syntax</a>
             </span>
             <svg class="heuristic-summary-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline points="6 4 10 8 6 12"/>
@@ -1522,7 +1689,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-211953</span>
+    &middot; v<span data-build-version>260723-183352</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1774,6 +1941,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         const val = t(key);
         if (val !== key) el.setAttribute(a, val);
       });
+    }
+    // Whole blocks per language — used for the documentation, which is prose:
+    // one key per sentence would be unreadable and unmaintainable.
+    const blocks = scope.querySelectorAll('[data-qrx-docs]');
+    if (blocks.length) {
+      blocks.forEach(el => { el.hidden = el.getAttribute('data-qrx-docs') !== current; });
     }
   }
 
@@ -3453,6 +3626,40 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // the shell: it only offers one once the app itself can be translated.
   qrx.i18n.register('app', {
     de: {
+      autoDetectedHint: 'automatisch erkannt — zum Anpassen klicken',
+      overridesActive: 'manuelle Anpassungen aktiv',
+      sqlSyntaxLink: 'DuckDB-SQL-Syntax',
+      fDelimiter: 'Trennzeichen',
+      fEncoding: 'Zeichensatz',
+      fQuote: 'Anführungszeichen',
+      fNullStrings: 'NULL-Werte',
+      fSkipRows: 'Zeilen überspringen',
+      fDecimalSep: 'Dezimaltrennzeichen',
+      fDateFormat: 'Datumsformat',
+      fRange: 'Bereich',
+      fTable: 'Tabelle',
+      fHasHeader: 'Enthält Kopfzeile',
+      oCompression: 'Komprimierung',
+      oRowGroup: 'Row-Group-Größe',
+      oSheet: 'Tabellenblatt',
+      oSheetName: 'Name des Tabellenblatts',
+      oWriteHeader: 'Kopfzeile schreiben',
+      oTargetTable: 'Zieltabelle',
+      oIfExists: 'Falls die Tabelle existiert',
+      oServerUri: 'Server-URI',
+      oAuthToken: 'Auth-Token',
+      oReplace: 'Ersetzen',
+      oCreateNew: 'Neu anlegen (Fehler, falls vorhanden)',
+      oAppend: 'Anhängen',
+      sColumns: 'Spalten',
+      sRows: 'Zeilen',
+      vNone: 'keines',
+      vWhitespace: 'Leerzeichen',
+      vComma: ', (Komma)',
+      vSemicolon: '; (Semikolon)',
+      vPipe: '| (Pipe)',
+      vTab: '\\t (Tab)',
+      vDot: '. (Punkt)',
       dropAria: 'Datei hier ablegen oder klicken, um eine auszuwählen',
       dropTitle: 'Datei hier ablegen oder klicken, um eine auszuwählen',
       dropFormats: 'CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · bis ca. 1 GB',
@@ -3498,6 +3705,40 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       exportDone: 'Fertig.',
     },
     en: {
+      autoDetectedHint: 'auto-detected — click to adjust',
+      overridesActive: 'overrides active',
+      sqlSyntaxLink: 'DuckDB SQL syntax',
+      fDelimiter: 'Delimiter',
+      fEncoding: 'Encoding',
+      fQuote: 'Quote',
+      fNullStrings: 'NULL strings',
+      fSkipRows: 'Skip rows',
+      fDecimalSep: 'Decimal separator',
+      fDateFormat: 'Date format',
+      fRange: 'Range',
+      fTable: 'Table',
+      fHasHeader: 'Has header row',
+      oCompression: 'Compression',
+      oRowGroup: 'Row group size',
+      oSheet: 'Sheet',
+      oSheetName: 'Sheet name',
+      oWriteHeader: 'Write header',
+      oTargetTable: 'Target table',
+      oIfExists: 'If the table exists',
+      oServerUri: 'Server URI',
+      oAuthToken: 'Auth token',
+      oReplace: 'Replace',
+      oCreateNew: 'Create new (fail if it exists)',
+      oAppend: 'Append',
+      sColumns: 'Columns',
+      sRows: 'Rows',
+      vNone: 'none',
+      vWhitespace: 'whitespace',
+      vComma: ', (comma)',
+      vSemicolon: '; (semicolon)',
+      vPipe: '| (pipe)',
+      vTab: '\\t (tab)',
+      vDot: '. (dot)',
       dropAria: 'Drop a file here or click to pick one',
       dropTitle: 'Drop a file here, or click to pick one',
       dropFormats: 'CSV · TSV · Parquet · JSON · NDJSON · Excel · ODS · Numbers · DuckDB · SQLite · Markdown · HTML · up to ~1 GB',
@@ -4760,35 +5001,35 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     let html = '';
 
     if (state.format === 'csv') {
-      html += renderField('Delimiter', selectMarkup('h_delim', [
+      html += renderField(t('fDelimiter'), selectMarkup('h_delim', [
         { v: ',', label: ', (comma)' },
         { v: ';', label: '; (semicolon)' },
         { v: '\t', label: '\\t (tab)' },
         { v: '|', label: '| (pipe)' },
       ], e.delim, true), e, 'delim');
-      html += renderField('Quote', selectMarkup('h_quote', [
+      html += renderField(t('fQuote'), selectMarkup('h_quote', [
         { v: '"', label: '"' },
         { v: "'", label: "'" },
         { v: '', label: 'none' },
       ], e.quote, true), e, 'quote');
-      html += renderField('Encoding', selectMarkup('h_enc', [
+      html += renderField(t('fEncoding'), selectMarkup('h_enc', [
         { v: 'utf-8', label: 'utf-8' },
         { v: 'latin-1', label: 'latin-1 (ISO-8859-1 / Windows-1252)' },
         { v: 'utf-16', label: 'utf-16' },
       ], e.encoding, false), e, 'encoding');
-      html += renderField('Skip rows', `<input class="qrx-input" id="h_skip" type="number" min="0" value="${e.skip ?? 0}">`, e, 'skip');
+      html += renderField(t('fSkipRows'), `<input class="qrx-input" id="h_skip" type="number" min="0" value="${e.skip ?? 0}">`, e, 'skip');
       html += `<div class="qrx-form-group"><label class="checkbox-row">
         <input type="checkbox" id="h_header" ${e.header ? 'checked' : ''}>
-        <span class="qrx-label" style="margin: 0;">Has header row</span>
+        <span class="qrx-label" style="margin: 0;">${escapeHtml(t('fHasHeader'))}</span>
       </label></div>`;
-      html += renderField('Decimal separator', selectMarkup('h_decimal', [
+      html += renderField(t('fDecimalSep'), selectMarkup('h_decimal', [
         { v: '.', label: '. (dot)' },
         { v: ',', label: ', (comma)' },
       ], e.decimal, false), e, 'decimal');
-      html += renderField('Date format', `<input class="qrx-input" id="h_dateformat" type="text"
+      html += renderField(t('fDateFormat'), `<input class="qrx-input" id="h_dateformat" type="text"
         value="${escapeAttr(e.dateformat || '')}" spellcheck="false"
         placeholder="auto-detect — e.g. %d.%m.%Y or %Y-%m-%d">`, e, 'dateformat');
-      html += renderField('NULL strings', `<div class="tag-chip-input" id="h_nulls"></div>`, e, 'nulls');
+      html += renderField(t('fNullStrings'), `<div class="tag-chip-input" id="h_nulls"></div>`, e, 'nulls');
       html += `<div class="qrx-form-group"><label class="checkbox-row">
         <input type="checkbox" id="h_tolerant" ${e.tolerant ? 'checked' : ''}>
         <span class="qrx-label" style="margin: 0;">Tolerate malformed rows
@@ -4807,7 +5048,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       const opts = state.duckdbTables.map(t =>
         `<option value="${escapeAttr(t.qualified)}" ${t.qualified === e.table ? 'selected' : ''}>${escapeHtml(t.schema)}.${escapeHtml(t.name)}</option>`
       ).join('');
-      html += renderField('Table', `<select class="qrx-select" id="h_table">${opts}</select>`, e, 'table');
+      html += renderField(t('fTable'), `<select class="qrx-select" id="h_table">${opts}</select>`, e, 'table');
       html += `<p class="muted" style="font-size: 0.8125rem; margin-top: var(--qrx-s-2);">
         ${state.duckdbTables.length} table${state.duckdbTables.length === 1 ? '' : 's'} in this database.
         Pick one to read from. Schema and types come straight from the file.
@@ -4818,7 +5059,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       const opts = state.markdownTables.map((t, i) =>
         `<option value="${i}" ${i === sel ? 'selected' : ''}>${escapeHtml(t.name)} (${t.rows.length} rows)</option>`
       ).join('');
-      html += renderField('Table', `<select class="qrx-select" id="h_mdtable">${opts}</select>`, e, 'mdTable');
+      html += renderField(t('fTable'), `<select class="qrx-select" id="h_mdtable">${opts}</select>`, e, 'mdTable');
       html += `<p class="muted" style="font-size: 0.8125rem; margin-top: var(--qrx-s-2);">
         ${state.markdownTables.length} table${state.markdownTables.length === 1 ? '' : 's'} found.
         Column types are inferred (Markdown carries none).
@@ -4830,10 +5071,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         const opts = state.pasteTables.map((t, i) =>
           `<option value="${i}" ${i === sel ? 'selected' : ''}>${escapeHtml(t.name)} (${t.matrix.length} rows)</option>`
         ).join('');
-        html += renderField('Table', `<select class="qrx-select" id="h_pastetable">${opts}</select>`, e, 'pasteTable');
+        html += renderField(t('fTable'), `<select class="qrx-select" id="h_pastetable">${opts}</select>`, e, 'pasteTable');
       }
       if (state.pasteSource === 'text') {
-        html += renderField('Delimiter', selectMarkup('h_pastedelim', [
+        html += renderField(t('fDelimiter'), selectMarkup('h_pastedelim', [
           { v: '\t', label: '\\t (tab)' },
           { v: ',',  label: ', (comma)' },
           { v: ';',  label: '; (semicolon)' },
@@ -4896,10 +5137,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       const sheetOpts = state.sheets.map(s =>
         `<option value="${s.name}" ${s.name === e.sheet ? 'selected' : ''}>${s.name}</option>`).join('');
       html += `<div class="qrx-form-group">
-        <label class="qrx-label" for="h_sheet">Sheet</label>
+        <label class="qrx-label" for="h_sheet">${escapeHtml(t('oSheet'))}</label>
         <select class="qrx-select" id="h_sheet">${sheetOpts}</select>
       </div>`;
-      html += renderField('Range', `<input class="qrx-input" id="h_range" type="text"
+      html += renderField(t('fRange'), `<input class="qrx-input" id="h_range" type="text"
         value="${(e.range || '').replace(/"/g,'&quot;')}"
         placeholder="A1:Z1000">`, e, 'range');
       html += `<div class="qrx-form-group"><label class="checkbox-row">
@@ -5091,9 +5332,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const hint = $('heuristicSummaryHint');
     if (hint) {
       const hasUserOverride = state.user && Object.keys(state.user).length > 0;
-      hint.textContent = hasUserOverride
-        ? 'overrides active'
-        : 'auto-detected — click to adjust';
+      hint.textContent = hasUserOverride ? t('overridesActive') : t('autoDetectedHint');
     }
     if (focusId) {
       const el = document.getElementById(focusId);
@@ -5167,7 +5406,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       if (hint) hint.textContent = 'detection incomplete — please check';
     } else {
       heuristicPanel.open = false;
-      if (hint) hint.textContent = 'auto-detected — click to adjust';
+      if (hint) hint.textContent = t('autoDetectedHint');
     }
   }
 
@@ -6238,11 +6477,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       : `${visible} <span class="approx">of ${total}</span>`;
     previewStats.innerHTML = `
       <div class="preview-stat">
-        <div class="preview-stat-label">Columns</div>
+        <div class="preview-stat-label">${escapeHtml(t('sColumns'))}</div>
         <div class="preview-stat-value">${colsHtml}</div>
       </div>
       <div class="preview-stat">
-        <div class="preview-stat-label">Rows</div>
+        <div class="preview-stat-label">${escapeHtml(t('sRows'))}</div>
         <div class="preview-stat-value">${
           state.rowCountEstimate ?
             (state.rowCountEstimate.exact ? '' : '<span class="approx">≈</span> ') +
@@ -6671,7 +6910,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     let html = '';
     if (fmt === 'csv') {
       html += `<div class="qrx-form-group">
-        <label class="qrx-label" for="ex_delim">Delimiter</label>
+        <label class="qrx-label" for="ex_delim">${escapeHtml(t('fDelimiter'))}</label>
         <select class="qrx-select" id="ex_delim">
           <option value=",">, (comma)</option>
           <option value=";">; (semicolon)</option>
@@ -6680,7 +6919,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         </select>
       </div>
       <div class="qrx-form-group">
-        <label class="qrx-label" for="ex_compression">Compression</label>
+        <label class="qrx-label" for="ex_compression">${escapeHtml(t('oCompression'))}</label>
         <select class="qrx-select" id="ex_compression">
           <option value="none">None</option>
           <option value="gzip">gzip</option>
@@ -6692,7 +6931,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       </label></div>`;
     } else if (fmt === 'parquet') {
       html += `<div class="qrx-form-group">
-        <label class="qrx-label" for="ex_compression">Compression</label>
+        <label class="qrx-label" for="ex_compression">${escapeHtml(t('oCompression'))}</label>
         <select class="qrx-select" id="ex_compression">
           <option value="snappy" selected>snappy</option>
           <option value="zstd">zstd</option>
@@ -6701,7 +6940,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         </select>
       </div>
       <div class="qrx-form-group">
-        <label class="qrx-label" for="ex_rowgroup">Row group size</label>
+        <label class="qrx-label" for="ex_rowgroup">${escapeHtml(t('oRowGroup'))}</label>
         <input class="qrx-input" id="ex_rowgroup" type="number" value="100000" min="1024">
       </div>`;
     } else if (fmt === 'json') {
@@ -6718,7 +6957,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       html += `<p class="empty-note">No options — a standalone HTML document with one table (max ${HTML_EXPORT_ROW_LIMIT.toLocaleString('en-US')} rows).</p>`;
     } else if (fmt === 'xlsx' || fmt === 'ods') {
       html += `<div class="qrx-form-group">
-        <label class="qrx-label" for="ex_sheet">Sheet name</label>
+        <label class="qrx-label" for="ex_sheet">${escapeHtml(t('oSheetName'))}</label>
         <input class="qrx-input" id="ex_sheet" type="text" value="Sheet1">
       </div>
       <div class="qrx-form-group"><label class="checkbox-row">
@@ -6732,11 +6971,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
             const uri = tokenVault.lastUri() || 'quack:localhost';
             const saved = tokenVault.has(uri);
             return `<div class="qrx-form-group">
-             <label class="qrx-label" for="ex_srv_uri">Server URI</label>
+             <label class="qrx-label" for="ex_srv_uri">${escapeHtml(t('oServerUri'))}</label>
              <input class="qrx-input" id="ex_srv_uri" type="text" value="${escapeAttr(uri)}" spellcheck="false">
            </div>
            <div class="qrx-form-group">
-             <label class="qrx-label" for="ex_srv_token">Auth token</label>
+             <label class="qrx-label" for="ex_srv_token">${escapeHtml(t('oAuthToken'))}</label>
              <input class="qrx-input" id="ex_srv_token" type="password" autocomplete="off" placeholder="${saved ? 'using saved token' : 'token'}">
              ${saved
                 ? '<p class="empty-note">A saved token is used automatically. Type one here to override it.</p>'
@@ -6747,15 +6986,15 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
            </div>`;
           })();
       html += `<div class="qrx-form-group">
-          <label class="qrx-label" for="ex_srv_table">Target table</label>
+          <label class="qrx-label" for="ex_srv_table">${escapeHtml(t('oTargetTable'))}</label>
           <input class="qrx-input" id="ex_srv_table" type="text" value="${escapeAttr(srvDefaultTargetName())}" spellcheck="false">
         </div>
         <div class="qrx-form-group">
-          <label class="qrx-label" for="ex_srv_mode">If the table exists</label>
+          <label class="qrx-label" for="ex_srv_mode">${escapeHtml(t('oIfExists'))}</label>
           <select class="qrx-select" id="ex_srv_mode">
-            <option value="replace">Replace</option>
-            <option value="create">Create new (fail if it exists)</option>
-            <option value="append">Append</option>
+            <option value="replace">${escapeHtml(t('oReplace'))}</option>
+            <option value="create">${escapeHtml(t('oCreateNew'))}</option>
+            <option value="append">${escapeHtml(t('oAppend'))}</option>
           </select>
         </div>`;
     }
@@ -6765,7 +7004,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   targetFormat.addEventListener('change', renderExportOptions);
   // options and the export button label are rendered by JS, so they need a
   // nudge when the language changes
-  qrx.i18n.onChange(() => { try { renderExportOptions(); } catch (_) {} });
+  // several panels are drawn by JS, so they need a redraw when the language changes
+  qrx.i18n.onChange(() => {
+    try {
+      renderExportOptions();
+      if (state.format) { renderHeuristicPanel(); renderPreviewStats(); }
+    } catch (_) { /* nothing loaded yet */ }
+  });
 
   exportBtn.addEventListener('click', async () => {
     if (state.snapshotMode) return;  // export needs the live source file

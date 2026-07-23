@@ -623,7 +623,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260720-173329</span>
+    &middot; v<span data-build-version>260723-182525</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -875,6 +875,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         const val = t(key);
         if (val !== key) el.setAttribute(a, val);
       });
+    }
+    // Whole blocks per language — used for the documentation, which is prose:
+    // one key per sentence would be unreadable and unmaintainable.
+    const blocks = scope.querySelectorAll('[data-qrx-docs]');
+    if (blocks.length) {
+      blocks.forEach(el => { el.hidden = el.getAttribute('data-qrx-docs') !== current; });
     }
   }
 

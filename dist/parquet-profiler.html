@@ -1398,6 +1398,7 @@ body.pp-fullscreen .pp-sql-result {
 
 <section id="qrx-docs" class="qrx-shell-docs" hidden>
   <div class="qrx-shell-docs-inner">
+<div data-qrx-docs="de">
     <h2>Parquet Profiler</h2>
     <p>
       Eine browserbasierte Anwendung zur strukturellen und statistischen Analyse von
@@ -1418,7 +1419,7 @@ body.pp-fullscreen .pp-sql-result {
         ohne dass die eigentlichen Daten gescannt werden müssen.
       </li>
       <li>
-        Drei Tabs bieten unterschiedliche Sichten auf den Datensatz:
+        Vier Tabs bieten unterschiedliche Sichten auf den Datensatz:
         <strong>Attribute</strong> (Profiling der einzelnen Spalten),
         <strong>Daten-Vorschau</strong> (zeilenweise Anzeige mit Filter &amp; Paginierung),
         <strong>Pivot</strong> (Excel-Style Auswertung) und <strong>SQL</strong>
@@ -1558,20 +1559,195 @@ body.pp-fullscreen .pp-sql-result {
         durch Filter nicht ungültig.
       </li>
       <li>
-        Die gesamte Datei wird in den Browser-Speicher geladen. Für Dateien über 2&ndash;4
-        GB empfehlen sich Desktop-Browser mit ausreichend RAM.
+        Dateien werden per Bytebereich referenziert, ihre Größe ist also nicht der
+        begrenzende Faktor. Nur die <em>aktive</em> Datei lässt sich optional in den Speicher
+        laden (<em>Aktive Datei in den Speicher laden</em>) &mdash; schneller bei wiederholten
+        Abfragen, dafür mit RAM-Bedarf. DuckDB-WASM arbeitet in einem 32-Bit-Speicher
+        (ca. 2&ndash;4&nbsp;GB), in den das Puffern passen muss.
       </li>
     </ul>
 
     <h3>Technologie</h3>
     <ul>
-      <li><strong>DuckDB-WASM <code>@1.32.0</code></strong> &mdash; In-Browser-SQL-Engine mit nativer Parquet-Unterstützung.</li>
+      <li><strong>DuckDB-WASM</strong> &mdash; In-Browser-SQL-Engine mit nativer Parquet-Unterstützung.</li>
       <li><strong>Chart.js <code>@4.4.1</code></strong> &mdash; Visualisierungen.</li>
       <li>
         Beide Bibliotheken werden via CDN geladen &mdash; bei der ersten Nutzung wird daher
         eine Internetverbindung benötigt. Anschließend cached der Browser die Bundles.
       </li>
     </ul>
+</div>
+<div data-qrx-docs="en" hidden>
+    <h2>Parquet Profiler</h2>
+    <p>
+      A browser-based tool for the structural and statistical analysis of Parquet files.
+      Everything runs <strong>locally</strong> in the browser through DuckDB-WASM &mdash;
+      no data is sent to a server. Files are <strong>referenced</strong> rather than loaded
+      by default: DuckDB reads only the byte ranges it actually needs, so even several large
+      files stay memory-friendly.
+    </p>
+
+    <h3>Workflow</h3>
+    <ol>
+      <li>Load one or more Parquet files by drag &amp; drop or through the file picker.
+          With several files the selected one is profiled; a click switches the active file.</li>
+      <li>
+        The <strong>file metadata</strong> (rows, columns, row groups, compression, writer)
+        is read straight from the Parquet footer and shown immediately &mdash; without
+        scanning the actual data.
+      </li>
+      <li>
+        Four tabs offer different views of the data set:
+        <strong>Columns</strong> (profiling of the individual columns),
+        <strong>Data preview</strong> (row-wise display with filters &amp; paging),
+        <strong>Pivot</strong> (Excel-style analysis) and <strong>SQL</strong>
+        (a free SQL editor on the DuckDB backend).
+        Clicking a tab switches the view instantly and keeps its state.
+      </li>
+    </ol>
+
+    <h3>Columns</h3>
+    <p>
+      The statistics per column always cover the <strong>whole data set</strong> &mdash;
+      regardless of any filters set in the data preview. That keeps the column overview
+      stable and comparable as a profiling tool.
+    </p>
+    <p>
+      Each column's row already shows several values without expanding it, taken straight
+      from the <strong>Parquet footer</strong> &mdash; null share, value range (min/max),
+      number of distinct values and the size on disk including the compression ratio. Most
+      of these are exact and cost <em>no</em> data scan; they are available in milliseconds
+      even for files of several gigabytes. If the writer stored no statistics in the footer,
+      the fields stay empty (&mdash;).
+    </p>
+    <p>
+      The <strong>Distinct</strong> column shows the number of different values per column.
+      Parquet footers usually do not carry that information, so it is computed in the
+      background after loading, with a single combined query (one shared scan across all
+      columns). Until it finishes, the cell shows pulsing dots (&hellip;).
+    </p>
+    <p>
+      The column table is <strong>sortable</strong> (click a header, tri-state:
+      asc &rarr; desc &rarr; off) and <strong>filterable</strong> through the filter icon in
+      the header (Excel-style: value list, range filter or full-text search, depending on the
+      kind of data). Filters affect the column table only and do not change the statistics.
+    </p>
+    <ul>
+      <li>
+        <strong>Numeric</strong> (<code>INTEGER</code>, <code>DOUBLE</code>,
+        <code>DECIMAL</code> &hellip;): min, max, mean, standard deviation, median,
+        quartiles, histogram with about 30 bins.
+      </li>
+      <li>
+        <strong>String</strong> (<code>VARCHAR</code>): number of distinct values,
+        min/max length, average length, top 20 values as a sorted list
+        (rank, value, relative bar, count, share of non-NULL).
+      </li>
+      <li>
+        <strong>Date/time</strong> (<code>DATE</code>, <code>TIMESTAMP</code>):
+        time span, distribution as a time-series histogram (granularity chosen
+        automatically: hour/day/month/year).
+      </li>
+      <li>
+        <strong>Boolean</strong>: distribution over <code>TRUE</code> / <code>FALSE</code> /
+        <code>NULL</code> as a doughnut chart.
+      </li>
+      <li>For every type: number of rows, non-null values and null share.</li>
+    </ul>
+
+    <h3>Data preview, filters &amp; paging</h3>
+    <p>
+      The filter icon in the preview table's column header sets
+      <strong>Excel-style filters</strong>. Numeric and date columns offer a
+      <strong>range filter</strong> (min/max), categorical columns (string, boolean) a
+      searchable <strong>value list with checkboxes</strong>. Filters combine (AND); active
+      filters appear as chips above the table and can be removed individually.
+    </p>
+    <p>
+      The table is loaded page by page (25, 50, 100 or 500 rows per page) &mdash; paging
+      stays fluid even on large files, because each page runs a single
+      <code>LIMIT &hellip; OFFSET</code>.
+    </p>
+
+    <h3>Pivot</h3>
+    <p>
+      Excel-style pivot analysis. Three zones, as in Excel:
+      <strong>Rows</strong> (grouping dimensions, several possible),
+      <strong>Columns</strong> (one column dimension, optional, spreads the result
+      sideways) and <strong>Values</strong> (one or more aggregations, e.g.
+      <em>count</em>, <em>sum</em>, <em>average</em>, <em>min</em>, <em>max</em>,
+      <em>distinct count</em>).
+    </p>
+    <p>
+      The aggregation runs as a <code>GROUP BY</code> query in DuckDB; with a column
+      dimension set, the result is reshaped into a 2D matrix in JavaScript. The column
+      values are limited to the <strong>top 100</strong>, so high cardinality cannot make
+      the table unusable. If more exist, a warning reports how many were hidden.
+    </p>
+    <p>
+      The result table is sortable &mdash; clicking a header cycles through ascending
+      &rarr; descending &rarr; original order.
+    </p>
+
+    <h3>SQL</h3>
+    <p>
+      A free SQL editor with the full power of DuckDB. Every loaded file is available as its
+      own view (named after the file); <code>data</code> always refers to the currently
+      active file. Joins across several files are therefore possible. Examples:
+    </p>
+    <ul>
+      <li><code>SELECT * FROM data LIMIT 100</code></li>
+      <li><code>DESCRIBE data</code> &mdash; schema of the active file</li>
+      <li><code>SUMMARIZE data</code> &mdash; statistics for all columns in one query</li>
+      <li><code>SELECT a.*, b.* FROM file_a a JOIN file_b b ON a.id = b.id</code> &mdash; join across two files</li>
+      <li><code>PIVOT data ON col USING COUNT(*) GROUP BY row</code> &mdash; native DuckDB pivot syntax</li>
+    </ul>
+    <p>
+      Shortcuts: <code>Ctrl</code>/<code>⌘</code>+<code>Enter</code> runs the query,
+      <code>Tab</code> inserts two spaces. The <em>Example</em> dropdown loads ready-made
+      snippets into the editor.
+    </p>
+    <p>
+      The display is capped at <strong>10,000 rows</strong> &mdash; the query itself runs in
+      full, but rendering the table would otherwise block the browser. With more matches a
+      warning shows the full count. For a filtered complete result, narrow the query itself
+      with <code>LIMIT</code> or <code>WHERE</code>.
+    </p>
+
+    <h3>Performance notes</h3>
+    <ul>
+      <li>
+        File metadata comes from the Parquet footer and is available in milliseconds
+        &mdash; even for multi-GB files.
+      </li>
+      <li>
+        Column statistics require an actual scan and can take a few seconds on large files.
+        They are cached and computed only once per column and file.
+      </li>
+      <li>
+        Filters affect the data preview only and are translated directly into a
+        <code>WHERE</code> clause in the SQL query. They do not invalidate column
+        statistics.
+      </li>
+      <li>
+        Files are referenced by byte range, so their size is not the limiting factor. Only
+        the <em>active</em> file can optionally be buffered into memory
+        (<em>Load the active file into memory</em>) — faster for repeated queries, at the
+        cost of RAM. DuckDB-WASM runs in a 32-bit heap (about 2–4&nbsp;GB), which is what
+        buffering has to fit into.
+      </li>
+    </ul>
+
+    <h3>Technology</h3>
+    <ul>
+      <li><strong>DuckDB-WASM</strong> &mdash; in-browser SQL engine with native Parquet support.</li>
+      <li><strong>Chart.js <code>@4.4.1</code></strong> &mdash; visualisations.</li>
+      <li>
+        Both libraries are loaded from a CDN &mdash; an internet connection is therefore
+        needed on first use. The browser caches the bundles afterwards.
+      </li>
+    </ul>
+</div>
   </div>
 </section>
 
@@ -1842,7 +2018,7 @@ body.pp-fullscreen .pp-sql-result {
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260723-180916</span>
+    &middot; v<span data-build-version>260723-183002</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2094,6 +2270,12 @@ body.pp-fullscreen .pp-sql-result {
         const val = t(key);
         if (val !== key) el.setAttribute(a, val);
       });
+    }
+    // Whole blocks per language — used for the documentation, which is prose:
+    // one key per sentence would be unreadable and unmaintainable.
+    const blocks = scope.querySelectorAll('[data-qrx-docs]');
+    if (blocks.length) {
+      blocks.forEach(el => { el.hidden = el.getAttribute('data-qrx-docs') !== current; });
     }
   }
 
