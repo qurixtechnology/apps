@@ -1668,12 +1668,21 @@
   // ---- Pattern analysis (assistance) ----
   // Engine and table are the shared module (src/shared/qrx-patterns.js) and
   // widget (qrx.ui.patternTable). This app keeps the standalone panel.
+  // The widget is reused across columns, so "show outlier rows" must read the
+  // column being analysed now, not the one captured when the widget was made.
   let patTable = null;
+  let patCol = null;
   async function runAnalyze() {
     const col = analyzeCol.value;
     if (!col || !conn) return;
+    patCol = col;
     analyzeBtn.disabled = true;
-    if (!patTable) patTable = qrx.ui.patternTable(analyzeResults, { fmt: fmtN });
+    if (!patTable) patTable = qrx.ui.patternTable(analyzeResults, {
+      fmt: fmtN,
+      onShowOutliers: ({ compact, normalPats }) => qrx.patterns.outlierRows({
+        query: (sql) => conn.query(sql), from: 'original', col: id(patCol), compact, normalPats,
+      }),
+    });
     patTable.setBusy();
     try {
       const data = await qrx.patterns.analyze({

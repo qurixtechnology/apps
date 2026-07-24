@@ -707,6 +707,8 @@
       outlierSummary: '{n} Werte ({pct} %) weichen vom dominanten Muster ab',
       uniform: 'Einheitlich – keine Musterausreißer',
       noDominant: 'Kein dominantes Muster – zu heterogen für eine Ausreißerprüfung',
+      showOutliers: 'Zeilen anzeigen', outlierRowsMeta: '{shown} von {total} Ausreißern',
+      noOutlierRows: 'Keine abweichenden Zeilen gefunden.',
       legend: 'Maske: A Großbuchstabe · a Kleinbuchstabe · 9 Ziffer · andere Zeichen bleiben. '
         + 'Exakte Länge behält die Lauflänge (999 ⇒ \\d{3}); Kompakt fasst jede Folge zusammen (9+ ⇒ \\d+).',
     },
@@ -720,6 +722,8 @@
       outlierSummary: '{n} values ({pct} %) deviate from the dominant pattern',
       uniform: 'Uniform – no pattern outliers',
       noDominant: 'No dominant pattern – too varied for outlier detection',
+      showOutliers: 'Show rows', outlierRowsMeta: '{shown} of {total} outliers',
+      noOutlierRows: 'No deviating rows found.',
       legend: 'Mask: A uppercase · a lowercase · 9 digit · other characters kept literally. '
         + 'Exact length keeps the run length (999 ⇒ \\d{3}); Compact collapses any run (9+ ⇒ \\d+).',
     },
@@ -768,9 +772,12 @@
         } else if (ol.outlierCount === 0) {
           html += `<div class="qrx-pat-outliers is-uniform">${esc(t('uniform'))}</div>`;
         } else {
+          const showBtn = opts.onShowOutliers
+            ? ` <button type="button" class="qrx-pat-oshow" data-outliers-show>${esc(t('showOutliers'))}</button>`
+            : '';
           html += `<div class="qrx-pat-outliers is-flagged">${esc(t('outlierSummary', {
             n: fmt(ol.outlierCount), pct: (ol.outlierShare * 100).toFixed(1),
-          }))}</div>`;
+          }))}${showBtn}</div>`;
         }
       }
 
@@ -794,13 +801,46 @@
           + `<td>${(data.nulls / total * 100).toFixed(1)}%</td><td></td><td></td></tr>`;
       }
       html += '</tbody></table>';
+      if (opts.onShowOutliers && ol.hasDominant && ol.outlierCount > 0) {
+        html += '<div class="qrx-pat-orows-wrap" hidden></div>';
+      }
       html += `<div class="qrx-pat-legend">${esc(t('legend'))}</div>`;
       el.innerHTML = html;
+    }
+
+    // Render the fetched outlier values into the container below the table.
+    function renderOutlierRows(rc, res) {
+      const rows = (res && res.rows) || [];
+      if (!rows.length) { rc.innerHTML = `<p class="qrx-pat-busy">${esc(t('noOutlierRows'))}</p>`; return; }
+      let h = `<div class="qrx-pat-orows-meta">${esc(t('outlierRowsMeta', {
+        shown: fmt(rows.length), total: fmt((res && res.total) || rows.length),
+      }))}</div><ul class="qrx-pat-orows">`;
+      for (const r of rows) {
+        h += `<li><span class="qrx-pat-oval">${esc(r.value)}</span>`
+          + `<span class="qrx-pat-omask">${esc(r.mask)}</span></li>`;
+      }
+      rc.innerHTML = h + '</ul>';
     }
 
     el.addEventListener('click', (e) => {
       const mb = e.target.closest('[data-mode]');
       if (mb) { mode = mb.getAttribute('data-mode'); render(); return; }
+      // "Show rows": fetch the actual deviating values for the current mode.
+      const os = e.target.closest('[data-outliers-show]');
+      if (os) {
+        const dd = (mode === 'compact') ? data.compact : data.exact;
+        const nn = Math.max(0, (data.total || 1) - (data.nulls || 0));
+        const o2 = qrx.patterns.outliers(dd, nn);
+        const rc = el.querySelector('.qrx-pat-orows-wrap');
+        if (!rc) return;
+        os.disabled = true;
+        rc.hidden = false;
+        rc.innerHTML = `<p class="qrx-pat-busy">${esc(t('analyzing'))}</p>`;
+        Promise.resolve(opts.onShowOutliers({ compact: mode === 'compact', normalPats: [...o2.normalPats] }))
+          .then(res => renderOutlierRows(rc, res))
+          .catch(err => { rc.innerHTML = `<p class="qrx-pat-busy">${esc(String(err && err.message || err))}</p>`; });
+        return;
+      }
       const cb = e.target.closest('[data-copy]');
       if (!cb) return;
       const txt = cb.getAttribute('data-copy');

@@ -789,6 +789,28 @@ describe('pattern analysis: engine', () => {
     assert.equal(got.hasDominant, false, 'no shape dominates');
     assert.equal(got.outlierCount, 0, 'so it cries no wolf');
   });
+
+  test('outlierRows fetches the actual deviating values', async () => {
+    const got = await page.evaluate(async () => {
+      await window.qrx.duckdb.init();
+      await window.qrx.duckdb.query(
+        "CREATE OR REPLACE TABLE t_ol AS SELECT * FROM (VALUES ('AB-12'),('CD-34'),('EF-56'),('XYZ-999'),(NULL)) v(code)");
+      return window.qrx.patterns.outlierRows({
+        query: (sql) => window.qrx.duckdb.query(sql),
+        from: 't_ol', col: '"code"', compact: false, normalPats: ['AA-99'],
+      });
+    });
+    assert.equal(got.total, 1, 'one value deviates from the AA-99 shape');
+    assert.equal(got.shown, 1);
+    assert.deepEqual(got.rows, [{ value: 'XYZ-999', mask: 'AAA-999' }], 'the odd one out, with its mask');
+  });
+
+  test('outlierRows returns nothing when no masks are given', async () => {
+    const got = await page.evaluate(() => window.qrx.patterns.outlierRows({
+      query: (sql) => window.qrx.duckdb.query(sql), from: 't_ol', col: '"code"', normalPats: [],
+    }));
+    assert.deepEqual(got, { rows: [], shown: 0, total: 0 });
+  });
 });
 
 describe('widget: pattern table', () => {
@@ -904,5 +926,40 @@ describe('widget: pattern table', () => {
     }, UNIFORM);
     assert.match(got.on.cls, /is-uniform/, 'one mask for everything reads as uniform');
     assert.equal(got.off.present, false, 'outliers:false removes the line entirely');
+  });
+
+  test('"Show rows" calls the provider for the current mode and lists the values', async () => {
+    const FLAGGED = {
+      exact:   { rows: [{ pat: 'AA-99', c: 90, example: 'AB-12' },
+                        { pat: 'AAA-99', c: 10, example: 'ABC-12' }], distinct: 2 },
+      compact: { rows: [{ pat: 'A-9', c: 100, example: 'AB-12' }], distinct: 1 },
+      nulls: 0, total: 100,
+    };
+    const got = await page.evaluate(async (data) => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      window.__olCall = null;
+      window.qrx.ui.patternTable(host, {
+        data,
+        onShowOutliers: (arg) => {
+          window.__olCall = { compact: arg.compact, normalPats: arg.normalPats };
+          return Promise.resolve({ rows: [{ value: 'ABC-12', mask: 'AAA-99' }], shown: 1, total: 1 });
+        },
+      });
+      const btn = host.querySelector('[data-outliers-show]');
+      const hadButton = !!btn;
+      btn.click();
+      await new Promise(r => setTimeout(r, 30));
+      const vals = [...host.querySelectorAll('.qrx-pat-oval')].map(e => e.textContent);
+      const meta = host.querySelector('.qrx-pat-orows-meta') && host.querySelector('.qrx-pat-orows-meta').textContent;
+      const out = { hadButton, call: window.__olCall, vals, meta };
+      host.remove();
+      return out;
+    }, FLAGGED);
+    assert.equal(got.hadButton, true, 'a provider adds the button');
+    assert.equal(got.call.compact, false, 'the exact mode is the default');
+    assert.deepEqual(got.call.normalPats, ['AA-99'], 'it passes the dominant masks to exclude');
+    assert.deepEqual(got.vals, ['ABC-12'], 'the returned deviating value is listed');
+    assert.match(got.meta, /1.*1/, 'a shown/total line is shown');
   });
 });

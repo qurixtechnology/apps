@@ -121,5 +121,41 @@
     return { hasDominant: true, normalPats, outlierCount, outlierShare: outlierCount / nonNull, topShare };
   }
 
-  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, outliers };
+  /**
+   * Fetch the actual deviating values — the rows whose mask is NOT one of the
+   * dominant "normal" masks. Companion to outliers(): that one counts, this one
+   * shows. Same mode (exact/compact) as the masks it is given.
+   *
+   * @param {object} o
+   * @param {(sql:string)=>Promise<any>} o.query
+   * @param {string} o.from
+   * @param {string} o.col            quoted column identifier
+   * @param {boolean} o.compact
+   * @param {string[]|Set<string>} o.normalPats  the masks to treat as normal
+   * @param {number} [o.limit=50]
+   * @returns {{rows:{value,mask}[], shown:number, total:number}}
+   */
+  async function outlierRows(o) {
+    const { query, from, col } = o;
+    const compact = !!o.compact;
+    const limit = o.limit || 50;
+    const masks = (o.normalPats instanceof Set) ? [...o.normalPats] : (o.normalPats || []);
+    if (!masks.length) return { rows: [], shown: 0, total: 0 };
+
+    const expr = maskExpr(col, compact);
+    const inList = masks.map(m => qrx.duckdb.str(m)).join(', ');
+    const where = `${col} IS NOT NULL AND (${expr}) NOT IN (${inList})`;
+
+    const res = await query(
+      `SELECT CAST(${col} AS VARCHAR) AS ex, ${expr} AS pat `
+      + `FROM ${from} WHERE ${where} LIMIT ${limit}`);
+    const rows = qrx.duckdb.rows(res).map(r => ({
+      value: r.ex == null ? '' : String(r.ex), mask: String(r.pat),
+    }));
+    const cres = await query(`SELECT count(*)::BIGINT AS c FROM ${from} WHERE ${where}`);
+    const total = Number(qrx.duckdb.rows(cres)[0].c);
+    return { rows, shown: rows.length, total };
+  }
+
+  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, outliers, outlierRows };
 })();

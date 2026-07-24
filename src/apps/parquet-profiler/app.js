@@ -1544,7 +1544,12 @@
     async function loadPatterns() {
       if (loaded) return;
       loaded = true;
-      patTable = qrx.ui.patternTable(panels.patterns, { fmt: formatNumber });
+      patTable = qrx.ui.patternTable(panels.patterns, {
+        fmt: formatNumber,
+        onShowOutliers: ({ compact, normalPats }) => qrx.patterns.outlierRows({
+          query: runQuery, from: PARQUET_SQL, col: quoteIdent(col.name), compact, normalPats,
+        }),
+      });
       patTable.setBusy();
       try {
         const data = await qrx.patterns.analyze({
