@@ -85,5 +85,41 @@
     return { exact, compact, nulls, total: total || 1 };
   }
 
-  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze };
+  // Classify the analysed masks into a dominant "normal" set and the deviating
+  // long tail. A value is an outlier when its mask is not one of the few that
+  // dominate the column — a cheap, honest signal for dirty data (a stray
+  // format, a typo, a wrong country code).
+  //
+  // Only meaningful when the column HAS a dominant shape. For free-text columns
+  // (names, notes) no single mask reaches `dominantFloor`, so we report
+  // hasDominant=false and flag nothing — better silent than crying wolf on
+  // every distinct value.
+  //
+  // Operates on one already-analysed mode (exact or compact), so it costs
+  // nothing extra: the high-share masks are always within analyze()'s top-N.
+  //
+  // @param {{rows:{pat,c,example}[],distinct:number}} d  one mode from analyze()
+  // @param {number} nonNull  non-null row count (total - nulls)
+  // @param {{minShare?:number,dominantFloor?:number}} [opts]
+  // @returns {{hasDominant,normalPats:Set,outlierCount,outlierShare,topShare}}
+  function outliers(d, nonNull, opts) {
+    opts = opts || {};
+    // A mask counts as "normal" at or above minShare; the column only has a
+    // dominant shape at all if its top mask clears dominantFloor.
+    const minShare = opts.minShare != null ? opts.minShare : 0.15;
+    const dominantFloor = opts.dominantFloor != null ? opts.dominantFloor : 0.4;
+    const none = { hasDominant: false, normalPats: new Set(), outlierCount: 0, outlierShare: 0, topShare: 0 };
+    if (!d || !d.rows || !d.rows.length || !nonNull) return none;
+    const topShare = d.rows[0].c / nonNull;
+    if (topShare < dominantFloor) { none.topShare = topShare; return none; }
+    const normalPats = new Set();
+    let normalCount = 0;
+    for (const r of d.rows) {
+      if (r.c / nonNull >= minShare) { normalPats.add(r.pat); normalCount += r.c; }
+    }
+    const outlierCount = Math.max(0, nonNull - normalCount);
+    return { hasDominant: true, normalPats, outlierCount, outlierShare: outlierCount / nonNull, topShare };
+  }
+
+  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, outliers };
 })();

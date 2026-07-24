@@ -704,6 +704,9 @@
       distinctPatterns: '{n} verschiedene {kind}Muster', kindCompact: 'Kompakt-',
       showingTop: '(oben {n})', nulls: '{n} null', empty: '∅ (leer)', nullRow: '(null)',
       analyzing: 'Analysiere …',
+      outlierSummary: '{n} Werte ({pct} %) weichen vom dominanten Muster ab',
+      uniform: 'Einheitlich – keine Musterausreißer',
+      noDominant: 'Kein dominantes Muster – zu heterogen für eine Ausreißerprüfung',
       legend: 'Maske: A Großbuchstabe · a Kleinbuchstabe · 9 Ziffer · andere Zeichen bleiben. '
         + 'Exakte Länge behält die Lauflänge (999 ⇒ \\d{3}); Kompakt fasst jede Folge zusammen (9+ ⇒ \\d+).',
     },
@@ -714,6 +717,9 @@
       distinctPatterns: '{n} distinct {kind}pattern(s)', kindCompact: 'compact ',
       showingTop: '(showing top {n})', nulls: '{n} null', empty: '∅ (empty)', nullRow: '(null)',
       analyzing: 'Analysing…',
+      outlierSummary: '{n} values ({pct} %) deviate from the dominant pattern',
+      uniform: 'Uniform – no pattern outliers',
+      noDominant: 'No dominant pattern – too varied for outlier detection',
       legend: 'Mask: A uppercase · a lowercase · 9 digit · other characters kept literally. '
         + 'Exact length keeps the run length (999 ⇒ \\d{3}); Compact collapses any run (9+ ⇒ \\d+).',
     },
@@ -741,6 +747,11 @@
       const compact = mode === 'compact';
       const d = compact ? data.compact : data.exact;
       const total = data.total || 1;
+      const nonNull = Math.max(0, total - (data.nulls || 0));
+      // Flag the deviating long tail (unless disabled or the column is free-text).
+      const ol = (opts.outliers === false)
+        ? { hasDominant: false, normalPats: new Set(), outlierCount: 0 }
+        : qrx.patterns.outliers(d, nonNull);
 
       let html = '<div class="qrx-pat-toggle">'
         + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? '' : 'is-active'}" data-mode="exact">${esc(t('exactLength'))}</button>`
@@ -751,6 +762,18 @@
         + (d.distinct > d.rows.length ? ' ' + t('showingTop', { n: d.rows.length }) : '')
         + ' · ' + t('nulls', { n: fmt(data.nulls) }) + '</div>';
 
+      if (opts.outliers !== false) {
+        if (!ol.hasDominant) {
+          html += `<div class="qrx-pat-outliers is-none">${esc(t('noDominant'))}</div>`;
+        } else if (ol.outlierCount === 0) {
+          html += `<div class="qrx-pat-outliers is-uniform">${esc(t('uniform'))}</div>`;
+        } else {
+          html += `<div class="qrx-pat-outliers is-flagged">${esc(t('outlierSummary', {
+            n: fmt(ol.outlierCount), pct: (ol.outlierShare * 100).toFixed(1),
+          }))}</div>`;
+        }
+      }
+
       html += '<table class="qrx-pat-table"><thead><tr>'
         + `<th>${esc(t('pattern'))}</th><th>${esc(t('count'))}</th><th>${esc(t('share'))}</th>`
         + `<th>${esc(t('example'))}</th><th>${esc(t('regex'))}</th></tr></thead><tbody>`;
@@ -759,7 +782,8 @@
         const mask = isEmpty ? t('empty') : (compact ? qrx.patterns.compactDisplay(r.pat) : r.pat);
         const rx = isEmpty ? '^$' : qrx.patterns.maskToRegex(r.pat, compact);
         const share = r.c / total * 100;
-        html += `<tr><td class="qrx-pat-mask">${esc(mask)}</td>`
+        const isOutlier = ol.hasDominant && !ol.normalPats.has(r.pat);
+        html += `<tr class="${isOutlier ? 'qrx-pat-outlier' : ''}"><td class="qrx-pat-mask">${esc(mask)}</td>`
           + `<td>${fmt(r.c)}</td>`
           + `<td><div class="qrx-pat-share"><span class="qrx-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
           + `<td class="qrx-pat-ex" title="${esc(r.example)}">${esc(r.example)}</td>`

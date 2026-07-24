@@ -762,6 +762,33 @@ describe('pattern analysis: engine', () => {
     assert.deepEqual(data.exact.rows[0], { pat: 'AA-99', c: 3, example: 'AB-12' });
     assert.equal(data.compact.rows[0].pat, 'A-9', 'compact collapses the runs');
   });
+
+  test('outliers separates a dominant shape from the deviating tail', async () => {
+    const got = await page.evaluate(() => {
+      const p = window.qrx.patterns;
+      const flagged = p.outliers({ rows: [{ pat: 'AA-99', c: 90 }, { pat: 'AAA-99', c: 10 }], distinct: 2 }, 100);
+      const uniform = p.outliers({ rows: [{ pat: 'AA-99', c: 100 }], distinct: 1 }, 100);
+      const twoLegit = p.outliers({ rows: [{ pat: 'A', c: 50 }, { pat: 'B', c: 45 }, { pat: 'C', c: 5 }], distinct: 3 }, 100);
+      return {
+        flagged: { has: flagged.hasDominant, n: flagged.outlierCount, normal: [...flagged.normalPats] },
+        uniform: { has: uniform.hasDominant, n: uniform.outlierCount },
+        twoLegit: { n: twoLegit.outlierCount, normal: [...twoLegit.normalPats] },
+      };
+    });
+    assert.deepEqual(got.flagged, { has: true, n: 10, normal: ['AA-99'] }, 'the 10% tail is the outlier');
+    assert.deepEqual(got.uniform, { has: true, n: 0 }, 'one mask covering everything has no outliers');
+    assert.deepEqual(got.twoLegit, { n: 5, normal: ['A', 'B'] }, 'two high-share masks both count as normal');
+  });
+
+  test('outliers stays silent on free-text columns (no dominant mask)', async () => {
+    const got = await page.evaluate(() => {
+      // top mask only 30% — below the dominance floor, so nothing is flagged
+      return window.qrx.patterns.outliers(
+        { rows: [{ pat: 'Aaaaa', c: 30 }, { pat: 'Aaaa', c: 25 }, { pat: 'Aaaaaa', c: 20 }], distinct: 40 }, 100);
+    });
+    assert.equal(got.hasDominant, false, 'no shape dominates');
+    assert.equal(got.outlierCount, 0, 'so it cries no wolf');
+  });
 });
 
 describe('widget: pattern table', () => {
@@ -827,5 +854,55 @@ describe('widget: pattern table', () => {
     }, DATA);
     assert.equal(got.en, 'copy');
     assert.equal(got.de, 'kopieren');
+  });
+
+  test('summarises outliers and tints the deviating rows', async () => {
+    const FLAGGED = {
+      exact:   { rows: [{ pat: 'AA-99', c: 90, example: 'AB-12' },
+                        { pat: 'AAA-99', c: 10, example: 'ABC-12' }], distinct: 2 },
+      compact: { rows: [{ pat: 'A-9', c: 100, example: 'AB-12' }], distinct: 1 },
+      nulls: 0, total: 100,
+    };
+    const got = await page.evaluate((data) => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      window.qrx.ui.patternTable(host, { data });
+      const summary = host.querySelector('.qrx-pat-outliers');
+      const rows = [...host.querySelectorAll('.qrx-pat-table tbody tr')];
+      const out = {
+        summaryClass: summary.className,
+        summaryText: summary.textContent,
+        flaggedMasks: rows.filter(r => r.classList.contains('qrx-pat-outlier'))
+                          .map(r => r.querySelector('.qrx-pat-mask').textContent),
+      };
+      host.remove();
+      return out;
+    }, FLAGGED);
+    assert.match(got.summaryClass, /is-flagged/, 'the summary reports a deviation');
+    assert.match(got.summaryText, /10/, 'it names the outlier count');
+    assert.match(got.summaryText, /10\.0/, 'and the share');
+    assert.deepEqual(got.flaggedMasks, ['AAA-99'], 'only the minority mask row is tinted');
+  });
+
+  test('can be switched off, and stays quiet when a single mask covers all', async () => {
+    const UNIFORM = {
+      exact:   { rows: [{ pat: 'AA-99', c: 100, example: 'AB-12' }], distinct: 1 },
+      compact: { rows: [{ pat: 'A-9', c: 100, example: 'AB-12' }], distinct: 1 },
+      nulls: 0, total: 100,
+    };
+    const got = await page.evaluate((data) => {
+      const read = (opts) => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        window.qrx.ui.patternTable(host, opts);
+        const s = host.querySelector('.qrx-pat-outliers');
+        const out = { present: !!s, cls: s ? s.className : null };
+        host.remove();
+        return out;
+      };
+      return { on: read({ data }), off: read({ data, outliers: false }) };
+    }, UNIFORM);
+    assert.match(got.on.cls, /is-uniform/, 'one mask for everything reads as uniform');
+    assert.equal(got.off.present, false, 'outliers:false removes the line entirely');
   });
 });
