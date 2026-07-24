@@ -722,3 +722,110 @@ describe('widget: SQL editor autocompletion', () => {
     } finally { await page.close(); }
   });
 });
+
+describe('pattern analysis: engine', () => {
+  test('maskToRegex builds anchored, class-based regexes', async () => {
+    const got = await page.evaluate(() => {
+      const p = window.qrx.patterns;
+      return {
+        exact:   p.maskToRegex('AA-99', false),
+        compact: p.maskToRegex('A-9', true),
+        meta:    p.maskToRegex('a.a', false),   // a literal dot must be escaped
+      };
+    });
+    assert.equal(got.exact, '^\\p{Lu}{2}-\\d{2}$', 'exact keeps the run length as {n}');
+    assert.equal(got.compact, '^\\p{Lu}+-\\d+$', 'compact uses +');
+    assert.equal(got.meta, '^\\p{Ll}\\.\\p{Ll}$', 'regex metacharacters are escaped, not interpreted');
+  });
+
+  test('compactDisplay marks each class symbol with a +', async () => {
+    const got = await page.evaluate(() => {
+      const p = window.qrx.patterns;
+      return [p.compactDisplay('A-9'), p.compactDisplay('A9a')];
+    });
+    assert.deepEqual(got, ['A+-9+', 'A+9+a+']);
+  });
+
+  test('analyze groups real values into masks over any FROM source', async () => {
+    const data = await page.evaluate(async () => {
+      await window.qrx.duckdb.init();
+      await window.qrx.duckdb.query(
+        "CREATE OR REPLACE TABLE t_pat AS SELECT * FROM (VALUES ('AB-12'),('CD-34'),('EF-56'),(NULL)) v(code)");
+      return window.qrx.patterns.analyze({
+        query: (sql) => window.qrx.duckdb.query(sql),
+        from: 't_pat', col: '"code"', total: 4,
+      });
+    });
+    assert.equal(data.total, 4);
+    assert.equal(data.nulls, 1, 'the NULL row is counted, not masked');
+    assert.equal(data.exact.distinct, 1, 'all three non-null values share one exact mask');
+    assert.deepEqual(data.exact.rows[0], { pat: 'AA-99', c: 3, example: 'AB-12' });
+    assert.equal(data.compact.rows[0].pat, 'A-9', 'compact collapses the runs');
+  });
+});
+
+describe('widget: pattern table', () => {
+  const DATA = {
+    exact:   { rows: [{ pat: 'AA-99', c: 3, example: 'AB-12' }], distinct: 1 },
+    compact: { rows: [{ pat: 'A-9',   c: 3, example: 'AB-12' }], distinct: 1 },
+    nulls: 1, total: 4,
+  };
+
+  test('renders masks and a derived regex, and toggles exact/compact', async () => {
+    const got = await page.evaluate((data) => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const w = window.qrx.ui.patternTable(host, { data });
+      const read = () => ({
+        mask: host.querySelector('.qrx-pat-mask').textContent,
+        rx:   host.querySelector('.qrx-pat-rx').textContent.trim(),
+        nullRow: !!host.querySelector('.qrx-pat-null'),
+      });
+      const exact = read();
+      host.querySelector('[data-mode="compact"]').click();
+      const compact = read();
+      host.remove();
+      return { exact, compact };
+    }, DATA);
+    assert.equal(got.exact.mask, 'AA-99');
+    assert.match(got.exact.rx, /^\^\\p\{Lu\}\{2\}-\\d\{2\}\$/, 'exact regex with fixed counts');
+    assert.equal(got.exact.nullRow, true, 'the NULL count gets its own row');
+    assert.equal(got.compact.mask, 'A+-9+', 'compact view marks the collapsed runs');
+    assert.match(got.compact.rx, /\\p\{Lu\}\+-\\d\+/, 'compact regex uses +');
+  });
+
+  test('setBusy shows a placeholder, setData replaces it', async () => {
+    const got = await page.evaluate((data) => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const w = window.qrx.ui.patternTable(host);
+      const empty = host.innerHTML;
+      w.setBusy();
+      const busy = !!host.querySelector('.qrx-pat-busy');
+      w.setData(data);
+      const table = !!host.querySelector('.qrx-pat-table');
+      host.remove();
+      return { empty, busy, table };
+    }, DATA);
+    assert.equal(got.empty, '', 'nothing until it has data');
+    assert.equal(got.busy, true);
+    assert.equal(got.table, true);
+  });
+
+  test('speaks both languages', async () => {
+    const got = await page.evaluate((data) => {
+      const i = window.qrx.i18n;
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      window.qrx.ui.patternTable(host, { data });
+      const copyText = () => host.querySelector('.qrx-pat-copy').textContent;
+      i.setLang('en'); const en = copyText();
+      i.setLang('de'); const de = copyText();
+      i.setLang('en');
+      host.remove();
+      return { en, de };
+    }, DATA);
+    assert.equal(got.en, 'copy');
+    assert.equal(got.de, 'kopieren');
+  });
+});

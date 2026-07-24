@@ -209,6 +209,8 @@
       dateienAuswahlen: 'Choose files',
       eineOderMehrereDateien: 'Drop one or more files here, or click to choose files',
       parquetDateienLaden: 'Load Parquet files',
+      colTabOverview: 'Overview',
+      colTabPatterns: 'Patterns',
     },
     de: {
       filesHint: 'Die markierte Datei wird in den Tabs Spalten, Vorschau und Pivot profiliert. Im SQL-Tab stehen alle Dateien als Views für Joins zur Verfügung. Weitere Dateien jederzeit per Drag & Drop (auch hierher) oder über die Schaltfläche hinzufügen.',
@@ -306,6 +308,8 @@
       dateienAuswahlen: 'Dateien auswählen',
       eineOderMehrereDateien: 'Eine oder mehrere Dateien hier ablegen oder klicken, um Dateien auszuwählen',
       parquetDateienLaden: 'Parquet-Dateien laden',
+      colTabOverview: 'Übersicht',
+      colTabPatterns: 'Muster',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -1497,9 +1501,24 @@
     try {
       const stats = await computeColumnStats(col);
       updateColumnHeaderStats(col, stats);
-      const html = renderColumnContent(col, stats);
-      inner.innerHTML = html;
-      drawColumnCharts(col, inner, stats);
+      const overview = renderColumnContent(col, stats);
+      // Text-like columns get a second tab: the shared pattern analysis. It is
+      // only computed the first time the tab is opened (it costs two SQL scans).
+      const hasPatterns = col.category === 'string' || col.category === 'binary' || col.category === 'other';
+      if (hasPatterns) {
+        inner.innerHTML = `
+          <div class="pp-col-tabs" role="tablist">
+            <button class="pp-col-tab pp-col-tab-active" role="tab" aria-selected="true"  data-coltab="overview">${escapeHtml(t('colTabOverview'))}</button>
+            <button class="pp-col-tab"                   role="tab" aria-selected="false" data-coltab="patterns">${escapeHtml(t('colTabPatterns'))}</button>
+          </div>
+          <div class="pp-col-tabpanel" data-panel="overview">${overview}</div>
+          <div class="pp-col-tabpanel" data-panel="patterns" hidden></div>`;
+        drawColumnCharts(col, inner.querySelector('[data-panel="overview"]'), stats);
+        wireColumnPatternsTab(col, stats, inner);
+      } else {
+        inner.innerHTML = overview;
+        drawColumnCharts(col, inner, stats);
+      }
     } catch (e) {
       console.error(e);
       inner.innerHTML = `
@@ -1508,6 +1527,55 @@
           <pre>${escapeHtml(e && e.message || String(e))}</pre>
         </div>`;
     }
+  }
+
+  // Wire the Overview/Patterns tab switch for a text-like column's detail.
+  // The pattern analysis runs lazily on first activation of the Patterns tab
+  // and is rendered with the shared qrx.ui.patternTable widget.
+  function wireColumnPatternsTab(col, stats, inner) {
+    const tabs = inner.querySelectorAll('.pp-col-tab');
+    const panels = {
+      overview: inner.querySelector('[data-panel="overview"]'),
+      patterns: inner.querySelector('[data-panel="patterns"]'),
+    };
+    let patTable = null;
+    let loaded = false;
+
+    async function loadPatterns() {
+      if (loaded) return;
+      loaded = true;
+      patTable = qrx.ui.patternTable(panels.patterns, { fmt: formatNumber });
+      patTable.setBusy();
+      try {
+        const data = await qrx.patterns.analyze({
+          query: runQuery,
+          from: PARQUET_SQL,
+          col: quoteIdent(col.name),
+          total: stats.total || 1,
+        });
+        patTable.setData(data);
+      } catch (e) {
+        console.error(e);
+        loaded = false;
+        patTable = null;
+        panels.patterns.innerHTML =
+          `<div class="pp-error"><pre>${escapeHtml(e && e.message || String(e))}</pre></div>`;
+      }
+    }
+
+    inner.querySelector('.pp-col-tabs').addEventListener('click', e => {
+      const btn = e.target.closest('.pp-col-tab');
+      if (!btn) return;
+      const which = btn.getAttribute('data-coltab');
+      tabs.forEach(b => {
+        const on = b === btn;
+        b.classList.toggle('pp-col-tab-active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      panels.overview.hidden = which !== 'overview';
+      panels.patterns.hidden = which !== 'patterns';
+      if (which === 'patterns') loadPatterns();
+    });
   }
 
   function updateColumnHeaderStats(col, stats) {

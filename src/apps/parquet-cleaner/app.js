@@ -1666,90 +1666,30 @@
   }
 
   // ---- Pattern analysis (assistance) ----
-  // Mask each value: \p{Lu}->A, \p{Ll}->a, [0-9]->9, other chars kept literal.
-  function maskedExpr(col) {
-    const c = `CAST(${id(col)} AS VARCHAR)`;
-    return `regexp_replace(regexp_replace(regexp_replace(${c}, '\\p{Lu}', 'A', 'g'), '\\p{Ll}', 'a', 'g'), '[0-9]', '9', 'g')`;
-  }
-  // Compact variant: collapse each run of a class to one symbol, so 9/99/999 all
-  // become a single "9" (displayed as "9+", regex \d+). Groups variable lengths.
-  function compactMaskedExpr(col) {
-    const c = `CAST(${id(col)} AS VARCHAR)`;
-    return `regexp_replace(regexp_replace(regexp_replace(${c}, '\\p{Lu}+', 'A', 'g'), '\\p{Ll}+', 'a', 'g'), '[0-9]+', '9', 'g')`;
-  }
-  function compactDisplay(mask) {
-    let s = ''; for (const ch of mask) s += (ch === 'A' || ch === 'a' || ch === '9') ? ch + '+' : ch; return s;
-  }
-  // Exact: run-length → {n}. Compact: every class symbol → "+".
-  function maskToRegex(mask, compact) {
-    let out = '^', i = 0;
-    while (i < mask.length) {
-      const ch = mask[i];
-      const cls = ch === 'A' ? '\\p{Lu}' : ch === 'a' ? '\\p{Ll}' : ch === '9' ? '\\d' : null;
-      if (cls) {
-        let n = 1; while (i + n < mask.length && mask[i + n] === ch) n++;
-        out += cls + (compact ? '+' : (n > 1 ? `{${n}}` : '')); i += n;
-      } else {
-        out += /[.*+?^${}()|[\]\\]/.test(ch) ? '\\' + ch : ch; i++;
-      }
-    }
-    return out + '$';
-  }
-
-  let lastAnalyze = null, analyzeMode = 'exact';
-  async function groupPatterns(c, expr) {
-    const res = await conn.query(`WITH m AS (SELECT ${expr} AS pat, CAST(${c} AS VARCHAR) AS ex FROM original WHERE ${c} IS NOT NULL)
-      SELECT pat, count(*)::BIGINT AS c, min(ex) AS example FROM m GROUP BY pat ORDER BY c DESC LIMIT 30`);
-    const distinct = Number((await conn.query(`SELECT count(DISTINCT ${expr})::BIGINT AS c FROM original WHERE ${c} IS NOT NULL`)).toArray()[0].c);
-    return { rows: res.toArray().map(r => ({ pat: r.pat, c: Number(r.c), example: r.example == null ? '' : String(r.example) })), distinct };
-  }
+  // Engine and table are the shared module (src/shared/qrx-patterns.js) and
+  // widget (qrx.ui.patternTable). This app keeps the standalone panel.
+  let patTable = null;
   async function runAnalyze() {
     const col = analyzeCol.value;
     if (!col || !conn) return;
     analyzeBtn.disabled = true;
-    analyzeResults.innerHTML = '<p class="pc-diff-note">Analyzing…</p>';
+    if (!patTable) patTable = qrx.ui.patternTable(analyzeResults, { fmt: fmtN });
+    patTable.setBusy();
     try {
-      const c = id(col);
-      const exact = await groupPatterns(c, maskedExpr(col));
-      const compact = await groupPatterns(c, compactMaskedExpr(col));
-      const nulls = Number((await conn.query(`SELECT count(*)::BIGINT AS c FROM original WHERE ${c} IS NULL`)).toArray()[0].c);
-      lastAnalyze = { col, exact, compact, nulls, total: state.rowCountOriginal || 1 };
-      renderAnalyze();
+      const data = await qrx.patterns.analyze({
+        query: (sql) => conn.query(sql),
+        from: 'original',
+        col: id(col),
+        total: state.rowCountOriginal || 1,
+      });
+      patTable.setData(data);
     } catch (err) {
       console.error(err);
-      lastAnalyze = null;
       analyzeResults.innerHTML = `<p class="pc-diff-note" style="color:var(--qrx-danger)">Analysis failed: ${escapeHtml(err && err.message ? err.message : String(err))}</p>`;
+      patTable = null;
     } finally {
       analyzeBtn.disabled = false;
     }
-  }
-  function renderAnalyze() {
-    if (!lastAnalyze) { analyzeResults.innerHTML = ''; return; }
-    const { col, nulls, total } = lastAnalyze;
-    const compact = analyzeMode === 'compact';
-    const data = compact ? lastAnalyze.compact : lastAnalyze.exact;
-    let html = `<div class="pc-toggle pc-pat-toggle">`
-      + `<button type="button" class="qrx-btn qrx-btn-sm ${!compact ? 'is-active' : ''}" data-mode="exact">Exact length</button>`
-      + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? 'is-active' : ''}" data-mode="compact">Compact (\\d+)</button></div>`;
-    html += `<div class="pc-pat-meta">Column <strong>${escapeHtml(col)}</strong> · ${fmtN(data.distinct)} distinct ${compact ? 'compact ' : ''}pattern(s)`
-      + (data.distinct > data.rows.length ? ` (showing top ${data.rows.length})` : '') + ` · ${fmtN(nulls)} null</div>`;
-    html += '<table class="pc-pat-table"><thead><tr><th>Pattern</th><th>Count</th><th>Share</th><th>Example</th><th>Regex</th></tr></thead><tbody>';
-    for (const r of data.rows) {
-      const share = r.c / total * 100;
-      const isEmpty = r.pat === '';
-      const mask = isEmpty ? '∅ (empty)' : (compact ? compactDisplay(r.pat) : r.pat);
-      const rx = isEmpty ? '^$' : maskToRegex(r.pat, compact);
-      html += `<tr><td class="pc-pat-mask">${escapeHtml(mask)}</td>`
-        + `<td>${fmtN(r.c)}</td>`
-        + `<td><div class="pc-pat-share"><span class="pc-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
-        + `<td class="pc-pat-ex" title="${escapeAttr(r.example)}">${escapeHtml(r.example)}</td>`
-        + `<td class="pc-pat-rx">${escapeHtml(rx)} <button type="button" class="pc-copy" data-copy="${escapeAttr(rx)}" title="Copy regex">copy</button></td></tr>`;
-    }
-    if (nulls) html += `<tr class="pc-pat-muted"><td>(null)</td><td>${fmtN(nulls)}</td><td>${(nulls / total * 100).toFixed(1)}%</td><td></td><td></td></tr>`;
-    html += '</tbody></table>';
-    html += `<div class="pc-diff-note">Mask: <code>A</code> uppercase · <code>a</code> lowercase · <code>9</code> digit · other characters kept literally (Unicode letters incl. umlauts). `
-      + `<strong>Exact length</strong> keeps the run length (<code>999</code> ⇒ <code>\\d{3}</code>); <strong>Compact</strong> collapses any run (<code>9+</code> ⇒ <code>\\d+</code>). Copy the derived regex into a Regex step.</div>`;
-    analyzeResults.innerHTML = html;
   }
 
   // ---- Clean-data heuristics (structural quality → suggested cleaning steps) ----
@@ -2260,15 +2200,6 @@
     document.querySelectorAll('.pc-pii-source [data-pii-src]').forEach(b => b.classList.toggle('is-active', b === btn));
     if (state.pii) { await computePii(); await computeAnonMeta(); renderReview(); }
   }));
-  if (analyzeResults) analyzeResults.addEventListener('click', e => {
-    const mb = e.target.closest('[data-mode]');
-    if (mb) { analyzeMode = mb.getAttribute('data-mode'); renderAnalyze(); return; }
-    const b = e.target.closest('[data-copy]'); if (!b) return;
-    const txt = b.getAttribute('data-copy');
-    const done = () => { b.classList.add('is-copied'); b.textContent = 'copied'; setTimeout(() => { b.classList.remove('is-copied'); b.textContent = 'copy'; }, 1200); };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(done);
-    else { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (_) {} t.remove(); done(); }
-  });
 
   // Step list delegation
   stepsList.addEventListener('click', e => {

@@ -406,6 +406,30 @@ body.pp-fullscreen .pp-pivot-result {
 }
 .pp-cols-detail-inner { padding: var(--qrx-s-5) var(--qrx-s-4); }
 
+/* Tabs inside an expanded column (Overview / Patterns) */
+.pp-col-tabs {
+  display: flex;
+  gap: var(--qrx-s-1);
+  border-bottom: 1px solid var(--qrx-border);
+  margin-bottom: var(--qrx-s-4);
+}
+.pp-col-tab {
+  appearance: none;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: var(--qrx-s-2) var(--qrx-s-3);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--qrx-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.pp-col-tab:hover { color: var(--qrx-text); }
+.pp-col-tab-active { color: var(--qrx-blue); border-bottom-color: var(--qrx-blue); }
+.pp-col-tabpanel[hidden] { display: none; }
+
 /* Filter bar above the cols table */
 .pp-cols-filters {
   background: var(--qrx-bg-subtle);

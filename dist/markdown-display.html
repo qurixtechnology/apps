@@ -776,6 +776,35 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .qrx-sql-pop-keyword { background: var(--qrx-text-subtle); }
 .qrx-sql-pop-value   { background: var(--qrx-warning); }
 .qrx-sql-pop-label { overflow: hidden; text-overflow: ellipsis; }
+
+/* --- pattern analysis table ---------------------------------------------- */
+.qrx-pat-toggle { display: flex; gap: var(--qrx-s-2); margin-bottom: var(--qrx-s-3); }
+.qrx-pat-meta { font-size: 0.8125rem; color: var(--qrx-text-muted); margin-bottom: var(--qrx-s-3); }
+.qrx-pat-busy { font-size: 0.8125rem; color: var(--qrx-text-muted); }
+.qrx-pat-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.qrx-pat-table th, .qrx-pat-table td {
+  text-align: left; padding: 5px var(--qrx-s-3);
+  border-bottom: 1px solid var(--qrx-border); vertical-align: middle;
+}
+.qrx-pat-table th {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--qrx-text-muted);
+}
+.qrx-pat-mask { font-family: var(--qrx-font-mono); color: var(--qrx-primary); white-space: nowrap; }
+.qrx-pat-rx { font-family: var(--qrx-font-mono); color: var(--qrx-text-muted); white-space: nowrap; }
+.qrx-pat-ex {
+  font-family: var(--qrx-font-mono); max-width: 280px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.qrx-pat-share { display: flex; align-items: center; gap: var(--qrx-s-2); min-width: 130px; }
+.qrx-pat-bar { height: 6px; border-radius: 3px; background: var(--qrx-gradient); min-width: 2px; }
+.qrx-pat-null td { color: var(--qrx-text-subtle); font-style: italic; }
+.qrx-pat-legend { margin-top: var(--qrx-s-3); font-size: 0.75rem; color: var(--qrx-text-muted); }
+.qrx-pat-copy {
+  margin-left: var(--qrx-s-2); padding: 0 6px; font-size: 0.7rem; cursor: pointer;
+  border: 1px solid var(--qrx-border); border-radius: 4px;
+  background: var(--qrx-surface); color: var(--qrx-text-muted);
+}
+.qrx-pat-copy.is-copied { color: var(--qrx-success); border-color: var(--qrx-success); }
 </style>
 
 <!-- Markdown parser (marked) via CDN, pinned, minified -->
@@ -1045,7 +1074,7 @@ flowchart LR
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260723-194059</span>
+    &middot; v<span data-build-version>260724-082421</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2243,6 +2272,112 @@ flowchart LR
       set(v) { el.value = v; if (opts.onChange) opts.onChange(v); return this; },
       focus() { el.focus(); return this; },
       closeCompletion: closePopup,
+    };
+  };
+
+  qrx.i18n.register('patterns', {
+    de: {
+      exactLength: 'Exakte Länge', compact: 'Kompakt (\\d+)',
+      pattern: 'Muster', count: 'Anzahl', share: 'Anteil', example: 'Beispiel', regex: 'Regex',
+      copy: 'kopieren', copied: 'kopiert',
+      distinctPatterns: '{n} verschiedene {kind}Muster', kindCompact: 'Kompakt-',
+      showingTop: '(oben {n})', nulls: '{n} null', empty: '∅ (leer)', nullRow: '(null)',
+      analyzing: 'Analysiere …',
+      legend: 'Maske: A Großbuchstabe · a Kleinbuchstabe · 9 Ziffer · andere Zeichen bleiben. '
+        + 'Exakte Länge behält die Lauflänge (999 ⇒ \\d{3}); Kompakt fasst jede Folge zusammen (9+ ⇒ \\d+).',
+    },
+    en: {
+      exactLength: 'Exact length', compact: 'Compact (\\d+)',
+      pattern: 'Pattern', count: 'Count', share: 'Share', example: 'Example', regex: 'Regex',
+      copy: 'copy', copied: 'copied',
+      distinctPatterns: '{n} distinct {kind}pattern(s)', kindCompact: 'compact ',
+      showingTop: '(showing top {n})', nulls: '{n} null', empty: '∅ (empty)', nullRow: '(null)',
+      analyzing: 'Analysing…',
+      legend: 'Mask: A uppercase · a lowercase · 9 digit · other characters kept literally. '
+        + 'Exact length keeps the run length (999 ⇒ \\d{3}); Compact collapses any run (9+ ⇒ \\d+).',
+    },
+  });
+
+  /**
+   * Renders the result of qrx.patterns.analyze: an exact/compact toggle and a
+   * table of the most frequent value patterns with a derived regex. Owns the
+   * toggle and the copy-to-clipboard buttons; bilingual.
+   *
+   * opts: { data, mode='exact', fmt=(n)=>String(n) }
+   */
+  ui.patternTable = function patternTable(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.patternTable: mount element not found');
+    el.classList.add('qrx-pat');
+    const fmt = opts.fmt || ((n) => String(n));
+    const esc = qrx.core.escapeHtml;
+    let data = opts.data || null;
+    let mode = opts.mode || 'exact';
+    const t = (k, p) => qrx.i18n.t('patterns.' + k, p);
+
+    function render() {
+      if (!data) { el.innerHTML = ''; return; }
+      const compact = mode === 'compact';
+      const d = compact ? data.compact : data.exact;
+      const total = data.total || 1;
+
+      let html = '<div class="qrx-pat-toggle">'
+        + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? '' : 'is-active'}" data-mode="exact">${esc(t('exactLength'))}</button>`
+        + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? 'is-active' : ''}" data-mode="compact">${esc(t('compact'))}</button></div>`;
+
+      html += '<div class="qrx-pat-meta">'
+        + t('distinctPatterns', { n: fmt(d.distinct), kind: compact ? t('kindCompact') : '' })
+        + (d.distinct > d.rows.length ? ' ' + t('showingTop', { n: d.rows.length }) : '')
+        + ' · ' + t('nulls', { n: fmt(data.nulls) }) + '</div>';
+
+      html += '<table class="qrx-pat-table"><thead><tr>'
+        + `<th>${esc(t('pattern'))}</th><th>${esc(t('count'))}</th><th>${esc(t('share'))}</th>`
+        + `<th>${esc(t('example'))}</th><th>${esc(t('regex'))}</th></tr></thead><tbody>`;
+      for (const r of d.rows) {
+        const isEmpty = r.pat === '';
+        const mask = isEmpty ? t('empty') : (compact ? qrx.patterns.compactDisplay(r.pat) : r.pat);
+        const rx = isEmpty ? '^$' : qrx.patterns.maskToRegex(r.pat, compact);
+        const share = r.c / total * 100;
+        html += `<tr><td class="qrx-pat-mask">${esc(mask)}</td>`
+          + `<td>${fmt(r.c)}</td>`
+          + `<td><div class="qrx-pat-share"><span class="qrx-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
+          + `<td class="qrx-pat-ex" title="${esc(r.example)}">${esc(r.example)}</td>`
+          + `<td class="qrx-pat-rx">${esc(rx)} <button type="button" class="qrx-pat-copy" data-copy="${esc(rx)}">${esc(t('copy'))}</button></td></tr>`;
+      }
+      if (data.nulls) {
+        html += `<tr class="qrx-pat-null"><td>${esc(t('nullRow'))}</td><td>${fmt(data.nulls)}</td>`
+          + `<td>${(data.nulls / total * 100).toFixed(1)}%</td><td></td><td></td></tr>`;
+      }
+      html += '</tbody></table>';
+      html += `<div class="qrx-pat-legend">${esc(t('legend'))}</div>`;
+      el.innerHTML = html;
+    }
+
+    el.addEventListener('click', (e) => {
+      const mb = e.target.closest('[data-mode]');
+      if (mb) { mode = mb.getAttribute('data-mode'); render(); return; }
+      const cb = e.target.closest('[data-copy]');
+      if (!cb) return;
+      const txt = cb.getAttribute('data-copy');
+      const done = () => {
+        cb.classList.add('is-copied'); cb.textContent = t('copied');
+        setTimeout(() => { cb.classList.remove('is-copied'); cb.textContent = t('copy'); }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, done);
+      else {
+        const ta = document.createElement('textarea');
+        ta.value = txt; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch (_) {}
+        ta.remove(); done();
+      }
+    });
+    qrx.i18n.onChange(render);
+
+    render();
+    return {
+      el,
+      setData(d) { data = d; render(); return this; },
+      setBusy() { el.innerHTML = `<p class="qrx-pat-busy">${esc(t('analyzing'))}</p>`; return this; },
     };
   };
 

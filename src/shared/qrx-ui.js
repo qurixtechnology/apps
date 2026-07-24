@@ -696,6 +696,112 @@
     };
   };
 
+  qrx.i18n.register('patterns', {
+    de: {
+      exactLength: 'Exakte Länge', compact: 'Kompakt (\\d+)',
+      pattern: 'Muster', count: 'Anzahl', share: 'Anteil', example: 'Beispiel', regex: 'Regex',
+      copy: 'kopieren', copied: 'kopiert',
+      distinctPatterns: '{n} verschiedene {kind}Muster', kindCompact: 'Kompakt-',
+      showingTop: '(oben {n})', nulls: '{n} null', empty: '∅ (leer)', nullRow: '(null)',
+      analyzing: 'Analysiere …',
+      legend: 'Maske: A Großbuchstabe · a Kleinbuchstabe · 9 Ziffer · andere Zeichen bleiben. '
+        + 'Exakte Länge behält die Lauflänge (999 ⇒ \\d{3}); Kompakt fasst jede Folge zusammen (9+ ⇒ \\d+).',
+    },
+    en: {
+      exactLength: 'Exact length', compact: 'Compact (\\d+)',
+      pattern: 'Pattern', count: 'Count', share: 'Share', example: 'Example', regex: 'Regex',
+      copy: 'copy', copied: 'copied',
+      distinctPatterns: '{n} distinct {kind}pattern(s)', kindCompact: 'compact ',
+      showingTop: '(showing top {n})', nulls: '{n} null', empty: '∅ (empty)', nullRow: '(null)',
+      analyzing: 'Analysing…',
+      legend: 'Mask: A uppercase · a lowercase · 9 digit · other characters kept literally. '
+        + 'Exact length keeps the run length (999 ⇒ \\d{3}); Compact collapses any run (9+ ⇒ \\d+).',
+    },
+  });
+
+  /**
+   * Renders the result of qrx.patterns.analyze: an exact/compact toggle and a
+   * table of the most frequent value patterns with a derived regex. Owns the
+   * toggle and the copy-to-clipboard buttons; bilingual.
+   *
+   * opts: { data, mode='exact', fmt=(n)=>String(n) }
+   */
+  ui.patternTable = function patternTable(mount, opts = {}) {
+    const el = (typeof mount === 'string') ? document.querySelector(mount) : mount;
+    if (!el) throw new Error('qrx.ui.patternTable: mount element not found');
+    el.classList.add('qrx-pat');
+    const fmt = opts.fmt || ((n) => String(n));
+    const esc = qrx.core.escapeHtml;
+    let data = opts.data || null;
+    let mode = opts.mode || 'exact';
+    const t = (k, p) => qrx.i18n.t('patterns.' + k, p);
+
+    function render() {
+      if (!data) { el.innerHTML = ''; return; }
+      const compact = mode === 'compact';
+      const d = compact ? data.compact : data.exact;
+      const total = data.total || 1;
+
+      let html = '<div class="qrx-pat-toggle">'
+        + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? '' : 'is-active'}" data-mode="exact">${esc(t('exactLength'))}</button>`
+        + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? 'is-active' : ''}" data-mode="compact">${esc(t('compact'))}</button></div>`;
+
+      html += '<div class="qrx-pat-meta">'
+        + t('distinctPatterns', { n: fmt(d.distinct), kind: compact ? t('kindCompact') : '' })
+        + (d.distinct > d.rows.length ? ' ' + t('showingTop', { n: d.rows.length }) : '')
+        + ' · ' + t('nulls', { n: fmt(data.nulls) }) + '</div>';
+
+      html += '<table class="qrx-pat-table"><thead><tr>'
+        + `<th>${esc(t('pattern'))}</th><th>${esc(t('count'))}</th><th>${esc(t('share'))}</th>`
+        + `<th>${esc(t('example'))}</th><th>${esc(t('regex'))}</th></tr></thead><tbody>`;
+      for (const r of d.rows) {
+        const isEmpty = r.pat === '';
+        const mask = isEmpty ? t('empty') : (compact ? qrx.patterns.compactDisplay(r.pat) : r.pat);
+        const rx = isEmpty ? '^$' : qrx.patterns.maskToRegex(r.pat, compact);
+        const share = r.c / total * 100;
+        html += `<tr><td class="qrx-pat-mask">${esc(mask)}</td>`
+          + `<td>${fmt(r.c)}</td>`
+          + `<td><div class="qrx-pat-share"><span class="qrx-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
+          + `<td class="qrx-pat-ex" title="${esc(r.example)}">${esc(r.example)}</td>`
+          + `<td class="qrx-pat-rx">${esc(rx)} <button type="button" class="qrx-pat-copy" data-copy="${esc(rx)}">${esc(t('copy'))}</button></td></tr>`;
+      }
+      if (data.nulls) {
+        html += `<tr class="qrx-pat-null"><td>${esc(t('nullRow'))}</td><td>${fmt(data.nulls)}</td>`
+          + `<td>${(data.nulls / total * 100).toFixed(1)}%</td><td></td><td></td></tr>`;
+      }
+      html += '</tbody></table>';
+      html += `<div class="qrx-pat-legend">${esc(t('legend'))}</div>`;
+      el.innerHTML = html;
+    }
+
+    el.addEventListener('click', (e) => {
+      const mb = e.target.closest('[data-mode]');
+      if (mb) { mode = mb.getAttribute('data-mode'); render(); return; }
+      const cb = e.target.closest('[data-copy]');
+      if (!cb) return;
+      const txt = cb.getAttribute('data-copy');
+      const done = () => {
+        cb.classList.add('is-copied'); cb.textContent = t('copied');
+        setTimeout(() => { cb.classList.remove('is-copied'); cb.textContent = t('copy'); }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, done);
+      else {
+        const ta = document.createElement('textarea');
+        ta.value = txt; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch (_) {}
+        ta.remove(); done();
+      }
+    });
+    qrx.i18n.onChange(render);
+
+    render();
+    return {
+      el,
+      setData(d) { data = d; render(); return this; },
+      setBusy() { el.innerHTML = `<p class="qrx-pat-busy">${esc(t('analyzing'))}</p>`; return this; },
+    };
+  };
+
   /** A transient message. One container, reused. */
   let toastEl = null, toastTimer = null;
   ui.toast = function toast(message, kind, ms = 3200) {

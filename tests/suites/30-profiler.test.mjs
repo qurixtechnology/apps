@@ -178,5 +178,46 @@ describe('profiler', () => {
       page.assertNoErrors();
     } finally { await page.close(); }
   });
+
+  test('an expanded text column gets a Patterns tab with masks and a regex', async () => {
+    const page = await openProfiler({ query: 'qrxtest' });
+    try {
+      await loadFiles(page, 'pii.parquet');
+      // expand the IBAN column
+      await page.waitForSelector('#pp-colsTable tr.pp-cols-row[data-col="iban"]', { timeout: 30_000 });
+      await page.evaluate(() =>
+        document.querySelector('#pp-colsTable tr.pp-cols-row[data-col="iban"]').click());
+      await page.waitForSelector('.pp-col-tabs', { timeout: 30_000 });
+
+      // the two tabs are labelled in German (this app's default here)
+      const tabLabels = await page.$$eval('.pp-col-tab', els => els.map(e => e.textContent.trim()));
+      assert.deepEqual(tabLabels, ['Übersicht', 'Muster']);
+
+      // patterns are lazy: nothing rendered until the tab is opened
+      assert.equal(await page.$('.qrx-pat-table'), null, 'the analysis has not run yet');
+
+      await page.evaluate(() =>
+        document.querySelector('.pp-col-tab[data-coltab="patterns"]').click());
+      await page.waitForSelector('.qrx-pat-table', { timeout: 30_000 });
+
+      // exact view: a single mask covering every IBAN, with a derived regex
+      const masks = await page.$$eval('.qrx-pat-mask', els => els.map(e => e.textContent.trim()));
+      assert.ok(masks.some(m => /^AA9+$/.test(m.replace(/\s/g, ''))),
+        'IBANs mask to two letters then digits: ' + JSON.stringify(masks));
+      const rx = await page.$$eval('.qrx-pat-rx', els => els.map(e => e.textContent));
+      assert.ok(rx.some(r => /\\p\{Lu\}\{2\}/.test(r) && /\\d\{/.test(r)),
+        'the exact mask yields an anchored regex: ' + JSON.stringify(rx));
+
+      // compact view collapses the run length
+      await page.evaluate(() =>
+        document.querySelector('.qrx-pat-toggle [data-mode="compact"]').click());
+      await new Promise(r => setTimeout(r, 40));
+      const rxCompact = await page.$$eval('.qrx-pat-rx', els => els.map(e => e.textContent));
+      assert.ok(rxCompact.some(r => /\\p\{Lu\}\+/.test(r) && /\\d\+/.test(r)),
+        'compact regex uses "+" not a fixed count: ' + JSON.stringify(rxCompact));
+
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
 });
 
