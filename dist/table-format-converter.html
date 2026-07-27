@@ -191,7 +191,6 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .app-shell { display: flex; flex-direction: column; gap: var(--qrx-s-6); }
 
 /* Paste-from-clipboard */
-.dz-actions { margin-top: var(--qrx-s-4); }
 .paste-modal {
   position: fixed; inset: 0; z-index: 50;
   display: flex; align-items: center; justify-content: center;
@@ -301,24 +300,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .sql-pager .qrx-btn { padding: var(--qrx-s-1) var(--qrx-s-3); }
 .sql-page-info { font-size: 0.8125rem; color: var(--qrx-text-muted); min-width: 12rem; text-align: center; }
 
-/* Drop zone */
-.dropzone {
-  border: 2px dashed var(--qrx-border-strong);
-  border-radius: var(--qrx-radius-lg);
-  padding: var(--qrx-s-10) var(--qrx-s-6);
-  text-align: center;
-  background: var(--qrx-bg-subtle);
-  transition: var(--qrx-transition);
-  cursor: pointer;
-}
-.dropzone:hover, .dropzone.is-dragover {
-  border-color: var(--qrx-primary);
-  background: var(--qrx-bg-muted);
-}
-.dropzone.is-dragover { border-style: solid; }
-.dropzone p { margin: 0 0 var(--qrx-s-2); }
-.dropzone .dz-title { font-size: 1.125rem; font-weight: 600; color: var(--qrx-text); }
-.dropzone .dz-sub { font-size: 0.875rem; color: var(--qrx-text-muted); }
+/* Drop zone visuals now live in the shared stylesheet (qrx-ui.css), next to
+   the qrx.ui.dropzone widget. */
 
 /* Static-snapshot banner ("Export with data" reopened without the source file) */
 .snapshot-banner {
@@ -1196,6 +1179,26 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   background: var(--qrx-surface); color: var(--qrx-text-muted);
 }
 .qrx-pat-copy.is-copied { color: var(--qrx-success); border-color: var(--qrx-success); }
+
+/* --- dropzone (styles for the qrx.ui.dropzone widget) -------------------- */
+.dropzone {
+  border: 2px dashed var(--qrx-border-strong);
+  border-radius: var(--qrx-radius-lg);
+  padding: var(--qrx-s-10) var(--qrx-s-6);
+  text-align: center;
+  background: var(--qrx-bg-subtle);
+  transition: var(--qrx-transition);
+  cursor: pointer;
+}
+.dropzone:hover, .dropzone.is-dragover {
+  border-color: var(--qrx-primary);
+  background: var(--qrx-bg-muted);
+}
+.dropzone.is-dragover { border-style: solid; }
+.dropzone p { margin: 0 0 var(--qrx-s-2); }
+.dropzone .dz-title { font-size: 1.125rem; font-weight: 600; color: var(--qrx-text); }
+.dropzone .dz-sub { font-size: 0.875rem; color: var(--qrx-text-muted); }
+.dz-actions { margin-top: var(--qrx-s-4); }
 </style>
 
 <!-- SheetJS (xlsx) via the official SheetJS CDN, pinned — adds robust ODS read/write and Apple Numbers read -->
@@ -1769,7 +1772,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260724-151255</span>
+    &middot; v<span data-build-version>260727-142458</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"

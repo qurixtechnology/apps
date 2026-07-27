@@ -1,0 +1,53 @@
+<h2>Parquet Validator</h2>
+<p>
+  Prüft eine <strong>Parquet-Datei</strong> gegen einen <strong>Regelsatz</strong> — vollständig im
+  Browser, ohne Upload. Lade eine Parquet-Datei (oder verbinde einen DuckDB-Server), definiere pro
+  Spalte oder tabellenweit Regeln und erhalte einen Bericht: welche Regel hält, welche nicht, wie
+  viele Zeilen verstoßen — mit Absprung in die konkreten Zeilen.
+</p>
+
+<h3>Ablauf</h3>
+<ol>
+  <li><strong>Datei laden</strong> — Parquet per Drag &amp; Drop / Auswahl oder eine Tabelle von einem
+    DuckDB-Server. Eine <strong>Vorschau</strong> zeigt die ersten Zeilen der geladenen Daten.</li>
+  <li><strong>Regeln definieren</strong> — von Hand über <em>+ Regel</em> oder automatisch über
+    <em>Regeln vorschlagen</em> (leitet aus einem Schnellprofil Vorschläge ab: nicht-null-Spalten,
+    Schlüsselkandidaten, kleine Wertemengen, dominante Muster, Wertebereiche).</li>
+  <li><strong>Validieren</strong> — der Bericht zeigt Score, gültige Zeilen und je Regel die Verstöße.
+    Bei einer fehlgeschlagenen Regel öffnet <em>Zeilen</em> eine Stichprobe der verletzenden Zeilen.</li>
+</ol>
+
+<h3>Regeltypen</h3>
+<ul>
+  <li><strong>Nicht null</strong> — die Spalte darf keine NULL-Werte enthalten.</li>
+  <li><strong>Eindeutig</strong> — keine doppelten Werte.</li>
+  <li><strong>Erlaubte Werte</strong> — jeder Wert stammt aus einer festen Menge.</li>
+  <li><strong>Wertebereich</strong> — numerisch zwischen Minimum und Maximum.</li>
+  <li><strong>Länge</strong> — Zeichenlänge zwischen Minimum und Maximum.</li>
+  <li><strong>Regex</strong> — voller Treffer gegen ein reguläres Ausdrucksmuster.</li>
+  <li><strong>Dominantes Muster</strong> — der Wert passt zu einem der dominanten Struktur­muster
+    der Spalte (aus der Musteranalyse abgeleitet).</li>
+  <li><strong>Typ-castbar</strong> — der Wert lässt sich in den Zieltyp umwandeln.</li>
+  <li><strong>Getrimmt</strong> — kein führender/nachgestellter Leerraum.</li>
+  <li><strong>Referenz</strong> — der Wert existiert in einer Spalte einer Referenztabelle
+    (Fremdschlüssel; Referenz-Parquet oben hinzufügen).</li>
+  <li><strong>Eigenes SQL</strong> — ein beliebiger boolescher Ausdruck je Zeile.</li>
+  <li><strong>Zeilenzahl</strong> — die Tabelle hat mindestens/höchstens N Zeilen.</li>
+</ul>
+<p>
+  Wertprüfungen bestehen bei NULL — fehlende Werte prüft ausschließlich die <em>Nicht-null</em>-Regel,
+  damit ein fehlender Wert nie doppelt bestraft wird. Jede Regel hat einen <strong>Schweregrad</strong>
+  (Fehler oder Warnung); der Gesamtstatus schlägt fehl, sobald eine Fehler-Regel verletzt ist,
+  Warnungen senken nur den Score.
+</p>
+
+<h3>Regelsatz als Vertrag</h3>
+<p>
+  <em>Regelsatz speichern</em> lädt die Regeln als portable JSON-Datei herunter, <em>Regelsatz laden</em>
+  liest sie wieder ein. So definierst du die Erwartungen an eine Tabelle einmal und prüfst jeden neuen
+  Export erneut — ein wiederholbarer Datenvertrag. <em>Bericht ⤓</em> exportiert das Ergebnis als Markdown.
+</p>
+
+<p class="muted">
+  Alles läuft lokal per DuckDB-WASM. Es werden keine Daten hochgeladen.
+</p>

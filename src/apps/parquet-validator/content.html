@@ -1,0 +1,102 @@
+  <div class="app-shell">
+
+    <!-- App attribution -->
+    <div class="app-attribution">
+      Powered by <a href="https://duckdb.org/" target="_blank" rel="noopener noreferrer">DuckDB</a>
+    </div>
+
+    <!-- Drop zone (initial state) -->
+    <div id="dropzone" class="dropzone" tabindex="0" role="button"
+         data-qrx-i18n-aria-label="app.dropAria" aria-label="Parquet-Datei hier ablegen oder klicken">
+      <p class="dz-title" data-qrx-i18n="app.dropTitle">Parquet-Datei hier ablegen oder klicken</p>
+      <p class="dz-sub" data-qrx-i18n="app.dropFormats">Parquet — bis ~1 GB · oder eine DuckDB-Verbindung</p>
+      <input type="file" id="filePicker" hidden accept=".parquet,.pq">
+      <div class="dz-actions">
+        <button class="qrx-btn" id="srvConnectBtn" type="button"
+                data-qrx-i18n="app.connectBtn" data-qrx-i18n-title="app.connectBtnHint"
+                title="Eine Tabelle von einem laufenden DuckDB-Server lesen">Mit DuckDB verbinden</button>
+      </div>
+    </div>
+
+    <!-- File info bar (after load) -->
+    <div id="fileInfo" hidden></div>
+
+    <!-- Status bar -->
+    <div id="statusBar" hidden></div>
+
+    <!-- Workspace -->
+    <div id="workspace" class="workspace" hidden>
+
+      <!-- Reference tables (for reference / foreign-key rules) -->
+      <details class="qrx-card v-refcard" id="refCard">
+        <summary>
+          <span class="v-card-title" data-qrx-i18n="app.refTitle">Referenztabellen</span>
+          <span class="muted v-card-hint" data-qrx-i18n="app.refHint">für Referenz-/Fremdschlüsselregeln</span>
+          <svg class="v-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>
+        </summary>
+        <div class="v-card-body">
+          <div id="refList" class="v-reflist"></div>
+          <input type="file" id="refPicker" hidden accept=".parquet,.pq">
+          <button class="qrx-btn qrx-btn-sm" id="addRefBtn" type="button" data-qrx-i18n="app.addRef">+ Referenz-Parquet</button>
+        </div>
+      </details>
+
+      <!-- Data preview -->
+      <details class="qrx-card v-preview" id="previewCard" open>
+        <summary>
+          <span class="v-card-title" data-qrx-i18n="app.previewTitle">Vorschau</span>
+          <span class="muted v-card-hint" id="previewMeta"></span>
+          <svg class="v-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 4 10 8 6 12"/></svg>
+        </summary>
+        <div class="v-card-body">
+          <div class="v-preview-wrap"><div id="previewGrid"></div></div>
+          <div id="previewPager" hidden></div>
+        </div>
+      </details>
+
+      <!-- Rule builder -->
+      <div class="qrx-card">
+        <h3 class="section-title">
+          <span data-qrx-i18n="app.rulesTitle">Regeln</span>
+          <span class="section-title-right">
+            <button class="qrx-btn qrx-btn-sm" id="suggestBtn" type="button"
+                    data-qrx-i18n="app.suggest" data-qrx-i18n-title="app.suggestHint"
+                    title="Regeln aus einem Schnellprofil vorschlagen">Regeln vorschlagen</button>
+            <button class="qrx-btn qrx-btn-sm" id="addRuleBtn" type="button" data-qrx-i18n="app.addRule">+ Regel</button>
+          </span>
+        </h3>
+        <div class="v-rules-head">
+          <span class="h-col" data-qrx-i18n="app.column">Spalte</span>
+          <span class="h-type" data-qrx-i18n="app.ruleType">Regel</span>
+          <span class="h-par" data-qrx-i18n="app.params">Parameter</span>
+          <span class="h-sev" data-qrx-i18n="app.severity">Schweregrad</span>
+        </div>
+        <div id="rulesList" class="v-rules"></div>
+        <p class="muted v-empty" id="rulesEmpty" data-qrx-i18n="app.rulesEmpty">
+          Noch keine Regeln. Füge eine hinzu oder lass sie vorschlagen.
+        </p>
+        <div class="v-rules-actions">
+          <button class="qrx-btn qrx-btn-primary" id="validateBtn" type="button" data-qrx-i18n="app.validate">Validieren</button>
+          <span class="v-sep"></span>
+          <button class="qrx-btn qrx-btn-sm" id="saveRulesetBtn" type="button" data-qrx-i18n="app.saveRuleset">Regelsatz speichern</button>
+          <button class="qrx-btn qrx-btn-sm" id="loadRulesetBtn" type="button" data-qrx-i18n="app.loadRuleset">Regelsatz laden</button>
+          <input type="file" id="rulesetPicker" hidden accept=".json">
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="qrx-card v-results" id="resultsCard" hidden>
+        <h3 class="section-title">
+          <span data-qrx-i18n="app.resultTitle">Ergebnis</span>
+          <span class="section-title-right">
+            <button class="qrx-btn qrx-btn-sm" id="exportReportBtn" type="button"
+                    data-qrx-i18n="app.exportReport" data-qrx-i18n-title="app.exportReportHint"
+                    title="Bericht als Markdown herunterladen">Bericht ⤓</button>
+          </span>
+        </h3>
+        <div id="resultsSummary" class="v-summary"></div>
+        <div id="resultsList" class="v-resultlist"></div>
+      </div>
+
+    </div>
+  </div>

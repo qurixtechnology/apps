@@ -213,3 +213,23 @@
   background: var(--qrx-surface); color: var(--qrx-text-muted);
 }
 .qrx-pat-copy.is-copied { color: var(--qrx-success); border-color: var(--qrx-success); }
+
+/* --- dropzone (styles for the qrx.ui.dropzone widget) -------------------- */
+.dropzone {
+  border: 2px dashed var(--qrx-border-strong);
+  border-radius: var(--qrx-radius-lg);
+  padding: var(--qrx-s-10) var(--qrx-s-6);
+  text-align: center;
+  background: var(--qrx-bg-subtle);
+  transition: var(--qrx-transition);
+  cursor: pointer;
+}
+.dropzone:hover, .dropzone.is-dragover {
+  border-color: var(--qrx-primary);
+  background: var(--qrx-bg-muted);
+}
+.dropzone.is-dragover { border-style: solid; }
+.dropzone p { margin: 0 0 var(--qrx-s-2); }
+.dropzone .dz-title { font-size: 1.125rem; font-weight: 600; color: var(--qrx-text); }
+.dropzone .dz-sub { font-size: 0.875rem; color: var(--qrx-text-muted); }
+.dz-actions { margin-top: var(--qrx-s-4); }

@@ -1,0 +1,52 @@
+<h2>Parquet Validator</h2>
+<p>
+  Validate a <strong>Parquet file</strong> against a <strong>ruleset</strong> — entirely in the
+  browser, with no upload. Load a Parquet file (or connect a DuckDB server), define rules per column
+  or table-wide, and get a report: which rule holds, which does not, how many rows violate it — with
+  a jump into the offending rows.
+</p>
+
+<h3>Flow</h3>
+<ol>
+  <li><strong>Load a file</strong> — Parquet by drag &amp; drop / picker, or a table from a DuckDB
+    server. A <strong>preview</strong> shows the first rows of the loaded data.</li>
+  <li><strong>Define rules</strong> — by hand via <em>+ Rule</em>, or automatically via
+    <em>Suggest rules</em> (derives proposals from a quick profile: no-null columns, key candidates,
+    small value sets, dominant patterns, numeric ranges).</li>
+  <li><strong>Validate</strong> — the report shows the score, the valid rows, and each rule's
+    violations. For a failing rule, <em>Rows</em> opens a sample of the violating rows.</li>
+</ol>
+
+<h3>Rule types</h3>
+<ul>
+  <li><strong>Not null</strong> — the column must contain no NULLs.</li>
+  <li><strong>Unique</strong> — no duplicate values.</li>
+  <li><strong>Allowed values</strong> — every value comes from a fixed set.</li>
+  <li><strong>Range</strong> — numeric, between a minimum and a maximum.</li>
+  <li><strong>Length</strong> — character length between a minimum and a maximum.</li>
+  <li><strong>Regex</strong> — a full match against a regular expression.</li>
+  <li><strong>Dominant pattern</strong> — the value matches one of the column's dominant structural
+    patterns (derived from the pattern analysis).</li>
+  <li><strong>Type-castable</strong> — the value can be cast to the target type.</li>
+  <li><strong>Trimmed</strong> — no leading/trailing whitespace.</li>
+  <li><strong>Reference</strong> — the value exists in a column of a reference table
+    (foreign key; add a reference Parquet above).</li>
+  <li><strong>Custom SQL</strong> — any boolean expression per row.</li>
+  <li><strong>Row count</strong> — the table has at least/at most N rows.</li>
+</ul>
+<p>
+  Value checks pass on NULL — absence is checked only by the <em>Not null</em> rule, so a missing
+  value is never penalised twice. Each rule has a <strong>severity</strong> (error or warning); the
+  overall status fails as soon as one error rule is violated, warnings only lower the score.
+</p>
+
+<h3>The ruleset as a contract</h3>
+<p>
+  <em>Save ruleset</em> downloads the rules as portable JSON, <em>Load ruleset</em> reads them back.
+  Define the expectations for a table once and re-check every new export — a repeatable data contract.
+  <em>Report ⤓</em> exports the result as Markdown.
+</p>
+
+<p class="muted">
+  Everything runs locally via DuckDB-WASM. No data is uploaded.
+</p>
