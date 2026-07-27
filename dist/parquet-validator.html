@@ -231,7 +231,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .v-rules-head:has(+ .v-rules:empty) { display: none; }
 
 .v-rule {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--qrx-s-2);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--qrx-s-2); min-width: 0;
   padding: var(--qrx-s-2) var(--qrx-s-3);
   border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius);
   background: var(--qrx-surface, #fff); transition: border-color .12s, box-shadow .12s;
@@ -270,10 +270,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 }
 .v-rule-remove:hover { color: var(--qrx-danger); background: rgba(214,69,69,0.10); }
 .v-param-label { font-size: 0.72rem; color: var(--qrx-text-muted); display: inline-flex; align-items: center; gap: 4px; }
+.v-param-hint { font-size: 0.75rem; color: var(--qrx-text-muted); font-style: italic; }
 
 /* per-rule result + SQL, shown on its own line below the controls */
-.v-rule-extra { flex: 1 0 100%; margin-top: var(--qrx-s-2); padding-top: var(--qrx-s-2); border-top: 1px dashed var(--qrx-border); }
+.v-rule-extra { flex: 1 0 100%; min-width: 0; margin-top: var(--qrx-s-2); padding-top: var(--qrx-s-2); border-top: 1px dashed var(--qrx-border); }
 .v-rule-extra[hidden] { display: none; }
+.v-rule-result { min-width: 0; }
 .v-inline { display: inline-flex; align-items: center; gap: var(--qrx-s-2); font-size: 0.82rem; }
 .v-inline-badge {
   width: 18px; height: 18px; border-radius: 50%; color: #fff; font-weight: 700; font-size: 0.7rem;
@@ -669,10 +671,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   <li><strong>Dominantes Muster</strong> — der Wert passt zu einem der dominanten Struktur­muster
     der Spalte (aus der Musteranalyse abgeleitet).</li>
   <li><strong>Typ-castbar</strong> — der Wert lässt sich in den Zieltyp umwandeln.</li>
-  <li><strong>Getrimmt</strong> — kein führender/nachgestellter Leerraum.</li>
+  <li><strong>Getrimmt</strong> — kein führender oder nachgestellter Leerraum (Wert = <code>trim(Wert)</code>);
+    Verstoß sind z. B. <code>" Berlin"</code> oder <code>"Berlin "</code>.</li>
   <li><strong>Referenz</strong> — der Wert existiert in einer Spalte einer Referenztabelle
     (Fremdschlüssel; Referenz-Parquet oben hinzufügen).</li>
-  <li><strong>Eigenes SQL</strong> — ein beliebiger boolescher Ausdruck je Zeile.</li>
+  <li><strong>Eigenes SQL</strong> — eine boolesche Bedingung, die <em>fehlerhafte</em> Zeilen kennzeichnet
+    (<code>TRUE = Verstoß</code>, wie bei dbt-Tests); z. B. <code>betrag &lt; 0</code> markiert alle Zeilen
+    mit negativem Betrag als Verstoß.</li>
   <li><strong>Zeilenzahl</strong> — die Tabelle hat mindestens/höchstens N Zeilen.</li>
 </ul>
 <p>
@@ -724,10 +729,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   <li><strong>Dominant pattern</strong> — the value matches one of the column's dominant structural
     patterns (derived from the pattern analysis).</li>
   <li><strong>Type-castable</strong> — the value can be cast to the target type.</li>
-  <li><strong>Trimmed</strong> — no leading/trailing whitespace.</li>
+  <li><strong>Trimmed</strong> — no leading or trailing whitespace (value = <code>trim(value)</code>);
+    e.g. <code>" Berlin"</code> or <code>"Berlin "</code> are violations.</li>
   <li><strong>Reference</strong> — the value exists in a column of a reference table
     (foreign key; add a reference Parquet above).</li>
-  <li><strong>Custom SQL</strong> — any boolean expression per row.</li>
+  <li><strong>Custom SQL</strong> — a boolean condition that flags <em>breaking</em> rows
+    (<code>TRUE = violation</code>, dbt-style); e.g. <code>amount &lt; 0</code> marks every row with a
+    negative amount as a violation.</li>
   <li><strong>Row count</strong> — the table has at least/at most N rows.</li>
 </ul>
 <p>
@@ -861,7 +869,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260727-145608</span>
+    &middot; v<span data-build-version>260727-173903</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1752,7 +1760,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 //   { col, type:'castable', as:'DOUBLE' }
 //   { col, type:'trimmed' }
 //   { col, type:'reference', refFrom, refCol }
-//   { type:'sql', expr, label? }
+//   { type:'sql', expr, label? }   // expr is TRUE for a BREAKING row (dbt-style)
 //   { type:'row_count', min?, max? }
 // ============================================================================
 (function () {
@@ -1817,7 +1825,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         return `${c} IS NULL OR ${c} IN (SELECT ${rc} FROM ${rule.refFrom})`;
       }
       case 'sql':
-        return `COALESCE((${rule.expr}), FALSE)`;
+        // The expression flags BREAKING rows, so a valid row is one where it is
+        // not true. violationSql() special-cases sql and emits the un-negated
+        // form; this negated shape only matters if predicate() is used directly.
+        return `NOT COALESCE((${rule.expr}), FALSE)`;
       default:
         return null;
     }
@@ -1839,6 +1850,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       return `(${tuple}) IN (SELECT ${tuple} FROM ${from} WHERE ${notNull} `
         + `GROUP BY ${tuple} HAVING count(*) > 1)`;
     }
+    // Custom SQL follows the usual data-test convention: the expression selects
+    // the BREAKING rows (TRUE = violation), so it is the violation condition
+    // directly — no negation. Emitting it cleanly matters, it is shown to users.
+    if (rule.type === 'sql') return `COALESCE((${rule.expr}), FALSE)`;
     const p = predicate(rule);
     return p == null ? null : `NOT (${p})`;
   }
@@ -3519,7 +3534,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       pAllowed: 'Werte, kommagetrennt', pMin: 'min', pMax: 'max', pExclusive: 'exklusiv',
       pRegex: 'z. B. ^[^@]+@[^@]+\\.[^@]+$', pMode: 'Modus', modeExact: 'exakt', modeCompact: 'kompakt',
       pCastType: 'Zieltyp', pRefTable: 'Referenztabelle', pRefCol: 'Spalte',
-      pSql: 'boolescher SQL-Ausdruck je Zeile', pSqlLabel: 'Bezeichnung (optional)',
+      pSql: 'SQL-Bedingung — TRUE = Verstoß (z. B. betrag < 0)', pSqlLabel: 'Bezeichnung (optional)',
+      hintNotNull: 'Spalte darf keine NULL-Werte enthalten',
+      hintUnique: 'keine doppelten Werte',
+      hintTrimmed: 'kein führender/nachgestellter Leerraum (Wert = trim(Wert))',
+      sqlHint: 'Die Bedingung kennzeichnet fehlerhafte Zeilen — trifft sie zu, ist die Zeile ein Verstoß.',
       noColumns: 'keine Spalten', noRefs: 'keine Referenztabellen — oben hinzufügen',
       // results
       valid: 'gültig', violationsWord: 'Verstöße', score: 'Score', rowsWord: 'Zeilen',
@@ -3553,7 +3572,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       pAllowed: 'values, comma-separated', pMin: 'min', pMax: 'max', pExclusive: 'exclusive',
       pRegex: 'e.g. ^[^@]+@[^@]+\\.[^@]+$', pMode: 'mode', modeExact: 'exact', modeCompact: 'compact',
       pCastType: 'target type', pRefTable: 'reference table', pRefCol: 'column',
-      pSql: 'boolean SQL expression per row', pSqlLabel: 'label (optional)',
+      pSql: 'SQL condition — TRUE = violation (e.g. amount < 0)', pSqlLabel: 'label (optional)',
+      hintNotNull: 'the column must contain no NULLs',
+      hintUnique: 'no duplicate values',
+      hintTrimmed: 'no leading/trailing whitespace (value = trim(value))',
+      sqlHint: 'The condition flags breaking rows — when it holds, the row is a violation.',
       noColumns: 'no columns', noRefs: 'no reference tables — add one above',
       valid: 'valid', violationsWord: 'violations', score: 'Score', rowsWord: 'rows',
       showRows: 'Rows', pass: 'passed', skipped: 'skipped (no dominant pattern)',
@@ -3759,8 +3782,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const s = row._spec || {};
     const box = row.querySelector('[data-role="params"]');
     const L = (k) => `<span class="v-param-label">${esc(t(k))}</span>`;
+    const hint = (k) => `<span class="v-param-hint">${esc(t(k))}</span>`;
     let h = '';
     switch (type) {
+      case 'not_null': h = hint('hintNotNull'); break;
+      case 'unique': h = hint('hintUnique'); break;
+      case 'trimmed': h = hint('hintTrimmed'); break;
       case 'allowed':
         h = `<input class="qrx-input v-text" data-p="values" placeholder="${esc(t('pAllowed'))}" value="${esc((s.values || []).join(', '))}">`;
         break;
@@ -3795,8 +3822,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         break;
       }
       case 'sql':
-        h = `<input class="qrx-input v-text" data-p="expr" placeholder="${esc(t('pSql'))}" value="${esc(s.expr || '')}">`
-          + `<input class="qrx-input v-text" data-p="label" placeholder="${esc(t('pSqlLabel'))}" value="${esc(s.label || '')}">`;
+        h = `<input class="qrx-input v-text" data-p="expr" placeholder="${esc(t('pSql'))}" value="${esc(s.expr || '')}" title="${esc(t('sqlHint'))}">`
+          + `<input class="qrx-input v-text" data-p="label" placeholder="${esc(t('pSqlLabel'))}" value="${esc(s.label || '')}">`
+          + hint('sqlHint');
         break;
       case 'row_count':
         h = `${L('pMin')}<input class="qrx-input v-num" data-p="min" type="number" min="0" value="${s.min != null ? esc(s.min) : ''}">`
@@ -3842,7 +3870,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       case 'reference':
         spec.refFrom = p('refFrom'); spec.refCol = p('refCol'); break;
       case 'sql':
-        spec.expr = p('expr') || 'TRUE'; if (p('label')) spec.label = p('label'); break;
+        // default FALSE = "nothing breaks" (TRUE would flag every row)
+        spec.expr = p('expr') || 'FALSE'; if (p('label')) spec.label = p('label'); break;
       case 'row_count':
         spec.min = num('min'); spec.max = num('max'); break;
       default: break;
@@ -3864,9 +3893,16 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   rulesList.addEventListener('change', (e) => {
     const row = e.target.closest('.v-rule'); if (!row) return;
     const role = e.target.dataset.role || e.target.dataset.p;
-    if (role === 'type' || role === 'refFrom') {
-      // capture current inputs before rebuilding, so a type toggle keeps params
-      row._spec = readRule(row);
+    if (role === 'type') {
+      // a new rule type starts with fresh parameters — carrying the old ones
+      // over (e.g. a min/max from the previous type) is confusing.
+      row._spec = {
+        col: row.querySelector('[data-role="col"]').value,
+        severity: row.querySelector('[data-role="sev"]').value,
+      };
+      renderParams(row);
+    } else if (role === 'refFrom') {
+      row._spec = readRule(row);   // keep the type, repopulate the ref columns
       renderParams(row);
     }
     clearExtra(row);   // any edit invalidates a shown result / SQL

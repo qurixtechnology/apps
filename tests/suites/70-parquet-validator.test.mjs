@@ -39,7 +39,7 @@ describe('rule engine: validate', () => {
         { col: 'amount', type: 'unique' },                                  // 3 → rows2,5
         { col: 'note', type: 'trimmed' },                                   // 4 → row3
         { col: 'code', type: 'length', min: 2, max: 5 },                    // 5 → none
-        { type: 'sql', expr: 'amount >= 0' },                              // 6 → none
+        { type: 'sql', expr: 'amount < 0' },                               // 6 → none breaking (TRUE=violation)
         { type: 'row_count', min: 3 },                                      // 7 → pass
       ];
       const r = await window.qrx.rules.validate({ query: q, from: 'v', rules, total: 5 });
@@ -58,6 +58,20 @@ describe('rule engine: validate', () => {
     assert.equal(got.status[5], 'pass', 'length holds');
     assert.equal(got.status[7], 'pass');
     assert.equal(got.rowCountActual, 5);
+  });
+
+  test('custom SQL flags breaking rows (TRUE = violation)', async () => {
+    const got = await page.evaluate(async () => {
+      const q = (sql) => window.qrx.duckdb.query(sql);
+      // expr selects the offending rows directly, dbt-style
+      const r = await window.qrx.rules.validate({
+        query: q, from: 'v', total: 5,
+        rules: [{ type: 'sql', expr: 'amount > 100', label: 'amount capped' }],
+      });
+      return { violations: r.results[0].violations, sql: window.qrx.rules.explain(r.results[0].rule, 'v').sql };
+    });
+    assert.equal(got.violations, 1, 'only amount 999 exceeds 100');
+    assert.match(got.sql, /WHERE COALESCE\(\(amount > 100\), FALSE\)/, 'the SQL selects breaking rows, un-negated');
   });
 
   test('a warning lowers the score but does not fail the run', async () => {

@@ -24,7 +24,7 @@
 //   { col, type:'castable', as:'DOUBLE' }
 //   { col, type:'trimmed' }
 //   { col, type:'reference', refFrom, refCol }
-//   { type:'sql', expr, label? }
+//   { type:'sql', expr, label? }   // expr is TRUE for a BREAKING row (dbt-style)
 //   { type:'row_count', min?, max? }
 // ============================================================================
 (function () {
@@ -89,7 +89,10 @@
         return `${c} IS NULL OR ${c} IN (SELECT ${rc} FROM ${rule.refFrom})`;
       }
       case 'sql':
-        return `COALESCE((${rule.expr}), FALSE)`;
+        // The expression flags BREAKING rows, so a valid row is one where it is
+        // not true. violationSql() special-cases sql and emits the un-negated
+        // form; this negated shape only matters if predicate() is used directly.
+        return `NOT COALESCE((${rule.expr}), FALSE)`;
       default:
         return null;
     }
@@ -111,6 +114,10 @@
       return `(${tuple}) IN (SELECT ${tuple} FROM ${from} WHERE ${notNull} `
         + `GROUP BY ${tuple} HAVING count(*) > 1)`;
     }
+    // Custom SQL follows the usual data-test convention: the expression selects
+    // the BREAKING rows (TRUE = violation), so it is the violation condition
+    // directly — no negation. Emitting it cleanly matters, it is shown to users.
+    if (rule.type === 'sql') return `COALESCE((${rule.expr}), FALSE)`;
     const p = predicate(rule);
     return p == null ? null : `NOT (${p})`;
   }

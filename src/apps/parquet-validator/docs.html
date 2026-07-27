@@ -28,10 +28,13 @@
   <li><strong>Dominantes Muster</strong> — der Wert passt zu einem der dominanten Struktur­muster
     der Spalte (aus der Musteranalyse abgeleitet).</li>
   <li><strong>Typ-castbar</strong> — der Wert lässt sich in den Zieltyp umwandeln.</li>
-  <li><strong>Getrimmt</strong> — kein führender/nachgestellter Leerraum.</li>
+  <li><strong>Getrimmt</strong> — kein führender oder nachgestellter Leerraum (Wert = <code>trim(Wert)</code>);
+    Verstoß sind z. B. <code>" Berlin"</code> oder <code>"Berlin "</code>.</li>
   <li><strong>Referenz</strong> — der Wert existiert in einer Spalte einer Referenztabelle
     (Fremdschlüssel; Referenz-Parquet oben hinzufügen).</li>
-  <li><strong>Eigenes SQL</strong> — ein beliebiger boolescher Ausdruck je Zeile.</li>
+  <li><strong>Eigenes SQL</strong> — eine boolesche Bedingung, die <em>fehlerhafte</em> Zeilen kennzeichnet
+    (<code>TRUE = Verstoß</code>, wie bei dbt-Tests); z. B. <code>betrag &lt; 0</code> markiert alle Zeilen
+    mit negativem Betrag als Verstoß.</li>
   <li><strong>Zeilenzahl</strong> — die Tabelle hat mindestens/höchstens N Zeilen.</li>
 </ul>
 <p>

@@ -57,7 +57,7 @@
 .v-rules-head:has(+ .v-rules:empty) { display: none; }
 
 .v-rule {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--qrx-s-2);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--qrx-s-2); min-width: 0;
   padding: var(--qrx-s-2) var(--qrx-s-3);
   border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius);
   background: var(--qrx-surface, #fff); transition: border-color .12s, box-shadow .12s;
@@ -96,10 +96,12 @@
 }
 .v-rule-remove:hover { color: var(--qrx-danger); background: rgba(214,69,69,0.10); }
 .v-param-label { font-size: 0.72rem; color: var(--qrx-text-muted); display: inline-flex; align-items: center; gap: 4px; }
+.v-param-hint { font-size: 0.75rem; color: var(--qrx-text-muted); font-style: italic; }
 
 /* per-rule result + SQL, shown on its own line below the controls */
-.v-rule-extra { flex: 1 0 100%; margin-top: var(--qrx-s-2); padding-top: var(--qrx-s-2); border-top: 1px dashed var(--qrx-border); }
+.v-rule-extra { flex: 1 0 100%; min-width: 0; margin-top: var(--qrx-s-2); padding-top: var(--qrx-s-2); border-top: 1px dashed var(--qrx-border); }
 .v-rule-extra[hidden] { display: none; }
+.v-rule-result { min-width: 0; }
 .v-inline { display: inline-flex; align-items: center; gap: var(--qrx-s-2); font-size: 0.82rem; }
 .v-inline-badge {
   width: 18px; height: 18px; border-radius: 50%; color: #fff; font-weight: 700; font-size: 0.7rem;

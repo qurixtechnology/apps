@@ -70,7 +70,11 @@
       pAllowed: 'Werte, kommagetrennt', pMin: 'min', pMax: 'max', pExclusive: 'exklusiv',
       pRegex: 'z. B. ^[^@]+@[^@]+\\.[^@]+$', pMode: 'Modus', modeExact: 'exakt', modeCompact: 'kompakt',
       pCastType: 'Zieltyp', pRefTable: 'Referenztabelle', pRefCol: 'Spalte',
-      pSql: 'boolescher SQL-Ausdruck je Zeile', pSqlLabel: 'Bezeichnung (optional)',
+      pSql: 'SQL-Bedingung — TRUE = Verstoß (z. B. betrag < 0)', pSqlLabel: 'Bezeichnung (optional)',
+      hintNotNull: 'Spalte darf keine NULL-Werte enthalten',
+      hintUnique: 'keine doppelten Werte',
+      hintTrimmed: 'kein führender/nachgestellter Leerraum (Wert = trim(Wert))',
+      sqlHint: 'Die Bedingung kennzeichnet fehlerhafte Zeilen — trifft sie zu, ist die Zeile ein Verstoß.',
       noColumns: 'keine Spalten', noRefs: 'keine Referenztabellen — oben hinzufügen',
       // results
       valid: 'gültig', violationsWord: 'Verstöße', score: 'Score', rowsWord: 'Zeilen',
@@ -104,7 +108,11 @@
       pAllowed: 'values, comma-separated', pMin: 'min', pMax: 'max', pExclusive: 'exclusive',
       pRegex: 'e.g. ^[^@]+@[^@]+\\.[^@]+$', pMode: 'mode', modeExact: 'exact', modeCompact: 'compact',
       pCastType: 'target type', pRefTable: 'reference table', pRefCol: 'column',
-      pSql: 'boolean SQL expression per row', pSqlLabel: 'label (optional)',
+      pSql: 'SQL condition — TRUE = violation (e.g. amount < 0)', pSqlLabel: 'label (optional)',
+      hintNotNull: 'the column must contain no NULLs',
+      hintUnique: 'no duplicate values',
+      hintTrimmed: 'no leading/trailing whitespace (value = trim(value))',
+      sqlHint: 'The condition flags breaking rows — when it holds, the row is a violation.',
       noColumns: 'no columns', noRefs: 'no reference tables — add one above',
       valid: 'valid', violationsWord: 'violations', score: 'Score', rowsWord: 'rows',
       showRows: 'Rows', pass: 'passed', skipped: 'skipped (no dominant pattern)',
@@ -310,8 +318,12 @@
     const s = row._spec || {};
     const box = row.querySelector('[data-role="params"]');
     const L = (k) => `<span class="v-param-label">${esc(t(k))}</span>`;
+    const hint = (k) => `<span class="v-param-hint">${esc(t(k))}</span>`;
     let h = '';
     switch (type) {
+      case 'not_null': h = hint('hintNotNull'); break;
+      case 'unique': h = hint('hintUnique'); break;
+      case 'trimmed': h = hint('hintTrimmed'); break;
       case 'allowed':
         h = `<input class="qrx-input v-text" data-p="values" placeholder="${esc(t('pAllowed'))}" value="${esc((s.values || []).join(', '))}">`;
         break;
@@ -346,8 +358,9 @@
         break;
       }
       case 'sql':
-        h = `<input class="qrx-input v-text" data-p="expr" placeholder="${esc(t('pSql'))}" value="${esc(s.expr || '')}">`
-          + `<input class="qrx-input v-text" data-p="label" placeholder="${esc(t('pSqlLabel'))}" value="${esc(s.label || '')}">`;
+        h = `<input class="qrx-input v-text" data-p="expr" placeholder="${esc(t('pSql'))}" value="${esc(s.expr || '')}" title="${esc(t('sqlHint'))}">`
+          + `<input class="qrx-input v-text" data-p="label" placeholder="${esc(t('pSqlLabel'))}" value="${esc(s.label || '')}">`
+          + hint('sqlHint');
         break;
       case 'row_count':
         h = `${L('pMin')}<input class="qrx-input v-num" data-p="min" type="number" min="0" value="${s.min != null ? esc(s.min) : ''}">`
@@ -393,7 +406,8 @@
       case 'reference':
         spec.refFrom = p('refFrom'); spec.refCol = p('refCol'); break;
       case 'sql':
-        spec.expr = p('expr') || 'TRUE'; if (p('label')) spec.label = p('label'); break;
+        // default FALSE = "nothing breaks" (TRUE would flag every row)
+        spec.expr = p('expr') || 'FALSE'; if (p('label')) spec.label = p('label'); break;
       case 'row_count':
         spec.min = num('min'); spec.max = num('max'); break;
       default: break;
@@ -415,9 +429,16 @@
   rulesList.addEventListener('change', (e) => {
     const row = e.target.closest('.v-rule'); if (!row) return;
     const role = e.target.dataset.role || e.target.dataset.p;
-    if (role === 'type' || role === 'refFrom') {
-      // capture current inputs before rebuilding, so a type toggle keeps params
-      row._spec = readRule(row);
+    if (role === 'type') {
+      // a new rule type starts with fresh parameters — carrying the old ones
+      // over (e.g. a min/max from the previous type) is confusing.
+      row._spec = {
+        col: row.querySelector('[data-role="col"]').value,
+        severity: row.querySelector('[data-role="sev"]').value,
+      };
+      renderParams(row);
+    } else if (role === 'refFrom') {
+      row._spec = readRule(row);   // keep the type, repopulate the ref columns
       renderParams(row);
     }
     clearExtra(row);   // any edit invalidates a shown result / SQL

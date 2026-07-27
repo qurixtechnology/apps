@@ -28,10 +28,13 @@
   <li><strong>Dominant pattern</strong> — the value matches one of the column's dominant structural
     patterns (derived from the pattern analysis).</li>
   <li><strong>Type-castable</strong> — the value can be cast to the target type.</li>
-  <li><strong>Trimmed</strong> — no leading/trailing whitespace.</li>
+  <li><strong>Trimmed</strong> — no leading or trailing whitespace (value = <code>trim(value)</code>);
+    e.g. <code>" Berlin"</code> or <code>"Berlin "</code> are violations.</li>
   <li><strong>Reference</strong> — the value exists in a column of a reference table
     (foreign key; add a reference Parquet above).</li>
-  <li><strong>Custom SQL</strong> — any boolean expression per row.</li>
+  <li><strong>Custom SQL</strong> — a boolean condition that flags <em>breaking</em> rows
+    (<code>TRUE = violation</code>, dbt-style); e.g. <code>amount &lt; 0</code> marks every row with a
+    negative amount as a violation.</li>
   <li><strong>Row count</strong> — the table has at least/at most N rows.</li>
 </ul>
 <p>
