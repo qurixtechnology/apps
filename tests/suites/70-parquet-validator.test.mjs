@@ -74,6 +74,18 @@ describe('rule engine: validate', () => {
     assert.match(got.sql, /WHERE COALESCE\(\(amount > 100\), FALSE\)/, 'the SQL selects breaking rows, un-negated');
   });
 
+  test('a numeric range on a VARCHAR column casts automatically', async () => {
+    const got = await page.evaluate(async () => {
+      const q = (sql) => window.qrx.duckdb.query(sql);
+      await q(`CREATE OR REPLACE TABLE vcast AS SELECT * FROM (VALUES ('1'),('5'),('20'),(NULL)) AS t(id)`);
+      const rule = { col: 'id', type: 'range', min: 2, max: 10 };
+      const r = await window.qrx.rules.validate({ query: q, from: 'vcast', total: 4, rules: [rule] });
+      return { violations: r.results[0].violations, sql: window.qrx.rules.explain(rule, 'vcast').sql };
+    });
+    assert.equal(got.violations, 2, "'1' and '20' fall outside 2..10; NULL is skipped, no binder error");
+    assert.match(got.sql, /TRY_CAST\("id" AS DOUBLE\) >= 2/, 'the text column is cast for the numeric comparison');
+  });
+
   test('a warning lowers the score but does not fail the run', async () => {
     const got = await page.evaluate(async () => {
       const q = (sql) => window.qrx.duckdb.query(sql);
@@ -151,7 +163,7 @@ describe('rule engine: validate', () => {
       range: window.qrx.rules.explain({ col: 'amount', type: 'range', min: 1, max: 100 }, 'v').sql,
       count: window.qrx.rules.explain({ type: 'row_count', min: 3 }, 'v').sql,
     }));
-    assert.match(got.range, /SELECT \*\s+FROM v\s+WHERE NOT \("amount" IS NULL OR \("amount" >= 1 AND "amount" <= 100\)\)/);
+    assert.match(got.range, /SELECT \*\s+FROM v\s+WHERE NOT \("amount" IS NULL OR \(TRY_CAST\("amount" AS DOUBLE\) >= 1 AND TRY_CAST\("amount" AS DOUBLE\) <= 100\)\)/);
     assert.match(got.count, /SELECT count\(\*\) AS n FROM v\s+-- expected: n >= 3/);
   });
 

@@ -44,6 +44,17 @@
 
   function varchar(colSql) { return `CAST(${colSql} AS VARCHAR)`; }
 
+  // The left-hand side of a numeric comparison. When the values being compared
+  // are numbers, wrap the column in TRY_CAST(... AS DOUBLE) so a text column
+  // (e.g. a numeric id stored as VARCHAR) can be compared without DuckDB's
+  // "cannot compare VARCHAR and INTEGER_LITERAL" binder error. TRY_CAST is
+  // deliberate: a non-numeric value casts to NULL and is left unevaluated
+  // rather than aborting the whole query. Genuinely numeric columns are
+  // unaffected (casting a number to DOUBLE is a no-op).
+  function numericLhs(colSql, values) {
+    return values.some(v => typeof v === 'number') ? `TRY_CAST(${colSql} AS DOUBLE)` : colSql;
+  }
+
   // Build the per-row predicate P (valid when TRUE) for a batchable rule.
   // Pattern rules are resolved earlier (their masks are attached as _masks).
   // Returns null for rules that are not per-row (row_count) or skipped.
@@ -53,16 +64,18 @@
       case 'not_null':
         return `${c} IS NOT NULL`;
       case 'allowed': {
-        const vals = (rule.values || []).map(v => lit(v, rule.valueType));
+        const values = rule.values || [];
+        const vals = values.map(v => lit(v, rule.valueType));
         if (!vals.length) return 'FALSE';
-        return `${c} IS NULL OR ${c} IN (${vals.join(', ')})`;
+        return `${c} IS NULL OR ${numericLhs(c, values)} IN (${vals.join(', ')})`;
       }
       case 'range': {
         const parts = [];
         const lo = rule.exclusive ? '>' : '>=';
         const hi = rule.exclusive ? '<' : '<=';
-        if (rule.min != null) parts.push(`${c} ${lo} ${lit(rule.min, rule.valueType)}`);
-        if (rule.max != null) parts.push(`${c} ${hi} ${lit(rule.max, rule.valueType)}`);
+        const lhs = numericLhs(c, [rule.min, rule.max]);
+        if (rule.min != null) parts.push(`${lhs} ${lo} ${lit(rule.min, rule.valueType)}`);
+        if (rule.max != null) parts.push(`${lhs} ${hi} ${lit(rule.max, rule.valueType)}`);
         if (!parts.length) return 'TRUE';
         return `${c} IS NULL OR (${parts.join(' AND ')})`;
       }
