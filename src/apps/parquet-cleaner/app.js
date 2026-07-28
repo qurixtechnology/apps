@@ -1688,6 +1688,7 @@
       onSubstrings: () => qrx.patterns.substrings({
         query: (sql) => conn.query(sql), from: 'original', col: id(patCol), total: state.rowCountOriginal || 1,
       }),
+      recordSql: ({ kind, value }) => qrx.patterns.matchSql({ from: 'original', col: id(patCol), kind, value }),
     });
     patTable.setBusy();
     try {

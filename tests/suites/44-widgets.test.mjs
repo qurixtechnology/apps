@@ -848,6 +848,27 @@ describe('pattern analysis: engine', () => {
     assert.ok(got.all.includes('HYDROPOWERUNIT'), 'a whole recurring string survives as its own motif');
     assert.equal(got.sampleRows, 14);
   });
+
+  test('matchSql builds a record-finding query per segment kind', async () => {
+    const got = await page.evaluate(() => ({
+      pre: window.qrx.patterns.matchSql({ from: 'data', col: '"c"', kind: 'prefix', value: 'BAU_' }),
+      suf: window.qrx.patterns.matchSql({ from: 'data', col: '"c"', kind: 'suffix', value: '_LTD' }),
+      tok: window.qrx.patterns.matchSql({ from: 'data', col: '"c"', kind: 'token', value: 'POWER' }),
+    }));
+    assert.match(got.pre, /WHERE starts_with\(CAST\("c" AS VARCHAR\), 'BAU_'\)/);
+    assert.match(got.suf, /WHERE ends_with\(CAST\("c" AS VARCHAR\), '_LTD'\)/);
+    assert.match(got.tok, /WHERE contains\(CAST\("c" AS VARCHAR\), 'POWER'\)/);
+  });
+
+  test('a segment SQL actually returns the matching records', async () => {
+    const n = await page.evaluate(async () => {
+      const q = (sql) => window.qrx.duckdb.query(sql);
+      await q(`CREATE OR REPLACE TABLE vm AS SELECT * FROM (VALUES ('BAU_1'),('BAU_2'),('GEN_1')) AS t(c)`);
+      const sql = window.qrx.patterns.matchSql({ from: 'vm', col: '"c"', kind: 'prefix', value: 'BAU_' });
+      return window.qrx.duckdb.rows(await q(sql)).length;
+    });
+    assert.equal(n, 2, 'the BAU_ prefix query returns exactly the two BAU_ rows');
+  });
 });
 
 describe('widget: pattern table', () => {
@@ -1074,5 +1095,26 @@ describe('widget: pattern table', () => {
     assert.equal(got.calls, 1, 'the sample scan runs once, on demand');
     assert.equal(got.val, 'POWER');
     assert.equal(got.copy, 'POWER', 'an embedded motif copies as a plain matcher');
+  });
+
+  test('with recordSql, a segment row offers an SQL button that copies the query', async () => {
+    const got = await page.evaluate(async (data) => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      window.qrx.ui.patternTable(host, {
+        data,
+        onSegments: () => Promise.resolve({ prefixes: [{ value: 'BAU_', c: 8, example: 'BAU_1' }], suffixes: [], tokens: [], total: 10 }),
+        recordSql: ({ kind, value }) => `SELECT * FROM t WHERE starts_with(x, '${value}') /*${kind}*/`,
+      });
+      host.querySelector('[data-mode="segments"]').click();
+      await new Promise(r => setTimeout(r, 30));
+      const btn = host.querySelector('.qrx-pat-segblock .qrx-pat-copy');
+      const out = { label: btn.textContent, dataLabel: btn.getAttribute('data-label'), sql: btn.getAttribute('data-copy') };
+      host.remove();
+      return out;
+    }, DATA);
+    assert.equal(got.label, 'SQL', 'the button is labelled SQL, not copy');
+    assert.equal(got.dataLabel, 'SQL');
+    assert.match(got.sql, /SELECT \* FROM t WHERE starts_with\(x, 'BAU_'\)/, 'it carries the record-finding query');
   });
 });

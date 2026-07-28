@@ -765,6 +765,18 @@
     const reEsc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const tglBtn = (m, key) => `<button type="button" class="qrx-btn qrx-btn-sm ${mode === m ? 'is-active' : ''}" data-mode="${m}">${esc(t(key))}</button>`;
 
+    // The action button for one segment/motif row. When the app wires up
+    // recordSql, it becomes an "SQL" button that copies a ready-to-run query
+    // returning the matching records; otherwise it copies the bare matcher.
+    function segButton(kind, value) {
+      if (opts.recordSql) {
+        const sql = opts.recordSql({ kind, value });
+        return `<button type="button" class="qrx-pat-copy" data-copy="${esc(sql)}" data-label="SQL" title="${esc(sql)}">SQL</button>`;
+      }
+      const rx = kind === 'prefix' ? '^' + reEsc(value) : kind === 'suffix' ? reEsc(value) + '$' : reEsc(value);
+      return `<button type="button" class="qrx-pat-copy" data-copy="${esc(rx)}" title="${esc(rx)}">${esc(t('copy'))}</button>`;
+    }
+
     // One "Prefix / Suffix / Token" sub-table for the segments view. The copy
     // value is a ready-to-use matcher: ^BAU_ / _LTD$ / POWER.
     // Compact: value · count · share · copy-matcher. Three of these sit side by
@@ -774,16 +786,14 @@
       if (!rows || !rows.length) return '';
       const total = (segData && segData.total) || 1;
       let h = `<div class="qrx-pat-segblock"><div class="qrx-pat-segtitle">${esc(t(titleKey))}</div>`
-        + '<table class="qrx-pat-table qrx-pat-segtable"><tbody>';
+        + '<div class="qrx-pat-segscroll"><table class="qrx-pat-table qrx-pat-segtable"><tbody>';
       for (const r of rows) {
         const share = r.c / total * 100;
-        const rx = kind === 'prefix' ? '^' + reEsc(r.value)
-          : kind === 'suffix' ? reEsc(r.value) + '$' : reEsc(r.value);
         h += `<tr><td class="qrx-pat-mask" title="${esc(r.example)}">${esc(r.value)}</td><td>${fmt(r.c)}</td>`
           + `<td><div class="qrx-pat-share"><span class="qrx-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
-          + `<td class="qrx-pat-rx"><button type="button" class="qrx-pat-copy" data-copy="${esc(rx)}" title="${esc(rx)}">${esc(t('copy'))}</button></td></tr>`;
+          + `<td class="qrx-pat-rx">${segButton(kind, r.value)}</td></tr>`;
       }
-      return h + '</tbody></table></div>';
+      return h + '</tbody></table></div></div>';
     }
 
     // Deep, on-demand substring search (Stufe 2). A single narrow table of
@@ -799,14 +809,14 @@
       const total = subData.total || 1;
       let h = `<div class="qrx-pat-subwrap"><div class="qrx-pat-segtitle">`
         + `${esc(t('segSubstring'))} · ${esc(t('subMeta', { n: fmt(subData.sampleRows) }))}</div>`
-        + '<table class="qrx-pat-table qrx-pat-segtable"><tbody>';
+        + '<div class="qrx-pat-segscroll"><table class="qrx-pat-table qrx-pat-segtable"><tbody>';
       for (const r of rows) {
         const share = r.c / total * 100;
         h += `<tr><td class="qrx-pat-mask" title="${esc(r.example)}">${esc(r.value)}</td><td>${fmt(r.c)}</td>`
           + `<td><div class="qrx-pat-share"><span class="qrx-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
-          + `<td class="qrx-pat-rx"><button type="button" class="qrx-pat-copy" data-copy="${esc(reEsc(r.value))}" title="${esc(reEsc(r.value))}">${esc(t('copy'))}</button></td></tr>`;
+          + `<td class="qrx-pat-rx">${segButton('substring', r.value)}</td></tr>`;
       }
-      return h + '</tbody></table></div>';
+      return h + '</tbody></table></div></div>';
     }
 
     function renderSegments() {
@@ -947,9 +957,10 @@
       const cb = e.target.closest('[data-copy]');
       if (!cb) return;
       const txt = cb.getAttribute('data-copy');
+      const orig = cb.getAttribute('data-label') || t('copy');
       const done = () => {
         cb.classList.add('is-copied'); cb.textContent = t('copied');
-        setTimeout(() => { cb.classList.remove('is-copied'); cb.textContent = t('copy'); }, 1200);
+        setTimeout(() => { cb.classList.remove('is-copied'); cb.textContent = orig; }, 1200);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, done);
       else {

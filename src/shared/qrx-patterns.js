@@ -98,9 +98,21 @@
    * @param {object} o  { query, from, col, total, limit=15 }
    * @returns {{prefixes,suffixes,tokens,total}} — lists of {value,c,example}
    */
+  // A ready-to-run query that returns the records matching one segment/motif.
+  // prefix → starts_with, suffix → ends_with, token/substring → contains.
+  function matchSql(o) {
+    const from = o.from || 'data';
+    const c = `CAST(${o.col} AS VARCHAR)`;
+    const lit = qrx.duckdb.str(o.value);
+    const pred = o.kind === 'prefix' ? `starts_with(${c}, ${lit})`
+      : o.kind === 'suffix' ? `ends_with(${c}, ${lit})`
+      : `contains(${c}, ${lit})`;
+    return `SELECT *\nFROM ${from}\nWHERE ${pred}`;
+  }
+
   async function segments(o) {
     const { query, from, col, total } = o;
-    const limit = o.limit || 15;
+    const limit = o.limit || 200;
     const v = `CAST(${col} AS VARCHAR)`;
     const src = `FROM ${from} WHERE ${col} IS NOT NULL`;
 
@@ -267,5 +279,5 @@
     return { rows, shown: rows.length, total };
   }
 
-  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, segments, substrings, outliers, outlierRows };
+  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, segments, substrings, matchSql, outliers, outlierRows };
 })();

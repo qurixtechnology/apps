@@ -1555,6 +1555,7 @@
         onSubstrings: () => qrx.patterns.substrings({
           query: runQuery, from: PARQUET_SQL, col: quoteIdent(col.name), total: stats.total || 1,
         }),
+        recordSql: ({ kind, value }) => qrx.patterns.matchSql({ from: PARQUET_SQL, col: quoteIdent(col.name), kind, value }),
       });
       patTable.setBusy();
       try {
