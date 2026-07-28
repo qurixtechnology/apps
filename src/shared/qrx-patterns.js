@@ -133,6 +133,68 @@
     return { prefixes, suffixes, tokens, total: total || 1 };
   }
 
+  // From a set of frequent substring candidates, keep only the MAXIMAL ones:
+  // drop a shorter substring when a longer one that contains it explains
+  // (nearly) all of its occurrences. So HYDROPOWERUNIT / SOLARPOWER yield
+  // POWER, not also OWER / POWE / OWE. Runs on the top candidates only, in JS.
+  function maximalSubstrings(cands, mergeRatio) {
+    const r = mergeRatio || 0.8;
+    const byLen = [...cands].sort((a, b) => b.value.length - a.value.length || b.c - a.c);
+    const kept = [];
+    for (const g of byLen) {
+      const redundant = kept.some(k =>
+        k.value.length > g.value.length && k.value.includes(g.value) && k.c >= g.c * r);
+      if (!redundant) kept.push(g);
+    }
+    return kept.sort((a, b) => b.c - a.c || b.value.length - a.value.length);
+  }
+
+  /**
+   * Deep, delimiter-free motif search: frequent substrings that recur ACROSS
+   * values even when embedded (POWER inside HYDROPOWERUNIT). More expensive than
+   * segments() — it generates character n-grams — so it runs on a bounded sample
+   * and is meant to be triggered on demand.
+   *
+   * @param {object} o  { query, from, col, total,
+   *                      minLen=3, maxLen=12, sampleRows=2000, minShare=0.1,
+   *                      capLen=40, limit=40 }
+   * @returns {{substrings:{value,c,example}[], sampleRows:number, total:number}}
+   */
+  async function substrings(o) {
+    const { query, from, col, total } = o;
+    const minLen = o.minLen || 3;
+    // maxLen is generous on purpose: when a gram can span a whole recurring
+    // string, maximalSubstrings() absorbs its sub-windows, so the result is the
+    // motif itself instead of a cloud of overlapping fragments.
+    const maxLen = o.maxLen || 24;
+    const sampleRows = o.sampleRows || 2000;
+    const minShare = o.minShare != null ? o.minShare : 0.1;
+    const capLen = o.capLen || 40;   // ignore very long tails when generating n-grams
+    const limit = o.limit || 40;
+
+    const v = `left(CAST(${col} AS VARCHAR), ${capLen})`;
+    const sample = `SELECT ${v} AS v FROM ${from} WHERE ${col} IS NOT NULL LIMIT ${sampleRows}`;
+    const cnt = Number(qrx.duckdb.rows(await query(`SELECT count(*)::BIGINT AS c FROM (${sample})`))[0].c);
+    if (!cnt) return { substrings: [], sampleRows: 0, total: total || 1 };
+    const minSupport = Math.max(2, Math.ceil(cnt * minShare));
+
+    // Generate every n-gram (length minLen..maxLen) of every sampled value via
+    // two correlated range() table functions, then count how many DISTINCT
+    // values contain each gram.
+    const res = await query(
+      `WITH s AS (${sample}), `
+      + `g AS (SELECT substring(v, pos, len) AS gram, v FROM s, `
+      + `range(${minLen}, ${maxLen + 1}) AS n(len), range(1, length(v) - len + 2) AS p(pos) `
+      + `WHERE length(v) >= len) `
+      + `SELECT gram, count(DISTINCT v)::BIGINT AS c, min(v) AS example FROM g `
+      + `WHERE gram <> '' GROUP BY gram HAVING count(DISTINCT v) >= ${minSupport} `
+      + `ORDER BY length(gram) DESC, c DESC LIMIT 400`);
+    const cands = qrx.duckdb.rows(res).map(r => ({
+      value: r.gram, c: Number(r.c), example: r.example == null ? '' : String(r.example),
+    }));
+    return { substrings: maximalSubstrings(cands).slice(0, limit), sampleRows: cnt, total: total || 1 };
+  }
+
   // Classify the analysed masks into a dominant "normal" set and the deviating
   // long tail. A value is an outlier when its mask is not one of the few that
   // dominate the column — a cheap, honest signal for dirty data (a stray
@@ -205,5 +267,5 @@
     return { rows, shown: rows.length, total };
   }
 
-  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, segments, outliers, outlierRows };
+  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, segments, substrings, outliers, outlierRows };
 })();

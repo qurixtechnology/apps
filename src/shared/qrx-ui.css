@@ -219,6 +219,8 @@
 .qrx-pat-segblock .qrx-pat-share { min-width: 66px; }
 .qrx-pat-segblock .qrx-pat-bar { max-width: 56px; }
 .qrx-pat-segtable .qrx-pat-rx { text-align: right; }
+.qrx-pat-subtrigger { margin-top: var(--qrx-s-3); }
+.qrx-pat-subwrap { margin-top: var(--qrx-s-3); max-width: 560px; }
 .qrx-pat-copy {
   margin-left: var(--qrx-s-2); padding: 0 6px; font-size: 0.7rem; cursor: pointer;
   border: 1px solid var(--qrx-border); border-radius: 4px;

@@ -830,6 +830,24 @@ describe('pattern analysis: engine', () => {
     assert.equal(got.tok['POWER'], 9, 'the token POWER across 6 + 3 values');
     assert.equal(got.tok['BAU'], 8);
   });
+
+  test('substrings mines embedded motifs with no delimiters (deep search)', async () => {
+    const got = await page.evaluate(async () => {
+      const q = (sql) => window.qrx.duckdb.query(sql);
+      const vals = [];
+      for (let i = 1; i <= 6; i++) vals.push(`('HYDROPOWERUNIT${i}')`);
+      for (let i = 1; i <= 5; i++) vals.push(`('SOLARPOWERSTATION${i}')`);
+      for (let i = 1; i <= 3; i++) vals.push(`('POWERGRID${i}')`);
+      await q(`CREATE OR REPLACE TABLE vss AS SELECT * FROM (VALUES ${vals.join(',')}) AS t(asset)`);
+      const s = await window.qrx.patterns.substrings({ query: q, from: 'vss', col: '"asset"', total: 14, minShare: 0.1 });
+      return { top: s.substrings[0], all: s.substrings.map(r => r.value), sampleRows: s.sampleRows };
+    });
+    assert.equal(got.top.value, 'POWER', 'POWER is the strongest embedded motif');
+    assert.equal(got.top.c, 14, 'it occurs in every value, across all three groups');
+    assert.ok(!got.all.includes('OWER') && !got.all.includes('POWE'), 'maximal dedup dropped POWER fragments');
+    assert.ok(got.all.includes('HYDROPOWERUNIT'), 'a whole recurring string survives as its own motif');
+    assert.equal(got.sampleRows, 14);
+  });
 });
 
 describe('widget: pattern table', () => {
@@ -1026,5 +1044,35 @@ describe('widget: pattern table', () => {
       return seg;
     }, DATA);
     assert.equal(has, false);
+  });
+
+  test('the deep substring search loads on demand inside the segments tab', async () => {
+    const got = await page.evaluate(async (data) => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      let calls = 0;
+      window.qrx.ui.patternTable(host, {
+        data,
+        onSegments: () => Promise.resolve({ prefixes: [], suffixes: [], tokens: [], total: 10 }),
+        onSubstrings: () => {
+          calls++;
+          return Promise.resolve({ substrings: [{ value: 'POWER', c: 9, example: 'HYDROPOWER' }], sampleRows: 10, total: 10 });
+        },
+      });
+      host.querySelector('[data-mode="segments"]').click();
+      await new Promise(r => setTimeout(r, 30));
+      const trigger = !!host.querySelector('[data-substrings]');
+      host.querySelector('[data-substrings]').click();
+      await new Promise(r => setTimeout(r, 30));
+      const val = host.querySelector('.qrx-pat-subwrap .qrx-pat-mask').textContent;
+      const copy = host.querySelector('.qrx-pat-subwrap .qrx-pat-copy').getAttribute('data-copy');
+      const out = { trigger, calls, val, copy };
+      host.remove();
+      return out;
+    }, DATA);
+    assert.equal(got.trigger, true, 'the segments tab offers a deep-search button');
+    assert.equal(got.calls, 1, 'the sample scan runs once, on demand');
+    assert.equal(got.val, 'POWER');
+    assert.equal(got.copy, 'POWER', 'an embedded motif copies as a plain matcher');
   });
 });

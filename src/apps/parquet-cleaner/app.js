@@ -1685,6 +1685,9 @@
       onSegments: () => qrx.patterns.segments({
         query: (sql) => conn.query(sql), from: 'original', col: id(patCol), total: state.rowCountOriginal || 1,
       }),
+      onSubstrings: () => qrx.patterns.substrings({
+        query: (sql) => conn.query(sql), from: 'original', col: id(patCol), total: state.rowCountOriginal || 1,
+      }),
     });
     patTable.setBusy();
     try {

@@ -713,6 +713,9 @@
       segEmpty: 'Keine wiederkehrenden Segmente gefunden.',
       segLegend: 'Wiederkehrende Literale: Präfix (führender Teil + Trenner, z. B. BAU_), '
         + 'Suffix (Trenner + Endteil, z. B. _LTD), Token (Wörter, auch aus CamelCase, z. B. POWER).',
+      findSubstrings: 'Eingebettete Teilstrings suchen',
+      segSubstring: 'Teilstring', subMeta: 'auf Stichprobe von {n} Zeilen',
+      subEmpty: 'Keine häufigen Teilstrings gefunden.',
       legend: 'Maske: A Großbuchstabe · a Kleinbuchstabe · 9 Ziffer · andere Zeichen bleiben. '
         + 'Exakte Länge behält die Lauflänge (999 ⇒ \\d{3}); Kompakt fasst jede Folge zusammen (9+ ⇒ \\d+).',
     },
@@ -732,6 +735,9 @@
       segEmpty: 'No recurring segments found.',
       segLegend: 'Recurring literals: prefix (leading part + delimiter, e.g. BAU_), '
         + 'suffix (delimiter + trailing part, e.g. _LTD), token (words, also from CamelCase, e.g. POWER).',
+      findSubstrings: 'Find embedded substrings',
+      segSubstring: 'Substring', subMeta: 'on a sample of {n} rows',
+      subEmpty: 'No frequent substrings found.',
       legend: 'Mask: A uppercase · a lowercase · 9 digit · other characters kept literally. '
         + 'Exact length keeps the run length (999 ⇒ \\d{3}); Compact collapses any run (9+ ⇒ \\d+).',
     },
@@ -753,6 +759,8 @@
     let data = opts.data || null;
     let mode = opts.mode || 'exact';
     let segData = null;   // lazily fetched literal-segment analysis
+    let subData = null;   // lazily fetched deep substring analysis
+    let subBusy = false;
     const t = (k, p) => qrx.i18n.t('patterns.' + k, p);
     const reEsc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const tglBtn = (m, key) => `<button type="button" class="qrx-btn qrx-btn-sm ${mode === m ? 'is-active' : ''}" data-mode="${m}">${esc(t(key))}</button>`;
@@ -778,17 +786,41 @@
       return h + '</tbody></table></div>';
     }
 
+    // Deep, on-demand substring search (Stufe 2). A single narrow table of
+    // frequent embedded motifs; the value cell copies as a plain matcher.
+    function renderSubstrings() {
+      if (!opts.onSubstrings) return '';
+      if (subBusy) return `<p class="qrx-pat-busy">${esc(t('analyzing'))}</p>`;
+      if (!subData) {
+        return `<div class="qrx-pat-subtrigger"><button type="button" class="qrx-btn qrx-btn-sm" data-substrings>${esc(t('findSubstrings'))}</button></div>`;
+      }
+      const rows = subData.substrings || [];
+      if (!rows.length) return `<div class="qrx-pat-outliers is-none">${esc(t('subEmpty'))}</div>`;
+      const total = subData.total || 1;
+      let h = `<div class="qrx-pat-subwrap"><div class="qrx-pat-segtitle">`
+        + `${esc(t('segSubstring'))} · ${esc(t('subMeta', { n: fmt(subData.sampleRows) }))}</div>`
+        + '<table class="qrx-pat-table qrx-pat-segtable"><tbody>';
+      for (const r of rows) {
+        const share = r.c / total * 100;
+        h += `<tr><td class="qrx-pat-mask" title="${esc(r.example)}">${esc(r.value)}</td><td>${fmt(r.c)}</td>`
+          + `<td><div class="qrx-pat-share"><span class="qrx-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
+          + `<td class="qrx-pat-rx"><button type="button" class="qrx-pat-copy" data-copy="${esc(reEsc(r.value))}" title="${esc(reEsc(r.value))}">${esc(t('copy'))}</button></td></tr>`;
+      }
+      return h + '</tbody></table></div>';
+    }
+
     function renderSegments() {
       if (!segData) return `<p class="qrx-pat-busy">${esc(t('analyzing'))}</p>`;
       if (!segData.prefixes.length && !segData.suffixes.length && !segData.tokens.length) {
-        return `<div class="qrx-pat-outliers is-none">${esc(t('segEmpty'))}</div>`;
+        return `<div class="qrx-pat-outliers is-none">${esc(t('segEmpty'))}</div>` + renderSubstrings();
       }
       return '<div class="qrx-pat-segwrap">'
         + renderSegTable('segPrefix', segData.prefixes, 'prefix')
         + renderSegTable('segSuffix', segData.suffixes, 'suffix')
         + renderSegTable('segToken', segData.tokens, 'token')
         + '</div>'
-        + `<div class="qrx-pat-legend">${esc(t('segLegend'))}</div>`;
+        + `<div class="qrx-pat-legend">${esc(t('segLegend'))}</div>`
+        + renderSubstrings();
     }
 
     function render() {
@@ -884,6 +916,16 @@
           return;
         }
         render();
+        return;
+      }
+      // Deep substring search (Stufe 2), triggered on demand from the segments tab.
+      const sb = e.target.closest('[data-substrings]');
+      if (sb) {
+        if (!opts.onSubstrings) return;
+        subBusy = true; render();
+        Promise.resolve(opts.onSubstrings())
+          .then(s => { subData = s; }, err => { console.error(err); subData = { substrings: [], sampleRows: 0, total: 1 }; })
+          .then(() => { subBusy = false; if (mode === 'segments') render(); });
         return;
       }
       // "Show rows": fetch the actual deviating values for the current mode.
