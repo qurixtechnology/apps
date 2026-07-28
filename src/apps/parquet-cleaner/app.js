@@ -1682,6 +1682,9 @@
       onShowOutliers: ({ compact, normalPats }) => qrx.patterns.outlierRows({
         query: (sql) => conn.query(sql), from: 'original', col: id(patCol), compact, normalPats,
       }),
+      onSegments: () => qrx.patterns.segments({
+        query: (sql) => conn.query(sql), from: 'original', col: id(patCol), total: state.rowCountOriginal || 1,
+      }),
     });
     patTable.setBusy();
     try {

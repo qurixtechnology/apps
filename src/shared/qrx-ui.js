@@ -709,6 +709,10 @@
       noDominant: 'Kein dominantes Muster – zu heterogen für eine Ausreißerprüfung',
       showOutliers: 'Zeilen anzeigen', outlierRowsMeta: '{shown} von {total} Ausreißern',
       noOutlierRows: 'Keine abweichenden Zeilen gefunden.',
+      segments: 'Segmente', segPrefix: 'Präfix', segSuffix: 'Suffix', segToken: 'Token/Wort',
+      segEmpty: 'Keine wiederkehrenden Segmente gefunden.',
+      segLegend: 'Wiederkehrende Literale: Präfix (führender Teil + Trenner, z. B. BAU_), '
+        + 'Suffix (Trenner + Endteil, z. B. _LTD), Token (Wörter, auch aus CamelCase, z. B. POWER).',
       legend: 'Maske: A Großbuchstabe · a Kleinbuchstabe · 9 Ziffer · andere Zeichen bleiben. '
         + 'Exakte Länge behält die Lauflänge (999 ⇒ \\d{3}); Kompakt fasst jede Folge zusammen (9+ ⇒ \\d+).',
     },
@@ -724,6 +728,10 @@
       noDominant: 'No dominant pattern – too varied for outlier detection',
       showOutliers: 'Show rows', outlierRowsMeta: '{shown} of {total} outliers',
       noOutlierRows: 'No deviating rows found.',
+      segments: 'Segments', segPrefix: 'Prefix', segSuffix: 'Suffix', segToken: 'Token/word',
+      segEmpty: 'No recurring segments found.',
+      segLegend: 'Recurring literals: prefix (leading part + delimiter, e.g. BAU_), '
+        + 'suffix (delimiter + trailing part, e.g. _LTD), token (words, also from CamelCase, e.g. POWER).',
       legend: 'Mask: A uppercase · a lowercase · 9 digit · other characters kept literally. '
         + 'Exact length keeps the run length (999 ⇒ \\d{3}); Compact collapses any run (9+ ⇒ \\d+).',
     },
@@ -744,10 +752,53 @@
     const esc = qrx.core.escapeHtml;
     let data = opts.data || null;
     let mode = opts.mode || 'exact';
+    let segData = null;   // lazily fetched literal-segment analysis
     const t = (k, p) => qrx.i18n.t('patterns.' + k, p);
+    const reEsc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tglBtn = (m, key) => `<button type="button" class="qrx-btn qrx-btn-sm ${mode === m ? 'is-active' : ''}" data-mode="${m}">${esc(t(key))}</button>`;
+
+    // One "Prefix / Suffix / Token" sub-table for the segments view. The copy
+    // value is a ready-to-use matcher: ^BAU_ / _LTD$ / POWER.
+    // Compact: value · count · share · copy-matcher. Three of these sit side by
+    // side, so the example rides in the value's tooltip and the matcher regex in
+    // the copy button's — keeping each table narrow enough to wrap gracefully.
+    function renderSegTable(titleKey, rows, kind) {
+      if (!rows || !rows.length) return '';
+      const total = (segData && segData.total) || 1;
+      let h = `<div class="qrx-pat-segblock"><div class="qrx-pat-segtitle">${esc(t(titleKey))}</div>`
+        + '<table class="qrx-pat-table qrx-pat-segtable"><tbody>';
+      for (const r of rows) {
+        const share = r.c / total * 100;
+        const rx = kind === 'prefix' ? '^' + reEsc(r.value)
+          : kind === 'suffix' ? reEsc(r.value) + '$' : reEsc(r.value);
+        h += `<tr><td class="qrx-pat-mask" title="${esc(r.example)}">${esc(r.value)}</td><td>${fmt(r.c)}</td>`
+          + `<td><div class="qrx-pat-share"><span class="qrx-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
+          + `<td class="qrx-pat-rx"><button type="button" class="qrx-pat-copy" data-copy="${esc(rx)}" title="${esc(rx)}">${esc(t('copy'))}</button></td></tr>`;
+      }
+      return h + '</tbody></table></div>';
+    }
+
+    function renderSegments() {
+      if (!segData) return `<p class="qrx-pat-busy">${esc(t('analyzing'))}</p>`;
+      if (!segData.prefixes.length && !segData.suffixes.length && !segData.tokens.length) {
+        return `<div class="qrx-pat-outliers is-none">${esc(t('segEmpty'))}</div>`;
+      }
+      return '<div class="qrx-pat-segwrap">'
+        + renderSegTable('segPrefix', segData.prefixes, 'prefix')
+        + renderSegTable('segSuffix', segData.suffixes, 'suffix')
+        + renderSegTable('segToken', segData.tokens, 'token')
+        + '</div>'
+        + `<div class="qrx-pat-legend">${esc(t('segLegend'))}</div>`;
+    }
 
     function render() {
       if (!data) { el.innerHTML = ''; return; }
+      const hasSeg = !!(opts.onSegments || segData);
+      const toggle = '<div class="qrx-pat-toggle">'
+        + tglBtn('exact', 'exactLength') + tglBtn('compact', 'compact')
+        + (hasSeg ? tglBtn('segments', 'segments') : '') + '</div>';
+      if (mode === 'segments') { el.innerHTML = toggle + renderSegments(); return; }
+
       const compact = mode === 'compact';
       const d = compact ? data.compact : data.exact;
       const total = data.total || 1;
@@ -757,9 +808,7 @@
         ? { hasDominant: false, normalPats: new Set(), outlierCount: 0 }
         : qrx.patterns.outliers(d, nonNull);
 
-      let html = '<div class="qrx-pat-toggle">'
-        + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? '' : 'is-active'}" data-mode="exact">${esc(t('exactLength'))}</button>`
-        + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? 'is-active' : ''}" data-mode="compact">${esc(t('compact'))}</button></div>`;
+      let html = toggle;
 
       html += '<div class="qrx-pat-meta">'
         + t('distinctPatterns', { n: fmt(d.distinct), kind: compact ? t('kindCompact') : '' })
@@ -824,7 +873,19 @@
 
     el.addEventListener('click', (e) => {
       const mb = e.target.closest('[data-mode]');
-      if (mb) { mode = mb.getAttribute('data-mode'); render(); return; }
+      if (mb) {
+        mode = mb.getAttribute('data-mode');
+        // Segments are analysed lazily on first switch (they cost extra queries).
+        if (mode === 'segments' && !segData && opts.onSegments) {
+          render();   // shows the busy placeholder
+          Promise.resolve(opts.onSegments())
+            .then(s => { segData = s; }, err => { console.error(err); segData = { prefixes: [], suffixes: [], tokens: [], total: 1 }; })
+            .then(() => { if (mode === 'segments') render(); });
+          return;
+        }
+        render();
+        return;
+      }
       // "Show rows": fetch the actual deviating values for the current mode.
       const os = e.target.closest('[data-outliers-show]');
       if (os) {

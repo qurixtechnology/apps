@@ -207,6 +207,18 @@
 .qrx-pat-bar { height: 6px; border-radius: 3px; background: var(--qrx-gradient); min-width: 2px; }
 .qrx-pat-null td { color: var(--qrx-text-subtle); font-style: italic; }
 .qrx-pat-legend { margin-top: var(--qrx-s-3); font-size: 0.75rem; color: var(--qrx-text-muted); }
+/* segments view: prefix / suffix / token sub-tables side by side (wrapping) */
+.qrx-pat-segwrap { display: flex; flex-wrap: wrap; gap: var(--qrx-s-4) var(--qrx-s-6); }
+.qrx-pat-segblock { flex: 1 1 260px; min-width: 0; }
+.qrx-pat-segtitle {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--qrx-text-muted); font-weight: 600; margin-bottom: 4px;
+}
+.qrx-pat-segtable td { padding: 4px var(--qrx-s-2); }
+.qrx-pat-segtable .qrx-pat-mask { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.qrx-pat-segblock .qrx-pat-share { min-width: 66px; }
+.qrx-pat-segblock .qrx-pat-bar { max-width: 56px; }
+.qrx-pat-segtable .qrx-pat-rx { text-align: right; }
 .qrx-pat-copy {
   margin-left: var(--qrx-s-2); padding: 0 6px; font-size: 0.7rem; cursor: pointer;
   border: 1px solid var(--qrx-border); border-radius: 4px;

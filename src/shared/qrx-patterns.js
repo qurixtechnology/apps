@@ -85,6 +85,54 @@
     return { exact, compact, nulls, total: total || 1 };
   }
 
+  /**
+   * Literal-substring analysis — a complement to the class-mask view. Instead of
+   * reducing a value to A/a/9, it surfaces the concrete pieces that recur:
+   *   - prefixes  : a leading alphanumeric run plus its delimiter (BAU_, 2024-)
+   *   - suffixes  : a delimiter plus a trailing run (_LTD, -01)
+   *   - tokens    : words, splitting on non-alphanumerics AND camelCase
+   *                 boundaries (X_POWER_Y and HydroPower both yield POWER)
+   * Each is one GROUP BY, so it stays cheap. A piece has to occur at least twice
+   * to show up (a one-off is not a recurring segment).
+   *
+   * @param {object} o  { query, from, col, total, limit=15 }
+   * @returns {{prefixes,suffixes,tokens,total}} — lists of {value,c,example}
+   */
+  async function segments(o) {
+    const { query, from, col, total } = o;
+    const limit = o.limit || 15;
+    const v = `CAST(${col} AS VARCHAR)`;
+    const src = `FROM ${from} WHERE ${col} IS NOT NULL`;
+
+    async function grp(expr) {
+      const res = await query(
+        `WITH m AS (SELECT ${expr} AS seg, ${v} AS ex ${src}) `
+        + `SELECT seg, count(*)::BIGINT AS c, min(ex) AS example FROM m `
+        + `WHERE seg <> '' AND seg IS NOT NULL GROUP BY seg HAVING count(*) >= 2 `
+        + `ORDER BY c DESC LIMIT ${limit}`);
+      return qrx.duckdb.rows(res).map(r => ({
+        value: r.seg, c: Number(r.c), example: r.example == null ? '' : String(r.example),
+      }));
+    }
+
+    // leading alnum run + one non-alnum char; and its mirror for the suffix
+    const prefixes = await grp(`regexp_extract(${v}, '^[[:alnum:]]+[^[:alnum:]]')`);
+    const suffixes = await grp(`regexp_extract(${v}, '[^[:alnum:]][[:alnum:]]+$')`);
+
+    // tokens: break camelCase into words first, then split on non-alnum runs
+    const split = `regexp_split_to_array(regexp_replace(${v}, '([a-z])([A-Z])', '\\1 \\2', 'g'), '[^[:alnum:]]+')`;
+    const tres = await query(
+      `WITH m AS (SELECT unnest(${split}) AS tok, ${v} AS ex ${src}) `
+      + `SELECT tok, count(*)::BIGINT AS c, min(ex) AS example FROM m `
+      + `WHERE length(tok) >= 2 GROUP BY tok HAVING count(*) >= 2 `
+      + `ORDER BY c DESC LIMIT ${limit}`);
+    const tokens = qrx.duckdb.rows(tres).map(r => ({
+      value: r.tok, c: Number(r.c), example: r.example == null ? '' : String(r.example),
+    }));
+
+    return { prefixes, suffixes, tokens, total: total || 1 };
+  }
+
   // Classify the analysed masks into a dominant "normal" set and the deviating
   // long tail. A value is an outlier when its mask is not one of the few that
   // dominate the column — a cheap, honest signal for dirty data (a stray
@@ -157,5 +205,5 @@
     return { rows, shown: rows.length, total };
   }
 
-  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, outliers, outlierRows };
+  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, segments, outliers, outlierRows };
 })();

@@ -1426,6 +1426,18 @@ body.pp-fullscreen .pp-sql-result {
 .qrx-pat-bar { height: 6px; border-radius: 3px; background: var(--qrx-gradient); min-width: 2px; }
 .qrx-pat-null td { color: var(--qrx-text-subtle); font-style: italic; }
 .qrx-pat-legend { margin-top: var(--qrx-s-3); font-size: 0.75rem; color: var(--qrx-text-muted); }
+/* segments view: prefix / suffix / token sub-tables side by side (wrapping) */
+.qrx-pat-segwrap { display: flex; flex-wrap: wrap; gap: var(--qrx-s-4) var(--qrx-s-6); }
+.qrx-pat-segblock { flex: 1 1 260px; min-width: 0; }
+.qrx-pat-segtitle {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--qrx-text-muted); font-weight: 600; margin-bottom: 4px;
+}
+.qrx-pat-segtable td { padding: 4px var(--qrx-s-2); }
+.qrx-pat-segtable .qrx-pat-mask { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.qrx-pat-segblock .qrx-pat-share { min-width: 66px; }
+.qrx-pat-segblock .qrx-pat-bar { max-width: 56px; }
+.qrx-pat-segtable .qrx-pat-rx { text-align: right; }
 .qrx-pat-copy {
   margin-left: var(--qrx-s-2); padding: 0 6px; font-size: 0.7rem; cursor: pointer;
   border: 1px solid var(--qrx-border); border-radius: 4px;
@@ -2142,7 +2154,7 @@ body.pp-fullscreen .pp-sql-result {
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260727-142438</span>
+    &middot; v<span data-build-version>260728-082803</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2930,6 +2942,54 @@ body.pp-fullscreen .pp-sql-result {
     return { exact, compact, nulls, total: total || 1 };
   }
 
+  /**
+   * Literal-substring analysis — a complement to the class-mask view. Instead of
+   * reducing a value to A/a/9, it surfaces the concrete pieces that recur:
+   *   - prefixes  : a leading alphanumeric run plus its delimiter (BAU_, 2024-)
+   *   - suffixes  : a delimiter plus a trailing run (_LTD, -01)
+   *   - tokens    : words, splitting on non-alphanumerics AND camelCase
+   *                 boundaries (X_POWER_Y and HydroPower both yield POWER)
+   * Each is one GROUP BY, so it stays cheap. A piece has to occur at least twice
+   * to show up (a one-off is not a recurring segment).
+   *
+   * @param {object} o  { query, from, col, total, limit=15 }
+   * @returns {{prefixes,suffixes,tokens,total}} — lists of {value,c,example}
+   */
+  async function segments(o) {
+    const { query, from, col, total } = o;
+    const limit = o.limit || 15;
+    const v = `CAST(${col} AS VARCHAR)`;
+    const src = `FROM ${from} WHERE ${col} IS NOT NULL`;
+
+    async function grp(expr) {
+      const res = await query(
+        `WITH m AS (SELECT ${expr} AS seg, ${v} AS ex ${src}) `
+        + `SELECT seg, count(*)::BIGINT AS c, min(ex) AS example FROM m `
+        + `WHERE seg <> '' AND seg IS NOT NULL GROUP BY seg HAVING count(*) >= 2 `
+        + `ORDER BY c DESC LIMIT ${limit}`);
+      return qrx.duckdb.rows(res).map(r => ({
+        value: r.seg, c: Number(r.c), example: r.example == null ? '' : String(r.example),
+      }));
+    }
+
+    // leading alnum run + one non-alnum char; and its mirror for the suffix
+    const prefixes = await grp(`regexp_extract(${v}, '^[[:alnum:]]+[^[:alnum:]]')`);
+    const suffixes = await grp(`regexp_extract(${v}, '[^[:alnum:]][[:alnum:]]+$')`);
+
+    // tokens: break camelCase into words first, then split on non-alnum runs
+    const split = `regexp_split_to_array(regexp_replace(${v}, '([a-z])([A-Z])', '\\1 \\2', 'g'), '[^[:alnum:]]+')`;
+    const tres = await query(
+      `WITH m AS (SELECT unnest(${split}) AS tok, ${v} AS ex ${src}) `
+      + `SELECT tok, count(*)::BIGINT AS c, min(ex) AS example FROM m `
+      + `WHERE length(tok) >= 2 GROUP BY tok HAVING count(*) >= 2 `
+      + `ORDER BY c DESC LIMIT ${limit}`);
+    const tokens = qrx.duckdb.rows(tres).map(r => ({
+      value: r.tok, c: Number(r.c), example: r.example == null ? '' : String(r.example),
+    }));
+
+    return { prefixes, suffixes, tokens, total: total || 1 };
+  }
+
   // Classify the analysed masks into a dominant "normal" set and the deviating
   // long tail. A value is an outlier when its mask is not one of the few that
   // dominate the column — a cheap, honest signal for dirty data (a stray
@@ -3002,7 +3062,7 @@ body.pp-fullscreen .pp-sql-result {
     return { rows, shown: rows.length, total };
   }
 
-  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, outliers, outlierRows };
+  qrx.patterns = { maskExpr, compactDisplay, maskToRegex, analyze, segments, outliers, outlierRows };
 })();
 </script>
 
@@ -3718,6 +3778,10 @@ body.pp-fullscreen .pp-sql-result {
       noDominant: 'Kein dominantes Muster – zu heterogen für eine Ausreißerprüfung',
       showOutliers: 'Zeilen anzeigen', outlierRowsMeta: '{shown} von {total} Ausreißern',
       noOutlierRows: 'Keine abweichenden Zeilen gefunden.',
+      segments: 'Segmente', segPrefix: 'Präfix', segSuffix: 'Suffix', segToken: 'Token/Wort',
+      segEmpty: 'Keine wiederkehrenden Segmente gefunden.',
+      segLegend: 'Wiederkehrende Literale: Präfix (führender Teil + Trenner, z. B. BAU_), '
+        + 'Suffix (Trenner + Endteil, z. B. _LTD), Token (Wörter, auch aus CamelCase, z. B. POWER).',
       legend: 'Maske: A Großbuchstabe · a Kleinbuchstabe · 9 Ziffer · andere Zeichen bleiben. '
         + 'Exakte Länge behält die Lauflänge (999 ⇒ \\d{3}); Kompakt fasst jede Folge zusammen (9+ ⇒ \\d+).',
     },
@@ -3733,6 +3797,10 @@ body.pp-fullscreen .pp-sql-result {
       noDominant: 'No dominant pattern – too varied for outlier detection',
       showOutliers: 'Show rows', outlierRowsMeta: '{shown} of {total} outliers',
       noOutlierRows: 'No deviating rows found.',
+      segments: 'Segments', segPrefix: 'Prefix', segSuffix: 'Suffix', segToken: 'Token/word',
+      segEmpty: 'No recurring segments found.',
+      segLegend: 'Recurring literals: prefix (leading part + delimiter, e.g. BAU_), '
+        + 'suffix (delimiter + trailing part, e.g. _LTD), token (words, also from CamelCase, e.g. POWER).',
       legend: 'Mask: A uppercase · a lowercase · 9 digit · other characters kept literally. '
         + 'Exact length keeps the run length (999 ⇒ \\d{3}); Compact collapses any run (9+ ⇒ \\d+).',
     },
@@ -3753,10 +3821,53 @@ body.pp-fullscreen .pp-sql-result {
     const esc = qrx.core.escapeHtml;
     let data = opts.data || null;
     let mode = opts.mode || 'exact';
+    let segData = null;   // lazily fetched literal-segment analysis
     const t = (k, p) => qrx.i18n.t('patterns.' + k, p);
+    const reEsc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tglBtn = (m, key) => `<button type="button" class="qrx-btn qrx-btn-sm ${mode === m ? 'is-active' : ''}" data-mode="${m}">${esc(t(key))}</button>`;
+
+    // One "Prefix / Suffix / Token" sub-table for the segments view. The copy
+    // value is a ready-to-use matcher: ^BAU_ / _LTD$ / POWER.
+    // Compact: value · count · share · copy-matcher. Three of these sit side by
+    // side, so the example rides in the value's tooltip and the matcher regex in
+    // the copy button's — keeping each table narrow enough to wrap gracefully.
+    function renderSegTable(titleKey, rows, kind) {
+      if (!rows || !rows.length) return '';
+      const total = (segData && segData.total) || 1;
+      let h = `<div class="qrx-pat-segblock"><div class="qrx-pat-segtitle">${esc(t(titleKey))}</div>`
+        + '<table class="qrx-pat-table qrx-pat-segtable"><tbody>';
+      for (const r of rows) {
+        const share = r.c / total * 100;
+        const rx = kind === 'prefix' ? '^' + reEsc(r.value)
+          : kind === 'suffix' ? reEsc(r.value) + '$' : reEsc(r.value);
+        h += `<tr><td class="qrx-pat-mask" title="${esc(r.example)}">${esc(r.value)}</td><td>${fmt(r.c)}</td>`
+          + `<td><div class="qrx-pat-share"><span class="qrx-pat-bar" style="width:${Math.max(2, Math.round(share))}px"></span>${share.toFixed(1)}%</div></td>`
+          + `<td class="qrx-pat-rx"><button type="button" class="qrx-pat-copy" data-copy="${esc(rx)}" title="${esc(rx)}">${esc(t('copy'))}</button></td></tr>`;
+      }
+      return h + '</tbody></table></div>';
+    }
+
+    function renderSegments() {
+      if (!segData) return `<p class="qrx-pat-busy">${esc(t('analyzing'))}</p>`;
+      if (!segData.prefixes.length && !segData.suffixes.length && !segData.tokens.length) {
+        return `<div class="qrx-pat-outliers is-none">${esc(t('segEmpty'))}</div>`;
+      }
+      return '<div class="qrx-pat-segwrap">'
+        + renderSegTable('segPrefix', segData.prefixes, 'prefix')
+        + renderSegTable('segSuffix', segData.suffixes, 'suffix')
+        + renderSegTable('segToken', segData.tokens, 'token')
+        + '</div>'
+        + `<div class="qrx-pat-legend">${esc(t('segLegend'))}</div>`;
+    }
 
     function render() {
       if (!data) { el.innerHTML = ''; return; }
+      const hasSeg = !!(opts.onSegments || segData);
+      const toggle = '<div class="qrx-pat-toggle">'
+        + tglBtn('exact', 'exactLength') + tglBtn('compact', 'compact')
+        + (hasSeg ? tglBtn('segments', 'segments') : '') + '</div>';
+      if (mode === 'segments') { el.innerHTML = toggle + renderSegments(); return; }
+
       const compact = mode === 'compact';
       const d = compact ? data.compact : data.exact;
       const total = data.total || 1;
@@ -3766,9 +3877,7 @@ body.pp-fullscreen .pp-sql-result {
         ? { hasDominant: false, normalPats: new Set(), outlierCount: 0 }
         : qrx.patterns.outliers(d, nonNull);
 
-      let html = '<div class="qrx-pat-toggle">'
-        + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? '' : 'is-active'}" data-mode="exact">${esc(t('exactLength'))}</button>`
-        + `<button type="button" class="qrx-btn qrx-btn-sm ${compact ? 'is-active' : ''}" data-mode="compact">${esc(t('compact'))}</button></div>`;
+      let html = toggle;
 
       html += '<div class="qrx-pat-meta">'
         + t('distinctPatterns', { n: fmt(d.distinct), kind: compact ? t('kindCompact') : '' })
@@ -3833,7 +3942,19 @@ body.pp-fullscreen .pp-sql-result {
 
     el.addEventListener('click', (e) => {
       const mb = e.target.closest('[data-mode]');
-      if (mb) { mode = mb.getAttribute('data-mode'); render(); return; }
+      if (mb) {
+        mode = mb.getAttribute('data-mode');
+        // Segments are analysed lazily on first switch (they cost extra queries).
+        if (mode === 'segments' && !segData && opts.onSegments) {
+          render();   // shows the busy placeholder
+          Promise.resolve(opts.onSegments())
+            .then(s => { segData = s; }, err => { console.error(err); segData = { prefixes: [], suffixes: [], tokens: [], total: 1 }; })
+            .then(() => { if (mode === 'segments') render(); });
+          return;
+        }
+        render();
+        return;
+      }
       // "Show rows": fetch the actual deviating values for the current mode.
       const os = e.target.closest('[data-outliers-show]');
       if (os) {
@@ -5981,6 +6102,9 @@ body.pp-fullscreen .pp-sql-result {
         fmt: formatNumber,
         onShowOutliers: ({ compact, normalPats }) => qrx.patterns.outlierRows({
           query: runQuery, from: PARQUET_SQL, col: quoteIdent(col.name), compact, normalPats,
+        }),
+        onSegments: () => qrx.patterns.segments({
+          query: runQuery, from: PARQUET_SQL, col: quoteIdent(col.name), total: stats.total || 1,
         }),
       });
       patTable.setBusy();

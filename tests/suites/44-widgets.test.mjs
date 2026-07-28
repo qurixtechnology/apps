@@ -811,6 +811,25 @@ describe('pattern analysis: engine', () => {
     }));
     assert.deepEqual(got, { rows: [], shown: 0, total: 0 });
   });
+
+  test('segments surfaces recurring prefixes, suffixes and tokens', async () => {
+    const got = await page.evaluate(async () => {
+      const q = (sql) => window.qrx.duckdb.query(sql);
+      const vals = [];
+      for (let i = 1; i <= 8; i++) vals.push(`('BAU_${i}_LTD')`);
+      for (let i = 1; i <= 6; i++) vals.push(`('GEN_POWER_${i}')`);
+      for (let i = 1; i <= 3; i++) vals.push(`('X_POWER_END')`);
+      await q(`CREATE OR REPLACE TABLE vseg AS SELECT * FROM (VALUES ${vals.join(',')}) AS t(asset)`);
+      const s = await window.qrx.patterns.segments({ query: q, from: 'vseg', col: '"asset"', total: 17 });
+      const pick = (a) => Object.fromEntries(a.map(r => [r.value, r.c]));
+      return { pre: pick(s.prefixes), suf: pick(s.suffixes), tok: pick(s.tokens) };
+    });
+    assert.equal(got.pre['BAU_'], 8, 'the delimited prefix BAU_');
+    assert.equal(got.pre['GEN_'], 6);
+    assert.equal(got.suf['_LTD'], 8, 'the trailing _LTD');
+    assert.equal(got.tok['POWER'], 9, 'the token POWER across 6 + 3 values');
+    assert.equal(got.tok['BAU'], 8);
+  });
 });
 
 describe('widget: pattern table', () => {
@@ -961,5 +980,51 @@ describe('widget: pattern table', () => {
     assert.deepEqual(got.call.normalPats, ['AA-99'], 'it passes the dominant masks to exclude');
     assert.deepEqual(got.vals, ['ABC-12'], 'the returned deviating value is listed');
     assert.match(got.meta, /1.*1/, 'a shown/total line is shown');
+  });
+
+  test('the segments tab lazily loads and offers copyable matchers', async () => {
+    const got = await page.evaluate(async (data) => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      let called = 0;
+      window.qrx.ui.patternTable(host, {
+        data,
+        onSegments: () => {
+          called++;
+          return Promise.resolve({
+            prefixes: [{ value: 'BAU_', c: 8, example: 'BAU_1' }],
+            suffixes: [{ value: '_LTD', c: 8, example: 'BAU_1_LTD' }],
+            tokens: [{ value: 'POWER', c: 9, example: 'GEN_POWER_1' }],
+            total: 17,
+          });
+        },
+      });
+      const hasBtn = !!host.querySelector('[data-mode="segments"]');
+      host.querySelector('[data-mode="segments"]').click();
+      await new Promise(r => setTimeout(r, 30));
+      const titles = [...host.querySelectorAll('.qrx-pat-segtitle')].map(e => e.textContent);
+      const copies = [...host.querySelectorAll('.qrx-pat-segblock .qrx-pat-copy')].map(b => b.getAttribute('data-copy'));
+      host.querySelector('[data-mode="segments"]').click();   // switching again must not re-fetch
+      await new Promise(r => setTimeout(r, 10));
+      const out = { hasBtn, called, titleCount: titles.length, copies };
+      host.remove();
+      return out;
+    }, DATA);
+    assert.equal(got.hasBtn, true, 'a provider adds the Segments tab');
+    assert.equal(got.called, 1, 'analysed once, cached afterwards');
+    assert.equal(got.titleCount, 3, 'prefix, suffix and token blocks');
+    assert.deepEqual(got.copies, ['^BAU_', '_LTD$', 'POWER'], 'anchored prefix/suffix, plain token');
+  });
+
+  test('without an onSegments provider there is no Segments tab', async () => {
+    const has = await page.evaluate((data) => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      window.qrx.ui.patternTable(host, { data });
+      const seg = !!host.querySelector('[data-mode="segments"]');
+      host.remove();
+      return seg;
+    }, DATA);
+    assert.equal(has, false);
   });
 });

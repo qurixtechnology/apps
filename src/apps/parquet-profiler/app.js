@@ -1549,6 +1549,9 @@
         onShowOutliers: ({ compact, normalPats }) => qrx.patterns.outlierRows({
           query: runQuery, from: PARQUET_SQL, col: quoteIdent(col.name), compact, normalPats,
         }),
+        onSegments: () => qrx.patterns.segments({
+          query: runQuery, from: PARQUET_SQL, col: quoteIdent(col.name), total: stats.total || 1,
+        }),
       });
       patTable.setBusy();
       try {
