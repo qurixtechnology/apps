@@ -155,7 +155,18 @@
 .rk-report-sign div { flex: 1; border-top: 1px solid var(--qrx-text-muted); padding-top: var(--qrx-s-2); font-size: 0.82rem; color: var(--qrx-text-muted); }
 
 /* --- Belege --- */
-.rk-file-btn { cursor: pointer; }
+.rk-dropzone {
+  display: flex; flex-direction: column; align-items: center; gap: var(--qrx-s-1);
+  padding: var(--qrx-s-5); cursor: pointer; text-align: center;
+  border: 1.5px dashed var(--qrx-border-strong); border-radius: var(--qrx-radius-lg);
+  background: var(--qrx-bg-subtle); color: var(--qrx-text-muted); transition: var(--qrx-transition);
+}
+.rk-dropzone:hover { border-color: var(--qrx-primary); color: var(--qrx-primary); }
+.rk-dropzone.rk-drag { border-color: var(--qrx-primary); background: color-mix(in srgb, var(--qrx-primary) 10%, var(--qrx-surface)); color: var(--qrx-primary); }
+.rk-dropzone-icon { width: 26px; height: 26px; }
+.rk-dropzone-title { font-weight: 600; }
+.rk-dropzone-sub { font-size: 0.8rem; color: var(--qrx-text-subtle); }
+.rk-dropzone.rk-drag * { pointer-events: none; }
 .rk-beleg-row {
   display: flex; align-items: center; gap: var(--qrx-s-3);
   padding: var(--qrx-s-2) var(--qrx-s-3); margin-bottom: var(--qrx-s-2);
