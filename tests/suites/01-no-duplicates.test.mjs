@@ -43,6 +43,9 @@ const OWNED = {
   isDateLikeArrowType: 'qrx.duckdb.isDateLike',
   cellText: 'qrx.duckdb.cellText',
 
+  detectFormat: 'qrx.source.detect',
+  detectEncodingFromBytes: 'qrx.source.detectEncoding',
+
   showToast: 'qrx.ui.toast',
 };
 

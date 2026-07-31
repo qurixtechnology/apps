@@ -61,6 +61,56 @@ describe('cleaner', () => {
     } finally { await page.close(); }
   });
 
+  // The cleaner used to take Parquet only. A CSV now goes through qrx.source and
+  // is rewritten to Parquet on the way in, so `original` stays a cheap VIEW —
+  // over the raw CSV it would be re-parsed on every rule change.
+  test('loads a CSV and cleans it like a Parquet', async () => {
+    const page = await openCleaner({ query: 'qrxtest' });
+    try {
+      await load(page, 'tiny.csv');
+      const meta = await text(page, '.qrx-fileinfo-meta');
+      assert.match(meta, /CSV → Parquet/, 'the bar says the file was rewritten');
+      assert.match(meta, /5 cols · 6 rows/, 'schema and row count match the Parquet fixture');
+      assert.equal(await text(page, '.qrx-fileinfo-icon'), 'CSV');
+
+      const rows = await tableRows(page, '#previewGrid');
+      assert.equal(rows.length, 6);
+      assert.equal(rows[0][1], 'Anna Berger', 'non-ASCII survives the rewrite');
+
+      // A rule has to run against it exactly as against Parquet.
+      await page.select('#addStepSelect', 'dedupExact');
+      await settle(page, 'recompute', () => page.click('#addStepBtn'));
+      await settle(page, 'preview', () => page.click('#viewCleanedBtn'));
+      const cleaned = await tableRows(page, '#previewGrid');
+      assert.equal(cleaned.length, 5, 'the duplicate row goes, same as on Parquet');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('refuses a format it cannot read and points at the converter', async () => {
+    const page = await openCleaner();
+    try {
+      await page.waitForSelector('#filePicker', { timeout: 30_000 });
+      await page.evaluate(() => {
+        const input = document.getElementById('filePicker');
+        const dt = new DataTransfer();
+        dt.items.add(new File(['PK'], 'book.xlsx'));
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change'));
+      });
+      await page.waitForFunction(() => {
+        const s = document.querySelector('#statusBar .qrx-status-text');
+        return s && s.textContent.trim().length > 0;
+      }, { timeout: 20_000 });
+      const msg = await text(page, '#statusBar .qrx-status-text');
+      assert.match(msg, /Excel/);
+      assert.match(msg, /Converter/);
+      const wsHidden = await page.evaluate(() => document.getElementById('workspace').hidden);
+      assert.equal(wsHidden, true, 'nothing is loaded, the drop zone stays');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('dedup removes the duplicate row', async () => {
     const page = await openCleaner({ query: 'qrxtest' });
     try {

@@ -146,21 +146,10 @@
       r.readAsArrayBuffer(file);
     });
   }
-  // Best-effort text-encoding sniff from a head-slice byte buffer. Returns one of
-  // 'utf-8' | 'utf-16' | 'latin-1'. Non-UTF-8 bytes (e.g. German umlauts in a
-  // Windows-1252/Latin-1 export) would otherwise be rejected by DuckDB's CSV
-  // reader and those rows silently dropped under ignore_errors.
-  function detectEncodingFromBytes(bytes) {
-    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) return 'utf-8';
-    if (bytes.length >= 2 && ((bytes[0] === 0xFF && bytes[1] === 0xFE) || (bytes[0] === 0xFE && bytes[1] === 0xFF))) return 'utf-16';
-    // A multi-byte UTF-8 char may be split by the slice boundary — trim a partial
-    // trailing sequence before the strict (fatal) decode so it isn't a false miss.
-    let end = bytes.length, k = 0;
-    while (end > 0 && k < 3 && (bytes[end - 1] & 0xC0) === 0x80) { end--; k++; }
-    if (end > 0 && (bytes[end - 1] & 0x80) !== 0) end--;
-    try { new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, end)); return 'utf-8'; }
-    catch (_) { return 'latin-1'; }
-  }
+  // Format sniffing and text-encoding detection moved to src/shared/qrx-source.js,
+  // where the profiler, cleaner and validator use them too. This app keeps the
+  // heuristic PANEL (delimiter, header, ranges) — that part is genuinely its own.
+  const detectEncodingFromBytes = qrx.source.detectEncoding;
 
   // Map DuckDB / Arrow type strings to friendly category for badge color
   // Engine and helpers: src/shared/qrx-duckdb.js
@@ -384,46 +373,8 @@
   const sqlIdent = qrx.duckdb.ident;
 
   // ---------------------------------------------------------------- Format detection
-  async function detectFormat(file) {
-    const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (ext === 'parquet' || ext === 'pq') return 'parquet';
-    if (ext === 'xlsx' || ext === 'xls')   return 'xlsx';
-    // ODS / flat-ODS / Apple Numbers are all read by SheetJS (the Excel path).
-    if (ext === 'ods' || ext === 'fods' || ext === 'numbers') return 'xlsx';
-    if (ext === 'html' || ext === 'htm') return 'html';
-    if (ext === 'ndjson' || ext === 'jsonl') return 'ndjson';
-    if (ext === 'tsv') return 'csv';
-    if (ext === 'sqlite' || ext === 'sqlite3') return 'sqlite';
-    if (ext === 'duckdb' || ext === 'ddb') return 'duckdb';
-    if (ext === 'md' || ext === 'markdown' || ext === 'mdown' || ext === 'mkd') return 'markdown';
-    // '.db' is ambiguous (SQLite vs DuckDB) — decided by magic bytes below.
-    if (ext === 'json') {
-      const text = (await readSlice(file, 0, 4096)).replace(/^\uFEFF/, '');
-      const trimmed = text.trimStart();
-      if (trimmed.startsWith('[')) return 'json';
-      if (trimmed.startsWith('{')) {
-        const lines = trimmed.split(/\r?\n/).filter(l => l.trim()).slice(0, 3);
-        if (lines.length > 1 && lines.every(l => l.trim().startsWith('{'))) return 'ndjson';
-        return 'json';
-      }
-      return 'json';
-    }
-    if (ext === 'csv' || ext === 'txt') return 'csv';
-    // Magic-byte fallback
-    const buf = await readSliceAB(file, 0, 16);
-    if (buf[0] === 0x50 && buf[1] === 0x41 && buf[2] === 0x52 && buf[3] === 0x31) return 'parquet';
-    if (buf[0] === 0x50 && buf[1] === 0x4B) return 'xlsx';
-    // SQLite files start with "SQLite format 3\0"
-    if (buf.length >= 6 &&
-        buf[0] === 0x53 && buf[1] === 0x51 && buf[2] === 0x4C &&
-        buf[3] === 0x69 && buf[4] === 0x74 && buf[5] === 0x65) return 'sqlite';
-    // DuckDB v0.10+ files have "DUCK" at offset 8
-    if (buf.length >= 12 &&
-        buf[8] === 0x44 && buf[9] === 0x55 && buf[10] === 0x43 && buf[11] === 0x4B) return 'duckdb';
-    // Ambiguous '.db' that matched neither signature → assume DuckDB (prior behaviour)
-    if (ext === 'db') return 'duckdb';
-    return 'csv';
-  }
+  // One definition for every app: src/shared/qrx-source.js.
+  const detectFormat = qrx.source.detect;
 
   // ---------------------------------------------------------------- File handling
   async function loadFile(file) {

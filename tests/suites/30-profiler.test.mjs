@@ -48,6 +48,55 @@ describe('profiler', () => {
     } finally { await page.close(); }
   });
 
+  // Structural analysis is this app's purpose, so a rewritten source must not
+  // pretend the footer describes the user's file — it describes the Parquet we
+  // wrote, with DuckDB's row-group and compression defaults.
+  test('profiles a CSV and says the structure is of the converted copy', async () => {
+    const page = await openProfiler({ query: 'qrxtest' });
+    try {
+      await loadFiles(page, 'tiny.csv');
+      const got = await page.evaluate(() => {
+        const st = window.__qrx.profiler.state;
+        const rec = st.files.find(f => f.id === st.activeFileId);
+        return {
+          rows: st.rowCountTotal,
+          cols: st.columns.map(c => [c.name, c.category]),
+          normalized: rec.normalized, format: rec.format, mode: rec.mode,
+          tech: document.getElementById('pp-metaTech').textContent,
+        };
+      });
+      assert.equal(got.rows, 6, 'the CSV is profiled like any other source');
+      assert.deepEqual(got.cols.map(c => c[0]), ['id', 'name', 'city', 'amount', 'booked_on']);
+      assert.equal(Object.fromEntries(got.cols).booked_on, 'temporal',
+        'types are inferred, not left as text');
+      assert.equal(got.normalized, true);
+      assert.equal(got.format, 'csv');
+      assert.equal(got.mode, 'buffer', 'the rewritten Parquet is already in the heap');
+      assert.match(got.tech, /umgewandelten Kopie/,
+        'the structure facts are labelled as belonging to the converted copy');
+      assert.match(got.tech, /CSV/, 'and name the format that was dropped');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('a real Parquet keeps its own footer, unlabelled', async () => {
+    const page = await openProfiler({ query: 'qrxtest' });
+    try {
+      await loadFiles(page, 'tiny.parquet');
+      const got = await page.evaluate(() => {
+        const st = window.__qrx.profiler.state;
+        const rec = st.files.find(f => f.id === st.activeFileId);
+        return { normalized: rec.normalized, mode: rec.mode,
+                 tech: document.getElementById('pp-metaTech').textContent };
+      });
+      assert.equal(got.normalized, false, 'a Parquet is passed through, never rewritten');
+      assert.equal(got.mode, 'handle', 'and stays a lazy range-read registration');
+      assert.doesNotMatch(got.tech, /umgewandelten Kopie/,
+        'so its own structure is reported without a caveat');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('lists every column with its type', async () => {
     const page = await openProfiler({ query: 'qrxtest' });
     try {

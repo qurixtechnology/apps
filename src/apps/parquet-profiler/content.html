@@ -8,9 +8,9 @@
         <polyline points="17 8 12 3 7 8"/>
         <line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
-      <h2 data-qrx-i18n="app.parquetDateienLaden">Parquet-Dateien laden</h2>
+      <h2 data-qrx-i18n="app.parquetDateienLaden">Dateien laden</h2>
       <p data-qrx-i18n="app.eineOderMehrereDateien">Eine oder mehrere Dateien hier ablegen oder klicken, um Dateien auszuwählen</p>
-      <input type="file" id="pp-fileInput" accept=".parquet,application/octet-stream" multiple hidden>
+      <input type="file" id="pp-fileInput" accept=".parquet,.pq,.csv,.tsv,.txt,.json,.ndjson,.jsonl" multiple hidden>
       <button class="qrx-btn qrx-btn-primary" id="pp-pickBtn" type="button" data-qrx-i18n="app.dateienAuswahlen">
         Dateien auswählen
       </button>
@@ -19,8 +19,8 @@
       </div>
     </div>
     <p class="pp-convert-hint">
-      Noch keine Parquet-Datei? Wandle CSV, Excel, JSON &amp; mehr mit dem
-      <a href="table-format-converter.html" target="_blank" rel="noopener">Table Format Converter</a> in Parquet um.
+      Excel, SQLite oder eine DuckDB-Datei? Die wandelt der
+      <a href="table-format-converter.html" target="_blank" rel="noopener">Table Format Converter</a> zuerst um.
     </p>
   </section>
 

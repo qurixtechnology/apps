@@ -660,8 +660,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 <div data-qrx-docs="de">
 <h2>Parquet Validator</h2>
 <p>
-  Prüft eine <strong>Parquet-Datei</strong> gegen einen <strong>Regelsatz</strong> — vollständig im
-  Browser, ohne Upload. Lade eine Parquet-Datei (oder verbinde einen DuckDB-Server), definiere pro
+  Prüft eine <strong>Datei</strong> (Parquet, CSV, JSON, NDJSON) gegen einen <strong>Regelsatz</strong> — vollständig im
+  Browser, ohne Upload. Lade eine Datei (oder verbinde einen DuckDB-Server), definiere pro
   Spalte oder tabellenweit Regeln und erhalte einen Bericht: welche Regel hält, welche nicht, wie
   viele Zeilen verstoßen — mit Absprung in die konkreten Zeilen.
 </p>
@@ -718,8 +718,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 <div data-qrx-docs="en" hidden>
 <h2>Parquet Validator</h2>
 <p>
-  Validate a <strong>Parquet file</strong> against a <strong>ruleset</strong> — entirely in the
-  browser, with no upload. Load a Parquet file (or connect a DuckDB server), define rules per column
+  Validate a <strong>file</strong> (Parquet, CSV, JSON, NDJSON) against a <strong>ruleset</strong> — entirely in the
+  browser, with no upload. Load a file (or connect a DuckDB server), define rules per column
   or table-wide, and get a report: which rule holds, which does not, how many rows violate it — with
   a jump into the offending rows.
 </p>
@@ -785,10 +785,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
     <!-- Drop zone (initial state) -->
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
-         data-qrx-i18n-aria-label="app.dropAria" aria-label="Parquet-Datei hier ablegen oder klicken">
-      <p class="dz-title" data-qrx-i18n="app.dropTitle">Parquet-Datei hier ablegen oder klicken</p>
-      <p class="dz-sub" data-qrx-i18n="app.dropFormats">Parquet — bis ~1 GB · oder eine DuckDB-Verbindung</p>
-      <input type="file" id="filePicker" hidden accept=".parquet,.pq">
+         data-qrx-i18n-aria-label="app.dropAria" aria-label="Datei hier ablegen oder klicken">
+      <p class="dz-title" data-qrx-i18n="app.dropTitle">Datei hier ablegen oder klicken</p>
+      <p class="dz-sub" data-qrx-i18n="app.dropFormats">Parquet · CSV · JSON · NDJSON — oder eine DuckDB-Verbindung</p>
+      <input type="file" id="filePicker" hidden accept=".parquet,.pq,.csv,.tsv,.txt,.json,.ndjson,.jsonl">
       <div class="dz-actions">
         <button class="qrx-btn" id="srvConnectBtn" type="button"
                 data-qrx-i18n="app.connectBtn" data-qrx-i18n-title="app.connectBtnHint"
@@ -814,8 +814,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         </summary>
         <div class="v-card-body">
           <div id="refList" class="v-reflist"></div>
-          <input type="file" id="refPicker" hidden accept=".parquet,.pq">
-          <button class="qrx-btn qrx-btn-sm" id="addRefBtn" type="button" data-qrx-i18n="app.addRef">+ Referenz-Parquet</button>
+          <input type="file" id="refPicker" hidden accept=".parquet,.pq,.csv,.tsv,.txt,.json,.ndjson,.jsonl">
+          <button class="qrx-btn qrx-btn-sm" id="addRefBtn" type="button" data-qrx-i18n="app.addRef">+ Referenzdatei</button>
         </div>
       </details>
 
@@ -877,7 +877,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       </div>
 
     </div>
-  </div>
+  </div>
 </main>
 
 <footer class="qrx-shell-footer">
@@ -886,7 +886,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260817-122028</span>
+    &middot; v<span data-build-version>260818-164236</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1384,6 +1384,392 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     friendlyType, typeClass, fields, rows, isDateLike, toDate, unwrapBigInt,
     cellText, cellHtml,
     registerHandle, registerBuffer, registerText, dropFiles,
+  };
+})();
+</script>
+
+<script>
+// ============================================================================
+// qrx.source — one way in for every file an app can read.
+//
+// The problem it solves: profiler, cleaner and validator each accepted only
+// Parquet, each with their own registration code, while the converter knew how
+// to read a dozen formats. Widening the others by copying the converter's
+// readers would have widened the performance trap with them — a VIEW over a
+// CSV re-parses the whole file on EVERY access, and those apps query their
+// source dozens of times.
+//
+// So this module normalises instead of branching:
+//
+//   Parquet  -> passed through untouched. Registered as a lazy handle, queried
+//               by byte range, footer metadata intact. Exactly what the apps do
+//               today; nothing gets slower.
+//   CSV/JSON -> rewritten ONCE into a zstd-Parquet inside DuckDB's virtual file
+//   /NDJSON     system (one COPY, no round trip through JS), then queried like
+//               any other Parquet. One O(n) pass instead of one per query.
+//   everything  reported as 'external'. Excel, SQLite, DuckDB files, Markdown
+//   else        and HTML need an engine outside DuckDB or a "which table?"
+//               decision — that is the Table Format Converter's job, and
+//               callers get a typed error they can turn into a link.
+//
+// The result is that a consuming app sees ONE kind of source: a FROM expression
+// over a Parquet, plus a `normalized` flag. That flag is not cosmetic — see the
+// warning on it below.
+//
+// DOM-free on purpose (like qrx.core and qrx.duckdb). The drop zone, the
+// progress display and the "this is large, continue?" question live in
+// qrx.ui.sourcePicker.
+// ============================================================================
+(function () {
+  'use strict';
+  const qrx = (window.qrx = window.qrx || {});
+
+  qrx.i18n.register('source', {
+    de: {
+      detecting: 'Format wird erkannt…',
+      registering: 'Datei wird registriert…',
+      normalizing: 'Wird einmalig nach Parquet umgeschrieben…',
+      describing: 'Schema wird gelesen…',
+      unsupported: 'Dateien vom Typ {kind} können hier nicht direkt gelesen werden — '
+        + 'wandle sie zuerst mit dem Table Format Converter in Parquet um.',
+      raggedRows: 'Die Datei hat Zeilen mit abweichender Spaltenzahl — fehlende Werte wurden '
+        + 'mit NULL aufgefüllt, unlesbare Zeilen übersprungen.',
+      readFailed: 'Die Datei konnte nicht gelesen werden: {msg}',
+    },
+    en: {
+      detecting: 'Detecting format…',
+      registering: 'Registering file…',
+      normalizing: 'Rewriting to Parquet, once…',
+      describing: 'Reading schema…',
+      unsupported: '{kind} files cannot be read here directly — convert them to '
+        + 'Parquet with the Table Format Converter first.',
+      raggedRows: 'The file has rows with differing field counts — missing values were '
+        + 'padded with NULL, unreadable rows skipped.',
+      readFailed: 'Could not read this file: {msg}',
+    },
+  });
+
+  const t = (k, p) => qrx.i18n.t('source.' + k, p);
+
+  // --- What happens to which format ----------------------------------------
+  // 'lazy'      queried in place — byte-range reads, nothing copied
+  // 'normalize' rewritten to Parquet once, then treated as 'lazy'
+  // 'external'  not handled here (needs SheetJS / sql.js, or a table choice)
+  const PLANS = {
+    parquet: 'lazy',
+    csv: 'normalize',
+    ndjson: 'normalize',
+    json: 'normalize',
+    xlsx: 'external',
+    sqlite: 'external',
+    duckdb: 'external',
+    markdown: 'external',
+    html: 'external',
+  };
+
+  /** File extensions this module can open — for an <input accept="…">. */
+  const ACCEPT = '.parquet,.pq,.csv,.tsv,.txt,.json,.ndjson,.jsonl';
+
+  /** Human label per kind, for messages ("XLSX files cannot be read here"). */
+  const LABELS = {
+    parquet: 'Parquet', csv: 'CSV', ndjson: 'NDJSON', json: 'JSON',
+    xlsx: 'Excel/ODS', sqlite: 'SQLite', duckdb: 'DuckDB',
+    markdown: 'Markdown', html: 'HTML',
+  };
+
+  // --- Errors --------------------------------------------------------------
+  // Typed so a caller can react to the format case without matching on text.
+  function SourceError(code, message, extra) {
+    const e = new Error(message);
+    e.name = 'SourceError';
+    e.code = code;                       // 'unsupported-format' | 'read-failed'
+    Object.assign(e, extra || {});
+    return e;
+  }
+
+  // --- Reading slices of a File --------------------------------------------
+  function readSliceText(file, start, end) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+      r.readAsText(file.slice(start, end));
+    });
+  }
+  function readSliceBytes(file, start, end) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(new Uint8Array(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsArrayBuffer(file.slice(start, end));
+    });
+  }
+
+  // A UTF-8 BOM would otherwise end up as part of the first token we look at.
+  const BOM = String.fromCharCode(0xFEFF);
+  const stripBom = (s) => (s.charAt(0) === BOM ? s.slice(1) : s);
+
+  // --- Format detection ----------------------------------------------------
+  // Extension first, magic bytes as the fallback. Lifted from the converter,
+  // which is where it was proven; it stays the single definition of "what is
+  // this file" for every app.
+  async function detect(file) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'parquet' || ext === 'pq') return 'parquet';
+    if (ext === 'xlsx' || ext === 'xls')   return 'xlsx';
+    // ODS / flat-ODS / Apple Numbers are all read by SheetJS (the Excel path).
+    if (ext === 'ods' || ext === 'fods' || ext === 'numbers') return 'xlsx';
+    if (ext === 'html' || ext === 'htm') return 'html';
+    if (ext === 'ndjson' || ext === 'jsonl') return 'ndjson';
+    if (ext === 'tsv') return 'csv';
+    if (ext === 'sqlite' || ext === 'sqlite3') return 'sqlite';
+    if (ext === 'duckdb' || ext === 'ddb') return 'duckdb';
+    if (ext === 'md' || ext === 'markdown' || ext === 'mdown' || ext === 'mkd') return 'markdown';
+    // '.db' is ambiguous (SQLite vs DuckDB) — decided by magic bytes below.
+    if (ext === 'json') {
+      const text = stripBom(await readSliceText(file, 0, 4096));
+      const trimmed = text.trimStart();
+      if (trimmed.startsWith('[')) return 'json';
+      if (trimmed.startsWith('{')) {
+        const lines = trimmed.split(/\r?\n/).filter(l => l.trim()).slice(0, 3);
+        if (lines.length > 1 && lines.every(l => l.trim().startsWith('{'))) return 'ndjson';
+        return 'json';
+      }
+      return 'json';
+    }
+    if (ext === 'csv' || ext === 'txt') return 'csv';
+    // Magic-byte fallback
+    const buf = await readSliceBytes(file, 0, 16);
+    if (buf[0] === 0x50 && buf[1] === 0x41 && buf[2] === 0x52 && buf[3] === 0x31) return 'parquet';
+    if (buf[0] === 0x50 && buf[1] === 0x4B) return 'xlsx';
+    // SQLite files start with "SQLite format 3\0"
+    if (buf.length >= 6 &&
+        buf[0] === 0x53 && buf[1] === 0x51 && buf[2] === 0x4C &&
+        buf[3] === 0x69 && buf[4] === 0x74 && buf[5] === 0x65) return 'sqlite';
+    // DuckDB v0.10+ files have "DUCK" at offset 8
+    if (buf.length >= 12 &&
+        buf[8] === 0x44 && buf[9] === 0x55 && buf[10] === 0x43 && buf[11] === 0x4B) return 'duckdb';
+    if (ext === 'db') return 'duckdb';
+    return 'csv';
+  }
+
+  // Best-effort text-encoding sniff from a head-slice byte buffer. Returns one
+  // of 'utf-8' | 'utf-16' | 'latin-1'. Non-UTF-8 bytes (German umlauts from a
+  // Windows-1252 export, say) would otherwise make DuckDB's CSV reader drop
+  // those rows — which, during an unattended normalisation, nobody would see.
+  function detectEncoding(bytes) {
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) return 'utf-8';
+    if (bytes.length >= 2 && ((bytes[0] === 0xFF && bytes[1] === 0xFE)
+                           || (bytes[0] === 0xFE && bytes[1] === 0xFF))) return 'utf-16';
+    // A multi-byte UTF-8 char may be split by the slice boundary — trim a
+    // partial trailing sequence before the strict decode so it isn't a false miss.
+    let end = bytes.length, k = 0;
+    while (end > 0 && k < 3 && (bytes[end - 1] & 0xC0) === 0x80) { end--; k++; }
+    if (end > 0 && (bytes[end - 1] & 0x80) !== 0) end--;
+    try { new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, end)); return 'utf-8'; }
+    catch (_) { return 'latin-1'; }
+  }
+
+  // --- Naming --------------------------------------------------------------
+  let seq = 0;
+  const EXT_OF = { parquet: 'parquet', csv: 'csv', json: 'json', ndjson: 'ndjson' };
+
+  // The VFS name carries a truthful extension. Nothing here depends on it —
+  // every FROM expression names its reader explicitly — but the profiler builds
+  // `SELECT * FROM '<vfsName>'` for its per-file views, and there DuckDB picks
+  // the reader BY EXTENSION. A wrong one silently reads a CSV as Parquet.
+  function vfsNameFor(file, kind, suffix) {
+    const safe = String(file.name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const base = safe.replace(/\.[^.]*$/, '') || 'file';
+    return `qrx_${suffix}_${seq}_${base}.${EXT_OF[kind] || 'bin'}`;
+  }
+
+  // --- Reader expressions --------------------------------------------------
+  // The raw source, i.e. how the ORIGINAL file is read. Only used as the input
+  // of the normalising COPY; consumers never see these.
+  function rawFrom(kind, vfs, o = {}) {
+    const p = qrx.duckdb.str(vfs);
+    if (kind === 'parquet') return `read_parquet(${p})`;
+    if (kind === 'ndjson')  return `read_json(${p}, format='newline_delimited', auto_detect=true)`;
+    if (kind === 'json')    return `read_json(${p}, format='array', auto_detect=true)`;
+    // CSV: auto_detect handles delimiter, header and types. strict_mode=false is
+    // "RFC 4180 with real-world tolerance" — it accepts bare LF inside quoted
+    // fields (stack traces in exports), which the strict sniffer rejects outright.
+    const opts = ['auto_detect=true', 'strict_mode=false'];
+    if (o.encoding && o.encoding !== 'utf-8') opts.push(`encoding=${qrx.duckdb.str(o.encoding)}`);
+    if (o.tolerant) opts.push('ignore_errors=true', 'null_padding=true');
+    return `read_csv(${p}, ${opts.join(', ')})`;
+  }
+
+  // --- Opening -------------------------------------------------------------
+
+  function readFailed(e) {
+    const msg = (e && e.message) ? e.message : String(e);
+    return SourceError('read-failed', t('readFailed', { msg }), { cause: e });
+  }
+  const cleanup = (...names) => qrx.duckdb.dropFiles(names);
+
+  const describeNames = async (from) => qrx.duckdb.rows(
+    await qrx.duckdb.query(`DESCRIBE SELECT * FROM ${from}`)).map(r => r.column_name);
+
+  // DuckDB's CSV sniffer does NOT fail on a file with inconsistent field counts.
+  // It quietly falls back to "one column per line" and hands back the raw text
+  // under a header like `a,b,c` — no exception, no warning. An app would show a
+  // single VARCHAR column and nobody would know why. Retrying on an error alone
+  // would therefore never trigger; the strict result has to be looked at.
+  //
+  // The tolerant read is kept only when it actually recovers more columns, so a
+  // genuinely single-column file whose header happens to contain a comma is
+  // left as it is.
+  const DELIM_IN_NAME = /[,;\t|]/;
+  async function chooseCsvSource(vfs, encoding, warnings) {
+    const strict = rawFrom('csv', vfs, { encoding });
+    const tolerant = rawFrom('csv', vfs, { encoding, tolerant: true });
+    let cols = null;
+    try { cols = await describeNames(strict); } catch (_) { /* fall through */ }
+    if (cols && !(cols.length === 1 && DELIM_IN_NAME.test(cols[0]))) return strict;
+    try {
+      const tcols = await describeNames(tolerant);
+      if (!cols || tcols.length > cols.length) { warnings.push(t('raggedRows')); return tolerant; }
+    } catch (_) { /* keep the strict read and let the COPY report the problem */ }
+    return strict;
+  }
+
+  /**
+   * What open() will do, without doing it — so a caller can warn or ask first.
+   * @returns { kind, plan, label, supported, willNormalize, bytes }
+   */
+  async function inspect(file) {
+    const kind = await detect(file);
+    const plan = PLANS[kind] || 'external';
+    return {
+      kind, plan,
+      label: LABELS[kind] || kind.toUpperCase(),
+      supported: plan !== 'external',
+      willNormalize: plan === 'normalize',
+      bytes: file.size,
+    };
+  }
+
+  /**
+   * Open a file as a queryable source.
+   *
+   * opts: { onStatus(msg), kind (skip detection), keepRaw (leave the original
+   *         registration in place — the converter needs it) }
+   *
+   * @returns a descriptor:
+   *   { id, name, bytes, kind, plan, normalized, vfsName, rawVfsName, from,
+   *     handle, rows, columns: [{name,type,typeClass}], encoding, warnings[] }
+   *
+   * `from` is a finished FROM expression — `SELECT * FROM ${desc.from}`.
+   *
+   * `normalized === true` means the bytes being queried are OUR Parquet, not
+   * the user's file. Row groups, compression and encodings then describe
+   * DuckDB's writer defaults. Anything that reports on FILE STRUCTURE (the
+   * profiler) must say so rather than present it as the user's data.
+   */
+  async function open(file, opts = {}) {
+    const say = (m) => { try { opts.onStatus && opts.onStatus(m); } catch (_) {} };
+    const id = 'src' + (seq++);
+
+    say(t('detecting'));
+    const kind = opts.kind || await detect(file);
+    const plan = PLANS[kind] || 'external';
+    if (plan === 'external') {
+      throw SourceError('unsupported-format',
+        t('unsupported', { kind: LABELS[kind] || kind.toUpperCase() }), { kind });
+    }
+
+    await qrx.duckdb.init({ onStatus: say });
+    const warnings = [];
+
+    say(t('registering'));
+    const rawVfsName = vfsNameFor(file, kind, 'raw');
+    // Always a lazy handle: a normalising COPY reads the bytes exactly once, so
+    // buffering them first would only duplicate them in WASM memory. An app that
+    // wants a fully buffered Parquet can re-register desc.handle itself.
+    await qrx.duckdb.registerHandle(rawVfsName, file);
+
+    let encoding = null;
+    let rawExpr;
+    if (kind === 'csv') {
+      encoding = detectEncoding(await readSliceBytes(file, 0, 64 * 1024));
+      rawExpr = await chooseCsvSource(rawVfsName, encoding, warnings);
+    } else {
+      rawExpr = rawFrom(kind, rawVfsName);
+    }
+
+    const desc = {
+      id, name: file.name, bytes: file.size, kind, plan,
+      normalized: false, handle: file, encoding, warnings,
+      vfsName: rawVfsName, rawVfsName,
+      from: rawExpr,
+      rows: null, columns: [],
+    };
+
+    if (plan === 'normalize') {
+      say(t('normalizing'));
+      const normVfsName = vfsNameFor(file, 'parquet', 'norm');
+      const copyTo = (src) => qrx.duckdb.query(
+        `COPY (SELECT * FROM ${src}) TO ${qrx.duckdb.str(normVfsName)} `
+        + `(FORMAT PARQUET, COMPRESSION 'zstd')`);
+      try {
+        await copyTo(rawExpr);
+      } catch (e) {
+        const tolerant = kind === 'csv' && !warnings.length;
+        if (!tolerant) { await cleanup(rawVfsName, normVfsName); throw readFailed(e); }
+        // A CSV can still fail on rows the sniffer never saw. Last attempt:
+        // skip unparseable rows, pad short ones — recorded as a warning,
+        // because dropping rows in silence is the failure mode this module
+        // exists to prevent.
+        try {
+          await qrx.duckdb.dropFiles(normVfsName);
+          await copyTo(rawFrom('csv', rawVfsName, { encoding, tolerant: true }));
+          warnings.push(t('raggedRows'));
+        } catch (e2) { await cleanup(rawVfsName, normVfsName); throw readFailed(e2); }
+      }
+      // The original is no longer needed — the data now lives in the Parquet.
+      // Dropping it also releases our reference to the user's File.
+      if (!opts.keepRaw) { await qrx.duckdb.dropFiles(rawVfsName); desc.rawVfsName = null; }
+      desc.normalized = true;
+      desc.vfsName = normVfsName;
+      desc.from = `read_parquet(${qrx.duckdb.str(normVfsName)})`;
+    }
+
+    say(t('describing'));
+    try {
+      // Footer lookup — O(1), whatever the file size. True for a passed-through
+      // Parquet and for one we just wrote.
+      const m = qrx.duckdb.rows(await qrx.duckdb.query(
+        `SELECT num_rows FROM parquet_file_metadata(${qrx.duckdb.str(desc.vfsName)})`));
+      if (m[0] && m[0].num_rows != null) desc.rows = Number(m[0].num_rows);
+    } catch (_) { /* leave null rather than guess */ }
+
+    try {
+      const d = qrx.duckdb.rows(await qrx.duckdb.query(`DESCRIBE SELECT * FROM ${desc.from}`));
+      desc.columns = d.map(r => ({
+        name: r.column_name,
+        type: r.column_type,
+        typeClass: qrx.duckdb.typeClass(r.column_type),
+      }));
+    } catch (e) { await release(desc); throw readFailed(e); }
+
+    say('');
+    return desc;
+  }
+
+  /** Drop everything a descriptor registered. Safe to call twice. */
+  async function release(desc) {
+    if (!desc) return;
+    await qrx.duckdb.dropFiles([desc.vfsName, desc.rawVfsName].filter(Boolean));
+    desc.vfsName = null; desc.rawVfsName = null; desc.handle = null; desc.from = null;
+  }
+
+  qrx.source = {
+    ACCEPT, PLANS, LABELS,
+    detect, inspect, open, release,
+    // exposed for tests and for callers that want the sniff on its own
+    detectEncoding,
   };
 })();
 </script>
@@ -2535,6 +2921,143 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     };
     el.hidden = true;
     return api;
+  };
+
+  qrx.i18n.register('sourcePicker', {
+    de: {
+      confirmTitle: 'Große Datei',
+      confirmHint: '{name} ({size}) wird einmalig nach Parquet umgeschrieben, damit die '
+        + 'Analyse danach schnell bleibt. Das dauert einen Moment und belegt Arbeitsspeicher.',
+      confirmGo: 'Umschreiben',
+      converterLink: 'Zum Table Format Converter',
+    },
+    en: {
+      confirmTitle: 'Large file',
+      confirmHint: '{name} ({size}) will be rewritten to Parquet once, so the analysis '
+        + 'stays fast afterwards. This takes a moment and uses memory.',
+      confirmGo: 'Rewrite',
+      converterLink: 'Open the Table Format Converter',
+    },
+  });
+
+  /**
+   * The whole "get a file in" step: drop zone, format detection, normalisation
+   * and the messages around it. Wraps ui.dropzone and qrx.source so an app no
+   * longer knows what a Parquet is — it receives a descriptor and queries
+   * `desc.from`.
+   *
+   * Two things it handles that a plain dropzone cannot:
+   *  - a format DuckDB can't read here (Excel, SQLite, …) becomes a readable
+   *    message plus a link to the converter, not a stack trace,
+   *  - a large file that needs rewriting is CONFIRMED first. There is no
+   *    reliable way to cancel a running COPY in duckdb-wasm, so the question
+   *    comes before the work rather than as a cancel button during it.
+   *
+   * opts: { input, accept, multiple, label, extraTargets, activeClass,
+   *         status,          // a qrx.ui.status api (or anything with .set)
+   *         confirmBytes,    // ask before rewriting above this size (0 = never)
+   *         converterHref,   // shown when a format needs the converter
+   *         onSource(desc), onError(err) }
+   */
+  ui.sourcePicker = function sourcePicker(mount, opts = {}) {
+    const CONFIRM_BYTES = opts.confirmBytes != null ? opts.confirmBytes : 64 * 1024 * 1024;
+    const status = opts.status || null;
+    const say = (msg, kind) => { if (status && status.set) status.set(msg || '', kind); };
+    const T = (k, p) => qrx.i18n.t('sourcePicker.' + k, p);
+
+    let current = null;
+    let confirmModal = null;
+
+    const zone = ui.dropzone(mount, {
+      input: opts.input,
+      accept: opts.accept || qrx.source.ACCEPT,
+      multiple: !!opts.multiple,
+      label: opts.label,
+      activeClass: opts.activeClass,
+      extraTargets: opts.extraTargets,
+      onFiles: (files) => { queue(files); },
+    });
+
+    // Files are opened one after another, never concurrently: each one runs a
+    // COPY through the same DuckDB connection, and two of those in flight would
+    // compete for the same WASM heap.
+    let chain = Promise.resolve();
+    function queue(files) {
+      for (const f of files) chain = chain.then(() => open(f)).catch(() => {});
+    }
+
+    function fail(err) {
+      say(err && err.message ? err.message : String(err), 'error');
+      if (opts.onError) opts.onError(err);
+      else console.warn('qrx.ui.sourcePicker:', err);
+    }
+
+    // Resolves true when the rewrite may proceed.
+    function confirmRewrite(file) {
+      return new Promise((resolve) => {
+        const hint = T('confirmHint', { name: file.name, size: qrx.core.fmt.bytes(file.size) });
+        if (!confirmModal) {
+          confirmModal = ui.modal({
+            titleKey: 'sourcePicker.confirmTitle',
+            actions: [
+              { key: 'cancel', labelKey: 'ui.cancel', onClick: (m) => m.close() },
+              { key: 'go', labelKey: 'sourcePicker.confirmGo', primary: true,
+                onClick: (m) => { confirmModal._go = true; m.close(); } },
+            ],
+            onClose: () => {
+              const go = !!confirmModal._go;
+              confirmModal._go = false;
+              const done = confirmModal._resolve;
+              confirmModal._resolve = null;
+              if (done) done(go);
+            },
+          });
+        }
+        confirmModal._go = false;
+        confirmModal._resolve = resolve;
+        confirmModal.setTitle(undefined, 'sourcePicker.confirmTitle');
+        // hint carries the file name, so it is set per call rather than once
+        confirmModal.el.querySelector('.qrx-modal-hint').textContent = hint;
+        confirmModal.el.querySelector('.qrx-modal-hint').hidden = false;
+        confirmModal.open('[data-key="go"]');
+      });
+    }
+
+    async function open(file) {
+      try {
+        const plan = await qrx.source.inspect(file);
+        if (!plan.supported) {
+          const err = new Error(qrx.i18n.t('source.unsupported', { kind: plan.label }));
+          err.code = 'unsupported-format';
+          err.kind = plan.kind;
+          err.converterHref = opts.converterHref || null;
+          throw err;
+        }
+        if (plan.willNormalize && CONFIRM_BYTES && file.size > CONFIRM_BYTES) {
+          if (!await confirmRewrite(file)) { say(''); return null; }
+        }
+        const desc = await qrx.source.open(file, { kind: plan.kind, onStatus: (m) => say(m) });
+        current = desc;
+        say(desc.warnings.length ? desc.warnings.join(' ') : '',
+            desc.warnings.length ? 'warn' : undefined);
+        if (opts.onSource) opts.onSource(desc);
+        return desc;
+      } catch (err) { fail(err); return null; }
+    }
+
+    return {
+      el: zone.el,
+      input: zone.input,
+      pick: zone.pick,
+      open,
+      current: () => current,
+      async release() {
+        if (!current) return;
+        const d = current; current = null;
+        await qrx.source.release(d);
+      },
+      destroy() { if (confirmModal) confirmModal.destroy(); },
+    };
   };
 
   qrx.i18n.register('grid', {
@@ -3777,19 +4300,19 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // ---------------------------------------------------------------- i18n
   qrx.i18n.register('app', {
     de: {
-      dropTitle: 'Parquet-Datei hier ablegen oder klicken',
-      dropAria: 'Parquet-Datei hier ablegen oder klicken',
-      dropFormats: 'Parquet — bis ~1 GB · oder eine DuckDB-Verbindung',
+      dropTitle: 'Datei hier ablegen oder klicken',
+      dropAria: 'Datei hier ablegen oder klicken',
+      dropFormats: 'Parquet · CSV · JSON · NDJSON — oder eine DuckDB-Verbindung',
+      converted: 'aus {kind} umgewandelt',
       previewTitle: 'Vorschau', previewRows: 'erste {n} von {total} Zeilen',
       connectBtn: 'Mit DuckDB verbinden', connectBtnHint: 'Eine Tabelle von einem laufenden DuckDB-Server lesen',
-      refTitle: 'Referenztabellen', refHint: 'für Referenz-/Fremdschlüsselregeln', addRef: '+ Referenz-Parquet',
+      refTitle: 'Referenztabellen', refHint: 'für Referenz-/Fremdschlüsselregeln', addRef: '+ Referenzdatei',
       rulesTitle: 'Regeln', suggest: 'Regeln vorschlagen', suggestHint: 'Regeln aus einem Schnellprofil vorschlagen',
       addRule: '+ Regel', rulesEmpty: 'Noch keine Regeln. Füge eine hinzu oder lass sie vorschlagen.',
       validate: 'Validieren', saveRuleset: 'Regelsatz speichern', loadRuleset: 'Regelsatz laden',
       resultTitle: 'Ergebnis', exportReport: 'Bericht ⤓', exportReportHint: 'Bericht als Markdown herunterladen',
       loading: 'Wird geladen …', analysing: 'Profil wird erstellt …', validating: 'Wird validiert …',
       loadFailed: 'Laden fehlgeschlagen: {msg}', validateFailed: 'Validierung fehlgeschlagen: {msg}',
-      unsupported: 'Nur Parquet-Dateien. Für andere Formate den Table-Format-Converter nutzen.',
       column: 'Spalte', ruleType: 'Regel', params: 'Parameter', severity: 'Schweregrad', error: 'Fehler', warning: 'Warnung',
       remove: 'Entfernen',
       // rule type labels
@@ -3818,18 +4341,18 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       reportTitle: 'Validierungsbericht',
     },
     en: {
-      dropTitle: 'Drop a Parquet file here or click', dropAria: 'Drop a Parquet file here or click',
-      dropFormats: 'Parquet — up to ~1 GB · or a DuckDB connection',
+      dropTitle: 'Drop a file here or click', dropAria: 'Drop a file here or click',
+      dropFormats: 'Parquet · CSV · JSON · NDJSON — or a DuckDB connection',
+      converted: 'converted from {kind}',
       previewTitle: 'Preview', previewRows: 'first {n} of {total} rows',
       connectBtn: 'Connect with DuckDB', connectBtnHint: 'Read a table from a running DuckDB server',
-      refTitle: 'Reference tables', refHint: 'for reference / foreign-key rules', addRef: '+ Reference Parquet',
+      refTitle: 'Reference tables', refHint: 'for reference / foreign-key rules', addRef: '+ Reference file',
       rulesTitle: 'Rules', suggest: 'Suggest rules', suggestHint: 'Propose rules from a quick profile',
       addRule: '+ Rule', rulesEmpty: 'No rules yet. Add one or let them be suggested.',
       validate: 'Validate', saveRuleset: 'Save ruleset', loadRuleset: 'Load ruleset',
       resultTitle: 'Result', exportReport: 'Report ⤓', exportReportHint: 'Download the report as Markdown',
       loading: 'Loading …', analysing: 'Profiling …', validating: 'Validating …',
       loadFailed: 'Load failed: {msg}', validateFailed: 'Validation failed: {msg}',
-      unsupported: 'Parquet files only. Use the Table Format Converter for other formats.',
       column: 'Column', ruleType: 'Rule', params: 'Parameters', severity: 'Severity', error: 'Error', warning: 'Warning',
       remove: 'Remove',
       'type.not_null': 'Not null', 'type.unique': 'Unique', 'type.allowed': 'Allowed values',
@@ -3867,7 +4390,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   const state = {
     duckdb: null, db: null, conn: null,
     fileName: null, columns: [], total: 0,
-    refs: [],          // [{name, view, columns:[{name,category}]}]
+    source: null,      // the qrx.source descriptor behind the view `data`
+    refs: [],          // [{name, view, columns:[{name,category}], source}]
     refSeq: 0,
     lastReport: null,
   };
@@ -3897,40 +4421,42 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     return dbInitPromise;
   }
 
-  function isParquet(file) {
-    return /\.(parquet|pq)$/.test(file.name.toLowerCase());
-  }
-  function srcExpr(vname) {
-    return `read_parquet('${qrx.duckdb.esc(vname)}')`;
-  }
-  async function registerSource(file, vname) {
-    if (file.size <= 64 * 1024 * 1024) {
-      const buf = new Uint8Array(await file.arrayBuffer());
-      await state.db.registerFileBuffer(vname, buf);
-    } else {
-      await state.db.registerFileHandle(vname, file,
-        state.duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
-    }
-  }
   async function describe(viewName) {
     const d = qrx.duckdb.rows(await q(`DESCRIBE ${qrx.duckdb.ident(viewName)}`));
     return d.map((r) => ({ name: r.column_name, category: getColCategory(r.column_type), type: r.column_type }));
   }
 
   // ---------------------------------------------------------------- load
-  async function loadFile(file) {
-    if (!isParquet(file)) { setStatus(t('unsupported'), 'error'); return; }
+  // Reading a file belongs to qrx.source: it detects the format, hands Parquet
+  // straight through and rewrites CSV/JSON/NDJSON to Parquet once. Whatever
+  // arrives here is therefore a Parquet expression — which is what makes
+  // binding `data` as a VIEW safe. Over a raw CSV the same view would re-parse
+  // the whole file on every rule, and this app runs one query per rule.
+  const ICONS = { parquet: 'PRQ', csv: 'CSV', json: 'JSN', ndjson: 'NDJ' };
+
+  function sourceMeta(desc) {
+    const parts = [fmtBytes(desc.bytes)];
+    if (desc.normalized) parts.push(t('converted', { kind: qrx.source.LABELS[desc.kind] || desc.kind }));
+    return parts.join(' · ');
+  }
+
+  async function loadSource(desc) {
     qrxTest.state('busy');
     try {
+      // qrx.source booted the engine, but this app's own handles (state.conn)
+      // are set by initDuckDB() — which the picker path never went through.
       await initDuckDB();
       setStatus(t('loading'));
-      const vname = `src_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      await registerSource(file, vname);
-      await q(`CREATE OR REPLACE VIEW data AS SELECT * FROM ${srcExpr(vname)}`);
+      if (state.source && state.source !== desc) await qrx.source.release(state.source);
+      state.source = desc;
+      await q(`CREATE OR REPLACE VIEW data AS SELECT * FROM ${desc.from}`);
       state.columns = await describe('data');
-      state.total = Number(qrx.duckdb.rows(await q('SELECT count(*)::BIGINT AS c FROM data'))[0].c);
-      state.fileName = file.name;
-      await afterSourceLoaded(file.name, fmtBytes(file.size));
+      // The row count comes from the Parquet footer — no scan, whatever the size.
+      state.total = desc.rows != null ? desc.rows
+        : Number(qrx.duckdb.rows(await q('SELECT count(*)::BIGINT AS c FROM data'))[0].c);
+      state.fileName = desc.name;
+      await afterSourceLoaded(desc.name, sourceMeta(desc), ICONS[desc.kind] || 'PRQ');
+      if (desc.warnings.length) setStatus(desc.warnings.join(' '), 'warn');
     } catch (e) {
       console.error(e);
       setStatus(t('loadFailed', { msg: (e && e.message) || String(e) }), 'error');
@@ -3939,11 +4465,23 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     }
   }
 
-  async function afterSourceLoaded(name, sizeMeta) {
+  // Kept for the test hook and for anything that still hands over a raw File.
+  async function loadFile(file) {
+    try {
+      await initDuckDB();
+      const desc = await qrx.source.open(file, { onStatus: (m) => setStatus(m) });
+      await loadSource(desc);
+    } catch (e) {
+      setStatus((e && e.message) || String(e), 'error');
+      qrxTest.state('ready'); qrxTest.tick('load');
+    }
+  }
+
+  async function afterSourceLoaded(name, sizeMeta, icon) {
     dropzoneEl.hidden = true;
     workspace.hidden = false;
     resultsCard.hidden = true;
-    fileBar.show({ icon: 'PRQ', name, meta: `${fmtN(state.columns.length)} ${t('column')} · ${fmtN(state.total)} ${t('rowsWord')}${sizeMeta ? ' · ' + sizeMeta : ''}` });
+    fileBar.show({ icon: icon || 'PRQ', name, meta: `${fmtN(state.columns.length)} ${t('column')} · ${fmtN(state.total)} ${t('rowsWord')}${sizeMeta ? ' · ' + sizeMeta : ''}` });
     setStatus('');
     await renderPreview(0);
     if (!rulesList.children.length) addRule();
@@ -3962,6 +4500,16 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
 
   function resetAll() {
+    // Release the registered files before forgetting them, or their bytes stay
+    // in the WASM heap for the rest of the session.
+    const stale = [state.source, ...state.refs.map((r) => r.source)].filter(Boolean);
+    const views = ['data', ...state.refs.map((r) => r.view)];
+    state.source = null;
+    if (state.conn) {
+      Promise.all(views.map((v) => q(`DROP VIEW IF EXISTS ${qrx.duckdb.ident(v)}`).catch(() => {})))
+        .then(() => Promise.all(stale.map((d) => qrx.source.release(d))))
+        .catch((e) => console.warn('validator: source cleanup failed', e));
+    }
     state.columns = []; state.total = 0; state.fileName = null; state.refs = []; state.lastReport = null;
     rulesList.innerHTML = ''; refList.innerHTML = ''; resultsList.innerHTML = ''; resultsSummary.innerHTML = '';
     previewGrid.clear(); previewPager.hide(); previewMetaEl.textContent = '';
@@ -3970,18 +4518,20 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
 
   // ---------------------------------------------------------------- reference tables
+  // A reference table may be any readable format too — comparing a CSV against
+  // a Parquet reference is a normal thing to want, and after qrx.source both
+  // sides are Parquet anyway.
   async function loadReference(file) {
-    if (!isParquet(file)) { setStatus(t('unsupported'), 'error'); return; }
     qrxTest.state('busy');
     try {
       await initDuckDB();
+      const desc = await qrx.source.open(file, { onStatus: (m) => setStatus(m) });
       const id = ++state.refSeq;
       const view = `ref_${id}`;
-      const vname = `${view}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      await registerSource(file, vname);
-      await q(`CREATE OR REPLACE VIEW ${view} AS SELECT * FROM ${srcExpr(vname)}`);
+      await q(`CREATE OR REPLACE VIEW ${view} AS SELECT * FROM ${desc.from}`);
       const columns = await describe(view);
-      state.refs.push({ name: file.name, view, columns });
+      state.refs.push({ name: file.name, view, columns, source: desc });
+      setStatus(desc.warnings.length ? desc.warnings.join(' ') : '', desc.warnings.length ? 'warn' : undefined);
       renderRefs();
     } catch (e) {
       console.error(e);
@@ -4422,9 +4972,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   }
 
   // ---------------------------------------------------------------- wiring
-  qrx.ui.dropzone(dropzoneEl, {
-    input: filePicker, accept: '.parquet,.pq',
-    extraTargets: [], onFiles: (files) => { if (files && files[0]) loadFile(files[0]); },
+  qrx.ui.sourcePicker(dropzoneEl, {
+    input: filePicker,
+    status: statusWidget,
+    converterHref: 'table-format-converter.html',
+    onSource: (desc) => loadSource(desc),
   });
   addRefBtn.addEventListener('click', () => refPicker.click());
   refPicker.addEventListener('change', () => { if (refPicker.files[0]) loadReference(refPicker.files[0]); refPicker.value = ''; });

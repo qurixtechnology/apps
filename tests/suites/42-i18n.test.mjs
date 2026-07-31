@@ -294,7 +294,7 @@ describe('i18n: cleaner and profiler are bilingual too', () => {
       assert.equal(en.kpi, 'Rows');
       assert.equal(en.rule, 'Remove exact duplicates');
 
-      assert.equal(de.drop, 'Parquet-Datei hier ablegen oder klicken, um eine auszuwählen');
+      assert.equal(de.drop, 'Datei hier ablegen oder klicken, um eine auszuwählen');
       assert.equal(de.scan, 'Daten prüfen');
       assert.equal(de.kpi, 'Zeilen');
       assert.equal(de.rule, 'Exakte Duplikate entfernen', 'rule labels follow the language');
@@ -321,12 +321,12 @@ describe('i18n: cleaner and profiler are bilingual too', () => {
       const en = await read();
 
       assert.equal(de.switchHidden, false, 'the profiler now offers the switch');
-      assert.equal(de.heading, 'Parquet-Dateien laden');
+      assert.equal(de.heading, 'Dateien laden');
       assert.equal(de.tab, 'Daten-Vorschau');
       assert.match(de.tooltip, /^Vollbild für aktiven Tab/,
         'the tooltip used to show a literal \u00FC escape');
 
-      assert.equal(en.heading, 'Load Parquet files');
+      assert.equal(en.heading, 'Load files');
       assert.equal(en.pick, 'Choose files');
       assert.equal(en.tab, 'Data preview');
       assert.match(en.tooltip, /^Full screen/);

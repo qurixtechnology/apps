@@ -4,8 +4,8 @@
   "theme": "qurix",
   "output": "parquet-profiler.html",
   "card": {
-    "description": "Strukturelle und statistische Analyse von Parquet-Dateien. Liest die Metadaten direkt aus dem Footer und profiliert Spalten, Row-Groups und Kompression — Dateien werden per Byte-Bereich referenziert, sodass selbst mehrere grosse Dateien speicherschonend bleiben.",
-    "description_en": "Structural and statistical analysis of Parquet files. Reads metadata straight from the footer and profiles columns, row groups and compression — referencing files by byte range, so even several large files stay memory-friendly.",
+    "description": "Strukturelle und statistische Analyse tabellarischer Dateien — Parquet, CSV, JSON, NDJSON. Parquet wird per Byte-Bereich referenziert und behält seine Footer-Metadaten, sodass selbst mehrere grosse Dateien speicherschonend bleiben; andere Formate werden einmalig nach Parquet umgeschrieben.",
+    "description_en": "Structural and statistical analysis of tabular files — Parquet, CSV, JSON, NDJSON. Parquet is referenced by byte range and keeps its footer metadata, so even several large files stay memory-friendly; other formats are rewritten to Parquet once.",
     "tags": [
       ".parquet",
       "Metadaten",
@@ -22,6 +22,7 @@
     "../../shared/qrx-core.js",
     "../../shared/qrx-i18n.js",
     "../../shared/qrx-duckdb.js",
+    "../../shared/qrx-source.js",
     "../../shared/qrx-test.js",
     "../../shared/duckdb-server.js",
     "../../shared/qrx-patterns.js",

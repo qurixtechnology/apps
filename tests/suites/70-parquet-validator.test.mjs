@@ -191,6 +191,77 @@ async function openValidator(opts) {
 }
 
 describe('validator app', () => {
+  // The app used to reject anything that was not .parquet. It now goes through
+  // qrx.source, so a CSV is rewritten to Parquet on the way in — which is what
+  // keeps `data` a cheap VIEW instead of a full re-parse per rule.
+  test('reads a CSV, not only Parquet', async () => {
+    const p = await openValidator({ query: 'qrxtest' });
+    try {
+      await settle(p, 'load', async () => {
+        await (await p.$('#filePicker')).uploadFile(join(FIX, 'pii.csv'));
+      });
+      const got = await p.evaluate(() => ({
+        dzHidden: document.getElementById('dropzone').hidden,
+        icon: document.querySelector('.qrx-fileinfo-icon').textContent,
+        meta: document.querySelector('.qrx-fileinfo-meta').textContent,
+        cols: window.__qrx.validator.state.columns.map(c => c.name),
+        total: window.__qrx.validator.state.total,
+        normalized: window.__qrx.validator.state.source.normalized,
+        previewRows: document.querySelectorAll('#previewGrid table tbody tr').length,
+      }));
+
+      assert.equal(got.dzHidden, true, 'a CSV opens the workspace like a Parquet does');
+      assert.equal(got.icon, 'CSV', 'the bar names the format the user actually dropped');
+      assert.match(got.meta, /umgewandelt/, 'and says the file was converted');
+      assert.equal(got.normalized, true);
+      assert.equal(got.total, 60, 'all rows of the fixture arrive');
+      assert.deepEqual(got.cols.slice(0, 3), ['kunde', 'email', 'telefon'],
+        'the CSV header became columns, not one text column');
+      assert.ok(got.previewRows > 0, 'the preview renders');
+
+      // The rules have to run against it exactly as they do against Parquet.
+      await settle(p, 'validate', () => p.evaluate(() => {
+        const api = window.__qrx.validator;
+        api.state.lastReport = null;
+        document.getElementById('rulesList').innerHTML = '';
+        api.addRule({ col: 'email', type: 'regex', pattern: '^[^@]+@[^@]+\\.[^@]+$' });
+        document.getElementById('validateBtn').click();
+      }));
+      const summary = await p.evaluate(() => document.getElementById('resultsSummary').textContent);
+      assert.match(summary, /%/, 'a score is produced from the converted source');
+      p.assertNoErrors();
+    } finally { await p.close(); }
+  });
+
+  test('an unreadable format is refused with a way out', async () => {
+    const p = await openValidator({ query: 'qrxtest' });
+    try {
+      // Driven through the real input, so the dropzone -> picker path is the
+      // one under test. No fixture needed: the refusal is decided by format.
+      await p.evaluate(() => {
+        const input = document.getElementById('filePicker');
+        const dt = new DataTransfer();
+        dt.items.add(new File(['PK'], 'book.xlsx'));
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change'));
+      });
+      await p.waitForFunction(() => {
+        const s = document.querySelector('#statusBar .qrx-status-text');
+        return s && s.textContent.trim().length > 0;
+      }, { timeout: 20_000 });
+      const got = await p.evaluate(() => ({
+        msg: document.querySelector('#statusBar .qrx-status-text').textContent,
+        isError: document.getElementById('statusBar').classList.contains('is-error'),
+        dzHidden: document.getElementById('dropzone').hidden,
+      }));
+      assert.equal(got.isError, true);
+      assert.match(got.msg, /Excel/, 'the message names the format');
+      assert.match(got.msg, /Converter/, 'and points at the app that can read it');
+      assert.equal(got.dzHidden, false, 'the drop zone stays, so another file can follow');
+      p.assertNoErrors();
+    } finally { await p.close(); }
+  });
+
   test('load → suggest → validate produces a report', async () => {
     const p = await openValidator({ query: 'qrxtest' });
     try {

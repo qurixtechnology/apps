@@ -7,10 +7,10 @@
 
     <!-- Drop zone (initial state) -->
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
-         data-qrx-i18n-aria-label="app.dropAParquetFile" aria-label="Drop a Parquet file here or click to pick one">
-      <p class="dz-title" data-qrx-i18n="app.dropAParquetFile2">Drop a Parquet file here, or click to pick one</p>
-      <p class="dz-sub" data-qrx-i18n="app.parquetParquetPqEverything">Parquet (.parquet / .pq) · everything runs locally in your browser — no upload</p>
-      <input type="file" id="filePicker" hidden accept=".parquet,.pq">
+         data-qrx-i18n-aria-label="app.dropAParquetFile" aria-label="Drop a file here or click to pick one">
+      <p class="dz-title" data-qrx-i18n="app.dropAParquetFile2">Drop a file here, or click to pick one</p>
+      <p class="dz-sub" data-qrx-i18n="app.parquetParquetPqEverything">Parquet · CSV · JSON · NDJSON · everything runs locally in your browser — no upload</p>
+      <input type="file" id="filePicker" hidden accept=".parquet,.pq,.csv,.tsv,.txt,.json,.ndjson,.jsonl">
       <div class="qds-dz-actions">
         <button class="qrx-btn" id="srvConnectBtn" type="button" data-qrx-i18n="app.connectWithDuckdb">Connect with DuckDB</button>
       </div>
@@ -43,7 +43,7 @@
     </div>
 
     <p class="dz-convert" id="pcConvertHint">
-      No Parquet file? Convert CSV, Excel, JSON &amp; more to Parquet with the
+      Excel, SQLite or a DuckDB file? Convert it first with the
       <a href="table-format-converter.html" target="_blank" rel="noopener">Table Format Converter</a>.
     </p>
 

@@ -33,7 +33,23 @@ Three sections on purpose:
       stable release wraps engine ≥ 1.5.3. The version lives in exactly one
       place, and `00-build` asserts it is new enough.
 
+- [ ] **The converter still owns its own ingest**
+      It shares `detectFormat`/`detectEncoding` now, but not the readers: it is
+      the only app that needs the *raw*, un-normalised source, plus the
+      heuristic panel (delimiter, header, ranges) and the table picker for
+      SQLite/DuckDB containers. Moving it onto `qrx.source` means teaching the
+      module a "do not normalise" mode and promoting the panel into a widget —
+      the single most expensive item in this whole line of work. Worth doing
+      only once the other three have proven the contract.
+
 ### Medium
+
+- [ ] **`qrx.source` handles four of nine formats**
+      Excel/ODS/Numbers, SQLite, DuckDB, Markdown and HTML are reported as
+      `plan: 'external'` and routed to the converter. Excel and Markdown need a
+      JS engine (SheetJS) before DuckDB sees anything; SQLite and DuckDB files
+      are containers with N tables and need a user choice. Both are solvable —
+      the converter does it today — but each adds a UI surface to the picker.
 
 - [ ] **secure-chat: replace `alert()` with the toast widget**
       10 blocking `alert()` calls in `src/apps/secure-chat/app.js`. The change
@@ -95,6 +111,14 @@ Three sections on purpose:
 
 ## Watch
 
+- **DuckDB's CSV sniffer fails silently, not loudly.**
+  Given rows with inconsistent field counts it does not raise — it falls back to
+  one column per line and returns the raw text under a header like `a,b,c`.
+  `qrx.source` therefore inspects the strict result and retries with
+  `null_padding`/`ignore_errors` when a single column still contains a
+  delimiter, keeping the retry only if it recovers more columns. Do not
+  "simplify" that into a try/catch: the catch would never fire.
+
 - **quack only reaches the server's `main` schema.**
   quack strips the schema when forwarding a query, so tables in other schemas
   are listed by `remote.sqlite_master` but cannot be read. The apps detect this
@@ -143,3 +167,7 @@ Three sections on purpose:
 - [x] Cleaner and profiler bilingual; fixed a literal `ü` in a tooltip — `9b1b3c8`
 - [x] JS-built labels translated; bilingual documentation — `c0e29c7`
 - [x] Regression suite (`tests/`), 40 → 112 tests — `a546a8f` and later
+- [x] Shared ingest layer `qrx.source` + `qrx.ui.sourcePicker`, with the
+      degenerate-CSV-sniff guard and a round-trip test through DuckDB's VFS
+- [x] Profiler, cleaner and validator read Parquet, CSV, JSON and NDJSON;
+      the profiler labels structure facts on a rewritten source
