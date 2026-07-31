@@ -1,0 +1,54 @@
+<h2>Reisekosten – so funktioniert's</h2>
+<p>
+  Erfasse eine Reise mit möglichst wenigen Angaben — <b>Ziel</b>, <b>Abreise</b> und <b>Rückkehr</b>
+  sowie die <b>gestellten Mahlzeiten</b> genügen. Die App leitet daraus automatisch die
+  Verpflegungspauschalen (mit An-/Abreise-Logik), die Mahlzeitenkürzungen, die Kilometerpauschale und
+  die Übernachtung ab und zeigt die Summe. Alle Reisen bleiben <b>lokal im Browser</b> gespeichert —
+  nichts wird hochgeladen.
+</p>
+
+<h3>Verpflegungspauschale</h3>
+<ul>
+  <li><b>Inland:</b> voller Tag (24 Std.) <code>28 €</code>, An-/Abreisetag bzw. eintägig über 8 Std.
+    <code>14 €</code>. Bei eintägigen Reisen bis 8 Std. gibt es keine Pauschale.</li>
+  <li><b>Ausland:</b> länderspezifischer voller Tagessatz aus der BMF-Tabelle; der An-/Abreisetag
+    (und &gt; 8 Std.) zählt mit <code>80 %</code> davon.</li>
+  <li><b>Mahlzeitenkürzung</b> je gestellter Mahlzeit vom vollen Tagessatz: Frühstück −20 %,
+    Mittag −40 %, Abend −40 % (Inland also −5,60 € / −11,20 € / −11,20 €). Der Tagesbetrag wird nie
+    negativ.</li>
+</ul>
+
+<h3>Fahrt &amp; Übernachtung</h3>
+<ul>
+  <li><b>Kilometerpauschale:</b> PKW <code>0,30 €/km</code>, Motorrad <code>0,20 €/km</code>.
+    Bahn, Flug, ÖPNV/Taxi und Sonstiges werden mit dem tatsächlichen Betrag (Beleg) erfasst.</li>
+  <li><b>Übernachtung:</b> wahlweise Pauschale je Nacht (Inland <code>20 €</code>, Ausland
+    länderspezifisch) oder tatsächliche Kosten laut Beleg. Die Anzahl der Nächte ergibt sich
+    automatisch; ist im Übernachtungspreis ein Frühstück enthalten, einfach das Frühstück am
+    Folgetag als „gestellt" markieren.</li>
+  <li><b>Reisenebenkosten</b> (Parken, Maut, Gepäck …) als einzelne Positionen mit Beleg.</li>
+</ul>
+
+<h3>Abrechnung &amp; Export</h3>
+<ul>
+  <li><b>Drucken / PDF:</b> erzeugt eine saubere Reisekostenabrechnung mit Tagesaufstellung und
+    Unterschriftszeile — über den Druckdialog des Browsers als PDF speicherbar.</li>
+  <li><b>CSV:</b> Export einer einzelnen Reise oder aller Reisen für die Buchhaltung/Excel.</li>
+  <li><b>Mit Daten exportieren</b> (Fußzeile) sichert eine Momentaufnahme aller Reisen in einer
+    eigenständigen HTML-Datei; beim erneuten Öffnen werden die Daten wiederhergestellt.</li>
+</ul>
+
+<h3>Einstellungen</h3>
+<p>
+  Die Inland-Beträge und Kilometersätze sind in den <b>Einstellungen</b> anpassbar, ebenso die
+  Perspektive (Arbeitnehmer → Arbeitgeber bzw. Selbstständig / Steuererklärung). Für Auslandsreisen
+  ist jeder Satz pro Reise überschreibbar, und über „Anderes Land / eigene Sätze…" lässt sich ein
+  beliebiges Reiseziel mit eigenen Beträgen erfassen.
+</p>
+
+<p class="rk-note">
+  Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Die Verpflegungs- und Übernachtungspauschalen
+  sind Jahreswerte (BMF-Schreiben) und können sich ändern — im Zweifel gegen das aktuelle
+  BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur
+  für die ersten drei Monate.
+</p>
