@@ -97,6 +97,8 @@
       no: 'nein', detectedNothing: 'Keine übernehmbaren Werte erkannt. Der Beleg wurde nur zur Dokumentation gespeichert.',
       typeHotel: 'Hotel', typeBahn: 'Bahn', typeOepnv: 'ÖPNV', typeUnknown: 'Beleg',
       reportReceipts: 'Belege', route: 'Strecke',
+      viewReceipt: 'Ansehen', openNewTab: 'In neuem Tab öffnen', downloadFile: 'Herunterladen',
+      tooBig: 'Datei zu groß zum Speichern', quotaWarn: 'Speicher voll — die Beleg-Datei wurde nicht gespeichert (nur die erkannten Daten).',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -154,6 +156,8 @@
       no: 'no', detectedNothing: 'No applicable values detected. The receipt was saved for documentation only.',
       typeHotel: 'Hotel', typeBahn: 'Train', typeOepnv: 'Transit', typeUnknown: 'Receipt',
       reportReceipts: 'Receipts', route: 'Route',
+      viewReceipt: 'View', openNewTab: 'Open in new tab', downloadFile: 'Download',
+      tooBig: 'File too large to store', quotaWarn: 'Storage full — the receipt file was not saved (only the detected data).',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -168,7 +172,20 @@
     const trips = store.getJSON(KEY_TRIPS, []);
     state.trips = Array.isArray(trips) ? trips.map(normalizeTrip) : [];
   }
-  function saveTrips() { store.setJSON(KEY_TRIPS, state.trips); }
+  function saveTrips() { return store.setJSON(KEY_TRIPS, state.trips); }
+  // Speichern mit Kontingent-Schutz: schlägt es fehl (localStorage voll, meist
+  // wegen eingebetteter Beleg-Dateien), werden die Dateien verworfen und nur die
+  // erkannten Daten behalten, damit die Reise nicht verloren geht.
+  function persistTrips() {
+    if (saveTrips()) return true;
+    let dropped = false;
+    state.trips.forEach((tp) => (tp.belege || []).forEach((b) => {
+      if (b.dataUrl) { delete b.dataUrl; delete b.mime; b.tooBig = true; dropped = true; }
+    }));
+    const okNow = saveTrips();
+    if (dropped) { try { alert(t('quotaWarn')); } catch (_) {} }
+    return okNow;
+  }
   function saveSettings() { store.setJSON(KEY_SETTINGS, state.settings); }
 
   function newId() { return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -506,13 +523,84 @@
     if (!box) return;
     const list = state.current.belege || [];
     if (!list.length) { box.innerHTML = '<p class="rk-hint">' + esc(t('receiptsEmpty')) + '</p>'; return; }
-    box.innerHTML = list.map((b, i) =>
-      '<div class="rk-beleg-row">' +
+    box.innerHTML = list.map((b, i) => {
+      const meta = esc(typeLabelOf(b.type || 'unknown')) + (b.total != null ? ' · ' + esc(eur(b.total)) : '') +
+        (b.tooBig ? ' · ' + esc(t('tooBig')) : '');
+      const viewBtn = b.dataUrl
+        ? '<button class="qrx-btn qrx-btn-sm" data-action="view-beleg" data-idx="' + i + '">' + esc(t('viewReceipt')) + '</button>'
+        : '';
+      return '<div class="rk-beleg-row">' +
         '<svg class="rk-beleg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + (RECEIPT_ICON[b.type] || RECEIPT_ICON.unknown) + '"/></svg>' +
         '<div class="rk-beleg-main"><span class="rk-beleg-name">' + esc(b.name || t('typeUnknown')) + '</span>' +
-          '<span class="rk-beleg-meta">' + esc(typeLabelOf(b.type || 'unknown')) + (b.total != null ? ' · ' + esc(eur(b.total)) : '') + '</span></div>' +
+          '<span class="rk-beleg-meta">' + meta + '</span></div>' +
+        viewBtn +
         '<button class="rk-icon-btn" data-action="del-beleg" data-idx="' + i + '" aria-label="✕">✕</button>' +
-      '</div>').join('');
+      '</div>';
+    }).join('');
+  }
+
+  // Datei → speicherbare Repräsentation. Bilder werden verkleinert/rekomprimiert,
+  // PDFs unverändert als Data-URL. Zu große Dateien werden nicht eingebettet.
+  const MAX_EMBED = 3_000_000; // ~2,2 MB Datei (Data-URL-Länge)
+  function fileToStored(file) {
+    return new Promise((resolve) => {
+      if (file.type && file.type.startsWith('image/')) {
+        const rd = new FileReader();
+        rd.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const max = 1500, scale = Math.min(1, max / Math.max(img.width, img.height));
+            const cw = Math.max(1, Math.round(img.width * scale)), ch = Math.max(1, Math.round(img.height * scale));
+            const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+            c.getContext('2d').drawImage(img, 0, 0, cw, ch);
+            let url; try { url = c.toDataURL('image/jpeg', 0.72); } catch (_) { url = rd.result; }
+            resolve(url.length > MAX_EMBED ? { tooBig: true } : { dataUrl: url, mime: 'image/jpeg' });
+          };
+          img.onerror = () => resolve(null);
+          img.src = rd.result;
+        };
+        rd.onerror = () => resolve(null);
+        rd.readAsDataURL(file);
+      } else {
+        const rd = new FileReader();
+        rd.onload = () => {
+          const url = rd.result;
+          resolve(url.length > MAX_EMBED ? { tooBig: true } : { dataUrl: url, mime: file.type || 'application/pdf' });
+        };
+        rd.onerror = () => resolve(null);
+        rd.readAsDataURL(file);
+      }
+    });
+  }
+
+  // Gespeicherten Beleg ansehen (Bild oder PDF) in einem Overlay.
+  async function showBeleg(b) {
+    if (!b || !b.dataUrl) return;
+    let objUrl;
+    try { objUrl = URL.createObjectURL(await (await fetch(b.dataUrl)).blob()); }
+    catch (_) { objUrl = b.dataUrl; }
+    const isImg = (b.mime || '').startsWith('image/');
+    const ov = document.createElement('div');
+    ov.className = 'rk-modal-overlay';
+    ov.innerHTML =
+      '<div class="rk-modal rk-modal-viewer" role="dialog" aria-modal="true">' +
+        '<div class="rk-modal-head"><div><h3>' + esc(b.name || t('typeUnknown')) + '</h3></div>' +
+          '<button class="rk-icon-btn rk-modal-x" data-x aria-label="✕">✕</button></div>' +
+        '<div class="rk-viewer-body">' +
+          (isImg
+            ? '<img class="rk-viewer-img" src="' + objUrl + '" alt="' + esc(b.name || '') + '">'
+            : '<iframe class="rk-viewer-frame" src="' + objUrl + '" title="' + esc(b.name || '') + '"></iframe>') +
+        '</div>' +
+        '<div class="rk-modal-actions">' +
+          '<a class="qrx-btn" href="' + objUrl + '" target="_blank" rel="noopener">' + esc(t('openNewTab')) + '</a>' +
+          '<a class="qrx-btn" href="' + objUrl + '" download="' + esc(b.name || 'beleg') + '">' + esc(t('downloadFile')) + '</a>' +
+          '<button class="qrx-btn qrx-btn-primary" data-x>' + esc(t('dismiss')) + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    const close = () => { ov.remove(); if (objUrl && objUrl.startsWith('blob:')) URL.revokeObjectURL(objUrl); };
+    ov.querySelectorAll('[data-x]').forEach((x) => x.addEventListener('click', close));
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
   }
 
   // Datei importieren: Text gewinnen (PDF/OCR) → parsen → Gegenprüf-Panel.
@@ -527,8 +615,9 @@
       });
       prog.set(t('analysing'), null);
       const parsed = qrx.rkReceipts.parseReceipt(text);
+      const stored = await fileToStored(file);   // Datei zum Ansehen einbetten
       prog.close();
-      showCrossCheck(parsed, file.name, method);
+      showCrossCheck(parsed, file.name, method, stored);
     } catch (e) {
       prog.close();
       console.warn('receipt import failed', e);
@@ -610,7 +699,7 @@
   }
 
   // Gegenprüf-Panel: erkannte Werte neben den aktuellen, einzeln übernehmbar.
-  function showCrossCheck(parsed, fileName, method) {
+  function showCrossCheck(parsed, fileName, method, stored) {
     const tp = state.current;
     const suggestions = buildSuggestions(parsed, tp, fileName);
     const ov = document.createElement('div');
@@ -649,7 +738,12 @@
     ov.querySelector('[data-apply]').addEventListener('click', () => {
       const boxes = ov.querySelectorAll('input[type="checkbox"][data-i]');
       boxes.forEach((cb) => { if (cb.checked) { try { suggestions[+cb.getAttribute('data-i')].apply(); } catch (_) {} } });
-      tp.belege.push({ name: fileName || t('typeUnknown'), type: parsed.type, total: parsed.total, dates: parsed.dates || [], method });
+      tp.belege.push({
+        name: fileName || t('typeUnknown'), type: parsed.type, total: parsed.total, dates: parsed.dates || [], method,
+        mime: stored && stored.dataUrl ? stored.mime : undefined,
+        dataUrl: stored && stored.dataUrl ? stored.dataUrl : undefined,
+        tooBig: stored && stored.tooBig ? true : undefined,
+      });
       close();
       renderEdit();  // Felder, Tage und Summen neu aus dem aktualisierten Stand
     });
@@ -844,7 +938,7 @@
     const tp = state.current;
     const idx = state.trips.findIndex((x) => x.id === tp.id);
     if (idx >= 0) state.trips[idx] = tp; else state.trips.push(tp);
-    saveTrips();
+    persistTrips();
     renderList();
     showView('list');
   }
@@ -932,6 +1026,8 @@
       case 'del-beleg':
         state.current.belege.splice(+target.getAttribute('data-idx'), 1);
         renderBelege(); break;
+      case 'view-beleg':
+        showBeleg(state.current.belege[+target.getAttribute('data-idx')]); break;
       case 'quick-meal': {
         const meal = target.getAttribute('data-meal');
         tripDays(state.current).forEach((d) => {
@@ -952,7 +1048,7 @@
     const tp = state.current;
     const idx = state.trips.findIndex((x) => x.id === tp.id);
     if (idx >= 0) state.trips[idx] = tp; else state.trips.push(tp);
-    saveTrips();
+    persistTrips();
   }
 
   // ---------------------------------------------------------------- Sprache
