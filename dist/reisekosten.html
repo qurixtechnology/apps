@@ -389,6 +389,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .rk-batch-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk-batch-meta { font-size: 0.8rem; color: var(--qrx-text-muted); }
 .rk-batch-sub { margin-top: var(--qrx-s-3); margin-bottom: var(--qrx-s-1); font-weight: 600; color: var(--qrx-text-muted); font-size: 0.85rem; }
+.rk-batch-radio span { flex: 1; }
+.rk-batch-item input[type="radio"] { flex-shrink: 0; }
 
 /* --- Report: Kosten-Tabelle + Summenblock --- */
 .rk-report-h3 { margin: var(--qrx-s-6) 0 var(--qrx-s-2); font-size: 1rem; color: var(--qrx-text); }
@@ -551,9 +553,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 </p>
 <p>
   Bei mehreren Belegen erscheint eine <b>Auswahl-Liste</b> (Typ · Betrag · Zeitraum). Du hakst an,
-  welche als <b>neue Position</b> übernommen werden; weichen Zeiträume ab (z. B. ein fremder Beleg),
-  wird das <b>markiert</b>, sodass du ihn abwählen kannst. Optional lässt sich der Reisezeitraum bzw.
-  das Frühstück aus den Belegen setzen. So bleibt deine manuelle Pflege führend, der Beleg dient als
+  welche als <b>neue Position</b> übernommen werden — die <b>Beträge</b> aller Belege lassen sich so
+  gemeinsam übernehmen. Den <b>Reisezeitraum</b> wählst du separat aus den erkannten Zeiträumen; der
+  von <b>mehreren Belegen bestätigte</b> ist vorausgewählt. Das hilft, wenn mal ein
+  <b>Rechnungsdatum</b> statt der Reisedaten erkannt wurde — mit mehreren Belegen steigt die Chance,
+  den richtigen Zeitraum zu treffen. Optional wird das Frühstück gesetzt. So bleibt deine manuelle
+  Pflege führend, der Beleg dient als
   Kontrolle. Der importierte Beleg wird zur Reise gespeichert und lässt sich jederzeit über
   <b>„Ansehen"</b> wieder öffnen (Bild oder PDF), herunterladen oder entfernen. Alles läuft lokal im
   Browser; der Beleg wird nicht hochgeladen. Die Lese-Bibliothek wird beim ersten Import einmalig aus
@@ -631,9 +636,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 </p>
 <p>
   With several receipts a <b>selection list</b> appears (type · amount · period). You tick which to add
-  as a <b>new position</b>; if periods differ (e.g. a stray receipt) that is <b>flagged</b> so you can
-  deselect it. Optionally the trip period or breakfast can be set from the receipts. Your manual
-  entries stay in charge and the receipt serves as a check. The imported receipt is
+  as a <b>new position</b> — so the <b>amounts</b> of all receipts can be imported together. The
+  <b>trip period</b> is chosen separately from the detected periods; the one <b>confirmed by several
+  receipts</b> is preselected. This helps when an <b>invoice date</b> was detected instead of the
+  travel dates — with more receipts the chance of hitting the right period rises. Breakfast can
+  optionally be set. Your manual entries stay in charge and the receipt serves as a check. The
+  imported receipt is
   saved with the trip and can be reopened any time via <b>“View”</b> (image or PDF), downloaded or
   removed. Everything runs locally in your browser; the receipt is not uploaded. The reader library is
   loaded once from the network on the first import (available afterwards). Photos are downscaled for
@@ -701,7 +709,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260731-194335</span>
+    &middot; v<span data-build-version>260731-200225</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1588,6 +1596,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       colPeriod: 'Zeitraum', diffPeriod: 'anderer Zeitraum', noPeriod: 'ohne Datum',
       tripUpdates: 'Reise aktualisieren', suggSetPeriod: 'Reisezeitraum aus Beleg setzen',
       suggBreakfast: 'Frühstück an Übernachtungstagen', applyBatch: 'Übernehmen',
+      tripPeriodTitle: 'Reisezeitraum (aus Belegen wählen)', periodKeep: 'nicht ändern', periodSource: 'aus {n} Beleg(en)',
       importingN: 'Beleg {i}/{n} wird gelesen …', nothingDetected: 'In den Dateien wurde nichts Auswertbares erkannt.',
       reportCosts: 'Kosten', thCat: 'Art', thDesc: 'Bezeichnung', thAmount: 'Betrag', posReceipt: 'Beleg',
     },
@@ -1659,6 +1668,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       colPeriod: 'Period', diffPeriod: 'different period', noPeriod: 'no date',
       tripUpdates: 'Update trip', suggSetPeriod: 'Set trip period from receipt',
       suggBreakfast: 'Breakfast on overnight days', applyBatch: 'Apply',
+      tripPeriodTitle: 'Trip period (choose from receipts)', periodKeep: 'keep current', periodSource: 'from {n} receipt(s)',
       importingN: 'Reading receipt {i}/{n} …', nothingDetected: 'Nothing usable was detected in the files.',
       reportCosts: 'Costs', thCat: 'Type', thDesc: 'Description', thAmount: 'Amount', posReceipt: 'Receipt',
     },
@@ -2183,27 +2193,54 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const tp = state.current;
     const ov = document.createElement('div');
     ov.className = 'rk-modal-overlay';
-    const tripPeriod = (tp.abreise && tp.rueckkehr) ? { d0: tp.abreise.slice(0, 10), d1: tp.rueckkehr.slice(0, 10) } : null;
-    const refPeriod = tripPeriod || receiptPeriod(items[0].parsed);
 
+    // Belege (Betrag → Position). Zeitraum je Beleg nur informativ anzeigen.
     const rows = items.map((it, i) => {
-      const pr = receiptPeriod(it.parsed);
-      const diff = pr && refPeriod && (pr.d0 !== refPeriod.d0 || pr.d1 !== refPeriod.d1);
-      const meta = typeLabelOf(it.parsed.type) + ' · ' + (it.parsed.total != null ? eur(it.parsed.total) : '—') + ' · ' + periodText(pr);
+      const meta = typeLabelOf(it.parsed.type) + ' · ' + (it.parsed.total != null ? eur(it.parsed.total) : '—') + ' · ' + periodText(receiptPeriod(it.parsed));
       return '<label class="rk-batch-item">' +
         '<input type="checkbox" data-i="' + i + '" checked>' + svgIcon(it.parsed.type) +
         '<div class="rk-batch-main"><span class="rk-batch-name">' + esc(it.fileName) + '</span>' +
           '<span class="rk-batch-meta">' + esc(meta) + '</span></div>' +
-        (diff ? '<span class="rk-badge rk-badge-mismatch">' + esc(t('diffPeriod')) + '</span>' : '') +
       '</label>';
     }).join('');
 
-    const canSetPeriod = (!tp.abreise || !tp.rueckkehr) && items.some((it) => receiptPeriod(it.parsed));
+    // Zeitraum-Kandidaten aus den Belegen sammeln (dedupliziert, nach Häufigkeit
+    // sortiert). Mehrere übereinstimmende Belege ⇒ wahrscheinlich der echte
+    // Reisezeitraum; Ausreißer (z. B. erkanntes Rechnungsdatum) fallen auf.
+    const periodMap = new Map();
+    items.forEach((it) => {
+      const pr = receiptPeriod(it.parsed);
+      if (!pr) return;
+      const key = pr.d0 + '|' + pr.d1;
+      const e = periodMap.get(key) || { d0: pr.d0, d1: pr.d1, count: 0, hotel: false };
+      e.count++; if (it.parsed.type === 'hotel') e.hotel = true;
+      periodMap.set(key, e);
+    });
+    const candidates = [...periodMap.values()].sort((a, b) => (b.count - a.count) || (b.hotel - a.hotel) || (a.d0 < b.d0 ? -1 : 1));
+    const tripHasPeriod = !!(tp.abreise && tp.rueckkehr);
+    // Vorauswahl: Mehrheits-Kandidat (wenn Reise noch keinen Zeitraum hat), sonst „nicht ändern".
+    const defaultVal = (!tripHasPeriod && candidates.length) ? (candidates[0].d0 + '|' + candidates[0].d1) : 'keep';
+
+    let periodSection = '';
+    if (candidates.length) {
+      const opt = (val, label, checked) =>
+        '<label class="rk-batch-item rk-batch-radio"><input type="radio" name="rk-period" value="' + esc(val) + '"' + (checked ? ' checked' : '') + '><span>' + label + '</span></label>';
+      let opts = candidates.map((c) => {
+        const val = c.d0 + '|' + c.d1;
+        const label = '<b>' + esc(periodText(c)) + '</b> <span class="rk-batch-meta">· ' + esc(t('periodSource', { n: c.count })) + '</span>';
+        return opt(val, label, val === defaultVal);
+      }).join('');
+      const keepLabel = tripHasPeriod
+        ? esc(t('periodKeep')) + ' <span class="rk-batch-meta">(' + esc(fmtDate(tp.abreise) + ' – ' + fmtDate(tp.rueckkehr)) + ')</span>'
+        : esc(t('periodKeep'));
+      opts += opt('keep', keepLabel, defaultVal === 'keep');
+      periodSection = '<div class="rk-batch-sub">' + esc(t('tripPeriodTitle')) + '</div>' + opts;
+    }
+
     const anyBreakfast = items.some((it) => it.parsed.type === 'hotel' && it.parsed.hotel && it.parsed.hotel.breakfast);
-    const tripSug = (canSetPeriod || anyBreakfast)
+    const breakfastSection = anyBreakfast
       ? '<div class="rk-batch-sub">' + esc(t('tripUpdates')) + '</div>' +
-        (canSetPeriod ? '<label class="rk-batch-item"><input type="checkbox" data-sug="period" checked><span>' + esc(t('suggSetPeriod')) + '</span></label>' : '') +
-        (anyBreakfast ? '<label class="rk-batch-item"><input type="checkbox" data-sug="breakfast" checked><span>' + esc(t('suggBreakfast')) + '</span></label>' : '')
+        '<label class="rk-batch-item"><input type="checkbox" data-sug="breakfast" checked><span>' + esc(t('suggBreakfast')) + '</span></label>'
       : '';
 
     ov.innerHTML =
@@ -2211,7 +2248,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         '<div class="rk-modal-head"><div><h3>' + esc(items.length > 1 ? t('batchTitle') : t('batchOne')) + '</h3>' +
           '<p class="rk-modal-sub">' + esc(t('batchSub', { n: items.length })) + '</p></div>' +
           '<button class="rk-icon-btn rk-modal-x" data-x aria-label="✕">✕</button></div>' +
-        '<div class="rk-batch-list">' + rows + '</div>' + tripSug +
+        '<div class="rk-batch-list">' + rows + '</div>' + periodSection + breakfastSection +
         '<div class="rk-modal-actions">' +
           '<button class="qrx-btn" data-x>' + esc(t('dismiss')) + '</button>' +
           '<button class="qrx-btn qrx-btn-primary" data-apply>' + esc(t('applyBatch')) + '</button>' +
@@ -2226,15 +2263,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       const checked = [];
       ov.querySelectorAll('input[type="checkbox"][data-i]').forEach((cb) => { if (cb.checked) checked.push(items[+cb.getAttribute('data-i')]); });
       checked.forEach((it) => tp.positions.push(positionFromReceipt(it)));
-      const doPeriod = ov.querySelector('input[data-sug="period"]');
-      if (doPeriod && doPeriod.checked) {
-        const prs = checked.map((it) => receiptPeriod(it.parsed)).filter(Boolean);
-        if (prs.length) {
-          const d0 = prs.map((p) => p.d0).sort()[0];
-          const d1 = prs.map((p) => p.d1).sort().slice(-1)[0];
-          if (!tp.abreise) tp.abreise = d0 + 'T08:00';
-          if (!tp.rueckkehr) tp.rueckkehr = d1 + 'T18:00';
-        }
+      // Gewählten Reisezeitraum setzen (überschreibt bewusst, wenn ein Kandidat gewählt wurde).
+      const sel = ov.querySelector('input[name="rk-period"]:checked');
+      if (sel && sel.value !== 'keep') {
+        const parts = sel.value.split('|');
+        tp.abreise = parts[0] + 'T08:00';
+        tp.rueckkehr = parts[1] + 'T18:00';
       }
       const doBreak = ov.querySelector('input[data-sug="breakfast"]');
       if (doBreak && doBreak.checked && checked.some((it) => it.parsed.type === 'hotel' && it.parsed.hotel && it.parsed.hotel.breakfast)) {
