@@ -82,7 +82,7 @@
       pBeides: 'Neutral (beides)', pArbeitnehmer: 'Arbeitnehmer → Arbeitgeber', pSelbst: 'Selbstständig / Steuererklärung',
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
-      secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)',
+      secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)', dropOr: 'oder Datei hierher ziehen',
       receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt und gegengeprüft. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig); der Beleg bleibt lokal im Browser.',
       receiptsEmpty: 'Noch keine Belege importiert.',
       readingPdf: 'PDF wird gelesen …', readingOcr: 'Text wird erkannt (OCR) … {pct}%', analysing: 'Beleg wird ausgewertet …',
@@ -141,7 +141,7 @@
       pBeides: 'Neutral (both)', pArbeitnehmer: 'Employee → employer', pSelbst: 'Self-employed / tax return',
       setReset: 'Reset to statutory defaults',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
-      secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)',
+      secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)', dropOr: 'or drag a file here',
       receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically and cross-checked. The first detection loads the reader library once (internet needed); the receipt stays local in your browser.',
       receiptsEmpty: 'No receipts imported yet.',
       readingPdf: 'Reading PDF …', readingOcr: 'Recognising text (OCR) … {pct}%', analysing: 'Analysing receipt …',
@@ -419,8 +419,12 @@
 
         '<div class="rk-section"><h2>' + esc(t('secReceipts')) + '</h2>' +
           '<div id="rk-belege"></div>' +
-          '<label class="qrx-btn qrx-btn-sm rk-file-btn">' + esc(t('importReceipt')) +
-            '<input id="rk-file" type="file" accept="application/pdf,image/*" hidden></label>' +
+          '<label class="rk-dropzone" id="rk-dropzone">' +
+            '<input id="rk-file" type="file" accept="application/pdf,image/*" hidden>' +
+            '<svg class="rk-dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>' +
+            '<span class="rk-dropzone-title">' + esc(t('importReceipt')) + '</span>' +
+            '<span class="rk-dropzone-sub">' + esc(t('dropOr')) + '</span>' +
+          '</label>' +
           '<p class="rk-hint">' + esc(t('receiptHint')) + '</p>' +
         '</div>' +
 
@@ -1085,9 +1089,28 @@
   renderList();
   showView('list');
 
+  const rkRoot = document.querySelector('.rk');
   document.querySelector('.rk-nav-new').addEventListener('click', newTrip);
   document.querySelector('.rk-nav-settings').addEventListener('click', () => { renderSettings(); showView('settings'); });
-  document.querySelector('.rk').addEventListener('input', onInput);
-  document.querySelector('.rk').addEventListener('change', onInput);
-  document.querySelector('.rk').addEventListener('click', onClick);
+  rkRoot.addEventListener('input', onInput);
+  rkRoot.addEventListener('change', onInput);
+  rkRoot.addEventListener('click', onClick);
+
+  // Drag & Drop für den Beleg-Import (delegiert, übersteht Re-Renders).
+  rkRoot.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const dz = e.target.closest && e.target.closest('.rk-dropzone');
+    if (dz) dz.classList.add('rk-drag');
+  });
+  rkRoot.addEventListener('dragleave', (e) => {
+    const dz = e.target.closest && e.target.closest('.rk-dropzone');
+    if (dz && !dz.contains(e.relatedTarget)) dz.classList.remove('rk-drag');
+  });
+  rkRoot.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const dz = e.target.closest && e.target.closest('.rk-dropzone');
+    if (dz) dz.classList.remove('rk-drag');
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (dz && file) importReceipt(file);
+  });
 })();
