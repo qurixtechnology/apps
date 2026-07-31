@@ -179,6 +179,46 @@
 .rk-report-receipts { margin-top: var(--qrx-s-6); font-size: 0.85rem; color: var(--qrx-text-muted); }
 .rk-report-receipts b { color: var(--qrx-text); }
 
+/* --- Kosten-Positionen --- */
+.rk-pos-add { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); margin: 0 0 var(--qrx-s-4); }
+.rk-pos {
+  display: flex; flex-direction: column; gap: var(--qrx-s-2);
+  padding: var(--qrx-s-3); margin-bottom: var(--qrx-s-2);
+  border: 1px solid var(--qrx-border); border-left: 3px solid var(--qrx-border-strong);
+  border-radius: var(--qrx-radius); background: var(--qrx-bg-subtle);
+}
+.rk-pos-fahrt { border-left-color: var(--qrx-primary); }
+.rk-pos-uebernachtung { border-left-color: var(--qrx-accent); }
+.rk-pos-neben { border-left-color: var(--qrx-warning); }
+.rk-pos-line1 { display: flex; gap: var(--qrx-s-2); align-items: center; }
+.rk-pos-cat { width: auto; flex: 0 0 auto; min-width: 8rem; }
+.rk-pos-bez { flex: 1 1 6rem; min-width: 0; }
+.rk-pos-line2 { display: flex; gap: var(--qrx-s-3); align-items: center; flex-wrap: wrap; }
+.rk-pos-controls { display: flex; align-items: center; gap: var(--qrx-s-2); flex-wrap: wrap; }
+.rk-pos-mode { width: auto; }
+.rk-pos-mult { display: inline-flex; align-items: center; gap: var(--qrx-s-2); }
+.rk-pos-num { width: 5.5rem; }
+.rk-pos-x { color: var(--qrx-text-subtle); }
+.rk-pos-unit { font-size: 0.8rem; color: var(--qrx-text-subtle); }
+.rk-pos-amount { font-family: var(--qrx-font-mono); font-weight: 700; margin-left: auto; white-space: nowrap; }
+.rk-pos-beleg { font-size: 0.78rem; color: var(--qrx-text-muted); }
+
+/* --- Batch-Auswahl beim Import --- */
+.rk-batch-list { display: flex; flex-direction: column; gap: var(--qrx-s-1); }
+.rk-batch-item { display: flex; align-items: center; gap: var(--qrx-s-2); padding: var(--qrx-s-2); border-radius: var(--qrx-radius); cursor: pointer; }
+.rk-batch-item:hover { background: var(--qrx-bg-subtle); }
+.rk-batch-item .rk-beleg-icon { color: var(--qrx-primary); flex-shrink: 0; }
+.rk-batch-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.rk-batch-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-batch-meta { font-size: 0.8rem; color: var(--qrx-text-muted); }
+.rk-batch-sub { margin-top: var(--qrx-s-3); margin-bottom: var(--qrx-s-1); font-weight: 600; color: var(--qrx-text-muted); font-size: 0.85rem; }
+
+/* --- Report: Kosten-Tabelle + Summenblock --- */
+.rk-report-h3 { margin: var(--qrx-s-6) 0 var(--qrx-s-2); font-size: 1rem; color: var(--qrx-text); }
+.rk-report-totals { margin-top: var(--qrx-s-4); }
+.rk-report-totals td { border-bottom: 1px solid var(--qrx-border); }
+.rk-report-grand td { font-weight: 700; border-top: 2px solid var(--qrx-border-strong); border-bottom: none; }
+
 /* --- Beleg-Viewer --- */
 .rk-modal-viewer { max-width: 820px; display: flex; flex-direction: column; }
 .rk-viewer-body {
