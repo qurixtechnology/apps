@@ -331,6 +331,74 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .rk-report-sign { display: flex; gap: var(--qrx-s-8); margin-top: var(--qrx-s-10); }
 .rk-report-sign div { flex: 1; border-top: 1px solid var(--qrx-text-muted); padding-top: var(--qrx-s-2); font-size: 0.82rem; color: var(--qrx-text-muted); }
 
+/* --- Belege --- */
+.rk-file-btn { cursor: pointer; }
+.rk-beleg-row {
+  display: flex; align-items: center; gap: var(--qrx-s-3);
+  padding: var(--qrx-s-2) var(--qrx-s-3); margin-bottom: var(--qrx-s-2);
+  border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius); background: var(--qrx-bg-subtle);
+}
+.rk-beleg-icon { width: 22px; height: 22px; flex-shrink: 0; color: var(--qrx-primary); }
+.rk-beleg-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.rk-beleg-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-beleg-meta { font-size: 0.78rem; color: var(--qrx-text-muted); }
+.rk-report-receipts { margin-top: var(--qrx-s-6); font-size: 0.85rem; color: var(--qrx-text-muted); }
+.rk-report-receipts b { color: var(--qrx-text); }
+
+/* --- Modal / Overlay --- */
+.rk-modal-overlay {
+  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+  padding: var(--qrx-s-4); background: color-mix(in srgb, var(--qrx-bg-dark) 55%, transparent);
+  backdrop-filter: blur(2px);
+}
+.rk-modal {
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border-strong);
+  border-radius: var(--qrx-radius-lg); box-shadow: var(--qrx-shadow-lg);
+  width: 100%; max-width: 620px; max-height: 90vh; overflow: auto; padding: var(--qrx-s-6);
+}
+.rk-modal-progress { max-width: 360px; text-align: center; }
+.rk-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--qrx-s-3); margin-bottom: var(--qrx-s-4); }
+.rk-modal-head h3 { margin: 0; color: var(--qrx-primary); font-size: 1.1rem; }
+.rk-modal-sub { margin: var(--qrx-s-1) 0 0; font-size: 0.82rem; color: var(--qrx-text-muted); word-break: break-all; }
+.rk-modal-x { flex-shrink: 0; }
+.rk-cross-route { margin: 0 0 var(--qrx-s-4); font-size: 0.9rem; color: var(--qrx-text-muted); }
+.rk-modal-actions { display: flex; justify-content: flex-end; gap: var(--qrx-s-2); margin-top: var(--qrx-s-5); }
+
+.rk-cross-list { display: flex; flex-direction: column; }
+.rk-cross-item {
+  display: grid; grid-template-columns: 1fr auto; align-items: center;
+  gap: var(--qrx-s-1) var(--qrx-s-3); padding: var(--qrx-s-3) 0; border-bottom: 1px solid var(--qrx-border);
+}
+.rk-cross-item:last-child { border-bottom: none; }
+.rk-cross-check { display: flex; align-items: center; gap: var(--qrx-s-2); cursor: pointer; font-weight: 600; }
+.rk-cross-vals { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--qrx-s-2);
+  color: var(--qrx-text-muted); font-size: 0.9rem; }
+.rk-cross-arrow { color: var(--qrx-text-subtle); }
+.rk-cross-new { color: var(--qrx-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.rk-cross-mismatch .rk-cross-new { color: var(--qrx-warning); }
+.rk-badge { justify-self: end; }
+.rk-badge { font-size: 0.72rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+.rk-badge-match { background: color-mix(in srgb, var(--qrx-success) 18%, transparent); color: var(--qrx-success); }
+.rk-badge-fill { background: color-mix(in srgb, var(--qrx-info) 16%, transparent); color: var(--qrx-info); }
+.rk-badge-mismatch { background: color-mix(in srgb, var(--qrx-warning) 20%, transparent); color: var(--qrx-warning); }
+
+/* --- Fortschritt --- */
+.rk-spinner {
+  width: 34px; height: 34px; margin: 0 auto var(--qrx-s-3);
+  border: 3px solid var(--qrx-border); border-top-color: var(--qrx-primary); border-radius: 50%;
+  animation: rk-spin 0.8s linear infinite;
+}
+@keyframes rk-spin { to { transform: rotate(360deg); } }
+.rk-progress-label { margin: 0 0 var(--qrx-s-3); font-size: 0.9rem; }
+.rk-progress-bar { height: 6px; border-radius: 999px; background: var(--qrx-bg-muted); overflow: hidden; }
+.rk-progress-bar span { display: block; height: 100%; width: 0; background: var(--qrx-primary); transition: width var(--qrx-transition); }
+.rk-progress-bar.rk-indeterminate span { width: 40% !important; animation: rk-slide 1.1s ease-in-out infinite; }
+@keyframes rk-slide { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .rk-spinner { animation-duration: 2s; }
+  .rk-progress-bar.rk-indeterminate span { animation: none; width: 100% !important; margin-left: 0; }
+}
+
 /* --- Mobil --- */
 @media (max-width: 640px) {
   .rk-day { grid-template-columns: 1fr; }
@@ -404,6 +472,22 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   <li><b>Reisenebenkosten</b> (Parken, Maut, Gepäck …) als einzelne Positionen mit Beleg.</li>
 </ul>
 
+<h3>Belege importieren (PDF &amp; Foto)</h3>
+<p>
+  Im Abschnitt <b>Belege</b> lässt sich ein Beleg als <b>PDF</b>, <b>Foto</b> oder <b>Scan</b>
+  importieren. Die App liest den Text aus (bei PDFs direkt, bei Fotos/Scans per OCR) und erkennt
+  automatisch <b>Betrag</b>, <b>Datum/Zeitraum</b> und die <b>Beleg-Art</b> — bei Hotelrechnungen auch
+  ein <b>enthaltenes Frühstück</b> und die Nächte, bei Bahn-/ÖPNV-Tickets die <b>Hin-/Rückfahrt</b>
+  und Strecke.
+</p>
+<p>
+  Die erkannten Werte werden dir in einem <b>Gegenprüf-Panel</b> neben deinen bisherigen Eingaben
+  angezeigt: leere Felder werden <b>gefüllt</b>, abweichende Werte <b>rot markiert</b>. Du hakst an,
+  was übernommen werden soll — deine manuelle Pflege bleibt also führend, der Beleg dient als
+  Kontrolle. Alles läuft lokal im Browser; der Beleg wird nicht hochgeladen. Die Lese-Bibliothek wird
+  beim ersten Import einmalig aus dem Netz geladen (danach steht sie bereit).
+</p>
+
 <h3>Abrechnung &amp; Export</h3>
 <ul>
   <li><b>Drucken / PDF:</b> erzeugt eine saubere Reisekostenabrechnung mit Tagesaufstellung und
@@ -456,6 +540,22 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     breakfast is included in the room price, simply mark the next day's breakfast as “provided”.</li>
   <li><b>Incidental costs</b> (parking, tolls, luggage …) as individual receipted items.</li>
 </ul>
+
+<h3>Import receipts (PDF &amp; photo)</h3>
+<p>
+  In the <b>Receipts</b> section you can import a receipt as a <b>PDF</b>, <b>photo</b> or <b>scan</b>.
+  The app reads the text (directly for PDFs, via OCR for photos/scans) and automatically detects the
+  <b>amount</b>, <b>date/period</b> and <b>receipt type</b> — for hotel invoices also an
+  <b>included breakfast</b> and the number of nights, for train/transit tickets the
+  <b>outbound/return</b> and route.
+</p>
+<p>
+  The detected values are shown in a <b>cross-check panel</b> next to your existing entries: empty
+  fields are <b>filled</b>, differing values are <b>highlighted</b>. You tick what should be applied —
+  so your manual entries stay in charge and the receipt serves as a check. Everything runs locally in
+  your browser; the receipt is not uploaded. The reader library is loaded once from the network on the
+  first import (available afterwards).
+</p>
 
 <h3>Settlement &amp; export</h3>
 <ul>
@@ -518,7 +618,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260731-165627</span>
+    &middot; v<span data-build-version>260731-182159</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -904,6 +1004,233 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 </script>
 
 <script>
+// ============================================================================
+// Beleg-Erkennung für die Reisekosten-App.
+//
+// Zwei Teile:
+//  1) Ein reiner Heuristik-Parser (parseReceipt) — nimmt den Text eines Belegs
+//     und extrahiert Betrag, Datum/Zeitraum, Beleg-Art sowie Details für Hotel
+//     (Frühstück, Nächte) und Bahn/ÖPNV (Hin-/Rückfahrt, Strecke). Testbar ohne
+//     Browser.
+//  2) Text-Gewinnung im Browser: PDF.js liest die Textebene von PDFs, Tesseract
+//     erkennt Foto-/Scan-Belege per OCR. Beide werden ERST BEI BEDARF vom CDN
+//     nachgeladen (einmalig Internet nötig), damit die App ansonsten schlank und
+//     offline bleibt. Nichts wird hochgeladen — alles läuft im Browser.
+// ============================================================================
+(function (root) {
+  'use strict';
+
+  // Pinned CDN builds (UMD/global), nur bei erstem Import geladen.
+  const LIBS = {
+    pdf: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+    pdfWorker: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+    ocr: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
+  };
+
+  // ---------------------------------------------------------------- Parser
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function iso(y, m, d) { return y + '-' + pad2(m) + '-' + pad2(d); }
+
+  const MONTHS = {
+    jan: 1, januar: 1, feb: 2, februar: 2, 'mär': 3, 'märz': 3, mrz: 3, maerz: 3, mar: 3, march: 3,
+    apr: 4, april: 4, mai: 5, may: 5, jun: 6, juni: 6, june: 6, jul: 7, juli: 7, july: 7,
+    aug: 8, august: 8, sep: 9, sept: 9, september: 9, okt: 10, oktober: 10, oct: 10, october: 10,
+    nov: 11, november: 11, dez: 12, dezember: 12, dec: 12, december: 12,
+  };
+
+  // Alle Geldbeträge (deutsches Format 1.234,56) mit Position im Text.
+  function findAmounts(text) {
+    const out = [];
+    const re = /(\d{1,3}(?:[.  ]\d{3})+|\d+),(\d{2})(?!\d)/g;
+    let m;
+    while ((m = re.exec(text))) {
+      out.push({ value: parseFloat(m[1].replace(/[.  ]/g, '') + '.' + m[2]), start: m.index, end: re.lastIndex, text: m[0] });
+    }
+    return out;
+  }
+
+  // Wahrscheinlichen Gesamtbetrag bestimmen: Betrag in der Nähe eines
+  // Summen-Schlüsselworts, Steuerzeilen abgewertet; Fallback größter Betrag.
+  function pickTotal(text, amounts) {
+    if (!amounts.length) return null;
+    const tiers = [
+      [/(gesamtbetrag|gesamtsumme|rechnungsbetrag|endbetrag|zu\s*zahlen|zahlbetrag|grand\s*total|total\s*amount|to\s*pay|zahlungsbetrag)/gi, 5],
+      [/(gesamt|total|brutto)/gi, 3],
+      [/(betrag|summe|preis|amount|price|fahrpreis)/gi, 2],
+    ];
+    let best = null;
+    for (const [re, score] of tiers) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(text))) {
+        const kwEnd = m.index + m[0].length;
+        let cand = null;
+        for (const a of amounts) {
+          if (a.start >= m.index && a.start - kwEnd < 80) { if (!cand || a.start < cand.start) cand = a; }
+        }
+        if (!cand) continue;
+        const ctx = text.slice(Math.max(0, m.index - 30), kwEnd + 80).toLowerCase();
+        let s = score;
+        if (/mwst|ust\.|umsatzsteuer|mehrwertsteuer|\bvat\b|steuer|enthalten/.test(ctx)) s -= 3;
+        const total = s + (cand.start / Math.max(1, text.length)) * 0.5; // spätere Beträge leicht bevorzugen
+        if (!best || total > best._s) best = { value: cand.value, _s: total };
+      }
+    }
+    if (best && best._s > 0) return best.value;
+    return amounts.reduce((mx, a) => (a.value > mx ? a.value : mx), amounts[0].value);
+  }
+
+  function findDates(text) {
+    const set = new Set();
+    let m;
+    const re1 = /\b(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})\b/g;
+    while ((m = re1.exec(text))) {
+      const d = +m[1], mo = +m[2]; let y = +m[3]; if (y < 100) y += 2000;
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && y >= 2000 && y < 2100) set.add(iso(y, mo, d));
+    }
+    const re2 = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
+    while ((m = re2.exec(text))) {
+      const y = +m[1], mo = +m[2], d = +m[3];
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) set.add(iso(y, mo, d));
+    }
+    const re3 = /\b(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]{3,9})\.?\s+(\d{4})\b/g;
+    while ((m = re3.exec(text))) {
+      const d = +m[1], mo = MONTHS[m[2].toLowerCase()], y = +m[3];
+      if (mo && d >= 1 && d <= 31) set.add(iso(y, mo, d));
+    }
+    return [...set].sort();
+  }
+
+  function daysBetween(a, b) {
+    return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
+  }
+
+  function detectType(text) {
+    const t = text.toLowerCase();
+    if (/hotel|übernachtung|beherberg|zimmer|room\s*rate|check[\s-]?out|check[\s-]?in|logis|pension|gästehaus|n[aä]chtigung/.test(t)) return 'hotel';
+    if (/deutsche\s*bahn|bahn\.de|fahrkarte|fahrschein|bahncard|\bice\b|\bintercity\b|zugbindung|db\s*vertrieb|db\s*fernverkehr/.test(t)) return 'bahn';
+    if (/verkehrsverbund|nahverkehr|einzelfahr|tageskarte|deutschlandticket|\bhvv\b|\bbvg\b|\bmvv\b|\bmvg\b|\bvbb\b|\brmv\b|\bvrr\b|\bvrs\b|\bvvs\b|u-?bahn|s-?bahn|straßenbahn|\btram\b/.test(t)) return 'oepnv';
+    if (/\bbahn\b|\bticket\b|reservierung/.test(t)) return 'bahn';
+    return 'unknown';
+  }
+
+  function parseReceipt(rawText) {
+    const text = String(rawText || '');
+    const amounts = findAmounts(text);
+    const total = pickTotal(text, amounts);
+    const dates = findDates(text);
+    const type = detectType(text);
+    const low = text.toLowerCase();
+
+    const result = {
+      type, total, currency: 'EUR',
+      dates, amounts: amounts.map((a) => a.value),
+      hotel: null, travel: null, raw: text.slice(0, 4000),
+    };
+
+    if (type === 'hotel') {
+      let nights = null;
+      const mn = low.match(/(\d+)\s*(?:nächte|naechte|übernachtungen|uebernachtungen|nights)/);
+      if (mn) nights = +mn[1];
+      let checkIn = dates[0] || null, checkOut = dates.length > 1 ? dates[dates.length - 1] : null;
+      if (checkIn && checkOut && nights == null) nights = Math.max(0, daysBetween(checkIn, checkOut));
+      if (nights != null && checkIn && !checkOut) checkOut = null;
+      const breakfast = /frühstück|fruehstueck|breakfast|petit\s*déjeuner/.test(low);
+      result.hotel = { checkIn, checkOut, nights, breakfast };
+    } else if (type === 'bahn' || type === 'oepnv') {
+      const roundTrip = /hin.?\s*und\s*rück|hin.?\s*&\s*rück|round\s*trip/.test(low) ||
+        (/hinfahrt/.test(low) && /rückfahrt|rueckfahrt/.test(low));
+      let from = null, to = null;
+      let mr = text.match(/\bvon\s+([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)\s+nach\s+([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)(?:\s{2,}|[\n,;]|$)/);
+      if (!mr) mr = text.match(/([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)\s*(?:→|->|—|–)\s*([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)(?:\s{2,}|[\n,;]|$)/);
+      if (mr) {
+        const clean = (s) => s.replace(/\s+(ICE|IC|EC|RE|RB|IRE|TGV|Wagen|Platz|Gleis|S-?Bahn|U-?Bahn)\b.*$/i, '').trim();
+        from = clean(mr[1]); to = clean(mr[2]);
+      }
+      result.travel = { roundTrip, from, to };
+    }
+    return result;
+  }
+
+  // ---------------------------------------------------------------- Text-Gewinnung (Browser)
+  const loaded = {};
+  function loadScript(src) {
+    return loaded[src] || (loaded[src] = new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.async = true;
+      s.onload = () => res(true);
+      s.onerror = () => { loaded[src] = null; rej(new Error('Konnte Bibliothek nicht laden: ' + src)); };
+      document.head.appendChild(s);
+    }));
+  }
+
+  async function ensurePdf() {
+    if (!root.pdfjsLib) {
+      await loadScript(LIBS.pdf);
+      if (root.pdfjsLib) root.pdfjsLib.GlobalWorkerOptions.workerSrc = LIBS.pdfWorker;
+    }
+    return root.pdfjsLib;
+  }
+  async function ensureOcr() {
+    if (!root.Tesseract) await loadScript(LIBS.ocr);
+    return root.Tesseract;
+  }
+
+  async function pdfToText(file) {
+    const pdfjs = await ensurePdf();
+    const data = new Uint8Array(await file.arrayBuffer());
+    const doc = await pdfjs.getDocument({ data }).promise;
+    let text = '';
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p);
+      const content = await page.getTextContent();
+      text += content.items.map((i) => i.str).join(' ') + '\n';
+    }
+    return { text, doc };
+  }
+
+  async function ocrImageLike(source, onProgress) {
+    const T = await ensureOcr();
+    const res = await T.recognize(source, 'deu+eng', {
+      logger: (mm) => { if (onProgress && mm.status === 'recognizing text') onProgress(mm.progress); },
+    });
+    return res.data.text;
+  }
+
+  async function pdfPagesToText(doc, onProgress) {
+    let text = '';
+    const pages = Math.min(doc.numPages, 3); // erste Seiten genügen für einen Beleg
+    for (let p = 1; p <= pages; p++) {
+      const page = await doc.getPage(p);
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      text += await ocrImageLike(canvas, (pr) => onProgress && onProgress((p - 1 + pr) / pages)) + '\n';
+    }
+    return text;
+  }
+
+  // Öffentlich: Datei → Text (PDF-Text, sonst OCR). onProgress(0..1) optional.
+  async function extractText(file, onProgress) {
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+    if (isPdf) {
+      const { text, doc } = await pdfToText(file);
+      if (text.replace(/\s/g, '').length >= 20) return { text, method: 'pdf-text' };
+      const ocr = await pdfPagesToText(doc, onProgress); // gescanntes PDF
+      return { text: ocr, method: 'pdf-ocr' };
+    }
+    const text = await ocrImageLike(file, onProgress);
+    return { text, method: 'image-ocr' };
+  }
+
+  const api = { LIBS, parseReceipt, findAmounts, pickTotal, findDates, detectType, extractText, ensurePdf, ensureOcr };
+  if (typeof window !== 'undefined') { (window.qrx = window.qrx || {}).rkReceipts = api; }
+  if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+})(typeof self !== 'undefined' ? self : this);
+</script>
+
+<script>
 (function () {
   'use strict';
 
@@ -1151,6 +1478,21 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       pBeides: 'Neutral (beides)', pArbeitnehmer: 'Arbeitnehmer → Arbeitgeber', pSelbst: 'Selbstständig / Steuererklärung',
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
+      secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)',
+      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt und gegengeprüft. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig); der Beleg bleibt lokal im Browser.',
+      receiptsEmpty: 'Noch keine Belege importiert.',
+      readingPdf: 'PDF wird gelesen …', readingOcr: 'Text wird erkannt (OCR) … {pct}%', analysing: 'Beleg wird ausgewertet …',
+      importFailed: 'Beleg konnte nicht gelesen werden: {msg}',
+      libFailed: 'Die Lese-Bibliothek konnte nicht geladen werden (Internet nötig beim ersten Mal).',
+      crossTitle: 'Beleg geprüft', crossSub: 'Erkannt in: {name}',
+      crossField: 'Feld', crossCurrent: 'Aktuell', crossDetected: 'Erkannt', crossApply: 'Übernehmen',
+      stMatch: 'stimmt überein', stFill: 'wird gefüllt', stMismatch: 'weicht ab',
+      applySel: 'Ausgewählte übernehmen', dismiss: 'Verwerfen',
+      bcHotelCost: 'Übernachtung (Beleg)', bcPeriod: 'Zeitraum', bcBreakfast: 'Frühstück',
+      bcAllNights: 'an allen Übernachtungstagen', bcTravelCost: 'Fahrtkosten', bcTravelDate: 'Reisedatum', bcExtraCost: 'Nebenkosten',
+      no: 'nein', detectedNothing: 'Keine übernehmbaren Werte erkannt. Der Beleg wurde nur zur Dokumentation gespeichert.',
+      typeHotel: 'Hotel', typeBahn: 'Bahn', typeOepnv: 'ÖPNV', typeUnknown: 'Beleg',
+      reportReceipts: 'Belege', route: 'Strecke',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -1193,6 +1535,21 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       pBeides: 'Neutral (both)', pArbeitnehmer: 'Employee → employer', pSelbst: 'Self-employed / tax return',
       setReset: 'Reset to statutory defaults',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
+      secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)',
+      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically and cross-checked. The first detection loads the reader library once (internet needed); the receipt stays local in your browser.',
+      receiptsEmpty: 'No receipts imported yet.',
+      readingPdf: 'Reading PDF …', readingOcr: 'Recognising text (OCR) … {pct}%', analysing: 'Analysing receipt …',
+      importFailed: 'Could not read the receipt: {msg}',
+      libFailed: 'The reader library could not be loaded (internet needed the first time).',
+      crossTitle: 'Receipt checked', crossSub: 'Detected in: {name}',
+      crossField: 'Field', crossCurrent: 'Current', crossDetected: 'Detected', crossApply: 'Apply',
+      stMatch: 'matches', stFill: 'will fill', stMismatch: 'differs',
+      applySel: 'Apply selected', dismiss: 'Discard',
+      bcHotelCost: 'Accommodation (receipt)', bcPeriod: 'Period', bcBreakfast: 'Breakfast',
+      bcAllNights: 'on all overnight days', bcTravelCost: 'Travel cost', bcTravelDate: 'Travel date', bcExtraCost: 'Incidental cost',
+      no: 'no', detectedNothing: 'No applicable values detected. The receipt was saved for documentation only.',
+      typeHotel: 'Hotel', typeBahn: 'Train', typeOepnv: 'Transit', typeUnknown: 'Receipt',
+      reportReceipts: 'Receipts', route: 'Route',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -1218,11 +1575,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       abreise: '', rueckkehr: '', reason: '', notiz: '',
       verkehr: { mittel: 'pkw', km: 0, betrag: 0 },
       uebernachtung: { mode: 'pauschale', betrag: 0 },
-      meals: {}, nights: {}, extras: [],
+      meals: {}, nights: {}, extras: [], belege: [],
     }, tp, {
       verkehr: Object.assign({ mittel: 'pkw', km: 0, betrag: 0 }, tp.verkehr),
       uebernachtung: Object.assign({ mode: 'pauschale', betrag: 0 }, tp.uebernachtung),
-      meals: tp.meals || {}, nights: tp.nights || {}, extras: tp.extras || [],
+      meals: tp.meals || {}, nights: tp.nights || {}, extras: tp.extras || [], belege: tp.belege || [],
     });
   }
   function blankTrip() {
@@ -1439,6 +1796,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           '<button class="qrx-btn qrx-btn-sm" data-action="add-extra">' + esc(t('addExtra')) + '</button>' +
         '</div>' +
 
+        '<div class="rk-section"><h2>' + esc(t('secReceipts')) + '</h2>' +
+          '<div id="rk-belege"></div>' +
+          '<label class="qrx-btn qrx-btn-sm rk-file-btn">' + esc(t('importReceipt')) +
+            '<input id="rk-file" type="file" accept="application/pdf,image/*" hidden></label>' +
+          '<p class="rk-hint">' + esc(t('receiptHint')) + '</p>' +
+        '</div>' +
+
         '<div id="rk-summary"></div>' +
       '</div>';
 
@@ -1446,6 +1810,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     renderVerkehrFields();
     renderNightFields();
     renderExtras();
+    renderBelege();
     rebuildDays();
     refreshCalc();
   }
@@ -1521,6 +1886,169 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         '<input class="qrx-input rk-extra-amount" type="number" min="0" step="0.01" inputmode="decimal" data-field="extraBetrag" data-idx="' + i + '" value="' + esc(e.betrag || '') + '">' +
         '<button class="rk-icon-btn" data-action="del-extra" data-idx="' + i + '" aria-label="' + esc(t('deleteTrip')) + '">✕</button>' +
       '</div>').join('');
+  }
+
+  // ---------------------------------------------------------------- Belege
+  const RECEIPT_ICON = {
+    hotel: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M12 9h.01M15 9h.01M9 13h.01M12 13h.01M15 13h.01',
+    bahn: 'M4 11h16M6 3h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 20l-2 2M16 20l2 2M8 16h.01M16 16h.01',
+    oepnv: 'M4 11h16M6 3h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 20l-2 2M16 20l2 2M8 16h.01M16 16h.01',
+    unknown: 'M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM14 4v5h5',
+  };
+  function typeLabelOf(ty) { return t('type' + ty.charAt(0).toUpperCase() + ty.slice(1)) || t('typeUnknown'); }
+
+  function renderBelege() {
+    const box = $('rk-belege');
+    if (!box) return;
+    const list = state.current.belege || [];
+    if (!list.length) { box.innerHTML = '<p class="rk-hint">' + esc(t('receiptsEmpty')) + '</p>'; return; }
+    box.innerHTML = list.map((b, i) =>
+      '<div class="rk-beleg-row">' +
+        '<svg class="rk-beleg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + (RECEIPT_ICON[b.type] || RECEIPT_ICON.unknown) + '"/></svg>' +
+        '<div class="rk-beleg-main"><span class="rk-beleg-name">' + esc(b.name || t('typeUnknown')) + '</span>' +
+          '<span class="rk-beleg-meta">' + esc(typeLabelOf(b.type || 'unknown')) + (b.total != null ? ' · ' + esc(eur(b.total)) : '') + '</span></div>' +
+        '<button class="rk-icon-btn" data-action="del-beleg" data-idx="' + i + '" aria-label="✕">✕</button>' +
+      '</div>').join('');
+  }
+
+  // Datei importieren: Text gewinnen (PDF/OCR) → parsen → Gegenprüf-Panel.
+  async function importReceipt(file) {
+    if (!file) return;
+    if (!qrx.rkReceipts) { alert(t('libFailed')); return; }
+    const prog = showProgress(t('analysing'));
+    try {
+      prog.set(t('readingPdf'), null);
+      const { text, method } = await qrx.rkReceipts.extractText(file, (p) => {
+        prog.set(t('readingOcr', { pct: Math.round((p || 0) * 100) }), p);
+      });
+      prog.set(t('analysing'), null);
+      const parsed = qrx.rkReceipts.parseReceipt(text);
+      prog.close();
+      showCrossCheck(parsed, file.name, method);
+    } catch (e) {
+      prog.close();
+      console.warn('receipt import failed', e);
+      alert(t('importFailed', { msg: (e && e.message) || String(e) }));
+    }
+  }
+
+  // Fortschritts-Overlay.
+  function showProgress(label) {
+    const ov = document.createElement('div');
+    ov.className = 'rk-modal-overlay';
+    ov.innerHTML = '<div class="rk-modal rk-modal-progress"><div class="rk-spinner" aria-hidden="true"></div>' +
+      '<p class="rk-progress-label"></p><div class="rk-progress-bar"><span></span></div></div>';
+    document.body.appendChild(ov);
+    const lbl = ov.querySelector('.rk-progress-label');
+    const bar = ov.querySelector('.rk-progress-bar span');
+    lbl.textContent = label;
+    return {
+      set(text, p) { lbl.textContent = text; bar.style.width = p == null ? '' : Math.round(p * 100) + '%'; ov.querySelector('.rk-progress-bar').classList.toggle('rk-indeterminate', p == null); },
+      close() { ov.remove(); },
+    };
+  }
+
+  // Vorschläge aus einem geparsten Beleg für die aktuelle Reise ableiten.
+  function buildSuggestions(p, tp, fileName) {
+    const S = [];
+    const money = (a, b) => a != null && b != null && Math.abs(a - b) < 0.01;
+    const sug = (label, curTxt, sugTxt, current, match, apply) => {
+      const status = match ? 'match' : (current == null ? 'fill' : 'mismatch');
+      S.push({ label, curTxt, sugTxt, status, checked: status !== 'mismatch', apply });
+    };
+    const dpart = (s) => (s || '').slice(0, 10);
+
+    if (p.type === 'hotel') {
+      if (p.total != null) {
+        const cur = tp.uebernachtung.mode === 'beleg' ? tp.uebernachtung.betrag : null;
+        sug(t('bcHotelCost'), cur == null ? '—' : eur(cur), eur(p.total), cur, money(cur, p.total),
+          () => { tp.uebernachtung.mode = 'beleg'; tp.uebernachtung.betrag = p.total; });
+      }
+      if (p.hotel && p.hotel.checkIn) {
+        const inSet = !!tp.abreise, outSet = !!tp.rueckkehr;
+        const co = p.hotel.checkOut || p.hotel.checkIn;
+        const curTxt = (tp.abreise ? fmtDate(tp.abreise) : '—') + ' – ' + (tp.rueckkehr ? fmtDate(tp.rueckkehr) : '—');
+        const sugTxt = fmtDate(p.hotel.checkIn) + ' – ' + fmtDate(co);
+        const match = dpart(tp.abreise) === p.hotel.checkIn && dpart(tp.rueckkehr) === co;
+        sug(t('bcPeriod'), curTxt, sugTxt, (inSet && outSet) ? curTxt : null, match,
+          () => { if (!tp.abreise) tp.abreise = p.hotel.checkIn + 'T14:00'; if (!tp.rueckkehr) tp.rueckkehr = co + 'T11:00'; });
+      }
+      if (p.hotel && p.hotel.breakfast) {
+        sug(t('bcBreakfast'), t('no'), t('bcAllNights'), null, false,
+          () => { tripDays(tp).forEach((d) => { if (d.type === 'none' || d.type === 'arrival') return; tp.meals[d.date] = tp.meals[d.date] || {}; tp.meals[d.date].f = true; }); });
+      }
+    } else if (p.type === 'bahn' || p.type === 'oepnv') {
+      if (p.total != null) {
+        const receiptMode = ['bahn', 'flug', 'oepnv', 'sonstige'].includes(tp.verkehr.mittel);
+        const cur = receiptMode ? tp.verkehr.betrag : null;
+        sug(t('bcTravelCost'), cur == null ? '—' : eur(cur), eur(p.total), cur, money(cur, p.total),
+          () => {
+            // Nur wenn tatsächlich km eingetragen sind (= gefahren), Ticket als
+            // Nebenkosten führen; sonst das Verkehrsmittel auf das Ticket setzen.
+            const drove = (tp.verkehr.mittel === 'pkw' || tp.verkehr.mittel === 'motorrad') && num(tp.verkehr.km) > 0;
+            if (drove) tp.extras.push({ bez: typeLabelOf(p.type), betrag: p.total });
+            else { tp.verkehr.mittel = p.type === 'bahn' ? 'bahn' : 'oepnv'; tp.verkehr.betrag = p.total; }
+          });
+      }
+      if (p.dates && p.dates.length) {
+        const d0 = p.dates[0], d1 = p.dates[p.dates.length - 1];
+        const curTxt = (tp.abreise ? fmtDate(tp.abreise) : '—') + ' – ' + (tp.rueckkehr ? fmtDate(tp.rueckkehr) : '—');
+        const sugTxt = d0 === d1 ? fmtDate(d0) : fmtDate(d0) + ' – ' + fmtDate(d1);
+        const match = dpart(tp.abreise) === d0 && dpart(tp.rueckkehr) === d1;
+        sug(t('bcTravelDate'), curTxt, sugTxt, (tp.abreise && tp.rueckkehr) ? curTxt : null, match,
+          () => { if (!tp.abreise) tp.abreise = d0 + 'T08:00'; if (!tp.rueckkehr) tp.rueckkehr = (d1 || d0) + 'T18:00'; });
+      }
+    } else if (p.total != null) {
+      sug(t('bcExtraCost'), '—', eur(p.total), null, false,
+        () => { tp.extras.push({ bez: (fileName || t('typeUnknown')).replace(/\.[^.]+$/, ''), betrag: p.total }); });
+    }
+    return S;
+  }
+
+  // Gegenprüf-Panel: erkannte Werte neben den aktuellen, einzeln übernehmbar.
+  function showCrossCheck(parsed, fileName, method) {
+    const tp = state.current;
+    const suggestions = buildSuggestions(parsed, tp, fileName);
+    const ov = document.createElement('div');
+    ov.className = 'rk-modal-overlay';
+
+    const routeStr = parsed.travel && (parsed.travel.from || parsed.travel.to)
+      ? '<p class="rk-cross-route">' + esc(t('route')) + ': ' + esc([parsed.travel.from, parsed.travel.to].filter(Boolean).join(' → ')) +
+        (parsed.travel.roundTrip ? ' ⇄' : '') + '</p>' : '';
+    const rows = suggestions.map((s, i) =>
+      '<div class="rk-cross-item rk-cross-' + s.status + '">' +
+        '<label class="rk-cross-check"><input type="checkbox" data-i="' + i + '"' + (s.checked ? ' checked' : '') + '>' + esc(s.label) + '</label>' +
+        '<span class="rk-badge rk-badge-' + s.status + '">' + esc(t('st' + s.status.charAt(0).toUpperCase() + s.status.slice(1))) + '</span>' +
+        '<div class="rk-cross-vals"><span class="rk-cross-cur">' + esc(s.curTxt) + '</span>' +
+          '<span class="rk-cross-arrow">→</span><span class="rk-cross-new">' + esc(s.sugTxt) + '</span></div>' +
+      '</div>').join('');
+
+    ov.innerHTML =
+      '<div class="rk-modal rk-modal-cross" role="dialog" aria-modal="true">' +
+        '<div class="rk-modal-head"><div><h3>' + esc(t('crossTitle')) + ' · ' + esc(typeLabelOf(parsed.type)) + '</h3>' +
+          '<p class="rk-modal-sub">' + esc(t('crossSub', { name: fileName || '' })) + '</p></div>' +
+          '<button class="rk-icon-btn rk-modal-x" data-x aria-label="✕">✕</button></div>' +
+        routeStr +
+        (suggestions.length
+          ? '<div class="rk-cross-list">' + rows + '</div>'
+          : '<p class="rk-hint">' + esc(t('detectedNothing')) + '</p>') +
+        '<div class="rk-modal-actions">' +
+          '<button class="qrx-btn" data-x>' + esc(t('dismiss')) + '</button>' +
+          '<button class="qrx-btn qrx-btn-primary" data-apply>' + esc(suggestions.length ? t('applySel') : t('crossApply')) + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+
+    const close = () => ov.remove();
+    ov.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', close));
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('[data-apply]').addEventListener('click', () => {
+      const boxes = ov.querySelectorAll('input[type="checkbox"][data-i]');
+      boxes.forEach((cb) => { if (cb.checked) { try { suggestions[+cb.getAttribute('data-i')].apply(); } catch (_) {} } });
+      tp.belege.push({ name: fileName || t('typeUnknown'), type: parsed.type, total: parsed.total, dates: parsed.dates || [], method });
+      close();
+      renderEdit();  // Felder, Tage und Summen neu aus dem aktualisierten Stand
+    });
   }
 
   // Tagesstruktur an neue Daten angleichen (bestehende Auswahl behalten).
@@ -1658,6 +2186,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
               '<tr><td colspan="3">' + esc(t('sumTotal')) + '</td><td class="rk-num">' + esc(eur(c.total)) + '</td></tr>' +
             '</tfoot>' +
           '</table>' +
+          (tp.belege && tp.belege.length
+            ? '<p class="rk-report-receipts"><b>' + esc(t('reportReceipts')) + ':</b> ' +
+                esc(tp.belege.map((b) => b.name + (b.total != null ? ' (' + eur(b.total) + ')' : '')).join(' · ')) + '</p>'
+            : '') +
           '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' +
         '</div>' +
       '</div>';
@@ -1723,6 +2255,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // Eingaben (input/change) — delegiert auf beide Views.
   function onInput(e) {
     const eln = e.target;
+    if (eln.type === 'file') {
+      const file = eln.files && eln.files[0];
+      eln.value = '';            // gleiche Datei erneut wählbar machen
+      if (file) importReceipt(file);
+      return;
+    }
     const f = eln.getAttribute('data-field');
     const settingKey = eln.getAttribute('data-setting');
     if (settingKey) {
@@ -1787,6 +2325,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       case 'del-extra':
         state.current.extras.splice(+target.getAttribute('data-idx'), 1);
         renderExtras(); renderSummary(); break;
+      case 'del-beleg':
+        state.current.belege.splice(+target.getAttribute('data-idx'), 1);
+        renderBelege(); break;
       case 'quick-meal': {
         const meal = target.getAttribute('data-meal');
         tripDays(state.current).forEach((d) => {

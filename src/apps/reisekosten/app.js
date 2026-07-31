@@ -82,6 +82,21 @@
       pBeides: 'Neutral (beides)', pArbeitnehmer: 'Arbeitnehmer → Arbeitgeber', pSelbst: 'Selbstständig / Steuererklärung',
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
+      secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)',
+      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt und gegengeprüft. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig); der Beleg bleibt lokal im Browser.',
+      receiptsEmpty: 'Noch keine Belege importiert.',
+      readingPdf: 'PDF wird gelesen …', readingOcr: 'Text wird erkannt (OCR) … {pct}%', analysing: 'Beleg wird ausgewertet …',
+      importFailed: 'Beleg konnte nicht gelesen werden: {msg}',
+      libFailed: 'Die Lese-Bibliothek konnte nicht geladen werden (Internet nötig beim ersten Mal).',
+      crossTitle: 'Beleg geprüft', crossSub: 'Erkannt in: {name}',
+      crossField: 'Feld', crossCurrent: 'Aktuell', crossDetected: 'Erkannt', crossApply: 'Übernehmen',
+      stMatch: 'stimmt überein', stFill: 'wird gefüllt', stMismatch: 'weicht ab',
+      applySel: 'Ausgewählte übernehmen', dismiss: 'Verwerfen',
+      bcHotelCost: 'Übernachtung (Beleg)', bcPeriod: 'Zeitraum', bcBreakfast: 'Frühstück',
+      bcAllNights: 'an allen Übernachtungstagen', bcTravelCost: 'Fahrtkosten', bcTravelDate: 'Reisedatum', bcExtraCost: 'Nebenkosten',
+      no: 'nein', detectedNothing: 'Keine übernehmbaren Werte erkannt. Der Beleg wurde nur zur Dokumentation gespeichert.',
+      typeHotel: 'Hotel', typeBahn: 'Bahn', typeOepnv: 'ÖPNV', typeUnknown: 'Beleg',
+      reportReceipts: 'Belege', route: 'Strecke',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -124,6 +139,21 @@
       pBeides: 'Neutral (both)', pArbeitnehmer: 'Employee → employer', pSelbst: 'Self-employed / tax return',
       setReset: 'Reset to statutory defaults',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
+      secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)',
+      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically and cross-checked. The first detection loads the reader library once (internet needed); the receipt stays local in your browser.',
+      receiptsEmpty: 'No receipts imported yet.',
+      readingPdf: 'Reading PDF …', readingOcr: 'Recognising text (OCR) … {pct}%', analysing: 'Analysing receipt …',
+      importFailed: 'Could not read the receipt: {msg}',
+      libFailed: 'The reader library could not be loaded (internet needed the first time).',
+      crossTitle: 'Receipt checked', crossSub: 'Detected in: {name}',
+      crossField: 'Field', crossCurrent: 'Current', crossDetected: 'Detected', crossApply: 'Apply',
+      stMatch: 'matches', stFill: 'will fill', stMismatch: 'differs',
+      applySel: 'Apply selected', dismiss: 'Discard',
+      bcHotelCost: 'Accommodation (receipt)', bcPeriod: 'Period', bcBreakfast: 'Breakfast',
+      bcAllNights: 'on all overnight days', bcTravelCost: 'Travel cost', bcTravelDate: 'Travel date', bcExtraCost: 'Incidental cost',
+      no: 'no', detectedNothing: 'No applicable values detected. The receipt was saved for documentation only.',
+      typeHotel: 'Hotel', typeBahn: 'Train', typeOepnv: 'Transit', typeUnknown: 'Receipt',
+      reportReceipts: 'Receipts', route: 'Route',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -149,11 +179,11 @@
       abreise: '', rueckkehr: '', reason: '', notiz: '',
       verkehr: { mittel: 'pkw', km: 0, betrag: 0 },
       uebernachtung: { mode: 'pauschale', betrag: 0 },
-      meals: {}, nights: {}, extras: [],
+      meals: {}, nights: {}, extras: [], belege: [],
     }, tp, {
       verkehr: Object.assign({ mittel: 'pkw', km: 0, betrag: 0 }, tp.verkehr),
       uebernachtung: Object.assign({ mode: 'pauschale', betrag: 0 }, tp.uebernachtung),
-      meals: tp.meals || {}, nights: tp.nights || {}, extras: tp.extras || [],
+      meals: tp.meals || {}, nights: tp.nights || {}, extras: tp.extras || [], belege: tp.belege || [],
     });
   }
   function blankTrip() {
@@ -370,6 +400,13 @@
           '<button class="qrx-btn qrx-btn-sm" data-action="add-extra">' + esc(t('addExtra')) + '</button>' +
         '</div>' +
 
+        '<div class="rk-section"><h2>' + esc(t('secReceipts')) + '</h2>' +
+          '<div id="rk-belege"></div>' +
+          '<label class="qrx-btn qrx-btn-sm rk-file-btn">' + esc(t('importReceipt')) +
+            '<input id="rk-file" type="file" accept="application/pdf,image/*" hidden></label>' +
+          '<p class="rk-hint">' + esc(t('receiptHint')) + '</p>' +
+        '</div>' +
+
         '<div id="rk-summary"></div>' +
       '</div>';
 
@@ -377,6 +414,7 @@
     renderVerkehrFields();
     renderNightFields();
     renderExtras();
+    renderBelege();
     rebuildDays();
     refreshCalc();
   }
@@ -452,6 +490,169 @@
         '<input class="qrx-input rk-extra-amount" type="number" min="0" step="0.01" inputmode="decimal" data-field="extraBetrag" data-idx="' + i + '" value="' + esc(e.betrag || '') + '">' +
         '<button class="rk-icon-btn" data-action="del-extra" data-idx="' + i + '" aria-label="' + esc(t('deleteTrip')) + '">✕</button>' +
       '</div>').join('');
+  }
+
+  // ---------------------------------------------------------------- Belege
+  const RECEIPT_ICON = {
+    hotel: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M12 9h.01M15 9h.01M9 13h.01M12 13h.01M15 13h.01',
+    bahn: 'M4 11h16M6 3h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 20l-2 2M16 20l2 2M8 16h.01M16 16h.01',
+    oepnv: 'M4 11h16M6 3h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 20l-2 2M16 20l2 2M8 16h.01M16 16h.01',
+    unknown: 'M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM14 4v5h5',
+  };
+  function typeLabelOf(ty) { return t('type' + ty.charAt(0).toUpperCase() + ty.slice(1)) || t('typeUnknown'); }
+
+  function renderBelege() {
+    const box = $('rk-belege');
+    if (!box) return;
+    const list = state.current.belege || [];
+    if (!list.length) { box.innerHTML = '<p class="rk-hint">' + esc(t('receiptsEmpty')) + '</p>'; return; }
+    box.innerHTML = list.map((b, i) =>
+      '<div class="rk-beleg-row">' +
+        '<svg class="rk-beleg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + (RECEIPT_ICON[b.type] || RECEIPT_ICON.unknown) + '"/></svg>' +
+        '<div class="rk-beleg-main"><span class="rk-beleg-name">' + esc(b.name || t('typeUnknown')) + '</span>' +
+          '<span class="rk-beleg-meta">' + esc(typeLabelOf(b.type || 'unknown')) + (b.total != null ? ' · ' + esc(eur(b.total)) : '') + '</span></div>' +
+        '<button class="rk-icon-btn" data-action="del-beleg" data-idx="' + i + '" aria-label="✕">✕</button>' +
+      '</div>').join('');
+  }
+
+  // Datei importieren: Text gewinnen (PDF/OCR) → parsen → Gegenprüf-Panel.
+  async function importReceipt(file) {
+    if (!file) return;
+    if (!qrx.rkReceipts) { alert(t('libFailed')); return; }
+    const prog = showProgress(t('analysing'));
+    try {
+      prog.set(t('readingPdf'), null);
+      const { text, method } = await qrx.rkReceipts.extractText(file, (p) => {
+        prog.set(t('readingOcr', { pct: Math.round((p || 0) * 100) }), p);
+      });
+      prog.set(t('analysing'), null);
+      const parsed = qrx.rkReceipts.parseReceipt(text);
+      prog.close();
+      showCrossCheck(parsed, file.name, method);
+    } catch (e) {
+      prog.close();
+      console.warn('receipt import failed', e);
+      alert(t('importFailed', { msg: (e && e.message) || String(e) }));
+    }
+  }
+
+  // Fortschritts-Overlay.
+  function showProgress(label) {
+    const ov = document.createElement('div');
+    ov.className = 'rk-modal-overlay';
+    ov.innerHTML = '<div class="rk-modal rk-modal-progress"><div class="rk-spinner" aria-hidden="true"></div>' +
+      '<p class="rk-progress-label"></p><div class="rk-progress-bar"><span></span></div></div>';
+    document.body.appendChild(ov);
+    const lbl = ov.querySelector('.rk-progress-label');
+    const bar = ov.querySelector('.rk-progress-bar span');
+    lbl.textContent = label;
+    return {
+      set(text, p) { lbl.textContent = text; bar.style.width = p == null ? '' : Math.round(p * 100) + '%'; ov.querySelector('.rk-progress-bar').classList.toggle('rk-indeterminate', p == null); },
+      close() { ov.remove(); },
+    };
+  }
+
+  // Vorschläge aus einem geparsten Beleg für die aktuelle Reise ableiten.
+  function buildSuggestions(p, tp, fileName) {
+    const S = [];
+    const money = (a, b) => a != null && b != null && Math.abs(a - b) < 0.01;
+    const sug = (label, curTxt, sugTxt, current, match, apply) => {
+      const status = match ? 'match' : (current == null ? 'fill' : 'mismatch');
+      S.push({ label, curTxt, sugTxt, status, checked: status !== 'mismatch', apply });
+    };
+    const dpart = (s) => (s || '').slice(0, 10);
+
+    if (p.type === 'hotel') {
+      if (p.total != null) {
+        const cur = tp.uebernachtung.mode === 'beleg' ? tp.uebernachtung.betrag : null;
+        sug(t('bcHotelCost'), cur == null ? '—' : eur(cur), eur(p.total), cur, money(cur, p.total),
+          () => { tp.uebernachtung.mode = 'beleg'; tp.uebernachtung.betrag = p.total; });
+      }
+      if (p.hotel && p.hotel.checkIn) {
+        const inSet = !!tp.abreise, outSet = !!tp.rueckkehr;
+        const co = p.hotel.checkOut || p.hotel.checkIn;
+        const curTxt = (tp.abreise ? fmtDate(tp.abreise) : '—') + ' – ' + (tp.rueckkehr ? fmtDate(tp.rueckkehr) : '—');
+        const sugTxt = fmtDate(p.hotel.checkIn) + ' – ' + fmtDate(co);
+        const match = dpart(tp.abreise) === p.hotel.checkIn && dpart(tp.rueckkehr) === co;
+        sug(t('bcPeriod'), curTxt, sugTxt, (inSet && outSet) ? curTxt : null, match,
+          () => { if (!tp.abreise) tp.abreise = p.hotel.checkIn + 'T14:00'; if (!tp.rueckkehr) tp.rueckkehr = co + 'T11:00'; });
+      }
+      if (p.hotel && p.hotel.breakfast) {
+        sug(t('bcBreakfast'), t('no'), t('bcAllNights'), null, false,
+          () => { tripDays(tp).forEach((d) => { if (d.type === 'none' || d.type === 'arrival') return; tp.meals[d.date] = tp.meals[d.date] || {}; tp.meals[d.date].f = true; }); });
+      }
+    } else if (p.type === 'bahn' || p.type === 'oepnv') {
+      if (p.total != null) {
+        const receiptMode = ['bahn', 'flug', 'oepnv', 'sonstige'].includes(tp.verkehr.mittel);
+        const cur = receiptMode ? tp.verkehr.betrag : null;
+        sug(t('bcTravelCost'), cur == null ? '—' : eur(cur), eur(p.total), cur, money(cur, p.total),
+          () => {
+            // Nur wenn tatsächlich km eingetragen sind (= gefahren), Ticket als
+            // Nebenkosten führen; sonst das Verkehrsmittel auf das Ticket setzen.
+            const drove = (tp.verkehr.mittel === 'pkw' || tp.verkehr.mittel === 'motorrad') && num(tp.verkehr.km) > 0;
+            if (drove) tp.extras.push({ bez: typeLabelOf(p.type), betrag: p.total });
+            else { tp.verkehr.mittel = p.type === 'bahn' ? 'bahn' : 'oepnv'; tp.verkehr.betrag = p.total; }
+          });
+      }
+      if (p.dates && p.dates.length) {
+        const d0 = p.dates[0], d1 = p.dates[p.dates.length - 1];
+        const curTxt = (tp.abreise ? fmtDate(tp.abreise) : '—') + ' – ' + (tp.rueckkehr ? fmtDate(tp.rueckkehr) : '—');
+        const sugTxt = d0 === d1 ? fmtDate(d0) : fmtDate(d0) + ' – ' + fmtDate(d1);
+        const match = dpart(tp.abreise) === d0 && dpart(tp.rueckkehr) === d1;
+        sug(t('bcTravelDate'), curTxt, sugTxt, (tp.abreise && tp.rueckkehr) ? curTxt : null, match,
+          () => { if (!tp.abreise) tp.abreise = d0 + 'T08:00'; if (!tp.rueckkehr) tp.rueckkehr = (d1 || d0) + 'T18:00'; });
+      }
+    } else if (p.total != null) {
+      sug(t('bcExtraCost'), '—', eur(p.total), null, false,
+        () => { tp.extras.push({ bez: (fileName || t('typeUnknown')).replace(/\.[^.]+$/, ''), betrag: p.total }); });
+    }
+    return S;
+  }
+
+  // Gegenprüf-Panel: erkannte Werte neben den aktuellen, einzeln übernehmbar.
+  function showCrossCheck(parsed, fileName, method) {
+    const tp = state.current;
+    const suggestions = buildSuggestions(parsed, tp, fileName);
+    const ov = document.createElement('div');
+    ov.className = 'rk-modal-overlay';
+
+    const routeStr = parsed.travel && (parsed.travel.from || parsed.travel.to)
+      ? '<p class="rk-cross-route">' + esc(t('route')) + ': ' + esc([parsed.travel.from, parsed.travel.to].filter(Boolean).join(' → ')) +
+        (parsed.travel.roundTrip ? ' ⇄' : '') + '</p>' : '';
+    const rows = suggestions.map((s, i) =>
+      '<div class="rk-cross-item rk-cross-' + s.status + '">' +
+        '<label class="rk-cross-check"><input type="checkbox" data-i="' + i + '"' + (s.checked ? ' checked' : '') + '>' + esc(s.label) + '</label>' +
+        '<span class="rk-badge rk-badge-' + s.status + '">' + esc(t('st' + s.status.charAt(0).toUpperCase() + s.status.slice(1))) + '</span>' +
+        '<div class="rk-cross-vals"><span class="rk-cross-cur">' + esc(s.curTxt) + '</span>' +
+          '<span class="rk-cross-arrow">→</span><span class="rk-cross-new">' + esc(s.sugTxt) + '</span></div>' +
+      '</div>').join('');
+
+    ov.innerHTML =
+      '<div class="rk-modal rk-modal-cross" role="dialog" aria-modal="true">' +
+        '<div class="rk-modal-head"><div><h3>' + esc(t('crossTitle')) + ' · ' + esc(typeLabelOf(parsed.type)) + '</h3>' +
+          '<p class="rk-modal-sub">' + esc(t('crossSub', { name: fileName || '' })) + '</p></div>' +
+          '<button class="rk-icon-btn rk-modal-x" data-x aria-label="✕">✕</button></div>' +
+        routeStr +
+        (suggestions.length
+          ? '<div class="rk-cross-list">' + rows + '</div>'
+          : '<p class="rk-hint">' + esc(t('detectedNothing')) + '</p>') +
+        '<div class="rk-modal-actions">' +
+          '<button class="qrx-btn" data-x>' + esc(t('dismiss')) + '</button>' +
+          '<button class="qrx-btn qrx-btn-primary" data-apply>' + esc(suggestions.length ? t('applySel') : t('crossApply')) + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+
+    const close = () => ov.remove();
+    ov.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', close));
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('[data-apply]').addEventListener('click', () => {
+      const boxes = ov.querySelectorAll('input[type="checkbox"][data-i]');
+      boxes.forEach((cb) => { if (cb.checked) { try { suggestions[+cb.getAttribute('data-i')].apply(); } catch (_) {} } });
+      tp.belege.push({ name: fileName || t('typeUnknown'), type: parsed.type, total: parsed.total, dates: parsed.dates || [], method });
+      close();
+      renderEdit();  // Felder, Tage und Summen neu aus dem aktualisierten Stand
+    });
   }
 
   // Tagesstruktur an neue Daten angleichen (bestehende Auswahl behalten).
@@ -589,6 +790,10 @@
               '<tr><td colspan="3">' + esc(t('sumTotal')) + '</td><td class="rk-num">' + esc(eur(c.total)) + '</td></tr>' +
             '</tfoot>' +
           '</table>' +
+          (tp.belege && tp.belege.length
+            ? '<p class="rk-report-receipts"><b>' + esc(t('reportReceipts')) + ':</b> ' +
+                esc(tp.belege.map((b) => b.name + (b.total != null ? ' (' + eur(b.total) + ')' : '')).join(' · ')) + '</p>'
+            : '') +
           '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' +
         '</div>' +
       '</div>';
@@ -654,6 +859,12 @@
   // Eingaben (input/change) — delegiert auf beide Views.
   function onInput(e) {
     const eln = e.target;
+    if (eln.type === 'file') {
+      const file = eln.files && eln.files[0];
+      eln.value = '';            // gleiche Datei erneut wählbar machen
+      if (file) importReceipt(file);
+      return;
+    }
     const f = eln.getAttribute('data-field');
     const settingKey = eln.getAttribute('data-setting');
     if (settingKey) {
@@ -718,6 +929,9 @@
       case 'del-extra':
         state.current.extras.splice(+target.getAttribute('data-idx'), 1);
         renderExtras(); renderSummary(); break;
+      case 'del-beleg':
+        state.current.belege.splice(+target.getAttribute('data-idx'), 1);
+        renderBelege(); break;
       case 'quick-meal': {
         const meal = target.getAttribute('data-meal');
         tripDays(state.current).forEach((d) => {

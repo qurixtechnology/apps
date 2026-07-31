@@ -5,7 +5,7 @@
   "output": "reisekosten.html",
   "title": "Reisekosten – qurix",
   "fonts": ["qurix.fonts.html"],
-  "inlineScripts": ["../../shared/qrx-core.js", "../../shared/qrx-i18n.js", "rates.data.js"],
+  "inlineScripts": ["../../shared/qrx-core.js", "../../shared/qrx-i18n.js", "rates.data.js", "receipts.js"],
   "headAssets": [],
   "card": {
     "title": "Reisekosten",
