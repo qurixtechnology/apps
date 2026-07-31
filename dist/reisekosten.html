@@ -356,6 +356,46 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .rk-report-receipts { margin-top: var(--qrx-s-6); font-size: 0.85rem; color: var(--qrx-text-muted); }
 .rk-report-receipts b { color: var(--qrx-text); }
 
+/* --- Kosten-Positionen --- */
+.rk-pos-add { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); margin: 0 0 var(--qrx-s-4); }
+.rk-pos {
+  display: flex; flex-direction: column; gap: var(--qrx-s-2);
+  padding: var(--qrx-s-3); margin-bottom: var(--qrx-s-2);
+  border: 1px solid var(--qrx-border); border-left: 3px solid var(--qrx-border-strong);
+  border-radius: var(--qrx-radius); background: var(--qrx-bg-subtle);
+}
+.rk-pos-fahrt { border-left-color: var(--qrx-primary); }
+.rk-pos-uebernachtung { border-left-color: var(--qrx-accent); }
+.rk-pos-neben { border-left-color: var(--qrx-warning); }
+.rk-pos-line1 { display: flex; gap: var(--qrx-s-2); align-items: center; }
+.rk-pos-cat { width: auto; flex: 0 0 auto; min-width: 8rem; }
+.rk-pos-bez { flex: 1 1 6rem; min-width: 0; }
+.rk-pos-line2 { display: flex; gap: var(--qrx-s-3); align-items: center; flex-wrap: wrap; }
+.rk-pos-controls { display: flex; align-items: center; gap: var(--qrx-s-2); flex-wrap: wrap; }
+.rk-pos-mode { width: auto; }
+.rk-pos-mult { display: inline-flex; align-items: center; gap: var(--qrx-s-2); }
+.rk-pos-num { width: 5.5rem; }
+.rk-pos-x { color: var(--qrx-text-subtle); }
+.rk-pos-unit { font-size: 0.8rem; color: var(--qrx-text-subtle); }
+.rk-pos-amount { font-family: var(--qrx-font-mono); font-weight: 700; margin-left: auto; white-space: nowrap; }
+.rk-pos-beleg { font-size: 0.78rem; color: var(--qrx-text-muted); }
+
+/* --- Batch-Auswahl beim Import --- */
+.rk-batch-list { display: flex; flex-direction: column; gap: var(--qrx-s-1); }
+.rk-batch-item { display: flex; align-items: center; gap: var(--qrx-s-2); padding: var(--qrx-s-2); border-radius: var(--qrx-radius); cursor: pointer; }
+.rk-batch-item:hover { background: var(--qrx-bg-subtle); }
+.rk-batch-item .rk-beleg-icon { color: var(--qrx-primary); flex-shrink: 0; }
+.rk-batch-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.rk-batch-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-batch-meta { font-size: 0.8rem; color: var(--qrx-text-muted); }
+.rk-batch-sub { margin-top: var(--qrx-s-3); margin-bottom: var(--qrx-s-1); font-weight: 600; color: var(--qrx-text-muted); font-size: 0.85rem; }
+
+/* --- Report: Kosten-Tabelle + Summenblock --- */
+.rk-report-h3 { margin: var(--qrx-s-6) 0 var(--qrx-s-2); font-size: 1rem; color: var(--qrx-text); }
+.rk-report-totals { margin-top: var(--qrx-s-4); }
+.rk-report-totals td { border-bottom: 1px solid var(--qrx-border); }
+.rk-report-grand td { font-weight: 700; border-top: 2px solid var(--qrx-border-strong); border-bottom: none; }
+
 /* --- Beleg-Viewer --- */
 .rk-modal-viewer { max-width: 820px; display: flex; flex-direction: column; }
 .rk-viewer-body {
@@ -481,29 +521,39 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     negativ.</li>
 </ul>
 
-<h3>Fahrt &amp; Übernachtung</h3>
+<h3>Kosten-Tabelle (Fahrt, Übernachtung, Nebenkosten)</h3>
+<p>
+  Alle Kosten stehen in <b>einer Tabelle</b>. Jede Zeile hat eine <b>Kategorie</b> (Fahrt,
+  Übernachtung oder Nebenkosten), eine Bezeichnung und einen Betrag. Über <b>+ Fahrt</b>,
+  <b>+ Übernachtung</b> bzw. <b>+ Nebenkosten</b> legst du Positionen manuell an; Belege erzeugen
+  automatisch eine neue Position (siehe unten).
+</p>
 <ul>
-  <li><b>Kilometerpauschale:</b> PKW <code>0,30 €/km</code>, Motorrad <code>0,20 €/km</code>.
-    Bahn, Flug, ÖPNV/Taxi und Sonstiges werden mit dem tatsächlichen Betrag (Beleg) erfasst.</li>
-  <li><b>Übernachtung:</b> wahlweise Pauschale je Nacht (Inland <code>20 €</code>, Ausland
-    länderspezifisch) oder tatsächliche Kosten laut Beleg. Die Anzahl der Nächte ergibt sich
-    automatisch; ist im Übernachtungspreis ein Frühstück enthalten, einfach das Frühstück am
+  <li><b>Fahrt:</b> entweder <b>Kilometer × Satz</b> (PKW <code>0,30 €/km</code>, Motorrad
+    <code>0,20 €/km</code>) oder ein fester <b>Betrag</b> (Bahn, Flug, ÖPNV/Taxi laut Beleg).</li>
+  <li><b>Übernachtung:</b> entweder <b>Nächte × Pauschale</b> (Inland <code>20 €</code>, Ausland
+    länderspezifisch) oder der tatsächliche <b>Betrag</b> laut Beleg. Die Nächte werden aus dem
+    Zeitraum vorbelegt und sind anpassbar. Ist Frühstück im Preis enthalten, das Frühstück am
     Folgetag als „gestellt" markieren.</li>
-  <li><b>Reisenebenkosten</b> (Parken, Maut, Gepäck …) als einzelne Positionen mit Beleg.</li>
+  <li><b>Nebenkosten</b> (Parken, Maut, Gepäck, Beherbergungssteuer …) als eigene Positionen. So
+    lässt sich z. B. eine <b>Beherbergungssteuer zusätzlich</b> zu den Hotelkosten erfassen.</li>
 </ul>
+<p>Die Verpflegungspauschalen stehen weiterhin separat im Abschnitt <b>Tage &amp; Verpflegung</b>.</p>
 
 <h3>Belege importieren (PDF &amp; Foto)</h3>
 <p>
-  Im Abschnitt <b>Belege</b> lässt sich ein Beleg als <b>PDF</b>, <b>Foto</b> oder <b>Scan</b>
-  importieren. Die App liest den Text aus (bei PDFs direkt, bei Fotos/Scans per OCR) und erkennt
-  automatisch <b>Betrag</b>, <b>Datum/Zeitraum</b> und die <b>Beleg-Art</b> — bei Hotelrechnungen auch
-  ein <b>enthaltenes Frühstück</b> und die Nächte, bei Bahn-/ÖPNV-Tickets die <b>Hin-/Rückfahrt</b>
-  und Strecke.
+  Im Abschnitt <b>Kosten</b> lässt sich ein Beleg als <b>PDF</b>, <b>Foto</b> oder <b>Scan</b>
+  importieren — per Klick, per <b>Drag &amp; Drop</b> und auch <b>mehrere Dateien auf einmal</b>. Die
+  App liest den Text aus (bei PDFs direkt, bei Fotos/Scans per OCR) und erkennt automatisch
+  <b>Betrag</b>, <b>Datum/Zeitraum</b> und die <b>Beleg-Art</b> — bei Hotelrechnungen auch ein
+  <b>enthaltenes Frühstück</b> und die Nächte, bei Bahn-/ÖPNV-Tickets die <b>Hin-/Rückfahrt</b> und
+  Strecke.
 </p>
 <p>
-  Die erkannten Werte werden dir in einem <b>Gegenprüf-Panel</b> neben deinen bisherigen Eingaben
-  angezeigt: leere Felder werden <b>gefüllt</b>, abweichende Werte <b>rot markiert</b>. Du hakst an,
-  was übernommen werden soll — deine manuelle Pflege bleibt also führend, der Beleg dient als
+  Bei mehreren Belegen erscheint eine <b>Auswahl-Liste</b> (Typ · Betrag · Zeitraum). Du hakst an,
+  welche als <b>neue Position</b> übernommen werden; weichen Zeiträume ab (z. B. ein fremder Beleg),
+  wird das <b>markiert</b>, sodass du ihn abwählen kannst. Optional lässt sich der Reisezeitraum bzw.
+  das Frühstück aus den Belegen setzen. So bleibt deine manuelle Pflege führend, der Beleg dient als
   Kontrolle. Der importierte Beleg wird zur Reise gespeichert und lässt sich jederzeit über
   <b>„Ansehen"</b> wieder öffnen (Bild oder PDF), herunterladen oder entfernen. Alles läuft lokal im
   Browser; der Beleg wird nicht hochgeladen. Die Lese-Bibliothek wird beim ersten Import einmalig aus
@@ -554,28 +604,36 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     lunch −40 %, dinner −40 % (domestic: −€5.60 / −€11.20 / −€11.20). A day never goes negative.</li>
 </ul>
 
-<h3>Travel &amp; accommodation</h3>
+<h3>Cost table (travel, accommodation, incidentals)</h3>
+<p>
+  All costs live in <b>one table</b>. Each row has a <b>category</b> (travel, accommodation or
+  incidentals), a description and an amount. Use <b>+ Travel</b>, <b>+ Accommodation</b> or
+  <b>+ Incidental</b> to add rows manually; receipts create a new position automatically (see below).
+</p>
 <ul>
-  <li><b>Mileage:</b> car <code>€0.30/km</code>, motorcycle <code>€0.20/km</code>. Train, flight,
-    public transport/taxi and other are entered as the actual amount (receipt).</li>
-  <li><b>Accommodation:</b> either a flat rate per night (domestic <code>€20</code>, abroad
-    country-specific) or the actual receipted cost. The number of nights is derived automatically; if
-    breakfast is included in the room price, simply mark the next day's breakfast as “provided”.</li>
-  <li><b>Incidental costs</b> (parking, tolls, luggage …) as individual receipted items.</li>
+  <li><b>Travel:</b> either <b>kilometres × rate</b> (car <code>€0.30/km</code>, motorcycle
+    <code>€0.20/km</code>) or a fixed <b>amount</b> (train, flight, public transport per receipt).</li>
+  <li><b>Accommodation:</b> either <b>nights × flat rate</b> (domestic <code>€20</code>, abroad
+    country-specific) or the actual receipted <b>amount</b>. Nights are pre-filled from the period and
+    editable. If breakfast is included, mark the next day's breakfast as “provided”.</li>
+  <li><b>Incidentals</b> (parking, tolls, luggage, city/accommodation tax …) as their own positions —
+    so you can capture e.g. an <b>accommodation tax in addition</b> to the hotel cost.</li>
 </ul>
+<p>Meal allowances remain separate under <b>Days &amp; meals</b>.</p>
 
 <h3>Import receipts (PDF &amp; photo)</h3>
 <p>
-  In the <b>Receipts</b> section you can import a receipt as a <b>PDF</b>, <b>photo</b> or <b>scan</b>.
-  The app reads the text (directly for PDFs, via OCR for photos/scans) and automatically detects the
-  <b>amount</b>, <b>date/period</b> and <b>receipt type</b> — for hotel invoices also an
-  <b>included breakfast</b> and the number of nights, for train/transit tickets the
-  <b>outbound/return</b> and route.
+  In the <b>Costs</b> section you can import a receipt as a <b>PDF</b>, <b>photo</b> or <b>scan</b> —
+  by click, by <b>drag &amp; drop</b>, and <b>several files at once</b>. The app reads the text
+  (directly for PDFs, via OCR for photos/scans) and automatically detects the <b>amount</b>,
+  <b>date/period</b> and <b>receipt type</b> — for hotel invoices also an <b>included breakfast</b> and
+  the number of nights, for train/transit tickets the <b>outbound/return</b> and route.
 </p>
 <p>
-  The detected values are shown in a <b>cross-check panel</b> next to your existing entries: empty
-  fields are <b>filled</b>, differing values are <b>highlighted</b>. You tick what should be applied —
-  so your manual entries stay in charge and the receipt serves as a check. The imported receipt is
+  With several receipts a <b>selection list</b> appears (type · amount · period). You tick which to add
+  as a <b>new position</b>; if periods differ (e.g. a stray receipt) that is <b>flagged</b> so you can
+  deselect it. Optionally the trip period or breakfast can be set from the receipts. Your manual
+  entries stay in charge and the receipt serves as a check. The imported receipt is
   saved with the trip and can be reopened any time via <b>“View”</b> (image or PDF), downloaded or
   removed. Everything runs locally in your browser; the receipt is not uploaded. The reader library is
   loaded once from the network on the first import (available afterwards). Photos are downscaled for
@@ -643,7 +701,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260731-185840</span>
+    &middot; v<span data-build-version>260731-194335</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1520,6 +1578,18 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       reportReceipts: 'Belege', route: 'Strecke',
       viewReceipt: 'Ansehen', openNewTab: 'In neuem Tab öffnen', downloadFile: 'Herunterladen',
       tooBig: 'Datei zu groß zum Speichern', quotaWarn: 'Speicher voll — die Beleg-Datei wurde nicht gespeichert (nur die erkannten Daten).',
+      secCosts: 'Kosten', catFahrt: 'Fahrt', catUeb: 'Übernachtung', catNeben: 'Nebenkosten',
+      addFahrt: '+ Fahrt', addUeb: '+ Übernachtung', addNeben: '+ Nebenkosten',
+      modeBetrag: 'Betrag', modeKm: 'Kilometer', modePauschale: 'Pauschale (Nächte)',
+      posKmRate: '€/km', posNights: 'Nächte', posNightRate: '€/Nacht', posDescPh: 'Bezeichnung',
+      costsEmpty: 'Noch keine Positionen — manuell hinzufügen oder Belege importieren.',
+      batchTitle: 'Belege erkannt', batchOne: 'Beleg erkannt',
+      batchSub: '{n} Datei(en) — wähle, welche als Position übernommen werden',
+      colPeriod: 'Zeitraum', diffPeriod: 'anderer Zeitraum', noPeriod: 'ohne Datum',
+      tripUpdates: 'Reise aktualisieren', suggSetPeriod: 'Reisezeitraum aus Beleg setzen',
+      suggBreakfast: 'Frühstück an Übernachtungstagen', applyBatch: 'Übernehmen',
+      importingN: 'Beleg {i}/{n} wird gelesen …', nothingDetected: 'In den Dateien wurde nichts Auswertbares erkannt.',
+      reportCosts: 'Kosten', thCat: 'Art', thDesc: 'Bezeichnung', thAmount: 'Betrag', posReceipt: 'Beleg',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -1579,6 +1649,18 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       reportReceipts: 'Receipts', route: 'Route',
       viewReceipt: 'View', openNewTab: 'Open in new tab', downloadFile: 'Download',
       tooBig: 'File too large to store', quotaWarn: 'Storage full — the receipt file was not saved (only the detected data).',
+      secCosts: 'Costs', catFahrt: 'Travel', catUeb: 'Accommodation', catNeben: 'Incidentals',
+      addFahrt: '+ Travel', addUeb: '+ Accommodation', addNeben: '+ Incidental',
+      modeBetrag: 'Amount', modeKm: 'Kilometres', modePauschale: 'Flat rate (nights)',
+      posKmRate: '€/km', posNights: 'Nights', posNightRate: '€/night', posDescPh: 'Description',
+      costsEmpty: 'No positions yet — add manually or import receipts.',
+      batchTitle: 'Receipts detected', batchOne: 'Receipt detected',
+      batchSub: '{n} file(s) — choose which to add as a position',
+      colPeriod: 'Period', diffPeriod: 'different period', noPeriod: 'no date',
+      tripUpdates: 'Update trip', suggSetPeriod: 'Set trip period from receipt',
+      suggBreakfast: 'Breakfast on overnight days', applyBatch: 'Apply',
+      importingN: 'Reading receipt {i}/{n} …', nothingDetected: 'Nothing usable was detected in the files.',
+      reportCosts: 'Costs', thCat: 'Type', thDesc: 'Description', thAmount: 'Amount', posReceipt: 'Receipt',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -1600,8 +1682,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   function persistTrips() {
     if (saveTrips()) return true;
     let dropped = false;
-    state.trips.forEach((tp) => (tp.belege || []).forEach((b) => {
-      if (b.dataUrl) { delete b.dataUrl; delete b.mime; b.tooBig = true; dropped = true; }
+    state.trips.forEach((tp) => (tp.positions || []).forEach((p) => {
+      if (p.dataUrl) { delete p.dataUrl; delete p.mime; p.tooBig = true; dropped = true; }
     }));
     const okNow = saveTrips();
     if (dropped) { try { alert(t('quotaWarn')); } catch (_) {} }
@@ -1611,21 +1693,60 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
   function newId() { return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
-  function normalizeTrip(tp) {
-    return Object.assign({
-      id: newId(), ort: '', country: 'DE', abName: '', abFull: 0, abNight: 0,
-      abreise: '', rueckkehr: '', reason: '', notiz: '',
-      verkehr: { mittel: 'pkw', km: 0, betrag: 0 },
-      uebernachtung: { mode: 'pauschale', betrag: 0 },
-      meals: {}, nights: {}, extras: [], belege: [],
-    }, tp, {
-      verkehr: Object.assign({ mittel: 'pkw', km: 0, betrag: 0 }, tp.verkehr),
-      uebernachtung: Object.assign({ mode: 'pauschale', betrag: 0 }, tp.uebernachtung),
-      meals: tp.meals || {}, nights: tp.nights || {}, extras: tp.extras || [], belege: tp.belege || [],
+  // Alt-Modell (verkehr/uebernachtung/extras/belege) → Positionsliste.
+  function migratePositions(tp) {
+    const pos = [];
+    const v = tp.verkehr || {};
+    if ((v.mittel === 'pkw' || v.mittel === 'motorrad') && num(v.km) > 0)
+      pos.push({ id: newId(), kind: 'fahrt', bez: v.mittel === 'pkw' ? 'PKW' : 'Motorrad', mode: 'km', km: num(v.km), ratePerKm: v.mittel === 'pkw' ? num(state.settings.kmCar) : num(state.settings.kmBike), betrag: 0 });
+    else if (['bahn', 'flug', 'oepnv', 'sonstige'].includes(v.mittel) && num(v.betrag) > 0)
+      pos.push({ id: newId(), kind: 'fahrt', bez: '', mode: 'betrag', betrag: num(v.betrag) });
+    const u = tp.uebernachtung || {};
+    const nights = Math.max(0, tripDays(tp).length - 1);
+    if (u.mode === 'pauschale' && nights > 0)
+      pos.push({ id: newId(), kind: 'uebernachtung', bez: 'Übernachtung', mode: 'pauschale', nights, nightRate: nightRate(tp), betrag: 0 });
+    else if (u.mode === 'beleg' && num(u.betrag) > 0)
+      pos.push({ id: newId(), kind: 'uebernachtung', bez: 'Übernachtung', mode: 'betrag', betrag: num(u.betrag) });
+    (tp.extras || []).forEach((e) => pos.push({ id: newId(), kind: 'neben', bez: e.bez || '', mode: 'betrag', betrag: num(e.betrag) }));
+    // Alte Belege (Dateien) als Anhang an eine passende Position hängen, ohne
+    // deren Betrag erneut zu zählen; sonst als Betrag-0-Anhangposition.
+    (tp.belege || []).forEach((b) => {
+      if (!b.dataUrl && !b.tooBig) return;
+      const kind = b.type === 'hotel' ? 'uebernachtung' : (b.type === 'bahn' || b.type === 'oepnv') ? 'fahrt' : 'neben';
+      const target = pos.find((p) => p.kind === kind && !p.belegName);
+      const att = { belegName: b.name, mime: b.mime, dataUrl: b.dataUrl, method: b.method, tooBig: b.tooBig };
+      if (target) Object.assign(target, att);
+      else pos.push(Object.assign({ id: newId(), kind, bez: b.name || '', mode: 'betrag', betrag: 0 }, att));
     });
+    return pos;
+  }
+
+  function normalizeTrip(tp) {
+    const base = Object.assign({
+      id: newId(), ort: '', country: 'DE', abName: '', abFull: 0, abNight: 0,
+      abreise: '', rueckkehr: '', reason: '', notiz: '', meals: {}, positions: [],
+    }, tp, { meals: tp.meals || {} });
+    const legacy = tp.verkehr || tp.uebernachtung || (tp.extras && tp.extras.length) || (tp.belege && tp.belege.length);
+    if (!Array.isArray(base.positions) || (!base.positions.length && legacy)) base.positions = migratePositions(base);
+    base.positions = (base.positions || []).map((p) => Object.assign({ id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0 }, p));
+    // Alt-Felder nicht weiterschleppen
+    ['verkehr', 'uebernachtung', 'extras', 'belege', 'nights'].forEach((k) => delete base[k]);
+    return base;
   }
   function blankTrip() {
     return normalizeTrip({ id: newId(), country: 'DE' });
+  }
+
+  // ---------------------------------------------------------------- Positionen
+  function posAmount(p) {
+    if (p.mode === 'km') return round2(num(p.km) * num(p.ratePerKm));
+    if (p.mode === 'pauschale') return round2(num(p.nights) * num(p.nightRate));
+    return round2(num(p.betrag));
+  }
+  function newPosition(kind, tp) {
+    if (kind === 'fahrt') return { id: newId(), kind, bez: '', mode: 'km', km: 0, ratePerKm: num(state.settings.kmCar), betrag: 0 };
+    if (kind === 'uebernachtung') return { id: newId(), kind, bez: t('catUeb'), mode: 'pauschale', nights: Math.max(0, tripDays(tp).length - 1), nightRate: nightRate(tp), betrag: 0 };
+    return { id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0 };
   }
 
   // ---------------------------------------------------------------- Datumslogik
@@ -1666,7 +1787,6 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   function compute(trip) {
     const days = tripDays(trip);
     const full = fullDayRate(trip), over8 = over8Rate(trip);
-    let verpflegung = 0, nightsCount = 0;
     const rows = days.map((d) => {
       const meals = trip.meals[d.date] || {};
       let base = 0;
@@ -1675,33 +1795,18 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       // Kürzung stets vom vollen Tagessatz, gedeckelt bei 0.
       const reduction = full * ((meals.f ? REDUCE.f : 0) + (meals.m ? REDUCE.m : 0) + (meals.a ? REDUCE.a : 0));
       const amount = Math.max(0, round2(base - reduction));
-      const nightDefault = d.type === 'arrival' || d.type === 'full';
-      const hasNight = (d.date in trip.nights) ? !!trip.nights[d.date] : nightDefault;
-      if (hasNight) nightsCount++;
-      return { date: d.date, type: d.type, base, reduction: round2(reduction), amount, meals, hasNight };
+      return { date: d.date, type: d.type, base, reduction: round2(reduction), amount, meals };
     });
-    verpflegung = round2(rows.reduce((s, r) => s + r.amount, 0));
+    const verpflegung = round2(rows.reduce((s, r) => s + r.amount, 0));
 
-    // Fahrtkosten
-    const v = trip.verkehr || {};
-    let fahrt = 0;
-    if (v.mittel === 'pkw') fahrt = num(v.km) * num(state.settings.kmCar);
-    else if (v.mittel === 'motorrad') fahrt = num(v.km) * num(state.settings.kmBike);
-    else if (['bahn', 'flug', 'oepnv', 'sonstige'].includes(v.mittel)) fahrt = num(v.betrag);
-    fahrt = round2(fahrt);
-
-    // Übernachtung
-    const u = trip.uebernachtung || {};
-    let uebernachtung = 0;
-    if (u.mode === 'pauschale') uebernachtung = round2(nightsCount * nightRate(trip));
-    else if (u.mode === 'beleg') uebernachtung = round2(num(u.betrag));
-
-    // Nebenkosten
-    const neben = round2((trip.extras || []).reduce((s, e) => s + num(e.betrag), 0));
+    // Kosten-Positionen (Fahrt / Übernachtung / Nebenkosten)
+    const pos = trip.positions || [];
+    const sumKind = (k) => round2(pos.filter((p) => p.kind === k).reduce((s, p) => s + posAmount(p), 0));
+    const fahrt = sumKind('fahrt'), uebernachtung = sumKind('uebernachtung'), neben = sumKind('neben');
 
     const total = round2(verpflegung + fahrt + uebernachtung + neben);
     const hours = (trip.abreise && trip.rueckkehr) ? (new Date(trip.rueckkehr) - new Date(trip.abreise)) / 3600000 : 0;
-    return { rows, days, verpflegung, fahrt, uebernachtung, neben, total, nightsCount, hours: Math.max(0, hours), dayCount: days.length };
+    return { rows, days, verpflegung, fahrt, uebernachtung, neben, total, hours: Math.max(0, hours), dayCount: days.length };
   }
 
   // ---------------------------------------------------------------- Views
@@ -1814,34 +1919,19 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           '</div>' +
         '</div>' +
 
-        '<div class="rk-section"><h2>' + esc(t('secTransport')) + '</h2>' +
-          '<div class="rk-grid">' +
-            field(t('transportMeans'),
-              '<select class="qrx-select" data-field="verkehrMittel">' + transportOptions(tp.verkehr.mittel) + '</select>') +
-            '<div id="rk-verkehr-fields" class="rk-field"></div>' +
-          '</div>' +
-        '</div>' +
-
         '<div class="rk-section"><h2>' + esc(t('secDays')) + '</h2>' +
           '<div id="rk-days"></div>' +
         '</div>' +
 
-        '<div class="rk-section"><h2>' + esc(t('secNight')) + '</h2>' +
-          '<div class="rk-grid">' +
-            field(t('nightMode'), '<select class="qrx-select" data-field="nightMode">' + nightOptions(tp.uebernachtung.mode) + '</select>') +
-            '<div id="rk-night-fields" class="rk-field"></div>' +
+        '<div class="rk-section"><h2>' + esc(t('secCosts')) + '</h2>' +
+          '<div id="rk-positions"></div>' +
+          '<div class="rk-pos-add">' +
+            '<button class="qrx-btn qrx-btn-sm" data-action="add-pos" data-kind="fahrt">' + esc(t('addFahrt')) + '</button>' +
+            '<button class="qrx-btn qrx-btn-sm" data-action="add-pos" data-kind="uebernachtung">' + esc(t('addUeb')) + '</button>' +
+            '<button class="qrx-btn qrx-btn-sm" data-action="add-pos" data-kind="neben">' + esc(t('addNeben')) + '</button>' +
           '</div>' +
-        '</div>' +
-
-        '<div class="rk-section"><h2>' + esc(t('secExtras')) + '</h2>' +
-          '<div id="rk-extras"></div>' +
-          '<button class="qrx-btn qrx-btn-sm" data-action="add-extra">' + esc(t('addExtra')) + '</button>' +
-        '</div>' +
-
-        '<div class="rk-section"><h2>' + esc(t('secReceipts')) + '</h2>' +
-          '<div id="rk-belege"></div>' +
           '<label class="rk-dropzone" id="rk-dropzone">' +
-            '<input id="rk-file" type="file" accept="application/pdf,image/*" hidden>' +
+            '<input id="rk-file" type="file" accept="application/pdf,image/*" multiple hidden>' +
             '<svg class="rk-dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>' +
             '<span class="rk-dropzone-title">' + esc(t('importReceipt')) + '</span>' +
             '<span class="rk-dropzone-sub">' + esc(t('dropOr')) + '</span>' +
@@ -1853,10 +1943,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       '</div>';
 
     renderRateFields();
-    renderVerkehrFields();
-    renderNightFields();
-    renderExtras();
-    renderBelege();
+    renderPositions();
     rebuildDays();
     refreshCalc();
   }
@@ -1864,15 +1951,6 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   function field(label, control, extraClass) {
     return '<label class="rk-field ' + (extraClass || '') + '"><span class="qrx-label">' + esc(label) + '</span>' + control + '</label>';
   }
-  function transportOptions(sel) {
-    const opts = [['pkw', 'mPkw'], ['motorrad', 'mMotorrad'], ['bahn', 'mBahn'], ['flug', 'mFlug'], ['oepnv', 'mOepnv'], ['sonstige', 'mSonstige'], ['none', 'mNone']];
-    return opts.map(([v, k]) => '<option value="' + v + '"' + (sel === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('');
-  }
-  function nightOptions(sel) {
-    const opts = [['pauschale', 'nightPauschale'], ['beleg', 'nightBeleg'], ['none', 'nightNone']];
-    return opts.map(([v, k]) => '<option value="' + v + '"' + (sel === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('');
-  }
-
   function renderRateFields() {
     const tp = state.current;
     const box = $('rk-rate-fields');
@@ -1894,44 +1972,70 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       '<p class="rk-hint">' + esc(t('rateHint', { year: RATES.year })) + '</p>';
   }
 
-  function renderVerkehrFields() {
-    const tp = state.current;
-    const box = $('rk-verkehr-fields');
-    if (!box) return;
-    const m = tp.verkehr.mittel;
-    if (m === 'pkw' || m === 'motorrad') {
-      box.innerHTML = '<span class="qrx-label">' + esc(t('fldKm')) + '</span>' +
-        '<input class="qrx-input" type="number" min="0" step="1" inputmode="numeric" data-field="km" value="' + esc(tp.verkehr.km) + '">';
-    } else if (m === 'none') {
-      box.innerHTML = '';
-    } else {
-      box.innerHTML = '<span class="qrx-label">' + esc(t('fldAmount')) + '</span>' +
-        '<input class="qrx-input" type="number" min="0" step="0.01" inputmode="decimal" data-field="verkehrBetrag" value="' + esc(tp.verkehr.betrag) + '">';
-    }
+  // -------- Kosten-Positionen (Fahrt / Übernachtung / Nebenkosten) --------
+  function catOptions(sel) {
+    return [['fahrt', 'catFahrt'], ['uebernachtung', 'catUeb'], ['neben', 'catNeben']]
+      .map(([v, k]) => '<option value="' + v + '"' + (sel === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('');
   }
-
-  function renderNightFields() {
-    const tp = state.current;
-    const box = $('rk-night-fields');
-    if (!box) return;
-    if (tp.uebernachtung.mode === 'beleg') {
-      box.innerHTML = '<span class="qrx-label">' + esc(t('fldAmount')) + '</span>' +
-        '<input class="qrx-input" type="number" min="0" step="0.01" inputmode="decimal" data-field="nightBetrag" value="' + esc(tp.uebernachtung.betrag) + '">';
-    } else {
-      box.innerHTML = '';
-    }
+  function posNum(i, pf, val, step) {
+    return '<input class="qrx-input rk-pos-num" type="number" min="0" step="' + step + '" inputmode="decimal" data-pos="' + i + '" data-pfield="' + pf + '" value="' + esc(val) + '">';
   }
-
-  function renderExtras() {
-    const tp = state.current;
-    const box = $('rk-extras');
+  function posModeSelect(i, kind, mode) {
+    const opts = kind === 'fahrt' ? [['km', 'modeKm'], ['betrag', 'modeBetrag']]
+      : kind === 'uebernachtung' ? [['pauschale', 'modePauschale'], ['betrag', 'modeBetrag']] : null;
+    if (!opts) return '';
+    return '<select class="qrx-select rk-pos-mode" data-pos="' + i + '" data-pfield="mode">' +
+      opts.map(([v, k]) => '<option value="' + v + '"' + (mode === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('') + '</select>';
+  }
+  function posRowHtml(p, i) {
+    let controls;
+    if (p.kind === 'fahrt' && p.mode === 'km') {
+      controls = posModeSelect(i, p.kind, p.mode) + '<span class="rk-pos-mult">' + posNum(i, 'km', p.km, '1') +
+        '<span class="rk-pos-x">×</span>' + posNum(i, 'ratePerKm', p.ratePerKm, '0.01') + '<span class="rk-pos-unit">' + esc(t('posKmRate')) + '</span></span>';
+    } else if (p.kind === 'uebernachtung' && p.mode === 'pauschale') {
+      controls = posModeSelect(i, p.kind, p.mode) + '<span class="rk-pos-mult">' + posNum(i, 'nights', p.nights, '1') +
+        '<span class="rk-pos-x">×</span>' + posNum(i, 'nightRate', p.nightRate, '0.01') + '<span class="rk-pos-unit">' + esc(t('posNightRate')) + '</span></span>';
+    } else {
+      controls = posModeSelect(i, p.kind, p.mode) + posNum(i, 'betrag', p.betrag, '0.01');
+    }
+    const viewBtn = p.dataUrl ? '<button class="qrx-btn qrx-btn-sm" data-action="view-pos" data-idx="' + i + '">' + esc(t('viewReceipt')) + '</button>' : '';
+    const belegLine = p.belegName
+      ? '<div class="rk-pos-beleg">' + esc(t('posReceipt')) + ': ' + esc(p.belegName) + (p.tooBig && !p.dataUrl ? ' · ' + esc(t('tooBig')) : '') + '</div>' : '';
+    return '<div class="rk-pos rk-pos-' + p.kind + '" data-pos="' + i + '">' +
+      '<div class="rk-pos-line1">' +
+        '<select class="qrx-select rk-pos-cat" data-pos="' + i + '" data-pfield="kind">' + catOptions(p.kind) + '</select>' +
+        '<input class="qrx-input rk-pos-bez" data-pos="' + i + '" data-pfield="bez" value="' + esc(p.bez || '') + '" placeholder="' + esc(t('posDescPh')) + '">' +
+        viewBtn +
+        '<button class="rk-icon-btn" data-action="del-pos" data-idx="' + i + '" aria-label="✕">✕</button>' +
+      '</div>' +
+      '<div class="rk-pos-line2"><div class="rk-pos-controls">' + controls + '</div>' +
+        '<div class="rk-pos-amount" id="rk-pos-amt-' + i + '">' + esc(eur(posAmount(p))) + '</div></div>' +
+      belegLine +
+    '</div>';
+  }
+  function renderPositions() {
+    const box = $('rk-positions');
     if (!box) return;
-    box.innerHTML = (tp.extras || []).map((e, i) =>
-      '<div class="rk-extra-row">' +
-        '<input class="qrx-input rk-extra-name" data-field="extraName" data-idx="' + i + '" value="' + esc(e.bez || '') + '" placeholder="' + esc(t('extraNamePh')) + '">' +
-        '<input class="qrx-input rk-extra-amount" type="number" min="0" step="0.01" inputmode="decimal" data-field="extraBetrag" data-idx="' + i + '" value="' + esc(e.betrag || '') + '">' +
-        '<button class="rk-icon-btn" data-action="del-extra" data-idx="' + i + '" aria-label="' + esc(t('deleteTrip')) + '">✕</button>' +
-      '</div>').join('');
+    const list = state.current.positions || [];
+    box.innerHTML = list.length
+      ? list.map((p, i) => posRowHtml(p, i)).join('')
+      : '<p class="rk-hint">' + esc(t('costsEmpty')) + '</p>';
+  }
+  function ensurePosDefaults(p) {
+    if (p.mode === 'km') { if (p.ratePerKm == null || p.ratePerKm === '') p.ratePerKm = num(state.settings.kmCar); if (p.km == null) p.km = 0; }
+    else if (p.mode === 'pauschale') { if (p.nightRate == null || p.nightRate === '') p.nightRate = nightRate(state.current); if (p.nights == null) p.nights = Math.max(0, tripDays(state.current).length - 1); }
+    else if (p.betrag == null) p.betrag = 0;
+  }
+  function setPosKind(p, kind) {
+    p.kind = kind;
+    if (kind === 'fahrt') p.mode = (p.mode === 'km' || p.mode === 'betrag') ? p.mode : 'km';
+    else if (kind === 'uebernachtung') p.mode = (p.mode === 'pauschale' || p.mode === 'betrag') ? p.mode : 'pauschale';
+    else p.mode = 'betrag';
+    ensurePosDefaults(p);
+  }
+  function updatePosAmount(idx) {
+    const el = $('rk-pos-amt-' + idx);
+    if (el) el.textContent = eur(posAmount(state.current.positions[idx]));
   }
 
   // ---------------------------------------------------------------- Belege
@@ -1942,27 +2046,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     unknown: 'M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM14 4v5h5',
   };
   function typeLabelOf(ty) { return t('type' + ty.charAt(0).toUpperCase() + ty.slice(1)) || t('typeUnknown'); }
-
-  function renderBelege() {
-    const box = $('rk-belege');
-    if (!box) return;
-    const list = state.current.belege || [];
-    if (!list.length) { box.innerHTML = '<p class="rk-hint">' + esc(t('receiptsEmpty')) + '</p>'; return; }
-    box.innerHTML = list.map((b, i) => {
-      const meta = esc(typeLabelOf(b.type || 'unknown')) + (b.total != null ? ' · ' + esc(eur(b.total)) : '') +
-        (b.tooBig ? ' · ' + esc(t('tooBig')) : '');
-      const viewBtn = b.dataUrl
-        ? '<button class="qrx-btn qrx-btn-sm" data-action="view-beleg" data-idx="' + i + '">' + esc(t('viewReceipt')) + '</button>'
-        : '';
-      return '<div class="rk-beleg-row">' +
-        '<svg class="rk-beleg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + (RECEIPT_ICON[b.type] || RECEIPT_ICON.unknown) + '"/></svg>' +
-        '<div class="rk-beleg-main"><span class="rk-beleg-name">' + esc(b.name || t('typeUnknown')) + '</span>' +
-          '<span class="rk-beleg-meta">' + meta + '</span></div>' +
-        viewBtn +
-        '<button class="rk-icon-btn" data-action="del-beleg" data-idx="' + i + '" aria-label="✕">✕</button>' +
-      '</div>';
-    }).join('');
-  }
+  // Position-Art aus Beleg-Typ.
+  function kindForType(ty) { return ty === 'hotel' ? 'uebernachtung' : (ty === 'bahn' || ty === 'oepnv') ? 'fahrt' : 'neben'; }
+  function catLabel(kind) { return t(kind === 'fahrt' ? 'catFahrt' : kind === 'uebernachtung' ? 'catUeb' : 'catNeben'); }
 
   // Datei → speicherbare Repräsentation. Bilder werden verkleinert/rekomprimiert,
   // PDFs unverändert als Data-URL. Zu große Dateien werden nicht eingebettet.
@@ -2028,26 +2114,47 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
   }
 
-  // Datei importieren: Text gewinnen (PDF/OCR) → parsen → Gegenprüf-Panel.
-  async function importReceipt(file) {
-    if (!file) return;
+  // Eine oder mehrere Dateien importieren: Text gewinnen (PDF/OCR) → parsen →
+  // Auswahl-Panel (je Beleg eine Position + optionale Reise-Vorschläge).
+  async function importFiles(fileList) {
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (!files.length) return;
     if (!qrx.rkReceipts) { alert(t('libFailed')); return; }
     const prog = showProgress(t('analysing'));
-    try {
-      prog.set(t('readingPdf'), null);
-      const { text, method } = await qrx.rkReceipts.extractText(file, (p) => {
-        prog.set(t('readingOcr', { pct: Math.round((p || 0) * 100) }), p);
-      });
-      prog.set(t('analysing'), null);
-      const parsed = qrx.rkReceipts.parseReceipt(text);
-      const stored = await fileToStored(file);   // Datei zum Ansehen einbetten
-      prog.close();
-      showCrossCheck(parsed, file.name, method, stored);
-    } catch (e) {
-      prog.close();
-      console.warn('receipt import failed', e);
-      alert(t('importFailed', { msg: (e && e.message) || String(e) }));
+    const detected = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      prog.set(t('importingN', { i: i + 1, n: files.length }), files.length > 1 ? i / files.length : null);
+      try {
+        const { text, method } = await qrx.rkReceipts.extractText(file, (p) => {
+          prog.set(t('readingOcr', { pct: Math.round((p || 0) * 100) }), p);
+        });
+        const parsed = qrx.rkReceipts.parseReceipt(text);
+        const stored = await fileToStored(file);
+        detected.push({ fileName: file.name, parsed, stored, method });
+      } catch (e) { console.warn('receipt import failed', file.name, e); }
     }
+    prog.close();
+    if (!detected.length) { alert(t('nothingDetected')); return; }
+    showBatchPanel(detected);
+  }
+
+  function receiptPeriod(parsed) {
+    if (parsed.type === 'hotel' && parsed.hotel && parsed.hotel.checkIn) return { d0: parsed.hotel.checkIn, d1: parsed.hotel.checkOut || parsed.hotel.checkIn };
+    if (parsed.dates && parsed.dates.length) return { d0: parsed.dates[0], d1: parsed.dates[parsed.dates.length - 1] };
+    return null;
+  }
+  function periodText(pr) { return !pr ? t('noPeriod') : (pr.d0 === pr.d1 ? fmtDate(pr.d0) : fmtDate(pr.d0) + ' – ' + fmtDate(pr.d1)); }
+
+  // Aus einem erkannten Beleg eine Kosten-Position bauen (mit angehängter Datei).
+  function positionFromReceipt(item) {
+    const p = item.parsed, kind = kindForType(p.type);
+    let bez = p.type === 'hotel' ? t('catUeb') : (p.type === 'bahn' || p.type === 'oepnv') ? typeLabelOf(p.type) : (item.fileName || t('typeUnknown')).replace(/\.[^.]+$/, '');
+    if ((p.type === 'bahn' || p.type === 'oepnv') && p.travel && (p.travel.from || p.travel.to)) bez += ' ' + [p.travel.from, p.travel.to].filter(Boolean).join('→');
+    const pos = { id: newId(), kind, bez, mode: 'betrag', betrag: p.total != null ? p.total : 0 };
+    if (item.stored && item.stored.dataUrl) { pos.belegName = item.fileName; pos.mime = item.stored.mime; pos.dataUrl = item.stored.dataUrl; pos.method = item.method; }
+    else if (item.stored && item.stored.tooBig) { pos.belegName = item.fileName; pos.tooBig = true; }
+    return pos;
   }
 
   // Fortschritts-Overlay.
@@ -2066,93 +2173,48 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     };
   }
 
-  // Vorschläge aus einem geparsten Beleg für die aktuelle Reise ableiten.
-  function buildSuggestions(p, tp, fileName) {
-    const S = [];
-    const money = (a, b) => a != null && b != null && Math.abs(a - b) < 0.01;
-    const sug = (label, curTxt, sugTxt, current, match, apply) => {
-      const status = match ? 'match' : (current == null ? 'fill' : 'mismatch');
-      S.push({ label, curTxt, sugTxt, status, checked: status !== 'mismatch', apply });
-    };
-    const dpart = (s) => (s || '').slice(0, 10);
-
-    if (p.type === 'hotel') {
-      if (p.total != null) {
-        const cur = tp.uebernachtung.mode === 'beleg' ? tp.uebernachtung.betrag : null;
-        sug(t('bcHotelCost'), cur == null ? '—' : eur(cur), eur(p.total), cur, money(cur, p.total),
-          () => { tp.uebernachtung.mode = 'beleg'; tp.uebernachtung.betrag = p.total; });
-      }
-      if (p.hotel && p.hotel.checkIn) {
-        const inSet = !!tp.abreise, outSet = !!tp.rueckkehr;
-        const co = p.hotel.checkOut || p.hotel.checkIn;
-        const curTxt = (tp.abreise ? fmtDate(tp.abreise) : '—') + ' – ' + (tp.rueckkehr ? fmtDate(tp.rueckkehr) : '—');
-        const sugTxt = fmtDate(p.hotel.checkIn) + ' – ' + fmtDate(co);
-        const match = dpart(tp.abreise) === p.hotel.checkIn && dpart(tp.rueckkehr) === co;
-        sug(t('bcPeriod'), curTxt, sugTxt, (inSet && outSet) ? curTxt : null, match,
-          () => { if (!tp.abreise) tp.abreise = p.hotel.checkIn + 'T14:00'; if (!tp.rueckkehr) tp.rueckkehr = co + 'T11:00'; });
-      }
-      if (p.hotel && p.hotel.breakfast) {
-        sug(t('bcBreakfast'), t('no'), t('bcAllNights'), null, false,
-          () => { tripDays(tp).forEach((d) => { if (d.type === 'none' || d.type === 'arrival') return; tp.meals[d.date] = tp.meals[d.date] || {}; tp.meals[d.date].f = true; }); });
-      }
-    } else if (p.type === 'bahn' || p.type === 'oepnv') {
-      if (p.total != null) {
-        const receiptMode = ['bahn', 'flug', 'oepnv', 'sonstige'].includes(tp.verkehr.mittel);
-        const cur = receiptMode ? tp.verkehr.betrag : null;
-        sug(t('bcTravelCost'), cur == null ? '—' : eur(cur), eur(p.total), cur, money(cur, p.total),
-          () => {
-            // Nur wenn tatsächlich km eingetragen sind (= gefahren), Ticket als
-            // Nebenkosten führen; sonst das Verkehrsmittel auf das Ticket setzen.
-            const drove = (tp.verkehr.mittel === 'pkw' || tp.verkehr.mittel === 'motorrad') && num(tp.verkehr.km) > 0;
-            if (drove) tp.extras.push({ bez: typeLabelOf(p.type), betrag: p.total });
-            else { tp.verkehr.mittel = p.type === 'bahn' ? 'bahn' : 'oepnv'; tp.verkehr.betrag = p.total; }
-          });
-      }
-      if (p.dates && p.dates.length) {
-        const d0 = p.dates[0], d1 = p.dates[p.dates.length - 1];
-        const curTxt = (tp.abreise ? fmtDate(tp.abreise) : '—') + ' – ' + (tp.rueckkehr ? fmtDate(tp.rueckkehr) : '—');
-        const sugTxt = d0 === d1 ? fmtDate(d0) : fmtDate(d0) + ' – ' + fmtDate(d1);
-        const match = dpart(tp.abreise) === d0 && dpart(tp.rueckkehr) === d1;
-        sug(t('bcTravelDate'), curTxt, sugTxt, (tp.abreise && tp.rueckkehr) ? curTxt : null, match,
-          () => { if (!tp.abreise) tp.abreise = d0 + 'T08:00'; if (!tp.rueckkehr) tp.rueckkehr = (d1 || d0) + 'T18:00'; });
-      }
-    } else if (p.total != null) {
-      sug(t('bcExtraCost'), '—', eur(p.total), null, false,
-        () => { tp.extras.push({ bez: (fileName || t('typeUnknown')).replace(/\.[^.]+$/, ''), betrag: p.total }); });
-    }
-    return S;
+  // Auswahl-Panel: erkannte Belege als Liste (Häkchen) → je Beleg eine Position;
+  // dazu optionale Reise-Vorschläge (Zeitraum/Frühstück). Bei mehreren PDFs mit
+  // abweichendem Zeitraum wird das markiert, damit man fremde aussortieren kann.
+  function svgIcon(type) {
+    return '<svg class="rk-beleg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + (RECEIPT_ICON[type] || RECEIPT_ICON.unknown) + '"/></svg>';
   }
-
-  // Gegenprüf-Panel: erkannte Werte neben den aktuellen, einzeln übernehmbar.
-  function showCrossCheck(parsed, fileName, method, stored) {
+  function showBatchPanel(items) {
     const tp = state.current;
-    const suggestions = buildSuggestions(parsed, tp, fileName);
     const ov = document.createElement('div');
     ov.className = 'rk-modal-overlay';
+    const tripPeriod = (tp.abreise && tp.rueckkehr) ? { d0: tp.abreise.slice(0, 10), d1: tp.rueckkehr.slice(0, 10) } : null;
+    const refPeriod = tripPeriod || receiptPeriod(items[0].parsed);
 
-    const routeStr = parsed.travel && (parsed.travel.from || parsed.travel.to)
-      ? '<p class="rk-cross-route">' + esc(t('route')) + ': ' + esc([parsed.travel.from, parsed.travel.to].filter(Boolean).join(' → ')) +
-        (parsed.travel.roundTrip ? ' ⇄' : '') + '</p>' : '';
-    const rows = suggestions.map((s, i) =>
-      '<div class="rk-cross-item rk-cross-' + s.status + '">' +
-        '<label class="rk-cross-check"><input type="checkbox" data-i="' + i + '"' + (s.checked ? ' checked' : '') + '>' + esc(s.label) + '</label>' +
-        '<span class="rk-badge rk-badge-' + s.status + '">' + esc(t('st' + s.status.charAt(0).toUpperCase() + s.status.slice(1))) + '</span>' +
-        '<div class="rk-cross-vals"><span class="rk-cross-cur">' + esc(s.curTxt) + '</span>' +
-          '<span class="rk-cross-arrow">→</span><span class="rk-cross-new">' + esc(s.sugTxt) + '</span></div>' +
-      '</div>').join('');
+    const rows = items.map((it, i) => {
+      const pr = receiptPeriod(it.parsed);
+      const diff = pr && refPeriod && (pr.d0 !== refPeriod.d0 || pr.d1 !== refPeriod.d1);
+      const meta = typeLabelOf(it.parsed.type) + ' · ' + (it.parsed.total != null ? eur(it.parsed.total) : '—') + ' · ' + periodText(pr);
+      return '<label class="rk-batch-item">' +
+        '<input type="checkbox" data-i="' + i + '" checked>' + svgIcon(it.parsed.type) +
+        '<div class="rk-batch-main"><span class="rk-batch-name">' + esc(it.fileName) + '</span>' +
+          '<span class="rk-batch-meta">' + esc(meta) + '</span></div>' +
+        (diff ? '<span class="rk-badge rk-badge-mismatch">' + esc(t('diffPeriod')) + '</span>' : '') +
+      '</label>';
+    }).join('');
+
+    const canSetPeriod = (!tp.abreise || !tp.rueckkehr) && items.some((it) => receiptPeriod(it.parsed));
+    const anyBreakfast = items.some((it) => it.parsed.type === 'hotel' && it.parsed.hotel && it.parsed.hotel.breakfast);
+    const tripSug = (canSetPeriod || anyBreakfast)
+      ? '<div class="rk-batch-sub">' + esc(t('tripUpdates')) + '</div>' +
+        (canSetPeriod ? '<label class="rk-batch-item"><input type="checkbox" data-sug="period" checked><span>' + esc(t('suggSetPeriod')) + '</span></label>' : '') +
+        (anyBreakfast ? '<label class="rk-batch-item"><input type="checkbox" data-sug="breakfast" checked><span>' + esc(t('suggBreakfast')) + '</span></label>' : '')
+      : '';
 
     ov.innerHTML =
       '<div class="rk-modal rk-modal-cross" role="dialog" aria-modal="true">' +
-        '<div class="rk-modal-head"><div><h3>' + esc(t('crossTitle')) + ' · ' + esc(typeLabelOf(parsed.type)) + '</h3>' +
-          '<p class="rk-modal-sub">' + esc(t('crossSub', { name: fileName || '' })) + '</p></div>' +
+        '<div class="rk-modal-head"><div><h3>' + esc(items.length > 1 ? t('batchTitle') : t('batchOne')) + '</h3>' +
+          '<p class="rk-modal-sub">' + esc(t('batchSub', { n: items.length })) + '</p></div>' +
           '<button class="rk-icon-btn rk-modal-x" data-x aria-label="✕">✕</button></div>' +
-        routeStr +
-        (suggestions.length
-          ? '<div class="rk-cross-list">' + rows + '</div>'
-          : '<p class="rk-hint">' + esc(t('detectedNothing')) + '</p>') +
+        '<div class="rk-batch-list">' + rows + '</div>' + tripSug +
         '<div class="rk-modal-actions">' +
           '<button class="qrx-btn" data-x>' + esc(t('dismiss')) + '</button>' +
-          '<button class="qrx-btn qrx-btn-primary" data-apply>' + esc(suggestions.length ? t('applySel') : t('crossApply')) + '</button>' +
+          '<button class="qrx-btn qrx-btn-primary" data-apply>' + esc(t('applyBatch')) + '</button>' +
         '</div>' +
       '</div>';
     document.body.appendChild(ov);
@@ -2161,16 +2223,25 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     ov.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', close));
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('[data-apply]').addEventListener('click', () => {
-      const boxes = ov.querySelectorAll('input[type="checkbox"][data-i]');
-      boxes.forEach((cb) => { if (cb.checked) { try { suggestions[+cb.getAttribute('data-i')].apply(); } catch (_) {} } });
-      tp.belege.push({
-        name: fileName || t('typeUnknown'), type: parsed.type, total: parsed.total, dates: parsed.dates || [], method,
-        mime: stored && stored.dataUrl ? stored.mime : undefined,
-        dataUrl: stored && stored.dataUrl ? stored.dataUrl : undefined,
-        tooBig: stored && stored.tooBig ? true : undefined,
-      });
+      const checked = [];
+      ov.querySelectorAll('input[type="checkbox"][data-i]').forEach((cb) => { if (cb.checked) checked.push(items[+cb.getAttribute('data-i')]); });
+      checked.forEach((it) => tp.positions.push(positionFromReceipt(it)));
+      const doPeriod = ov.querySelector('input[data-sug="period"]');
+      if (doPeriod && doPeriod.checked) {
+        const prs = checked.map((it) => receiptPeriod(it.parsed)).filter(Boolean);
+        if (prs.length) {
+          const d0 = prs.map((p) => p.d0).sort()[0];
+          const d1 = prs.map((p) => p.d1).sort().slice(-1)[0];
+          if (!tp.abreise) tp.abreise = d0 + 'T08:00';
+          if (!tp.rueckkehr) tp.rueckkehr = d1 + 'T18:00';
+        }
+      }
+      const doBreak = ov.querySelector('input[data-sug="breakfast"]');
+      if (doBreak && doBreak.checked && checked.some((it) => it.parsed.type === 'hotel' && it.parsed.hotel && it.parsed.hotel.breakfast)) {
+        tripDays(tp).forEach((d) => { if (d.type === 'none' || d.type === 'arrival') return; tp.meals[d.date] = tp.meals[d.date] || {}; tp.meals[d.date].f = true; });
+      }
       close();
-      renderEdit();  // Felder, Tage und Summen neu aus dem aktualisierten Stand
+      renderEdit();
     });
   }
 
@@ -2179,9 +2250,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const tp = state.current;
     const days = tripDays(tp);
     const validDates = new Set(days.map((d) => d.date));
-    // verwaiste Einträge entfernen
+    // verwaiste Mahlzeiten-Einträge entfernen
     Object.keys(tp.meals).forEach((d) => { if (!validDates.has(d)) delete tp.meals[d]; });
-    Object.keys(tp.nights).forEach((d) => { if (!validDates.has(d)) delete tp.nights[d]; });
   }
 
   function renderDays() {
@@ -2210,7 +2280,6 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           '<span class="rk-day-type">' + esc(t(typeLabel[row.type])) + '</span></div>' +
         '<div class="rk-meals">' + mealChip(row, 'f', t('colBreakfast'), t('breakfast')) +
           mealChip(row, 'm', t('colLunch'), t('lunch')) + mealChip(row, 'a', t('colDinner'), t('dinner')) + '</div>' +
-        '<label class="rk-day-night"><input type="checkbox" data-field="night" data-date="' + esc(row.date) + '"' + (row.hasNight ? ' checked' : '') + '> ' + esc(t('night')) + '</label>' +
         '<div class="rk-day-amount">' + esc(eur(row.amount)) + '</div>' +
       '</div>';
     });
@@ -2301,18 +2370,21 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           '<table class="rk-table"><thead><tr><th>' + esc(t('thDate')) + '</th><th>' + esc(t('thType')) + '</th>' +
             '<th>' + esc(t('thMeals')) + '</th><th class="rk-num">' + esc(t('thPerDiem')) + '</th></tr></thead>' +
             '<tbody>' + daysRows + '</tbody>' +
-            '<tfoot>' +
-              rowFoot(t('sumVerpflegung'), c.verpflegung) +
-              rowFoot(t('sumFahrt'), c.fahrt) +
-              rowFoot(t('sumUebernachtung'), c.uebernachtung) +
-              rowFoot(t('sumNeben'), c.neben) +
-              '<tr><td colspan="3">' + esc(t('sumTotal')) + '</td><td class="rk-num">' + esc(eur(c.total)) + '</td></tr>' +
-            '</tfoot>' +
+            '<tfoot>' + rowFoot(t('sumVerpflegung'), c.verpflegung) + '</tfoot>' +
           '</table>' +
-          (tp.belege && tp.belege.length
-            ? '<p class="rk-report-receipts"><b>' + esc(t('reportReceipts')) + ':</b> ' +
-                esc(tp.belege.map((b) => b.name + (b.total != null ? ' (' + eur(b.total) + ')' : '')).join(' · ')) + '</p>'
+          (tp.positions && tp.positions.length
+            ? '<h3 class="rk-report-h3">' + esc(t('reportCosts')) + '</h3>' +
+              '<table class="rk-table"><thead><tr><th>' + esc(t('thCat')) + '</th><th>' + esc(t('thDesc')) + '</th>' +
+                '<th class="rk-num">' + esc(t('thAmount')) + '</th></tr></thead><tbody>' +
+                tp.positions.map((p) => '<tr><td>' + esc(catLabel(p.kind)) + '</td><td>' + esc(p.bez || p.belegName || '–') +
+                  '</td><td class="rk-num">' + esc(eur(posAmount(p))) + '</td></tr>').join('') +
+              '</tbody></table>'
             : '') +
+          '<table class="rk-table rk-report-totals"><tbody>' +
+            rowFoot(t('sumVerpflegung'), c.verpflegung) + rowFoot(t('sumFahrt'), c.fahrt) +
+            rowFoot(t('sumUebernachtung'), c.uebernachtung) + rowFoot(t('sumNeben'), c.neben) +
+            '<tr class="rk-report-grand"><td colspan="3">' + esc(t('sumTotal')) + '</td><td class="rk-num">' + esc(eur(c.total)) + '</td></tr>' +
+          '</tbody></table>' +
           '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' +
         '</div>' +
       '</div>';
@@ -2379,20 +2451,36 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   function onInput(e) {
     const eln = e.target;
     if (eln.type === 'file') {
-      const file = eln.files && eln.files[0];
-      eln.value = '';            // gleiche Datei erneut wählbar machen
-      if (file) importReceipt(file);
+      const files = eln.files;
+      const list = files ? Array.from(files) : [];
+      eln.value = '';            // gleiche Datei(en) erneut wählbar machen
+      if (list.length) importFiles(list);
       return;
     }
-    const f = eln.getAttribute('data-field');
     const settingKey = eln.getAttribute('data-setting');
     if (settingKey) {
       state.settings[settingKey] = eln.type === 'number' ? num(eln.value) : eln.value;
       saveSettings();
       return;
     }
-    if (!f || !state.current) return;
+    if (!state.current) return;
     const tp = state.current;
+
+    // Kosten-Positionen
+    const pfield = eln.getAttribute('data-pfield');
+    if (pfield) {
+      const idx = +eln.getAttribute('data-pos');
+      const p = tp.positions[idx];
+      if (!p) return;
+      if (pfield === 'kind') { setPosKind(p, eln.value); renderPositions(); renderSummary(); }
+      else if (pfield === 'mode') { p.mode = eln.value; ensurePosDefaults(p); renderPositions(); renderSummary(); }
+      else if (pfield === 'bez') { p.bez = eln.value; }
+      else { p[pfield] = num(eln.value); updatePosAmount(idx); renderSummary(); }
+      return;
+    }
+
+    const f = eln.getAttribute('data-field');
+    if (!f) return;
     switch (f) {
       case 'reason': tp.reason = eln.value; break;
       case 'ort': tp.ort = eln.value; break;
@@ -2409,24 +2497,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       case 'abNight': tp.abNight = num(eln.value); refreshCalc(); break;
       case 'abreise': tp.abreise = eln.value; rebuildDays(); refreshCalc(); break;
       case 'rueckkehr': tp.rueckkehr = eln.value; rebuildDays(); refreshCalc(); break;
-      case 'verkehrMittel': tp.verkehr.mittel = eln.value; renderVerkehrFields(); refreshCalc(); break;
-      case 'km': tp.verkehr.km = num(eln.value); refreshCalc(); break;
-      case 'verkehrBetrag': tp.verkehr.betrag = num(eln.value); refreshCalc(); break;
-      case 'nightMode': tp.uebernachtung.mode = eln.value; renderNightFields(); refreshCalc(); break;
-      case 'nightBetrag': tp.uebernachtung.betrag = num(eln.value); refreshCalc(); break;
       case 'meal': {
         const date = eln.getAttribute('data-date'), meal = eln.getAttribute('data-meal');
         tp.meals[date] = tp.meals[date] || {};
         tp.meals[date][meal] = eln.checked;
         refreshCalc(); break;
       }
-      case 'night': {
-        const date = eln.getAttribute('data-date');
-        tp.nights[date] = eln.checked;
-        refreshCalc(); break;
-      }
-      case 'extraName': tp.extras[+eln.getAttribute('data-idx')].bez = eln.value; break;
-      case 'extraBetrag': tp.extras[+eln.getAttribute('data-idx')].betrag = num(eln.value); renderSummary(); break;
     }
   }
 
@@ -2444,15 +2520,17 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       case 'print': window.print(); break;
       case 'csv-trip': exportCsv([state.current], 'reisekosten-' + (state.current.ort || 'reise') + '.csv'); break;
       case 'csv-all': exportCsv(state.trips, 'reisekosten-alle.csv'); break;
-      case 'add-extra': state.current.extras.push({ bez: '', betrag: 0 }); renderExtras(); break;
-      case 'del-extra':
-        state.current.extras.splice(+target.getAttribute('data-idx'), 1);
-        renderExtras(); renderSummary(); break;
-      case 'del-beleg':
-        state.current.belege.splice(+target.getAttribute('data-idx'), 1);
-        renderBelege(); break;
-      case 'view-beleg':
-        showBeleg(state.current.belege[+target.getAttribute('data-idx')]); break;
+      case 'add-pos':
+        state.current.positions.push(newPosition(target.getAttribute('data-kind'), state.current));
+        renderPositions(); renderSummary(); break;
+      case 'del-pos':
+        state.current.positions.splice(+target.getAttribute('data-idx'), 1);
+        renderPositions(); renderSummary(); break;
+      case 'view-pos': {
+        const p = state.current.positions[+target.getAttribute('data-idx')];
+        if (p) showBeleg({ name: p.belegName, dataUrl: p.dataUrl, mime: p.mime });
+        break;
+      }
       case 'quick-meal': {
         const meal = target.getAttribute('data-meal');
         tripDays(state.current).forEach((d) => {
@@ -2531,8 +2609,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     e.preventDefault();
     const dz = e.target.closest && e.target.closest('.rk-dropzone');
     if (dz) dz.classList.remove('rk-drag');
-    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (dz && file) importReceipt(file);
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (dz && files && files.length) importFiles(files);
   });
 })();
 </script>

@@ -18,29 +18,39 @@
     negativ.</li>
 </ul>
 
-<h3>Fahrt &amp; Übernachtung</h3>
+<h3>Kosten-Tabelle (Fahrt, Übernachtung, Nebenkosten)</h3>
+<p>
+  Alle Kosten stehen in <b>einer Tabelle</b>. Jede Zeile hat eine <b>Kategorie</b> (Fahrt,
+  Übernachtung oder Nebenkosten), eine Bezeichnung und einen Betrag. Über <b>+ Fahrt</b>,
+  <b>+ Übernachtung</b> bzw. <b>+ Nebenkosten</b> legst du Positionen manuell an; Belege erzeugen
+  automatisch eine neue Position (siehe unten).
+</p>
 <ul>
-  <li><b>Kilometerpauschale:</b> PKW <code>0,30 €/km</code>, Motorrad <code>0,20 €/km</code>.
-    Bahn, Flug, ÖPNV/Taxi und Sonstiges werden mit dem tatsächlichen Betrag (Beleg) erfasst.</li>
-  <li><b>Übernachtung:</b> wahlweise Pauschale je Nacht (Inland <code>20 €</code>, Ausland
-    länderspezifisch) oder tatsächliche Kosten laut Beleg. Die Anzahl der Nächte ergibt sich
-    automatisch; ist im Übernachtungspreis ein Frühstück enthalten, einfach das Frühstück am
+  <li><b>Fahrt:</b> entweder <b>Kilometer × Satz</b> (PKW <code>0,30 €/km</code>, Motorrad
+    <code>0,20 €/km</code>) oder ein fester <b>Betrag</b> (Bahn, Flug, ÖPNV/Taxi laut Beleg).</li>
+  <li><b>Übernachtung:</b> entweder <b>Nächte × Pauschale</b> (Inland <code>20 €</code>, Ausland
+    länderspezifisch) oder der tatsächliche <b>Betrag</b> laut Beleg. Die Nächte werden aus dem
+    Zeitraum vorbelegt und sind anpassbar. Ist Frühstück im Preis enthalten, das Frühstück am
     Folgetag als „gestellt" markieren.</li>
-  <li><b>Reisenebenkosten</b> (Parken, Maut, Gepäck …) als einzelne Positionen mit Beleg.</li>
+  <li><b>Nebenkosten</b> (Parken, Maut, Gepäck, Beherbergungssteuer …) als eigene Positionen. So
+    lässt sich z. B. eine <b>Beherbergungssteuer zusätzlich</b> zu den Hotelkosten erfassen.</li>
 </ul>
+<p>Die Verpflegungspauschalen stehen weiterhin separat im Abschnitt <b>Tage &amp; Verpflegung</b>.</p>
 
 <h3>Belege importieren (PDF &amp; Foto)</h3>
 <p>
-  Im Abschnitt <b>Belege</b> lässt sich ein Beleg als <b>PDF</b>, <b>Foto</b> oder <b>Scan</b>
-  importieren. Die App liest den Text aus (bei PDFs direkt, bei Fotos/Scans per OCR) und erkennt
-  automatisch <b>Betrag</b>, <b>Datum/Zeitraum</b> und die <b>Beleg-Art</b> — bei Hotelrechnungen auch
-  ein <b>enthaltenes Frühstück</b> und die Nächte, bei Bahn-/ÖPNV-Tickets die <b>Hin-/Rückfahrt</b>
-  und Strecke.
+  Im Abschnitt <b>Kosten</b> lässt sich ein Beleg als <b>PDF</b>, <b>Foto</b> oder <b>Scan</b>
+  importieren — per Klick, per <b>Drag &amp; Drop</b> und auch <b>mehrere Dateien auf einmal</b>. Die
+  App liest den Text aus (bei PDFs direkt, bei Fotos/Scans per OCR) und erkennt automatisch
+  <b>Betrag</b>, <b>Datum/Zeitraum</b> und die <b>Beleg-Art</b> — bei Hotelrechnungen auch ein
+  <b>enthaltenes Frühstück</b> und die Nächte, bei Bahn-/ÖPNV-Tickets die <b>Hin-/Rückfahrt</b> und
+  Strecke.
 </p>
 <p>
-  Die erkannten Werte werden dir in einem <b>Gegenprüf-Panel</b> neben deinen bisherigen Eingaben
-  angezeigt: leere Felder werden <b>gefüllt</b>, abweichende Werte <b>rot markiert</b>. Du hakst an,
-  was übernommen werden soll — deine manuelle Pflege bleibt also führend, der Beleg dient als
+  Bei mehreren Belegen erscheint eine <b>Auswahl-Liste</b> (Typ · Betrag · Zeitraum). Du hakst an,
+  welche als <b>neue Position</b> übernommen werden; weichen Zeiträume ab (z. B. ein fremder Beleg),
+  wird das <b>markiert</b>, sodass du ihn abwählen kannst. Optional lässt sich der Reisezeitraum bzw.
+  das Frühstück aus den Belegen setzen. So bleibt deine manuelle Pflege führend, der Beleg dient als
   Kontrolle. Der importierte Beleg wird zur Reise gespeichert und lässt sich jederzeit über
   <b>„Ansehen"</b> wieder öffnen (Bild oder PDF), herunterladen oder entfernen. Alles läuft lokal im
   Browser; der Beleg wird nicht hochgeladen. Die Lese-Bibliothek wird beim ersten Import einmalig aus
