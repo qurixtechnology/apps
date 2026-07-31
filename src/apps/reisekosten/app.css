@@ -212,6 +212,8 @@
 .rk-batch-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk-batch-meta { font-size: 0.8rem; color: var(--qrx-text-muted); }
 .rk-batch-sub { margin-top: var(--qrx-s-3); margin-bottom: var(--qrx-s-1); font-weight: 600; color: var(--qrx-text-muted); font-size: 0.85rem; }
+.rk-batch-radio span { flex: 1; }
+.rk-batch-item input[type="radio"] { flex-shrink: 0; }
 
 /* --- Report: Kosten-Tabelle + Summenblock --- */
 .rk-report-h3 { margin: var(--qrx-s-6) 0 var(--qrx-s-2); font-size: 1rem; color: var(--qrx-text); }
