@@ -1,0 +1,172 @@
+/* === Reisekosten — app styles (nur --qrx-* Tokens, Prefix rk-) === */
+
+.rk { display: flex; flex-direction: column; gap: var(--qrx-s-6); }
+
+/* --- Kopfzeile --- */
+.rk-topbar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+  gap: var(--qrx-s-4);
+}
+.rk-title { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+.rk-subtitle { margin: var(--qrx-s-1) 0 0; color: var(--qrx-text-muted); font-size: 0.95rem; }
+.rk-topbar-actions { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); }
+
+/* --- Karten-Liste der Reisen --- */
+.rk-trip-list { display: grid; gap: var(--qrx-s-4); grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.rk-trip-card {
+  display: flex; flex-direction: column; gap: var(--qrx-s-3);
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg); padding: var(--qrx-s-5); box-shadow: var(--qrx-shadow-sm);
+  cursor: pointer; transition: var(--qrx-transition);
+}
+.rk-trip-card:hover { border-color: var(--qrx-primary); box-shadow: var(--qrx-shadow); transform: translateY(-2px); }
+.rk-trip-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--qrx-s-3); }
+.rk-trip-dest { font-weight: 600; font-size: 1.05rem; }
+.rk-trip-flag {
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 0.1rem 0.5rem; border-radius: 999px;
+  background: var(--qrx-bg-muted); color: var(--qrx-text-muted);
+}
+.rk-trip-flag.rk-abroad { background: color-mix(in srgb, var(--qrx-accent) 18%, transparent); color: var(--qrx-accent-hover); }
+.rk-trip-dates { color: var(--qrx-text-muted); font-size: 0.875rem; }
+.rk-trip-total { font-size: 1.35rem; font-weight: 700; color: var(--qrx-primary); font-family: var(--qrx-font-mono); }
+.rk-trip-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--qrx-s-3); margin-top: auto; }
+
+/* --- Monats-Gruppierung / Summen --- */
+.rk-month-group { display: flex; flex-direction: column; gap: var(--qrx-s-4); margin-bottom: var(--qrx-s-8); }
+.rk-month-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--qrx-s-3);
+  padding-bottom: var(--qrx-s-2); border-bottom: 2px solid var(--qrx-border);
+}
+.rk-month-title { font-size: 1.05rem; font-weight: 600; }
+.rk-month-sum { font-family: var(--qrx-font-mono); font-weight: 700; color: var(--qrx-primary); }
+
+.rk-empty {
+  text-align: center; padding: var(--qrx-s-10) var(--qrx-s-4); color: var(--qrx-text-muted);
+  border: 1px dashed var(--qrx-border-strong); border-radius: var(--qrx-radius-lg);
+}
+.rk-empty h2 { margin: 0 0 var(--qrx-s-2); color: var(--qrx-text); }
+
+/* --- Formular --- */
+.rk-form { display: flex; flex-direction: column; gap: var(--qrx-s-6); }
+.rk-form-head { display: flex; align-items: center; gap: var(--qrx-s-3); }
+.rk-back {
+  display: inline-flex; align-items: center; gap: var(--qrx-s-2);
+  background: none; border: none; color: var(--qrx-text-muted); cursor: pointer;
+  font: inherit; font-size: 0.9rem; padding: var(--qrx-s-2);
+}
+.rk-back:hover { color: var(--qrx-primary); }
+.rk-section {
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border);
+  border-radius: var(--qrx-radius-lg); padding: var(--qrx-s-5); box-shadow: var(--qrx-shadow-sm);
+}
+.rk-section > h2 { margin: 0 0 var(--qrx-s-4); font-size: 1.05rem; color: var(--qrx-primary); }
+.rk-grid { display: grid; gap: var(--qrx-s-4); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.rk-field { display: flex; flex-direction: column; }
+.rk-field.rk-span-2 { grid-column: 1 / -1; }
+.rk-hint { margin-top: var(--qrx-s-1); font-size: 0.78rem; color: var(--qrx-text-subtle); }
+
+.rk-inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--qrx-s-3); }
+.rk-inline > .rk-field { flex: 1 1 160px; }
+
+/* --- Tages-Aufstellung --- */
+.rk-days { display: flex; flex-direction: column; gap: var(--qrx-s-3); }
+.rk-day {
+  display: grid; gap: var(--qrx-s-3); align-items: center;
+  grid-template-columns: minmax(140px, 1.2fr) auto 1fr auto;
+  padding: var(--qrx-s-3); border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius);
+  background: var(--qrx-bg-subtle);
+}
+.rk-day-date { display: flex; flex-direction: column; }
+.rk-day-dow { font-weight: 600; }
+.rk-day-type { font-size: 0.78rem; color: var(--qrx-text-muted); }
+.rk-day-badge {
+  align-self: center; font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+  padding: 0.15rem 0.5rem; border-radius: 999px;
+  background: var(--qrx-bg-muted); color: var(--qrx-text-muted);
+}
+.rk-meals { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); }
+.rk-meal {
+  cursor: pointer; user-select: none; font-size: 0.8rem; font-weight: 600;
+  padding: 0.3rem 0.6rem; border-radius: var(--qrx-radius); border: 1px solid var(--qrx-border-strong);
+  background: var(--qrx-surface); color: var(--qrx-text-muted); transition: var(--qrx-transition);
+}
+.rk-meal input { position: absolute; opacity: 0; pointer-events: none; }
+.rk-meal.rk-on { background: var(--qrx-primary); color: var(--qrx-text-on-brand); border-color: var(--qrx-primary); }
+.rk-meal:focus-within { box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
+.rk-day-amount { text-align: right; font-family: var(--qrx-font-mono); font-weight: 600; white-space: nowrap; }
+.rk-day-night { display: inline-flex; align-items: center; gap: var(--qrx-s-1); font-size: 0.78rem; color: var(--qrx-text-muted); }
+
+.rk-quickmeals { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); margin-bottom: var(--qrx-s-3); align-items: center; }
+.rk-quickmeals span { font-size: 0.8rem; color: var(--qrx-text-subtle); }
+
+/* --- Sticky Summenleiste --- */
+.rk-summary {
+  position: sticky; bottom: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--qrx-s-4) var(--qrx-s-6);
+  background: var(--qrx-surface); border: 1px solid var(--qrx-border-strong);
+  border-radius: var(--qrx-radius-lg); padding: var(--qrx-s-4) var(--qrx-s-5);
+  box-shadow: var(--qrx-shadow-lg); margin-top: var(--qrx-s-2);
+}
+.rk-sum-item { display: flex; flex-direction: column; }
+.rk-sum-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--qrx-text-subtle); }
+.rk-sum-value { font-family: var(--qrx-font-mono); font-weight: 600; }
+.rk-sum-total { margin-left: auto; }
+.rk-sum-total .rk-sum-value { font-size: 1.5rem; color: var(--qrx-primary); }
+.rk-summary-actions { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); width: 100%; }
+
+/* --- Nebenkosten-Zeilen --- */
+.rk-extra-row { display: flex; gap: var(--qrx-s-2); align-items: center; margin-bottom: var(--qrx-s-2); }
+.rk-extra-row .rk-extra-name { flex: 1 1 auto; }
+.rk-extra-row .rk-extra-amount { width: 8rem; }
+.rk-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.2rem; height: 2.2rem; flex-shrink: 0;
+  border: 1px solid var(--qrx-border-strong); border-radius: var(--qrx-radius);
+  background: var(--qrx-surface); color: var(--qrx-text-muted); cursor: pointer;
+}
+.rk-icon-btn:hover { border-color: var(--qrx-danger); color: var(--qrx-danger); }
+
+/* --- Einstellungen --- */
+.rk-settings-grid { display: grid; gap: var(--qrx-s-4); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.rk-note {
+  font-size: 0.82rem; color: var(--qrx-text-muted);
+  background: var(--qrx-bg-subtle); border-left: 3px solid var(--qrx-warning);
+  padding: var(--qrx-s-3) var(--qrx-s-4); border-radius: var(--qrx-radius); margin-top: var(--qrx-s-4);
+}
+
+/* --- Druckbare Abrechnung --- */
+.rk-report { background: var(--qrx-surface); color: var(--qrx-text); }
+.rk-report-actions { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); margin-bottom: var(--qrx-s-5); }
+.rk-report-sheet {
+  max-width: 900px; margin: 0 auto; padding: var(--qrx-s-8);
+  border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius-lg); background: var(--qrx-surface);
+}
+.rk-report-sheet h1 { font-size: 1.4rem; margin: 0 0 var(--qrx-s-2); }
+.rk-report-meta { display: grid; gap: var(--qrx-s-2) var(--qrx-s-6); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin: var(--qrx-s-5) 0; }
+.rk-report-meta div { font-size: 0.9rem; }
+.rk-report-meta b { color: var(--qrx-text-muted); font-weight: 600; }
+.rk-table { width: 100%; border-collapse: collapse; margin: var(--qrx-s-4) 0; font-size: 0.875rem; }
+.rk-table th, .rk-table td { padding: var(--qrx-s-2) var(--qrx-s-3); border-bottom: 1px solid var(--qrx-border); text-align: left; }
+.rk-table th { color: var(--qrx-text-muted); font-weight: 600; }
+.rk-table td.rk-num, .rk-table th.rk-num { text-align: right; font-family: var(--qrx-font-mono); }
+.rk-table tfoot td { font-weight: 700; border-top: 2px solid var(--qrx-border-strong); border-bottom: none; }
+.rk-report-sign { display: flex; gap: var(--qrx-s-8); margin-top: var(--qrx-s-10); }
+.rk-report-sign div { flex: 1; border-top: 1px solid var(--qrx-text-muted); padding-top: var(--qrx-s-2); font-size: 0.82rem; color: var(--qrx-text-muted); }
+
+/* --- Mobil --- */
+@media (max-width: 640px) {
+  .rk-day { grid-template-columns: 1fr; }
+  .rk-day-amount { text-align: left; }
+  .rk-sum-total { margin-left: 0; }
+}
+
+/* --- Druck --- */
+@media print {
+  .qrx-shell-header, .qrx-shell-footer, .qrx-shell-docs,
+  .rk-topbar, .rk-summary, .rk-report-actions, .rk-noprint { display: none !important; }
+  .qrx-shell-app { padding: 0 !important; max-width: none !important; }
+  .rk-report-sheet { border: none; box-shadow: none; padding: 0; max-width: none; }
+  .rk-table th, .rk-table td { border-color: #999 !important; }
+  body { background: #fff !important; }
+}

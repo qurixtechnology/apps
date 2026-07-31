@@ -1,0 +1,18 @@
+{
+  "name": "Reisekosten",
+  "lang": "de",
+  "theme": "qurix",
+  "output": "reisekosten.html",
+  "title": "Reisekosten – qurix",
+  "fonts": ["qurix.fonts.html"],
+  "inlineScripts": ["../../shared/qrx-core.js", "../../shared/qrx-i18n.js", "rates.data.js"],
+  "headAssets": [],
+  "card": {
+    "title": "Reisekosten",
+    "title_en": "Travel Expenses",
+    "description": "Reisekosten nach deutschen Regeln erfassen und abrechnen — Verpflegungspauschalen (Inland & Ausland) mit An-/Abreise-Logik, Mahlzeitenkürzungen, Kilometerpauschale und Übernachtung werden automatisch berechnet. Mehrere Reisen lokal im Browser, druckbare Abrechnung und CSV-Export.",
+    "description_en": "Capture and settle travel expenses under German rules — meal allowances (domestic & abroad) with arrival/departure logic, meal reductions, mileage and accommodation are calculated automatically. Manage multiple trips locally in the browser, print a settlement sheet and export CSV.",
+    "tags": ["Verpflegungspauschale", "Kilometerpauschale", "Abrechnung & CSV"],
+    "tags_en": ["Per-diem", "Mileage", "Settlement & CSV"]
+  }
+}
