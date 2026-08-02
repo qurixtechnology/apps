@@ -736,7 +736,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260802-091640</span>
+    &middot; v<span data-build-version>260802-093449</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1529,6 +1529,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // ---------------------------------------------------------------- Konstanten
   const KEY_TRIPS = 'reisekosten_trips';
   const KEY_SETTINGS = 'reisekosten_settings';
+  const KEY_FILE_PREFIX = 'reisekosten_file_';   // Beleg-Dateien liegen je in eigenem Key
+  const KEY_PREFIX = 'reisekosten_';
+  const fileKey = (id) => KEY_FILE_PREFIX + id;
 
   // Gesetzliche Default-Beträge (Inland, Stand 2024–2026) — in den Einstellungen
   // überschreibbar, damit die App bei Änderungen ohne Code-Update stimmt.
@@ -1613,6 +1616,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       reportReceipts: 'Belege', route: 'Strecke',
       viewReceipt: 'Ansehen', openNewTab: 'In neuem Tab öffnen', downloadFile: 'Herunterladen',
       tooBig: 'Datei zu groß zum Speichern', quotaWarn: 'Speicher voll — die Beleg-Datei wurde nicht gespeichert (nur die erkannten Daten).',
+      storageBlocked: 'Achtung: Der Browser speichert gerade keine Daten (z. B. privater/Inkognito-Modus oder für diese Seite blockierte Website-Daten). Deine Reisen können so nicht gesichert werden. Bitte den normalen Modus nutzen bzw. Website-Daten für apps.qurix.tech erlauben.',
       secCosts: 'Kosten', catFahrt: 'Fahrt', catUeb: 'Übernachtung', catNeben: 'Nebenkosten',
       addFahrt: '+ Fahrt', addUeb: '+ Übernachtung', addNeben: '+ Nebenkosten',
       modeBetrag: '€ (fester Betrag)', modeKm: 'km × Satz', modePauschale: 'Nächte × Satz',
@@ -1686,6 +1690,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       reportReceipts: 'Receipts', route: 'Route',
       viewReceipt: 'View', openNewTab: 'Open in new tab', downloadFile: 'Download',
       tooBig: 'File too large to store', quotaWarn: 'Storage full — the receipt file was not saved (only the detected data).',
+      storageBlocked: 'Note: your browser is not storing data right now (e.g. private/incognito mode or site data blocked for this page). Your trips cannot be saved. Please use normal mode or allow site data for apps.qurix.tech.',
       secCosts: 'Costs', catFahrt: 'Travel', catUeb: 'Accommodation', catNeben: 'Incidentals',
       addFahrt: '+ Travel', addUeb: '+ Accommodation', addNeben: '+ Incidental',
       modeBetrag: '€ (fixed amount)', modeKm: 'km × rate', modePauschale: 'nights × rate',
@@ -1709,24 +1714,55 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   const num = (v) => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isNaN(n) ? 0 : n; };
 
   // ---------------------------------------------------------------- Persistenz
+  // Beleg-Dateien (base64) liegen NICHT in der Reisen-JSON, sondern je Datei in
+  // einem eigenen localStorage-Key. So bleibt die Reisenliste klein und wird auch
+  // bei knappem Speicher (mobil) zuverlässig gesichert; Dateien sind best-effort.
   function load() {
     state.settings = Object.assign({}, DEFAULTS, store.getJSON(KEY_SETTINGS, {}));
     const trips = store.getJSON(KEY_TRIPS, []);
     state.trips = Array.isArray(trips) ? trips.map(normalizeTrip) : [];
+    // Datei-Blobs aus den eigenen Keys in den Speicher laden (fürs Ansehen).
+    state.trips.forEach((tp) => (tp.positions || []).forEach((p) => {
+      if (p.fileId && !p.dataUrl) { const d = store.get(fileKey(p.fileId)); if (d) p.dataUrl = d; }
+    }));
   }
-  function saveTrips() { return store.setJSON(KEY_TRIPS, state.trips); }
-  // Speichern mit Kontingent-Schutz: schlägt es fehl (localStorage voll, meist
-  // wegen eingebetteter Beleg-Dateien), werden die Dateien verworfen und nur die
-  // erkannten Daten behalten, damit die Reise nicht verloren geht.
+  // Reisen ohne Datei-Blobs (dataUrl bleibt nur im Speicher).
+  function leanTrips() {
+    return state.trips.map((tp) => Object.assign({}, tp, {
+      positions: (tp.positions || []).map((p) => { const q = Object.assign({}, p); delete q.dataUrl; return q; }),
+    }));
+  }
+  // Verwaiste Datei-Keys entfernen (nicht mehr referenzierte Belege).
+  function cleanupFiles() {
+    const used = new Set();
+    state.trips.forEach((tp) => (tp.positions || []).forEach((p) => { if (p.fileId) used.add(p.fileId); }));
+    try {
+      const del = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf(KEY_FILE_PREFIX) === 0 && !used.has(k.slice(KEY_FILE_PREFIX.length))) del.push(k);
+      }
+      del.forEach((k) => store.remove(k));
+    } catch (_) {}
+  }
   function persistTrips() {
-    if (saveTrips()) return true;
+    // fileIds vergeben, damit die Referenzen in der Reisen-JSON landen.
+    state.trips.forEach((tp) => (tp.positions || []).forEach((p) => { if (p.dataUrl && !p.fileId) p.fileId = newId(); }));
+    // 1) Reisen (mit fileId, ohne Blob) — klein und zuverlässig.
+    const okTrips = store.setJSON(KEY_TRIPS, leanTrips());
+    if (!okTrips) { try { alert(t('storageBlocked')); } catch (_) {} return false; }
+    // 2) Beleg-Dateien best-effort in eigene Keys; passt eine nicht, wird nur sie verworfen.
     let dropped = false;
     state.trips.forEach((tp) => (tp.positions || []).forEach((p) => {
-      if (p.dataUrl) { delete p.dataUrl; delete p.mime; p.tooBig = true; dropped = true; }
+      if (!p.dataUrl || !p.fileId) return;
+      if (!store.set(fileKey(p.fileId), p.dataUrl)) {
+        store.remove(fileKey(p.fileId));
+        delete p.fileId; delete p.dataUrl; delete p.mime; p.tooBig = true; dropped = true;
+      }
     }));
-    const okNow = saveTrips();
-    if (dropped) { try { alert(t('quotaWarn')); } catch (_) {} }
-    return okNow;
+    if (dropped) { store.setJSON(KEY_TRIPS, leanTrips()); try { alert(t('quotaWarn')); } catch (_) {} }
+    cleanupFiles();
+    return true;
   }
   function saveSettings() { store.setJSON(KEY_SETTINGS, state.settings); }
 
@@ -2659,27 +2695,39 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   });
 
   // ---------------------------------------------------------------- Snapshot
-  // Aller Zustand liegt in localStorage; "Mit Daten exportieren" serialisiert die
-  // reisekosten_*-Keys, hydrateState schreibt sie zurück und lädt einmal neu.
-  const SNAP_KEYS = [KEY_TRIPS, KEY_SETTINGS];
+  // "Mit Daten exportieren" serialisiert ALLE reisekosten_*-Keys (Reisen,
+  // Einstellungen und die einzelnen Beleg-Dateien); hydrateState schreibt sie
+  // zurück und lädt einmal neu.
   window.qurixApp = window.qurixApp || {};
   window.qurixApp.serializeState = function () {
     const data = {};
-    SNAP_KEYS.forEach((k) => { const v = store.get(k); if (v != null) data[k] = v; });
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf(KEY_PREFIX) === 0) { const v = localStorage.getItem(k); if (v != null) data[k] = v; }
+      }
+    } catch (_) {}
     return data;
   };
   window.qurixApp.hydrateState = function (s) {
     if (!s || typeof s !== 'object') return;
     let changed = false;
-    SNAP_KEYS.forEach((k) => {
-      if (s[k] == null) return;
+    Object.keys(s).forEach((k) => {
+      if (k.indexOf(KEY_PREFIX) !== 0) return;
       if (store.get(k) !== s[k]) { store.set(k, s[k]); changed = true; }
     });
     if (changed) location.reload();
   };
 
+  // localStorage nutzbar? (privater Modus / deaktivierte Website-Daten blockieren es)
+  function storageWorks() {
+    try { const k = KEY_PREFIX + 'probe'; localStorage.setItem(k, '1'); const ok = localStorage.getItem(k) === '1'; localStorage.removeItem(k); return ok; }
+    catch (_) { return false; }
+  }
+
   // ---------------------------------------------------------------- Init
   load();
+  if (!storageWorks()) { try { alert(t('storageBlocked')); } catch (_) {} }
   renderSettings();
   renderList();
   showView('list');
