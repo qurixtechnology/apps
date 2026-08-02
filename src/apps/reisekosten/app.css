@@ -179,29 +179,44 @@
 .rk-report-receipts { margin-top: var(--qrx-s-6); font-size: 0.85rem; color: var(--qrx-text-muted); }
 .rk-report-receipts b { color: var(--qrx-text); }
 
-/* --- Kosten-Positionen --- */
-.rk-pos-add { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); margin: 0 0 var(--qrx-s-4); }
-.rk-pos {
-  display: flex; flex-direction: column; gap: var(--qrx-s-2);
-  padding: var(--qrx-s-3); margin-bottom: var(--qrx-s-2);
+/* --- Kosten-Positionen: kompakte Anzeige-Zeile --- */
+.rk-pos-add { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); margin: var(--qrx-s-3) 0 var(--qrx-s-4); }
+.rk-pos-row {
+  display: flex; align-items: center; gap: var(--qrx-s-3);
+  padding: var(--qrx-s-2) var(--qrx-s-3); margin-bottom: var(--qrx-s-1);
   border: 1px solid var(--qrx-border); border-left: 3px solid var(--qrx-border-strong);
-  border-radius: var(--qrx-radius); background: var(--qrx-bg-subtle);
+  border-radius: var(--qrx-radius); background: var(--qrx-surface);
+  cursor: pointer; transition: var(--qrx-transition);
 }
+.rk-pos-row:hover { border-color: var(--qrx-primary); background: var(--qrx-bg-subtle); }
+.rk-pos-row:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
 .rk-pos-fahrt { border-left-color: var(--qrx-primary); }
 .rk-pos-uebernachtung { border-left-color: var(--qrx-accent); }
 .rk-pos-neben { border-left-color: var(--qrx-warning); }
-.rk-pos-line1 { display: flex; gap: var(--qrx-s-2); align-items: center; }
-.rk-pos-cat { width: auto; flex: 0 0 auto; min-width: 8rem; }
-.rk-pos-bez { flex: 1 1 6rem; min-width: 0; }
-.rk-pos-line2 { display: flex; gap: var(--qrx-s-3); align-items: center; flex-wrap: wrap; }
-.rk-pos-controls { display: flex; align-items: center; gap: var(--qrx-s-2); flex-wrap: wrap; }
-.rk-pos-mode { width: auto; }
-.rk-pos-mult { display: inline-flex; align-items: center; gap: var(--qrx-s-2); }
-.rk-pos-num { width: 5.5rem; }
-.rk-pos-x { color: var(--qrx-text-subtle); }
-.rk-pos-unit { font-size: 0.8rem; color: var(--qrx-text-subtle); }
-.rk-pos-amount { font-family: var(--qrx-font-mono); font-weight: 700; margin-left: auto; white-space: nowrap; }
-.rk-pos-beleg { font-size: 0.78rem; color: var(--qrx-text-muted); }
+.rk-pos-chip {
+  flex-shrink: 0; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 0.15rem 0.45rem; border-radius: 999px; background: var(--qrx-bg-muted); color: var(--qrx-text-muted);
+}
+.rk-pos-fahrt .rk-pos-chip { background: color-mix(in srgb, var(--qrx-primary) 14%, transparent); color: var(--qrx-primary); }
+.rk-pos-uebernachtung .rk-pos-chip { background: color-mix(in srgb, var(--qrx-accent) 16%, transparent); color: var(--qrx-accent-hover); }
+.rk-pos-neben .rk-pos-chip { background: color-mix(in srgb, var(--qrx-warning) 18%, transparent); color: var(--qrx-warning); }
+.rk-pos-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rk-pos-desc { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-pos-detail { font-size: 0.76rem; color: var(--qrx-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-pos-clip { font-size: 0.8rem; }
+.rk-pos-amt { font-family: var(--qrx-font-mono); font-weight: 700; white-space: nowrap; }
+.rk-pos-actions { display: flex; gap: var(--qrx-s-1); flex-shrink: 0; }
+.rk-pos-act { width: 2rem; height: 2rem; }
+
+/* --- Positions-Popup (Bearbeiten) --- */
+.rk-modal-edit { max-width: 480px; }
+.rk-pos-edit-total {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-top: var(--qrx-s-4); padding-top: var(--qrx-s-3); border-top: 1px solid var(--qrx-border);
+}
+.rk-pos-edit-total > span:first-child { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--qrx-text-subtle); }
+.rk-pos-edit-amount { font-family: var(--qrx-font-mono); font-weight: 700; font-size: 1.3rem; color: var(--qrx-primary); }
+.rk-pos-beleg { font-size: 0.8rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
 
 /* --- Batch-Auswahl beim Import --- */
 .rk-batch-list { display: flex; flex-direction: column; gap: var(--qrx-s-1); }
@@ -289,6 +304,9 @@
   .rk-day { grid-template-columns: 1fr; }
   .rk-day-amount { text-align: left; }
   .rk-sum-total { margin-left: 0; }
+  /* Kategorie steht über den farbigen linken Rand — Text-Chip spart Platz für die Bezeichnung */
+  .rk-pos-chip { display: none; }
+  .rk-pos-row { padding-left: var(--qrx-s-3); }
 }
 
 /* --- Druck --- */
