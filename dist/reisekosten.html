@@ -387,6 +387,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
 /* --- Positions-Popup (Bearbeiten) --- */
 .rk-modal-edit { max-width: 480px; }
+.rk-modal-edit .rk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--qrx-s-3); }
 .rk-pos-edit-total {
   display: flex; align-items: baseline; justify-content: space-between;
   margin-top: var(--qrx-s-4); padding-top: var(--qrx-s-3); border-top: 1px solid var(--qrx-border);
@@ -484,6 +485,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   /* Kategorie steht über den farbigen linken Rand — Text-Chip spart Platz für die Bezeichnung */
   .rk-pos-chip { display: none; }
   .rk-pos-row { padding-left: var(--qrx-s-3); }
+  /* Shell-Fußzeile umbrechen — verhindert horizontalen Überlauf (der sonst fixe Overlays verschiebt) */
+  .qrx-shell-footer { flex-wrap: wrap; }
+  /* Popup: Felder untereinander, scrollbar, Aktionen umbrechen */
+  .rk-modal-overlay { align-items: flex-start; overflow-y: auto; padding: var(--qrx-s-3); }
+  .rk-modal { padding: var(--qrx-s-5); max-height: none; }
+  .rk-modal-edit .rk-grid { grid-template-columns: 1fr; }
+  .rk-modal-actions { flex-wrap: wrap; }
+  .rk-modal-actions .qrx-btn { flex: 1 1 auto; justify-content: center; }
 }
 
 /* --- Druck --- */
@@ -727,7 +736,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260802-090024</span>
+    &middot; v<span data-build-version>260802-091640</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1606,7 +1615,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       tooBig: 'Datei zu groß zum Speichern', quotaWarn: 'Speicher voll — die Beleg-Datei wurde nicht gespeichert (nur die erkannten Daten).',
       secCosts: 'Kosten', catFahrt: 'Fahrt', catUeb: 'Übernachtung', catNeben: 'Nebenkosten',
       addFahrt: '+ Fahrt', addUeb: '+ Übernachtung', addNeben: '+ Nebenkosten',
-      modeBetrag: 'Betrag', modeKm: 'Kilometer', modePauschale: 'Pauschale (Nächte)',
+      modeBetrag: '€ (fester Betrag)', modeKm: 'km × Satz', modePauschale: 'Nächte × Satz',
       posKmRate: '€/km', posNights: 'Nächte', posNightRate: '€/Nacht', posDescPh: 'Bezeichnung',
       costsEmpty: 'Noch keine Positionen — manuell hinzufügen oder Belege importieren.',
       batchTitle: 'Belege erkannt', batchOne: 'Beleg erkannt',
@@ -1679,7 +1688,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       tooBig: 'File too large to store', quotaWarn: 'Storage full — the receipt file was not saved (only the detected data).',
       secCosts: 'Costs', catFahrt: 'Travel', catUeb: 'Accommodation', catNeben: 'Incidentals',
       addFahrt: '+ Travel', addUeb: '+ Accommodation', addNeben: '+ Incidental',
-      modeBetrag: 'Amount', modeKm: 'Kilometres', modePauschale: 'Flat rate (nights)',
+      modeBetrag: '€ (fixed amount)', modeKm: 'km × rate', modePauschale: 'nights × rate',
       posKmRate: '€/km', posNights: 'Nights', posNightRate: '€/night', posDescPh: 'Description',
       costsEmpty: 'No positions yet — add manually or import receipts.',
       batchTitle: 'Receipts detected', batchOne: 'Receipt detected',

@@ -210,6 +210,7 @@
 
 /* --- Positions-Popup (Bearbeiten) --- */
 .rk-modal-edit { max-width: 480px; }
+.rk-modal-edit .rk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--qrx-s-3); }
 .rk-pos-edit-total {
   display: flex; align-items: baseline; justify-content: space-between;
   margin-top: var(--qrx-s-4); padding-top: var(--qrx-s-3); border-top: 1px solid var(--qrx-border);
@@ -307,6 +308,14 @@
   /* Kategorie steht über den farbigen linken Rand — Text-Chip spart Platz für die Bezeichnung */
   .rk-pos-chip { display: none; }
   .rk-pos-row { padding-left: var(--qrx-s-3); }
+  /* Shell-Fußzeile umbrechen — verhindert horizontalen Überlauf (der sonst fixe Overlays verschiebt) */
+  .qrx-shell-footer { flex-wrap: wrap; }
+  /* Popup: Felder untereinander, scrollbar, Aktionen umbrechen */
+  .rk-modal-overlay { align-items: flex-start; overflow-y: auto; padding: var(--qrx-s-3); }
+  .rk-modal { padding: var(--qrx-s-5); max-height: none; }
+  .rk-modal-edit .rk-grid { grid-template-columns: 1fr; }
+  .rk-modal-actions { flex-wrap: wrap; }
+  .rk-modal-actions .qrx-btn { flex: 1 1 auto; justify-content: center; }
 }
 
 /* --- Druck --- */
