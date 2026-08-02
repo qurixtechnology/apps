@@ -356,29 +356,44 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .rk-report-receipts { margin-top: var(--qrx-s-6); font-size: 0.85rem; color: var(--qrx-text-muted); }
 .rk-report-receipts b { color: var(--qrx-text); }
 
-/* --- Kosten-Positionen --- */
-.rk-pos-add { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); margin: 0 0 var(--qrx-s-4); }
-.rk-pos {
-  display: flex; flex-direction: column; gap: var(--qrx-s-2);
-  padding: var(--qrx-s-3); margin-bottom: var(--qrx-s-2);
+/* --- Kosten-Positionen: kompakte Anzeige-Zeile --- */
+.rk-pos-add { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2); margin: var(--qrx-s-3) 0 var(--qrx-s-4); }
+.rk-pos-row {
+  display: flex; align-items: center; gap: var(--qrx-s-3);
+  padding: var(--qrx-s-2) var(--qrx-s-3); margin-bottom: var(--qrx-s-1);
   border: 1px solid var(--qrx-border); border-left: 3px solid var(--qrx-border-strong);
-  border-radius: var(--qrx-radius); background: var(--qrx-bg-subtle);
+  border-radius: var(--qrx-radius); background: var(--qrx-surface);
+  cursor: pointer; transition: var(--qrx-transition);
 }
+.rk-pos-row:hover { border-color: var(--qrx-primary); background: var(--qrx-bg-subtle); }
+.rk-pos-row:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(21,107,142,0.18); }
 .rk-pos-fahrt { border-left-color: var(--qrx-primary); }
 .rk-pos-uebernachtung { border-left-color: var(--qrx-accent); }
 .rk-pos-neben { border-left-color: var(--qrx-warning); }
-.rk-pos-line1 { display: flex; gap: var(--qrx-s-2); align-items: center; }
-.rk-pos-cat { width: auto; flex: 0 0 auto; min-width: 8rem; }
-.rk-pos-bez { flex: 1 1 6rem; min-width: 0; }
-.rk-pos-line2 { display: flex; gap: var(--qrx-s-3); align-items: center; flex-wrap: wrap; }
-.rk-pos-controls { display: flex; align-items: center; gap: var(--qrx-s-2); flex-wrap: wrap; }
-.rk-pos-mode { width: auto; }
-.rk-pos-mult { display: inline-flex; align-items: center; gap: var(--qrx-s-2); }
-.rk-pos-num { width: 5.5rem; }
-.rk-pos-x { color: var(--qrx-text-subtle); }
-.rk-pos-unit { font-size: 0.8rem; color: var(--qrx-text-subtle); }
-.rk-pos-amount { font-family: var(--qrx-font-mono); font-weight: 700; margin-left: auto; white-space: nowrap; }
-.rk-pos-beleg { font-size: 0.78rem; color: var(--qrx-text-muted); }
+.rk-pos-chip {
+  flex-shrink: 0; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 0.15rem 0.45rem; border-radius: 999px; background: var(--qrx-bg-muted); color: var(--qrx-text-muted);
+}
+.rk-pos-fahrt .rk-pos-chip { background: color-mix(in srgb, var(--qrx-primary) 14%, transparent); color: var(--qrx-primary); }
+.rk-pos-uebernachtung .rk-pos-chip { background: color-mix(in srgb, var(--qrx-accent) 16%, transparent); color: var(--qrx-accent-hover); }
+.rk-pos-neben .rk-pos-chip { background: color-mix(in srgb, var(--qrx-warning) 18%, transparent); color: var(--qrx-warning); }
+.rk-pos-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rk-pos-desc { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-pos-detail { font-size: 0.76rem; color: var(--qrx-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-pos-clip { font-size: 0.8rem; }
+.rk-pos-amt { font-family: var(--qrx-font-mono); font-weight: 700; white-space: nowrap; }
+.rk-pos-actions { display: flex; gap: var(--qrx-s-1); flex-shrink: 0; }
+.rk-pos-act { width: 2rem; height: 2rem; }
+
+/* --- Positions-Popup (Bearbeiten) --- */
+.rk-modal-edit { max-width: 480px; }
+.rk-pos-edit-total {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-top: var(--qrx-s-4); padding-top: var(--qrx-s-3); border-top: 1px solid var(--qrx-border);
+}
+.rk-pos-edit-total > span:first-child { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--qrx-text-subtle); }
+.rk-pos-edit-amount { font-family: var(--qrx-font-mono); font-weight: 700; font-size: 1.3rem; color: var(--qrx-primary); }
+.rk-pos-beleg { font-size: 0.8rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
 
 /* --- Batch-Auswahl beim Import --- */
 .rk-batch-list { display: flex; flex-direction: column; gap: var(--qrx-s-1); }
@@ -466,6 +481,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   .rk-day { grid-template-columns: 1fr; }
   .rk-day-amount { text-align: left; }
   .rk-sum-total { margin-left: 0; }
+  /* Kategorie steht über den farbigen linken Rand — Text-Chip spart Platz für die Bezeichnung */
+  .rk-pos-chip { display: none; }
+  .rk-pos-row { padding-left: var(--qrx-s-3); }
 }
 
 /* --- Druck --- */
@@ -709,7 +727,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260731-200225</span>
+    &middot; v<span data-build-version>260802-090024</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1597,6 +1615,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       tripUpdates: 'Reise aktualisieren', suggSetPeriod: 'Reisezeitraum aus Beleg setzen',
       suggBreakfast: 'Frühstück an Übernachtungstagen', applyBatch: 'Übernehmen',
       tripPeriodTitle: 'Reisezeitraum (aus Belegen wählen)', periodKeep: 'nicht ändern', periodSource: 'aus {n} Beleg(en)',
+      editPosTitle: 'Position bearbeiten', posCategory: 'Kategorie', posMode: 'Berechnung', posDelete: 'Löschen', posDesc: 'Bezeichnung',
       importingN: 'Beleg {i}/{n} wird gelesen …', nothingDetected: 'In den Dateien wurde nichts Auswertbares erkannt.',
       reportCosts: 'Kosten', thCat: 'Art', thDesc: 'Bezeichnung', thAmount: 'Betrag', posReceipt: 'Beleg',
     },
@@ -1669,6 +1688,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       tripUpdates: 'Update trip', suggSetPeriod: 'Set trip period from receipt',
       suggBreakfast: 'Breakfast on overnight days', applyBatch: 'Apply',
       tripPeriodTitle: 'Trip period (choose from receipts)', periodKeep: 'keep current', periodSource: 'from {n} receipt(s)',
+      editPosTitle: 'Edit position', posCategory: 'Category', posMode: 'Calculation', posDelete: 'Delete', posDesc: 'Description',
       importingN: 'Reading receipt {i}/{n} …', nothingDetected: 'Nothing usable was detected in the files.',
       reportCosts: 'Costs', thCat: 'Type', thDesc: 'Description', thAmount: 'Amount', posReceipt: 'Receipt',
     },
@@ -1987,40 +2007,26 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     return [['fahrt', 'catFahrt'], ['uebernachtung', 'catUeb'], ['neben', 'catNeben']]
       .map(([v, k]) => '<option value="' + v + '"' + (sel === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('');
   }
-  function posNum(i, pf, val, step) {
-    return '<input class="qrx-input rk-pos-num" type="number" min="0" step="' + step + '" inputmode="decimal" data-pos="' + i + '" data-pfield="' + pf + '" value="' + esc(val) + '">';
+  const EYE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const nfmt = (n) => num(n).toLocaleString(locale());
+  function posDetail(p) {
+    if (p.mode === 'km') return nfmt(p.km) + ' km × ' + nfmt(p.ratePerKm) + ' ' + t('posKmRate');
+    if (p.mode === 'pauschale') return nfmt(p.nights) + ' ' + t('posNights') + ' × ' + nfmt(p.nightRate) + ' ' + t('posNightRate');
+    return '';
   }
-  function posModeSelect(i, kind, mode) {
-    const opts = kind === 'fahrt' ? [['km', 'modeKm'], ['betrag', 'modeBetrag']]
-      : kind === 'uebernachtung' ? [['pauschale', 'modePauschale'], ['betrag', 'modeBetrag']] : null;
-    if (!opts) return '';
-    return '<select class="qrx-select rk-pos-mode" data-pos="' + i + '" data-pfield="mode">' +
-      opts.map(([v, k]) => '<option value="' + v + '"' + (mode === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('') + '</select>';
-  }
+  // Kompakte, einzeilige Anzeige-Zeile; Klick öffnet das Bearbeiten-Popup.
   function posRowHtml(p, i) {
-    let controls;
-    if (p.kind === 'fahrt' && p.mode === 'km') {
-      controls = posModeSelect(i, p.kind, p.mode) + '<span class="rk-pos-mult">' + posNum(i, 'km', p.km, '1') +
-        '<span class="rk-pos-x">×</span>' + posNum(i, 'ratePerKm', p.ratePerKm, '0.01') + '<span class="rk-pos-unit">' + esc(t('posKmRate')) + '</span></span>';
-    } else if (p.kind === 'uebernachtung' && p.mode === 'pauschale') {
-      controls = posModeSelect(i, p.kind, p.mode) + '<span class="rk-pos-mult">' + posNum(i, 'nights', p.nights, '1') +
-        '<span class="rk-pos-x">×</span>' + posNum(i, 'nightRate', p.nightRate, '0.01') + '<span class="rk-pos-unit">' + esc(t('posNightRate')) + '</span></span>';
-    } else {
-      controls = posModeSelect(i, p.kind, p.mode) + posNum(i, 'betrag', p.betrag, '0.01');
-    }
-    const viewBtn = p.dataUrl ? '<button class="qrx-btn qrx-btn-sm" data-action="view-pos" data-idx="' + i + '">' + esc(t('viewReceipt')) + '</button>' : '';
-    const belegLine = p.belegName
-      ? '<div class="rk-pos-beleg">' + esc(t('posReceipt')) + ': ' + esc(p.belegName) + (p.tooBig && !p.dataUrl ? ' · ' + esc(t('tooBig')) : '') + '</div>' : '';
-    return '<div class="rk-pos rk-pos-' + p.kind + '" data-pos="' + i + '">' +
-      '<div class="rk-pos-line1">' +
-        '<select class="qrx-select rk-pos-cat" data-pos="' + i + '" data-pfield="kind">' + catOptions(p.kind) + '</select>' +
-        '<input class="qrx-input rk-pos-bez" data-pos="' + i + '" data-pfield="bez" value="' + esc(p.bez || '') + '" placeholder="' + esc(t('posDescPh')) + '">' +
-        viewBtn +
-        '<button class="rk-icon-btn" data-action="del-pos" data-idx="' + i + '" aria-label="✕">✕</button>' +
-      '</div>' +
-      '<div class="rk-pos-line2"><div class="rk-pos-controls">' + controls + '</div>' +
-        '<div class="rk-pos-amount" id="rk-pos-amt-' + i + '">' + esc(eur(posAmount(p))) + '</div></div>' +
-      belegLine +
+    const detail = posDetail(p);
+    const clip = p.belegName ? ' <span class="rk-pos-clip" title="' + esc(p.belegName) + '">📎</span>' : '';
+    const viewBtn = p.dataUrl
+      ? '<button class="rk-icon-btn rk-pos-act" data-action="view-pos" data-idx="' + i + '" title="' + esc(t('viewReceipt')) + '" aria-label="' + esc(t('viewReceipt')) + '">' + EYE_SVG + '</button>' : '';
+    return '<div class="rk-pos-row rk-pos-' + p.kind + '" data-action="edit-pos" data-idx="' + i + '" role="button" tabindex="0">' +
+      '<span class="rk-pos-chip">' + esc(catLabel(p.kind)) + '</span>' +
+      '<span class="rk-pos-main"><span class="rk-pos-desc">' + esc(p.bez || catLabel(p.kind)) + clip + '</span>' +
+        (detail ? '<span class="rk-pos-detail">' + esc(detail) + '</span>' : '') + '</span>' +
+      '<span class="rk-pos-amt">' + esc(eur(posAmount(p))) + '</span>' +
+      '<span class="rk-pos-actions">' + viewBtn +
+        '<button class="rk-icon-btn rk-pos-act" data-action="del-pos" data-idx="' + i + '" aria-label="✕">✕</button></span>' +
     '</div>';
   }
   function renderPositions() {
@@ -2030,6 +2036,69 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     box.innerHTML = list.length
       ? list.map((p, i) => posRowHtml(p, i)).join('')
       : '<p class="rk-hint">' + esc(t('costsEmpty')) + '</p>';
+  }
+
+  // Bearbeiten-Popup für eine Position (isNew: bei Abbruch wird sie entfernt).
+  function editPosition(idx, isNew) {
+    const orig = state.current.positions[idx];
+    if (!orig) return;
+    const draft = JSON.parse(JSON.stringify(orig));
+    const efNum = (ef, val, step) => '<input class="qrx-input" type="number" min="0" step="' + step + '" inputmode="decimal" data-ef="' + ef + '" value="' + esc(val) + '">';
+    function modeSelect() {
+      const opts = draft.kind === 'fahrt' ? [['km', 'modeKm'], ['betrag', 'modeBetrag']]
+        : draft.kind === 'uebernachtung' ? [['pauschale', 'modePauschale'], ['betrag', 'modeBetrag']] : null;
+      if (!opts) return '';
+      return field(t('posMode'), '<select class="qrx-select" data-ef="mode">' +
+        opts.map(([v, k]) => '<option value="' + v + '"' + (draft.mode === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('') + '</select>');
+    }
+    function modeControls() {
+      if (draft.kind === 'fahrt' && draft.mode === 'km') return field(t('fldKm'), efNum('km', draft.km, '1')) + field(t('posKmRate'), efNum('ratePerKm', draft.ratePerKm, '0.01'));
+      if (draft.kind === 'uebernachtung' && draft.mode === 'pauschale') return field(t('posNights'), efNum('nights', draft.nights, '1')) + field(t('posNightRate'), efNum('nightRate', draft.nightRate, '0.01'));
+      return field(t('fldAmount'), efNum('betrag', draft.betrag, '0.01'));
+    }
+    function bodyHtml() {
+      return '<div class="rk-grid">' +
+          field(t('posCategory'), '<select class="qrx-select" data-ef="kind">' + catOptions(draft.kind) + '</select>') +
+          field(t('posDesc'), '<input class="qrx-input" data-ef="bez" value="' + esc(draft.bez || '') + '" placeholder="' + esc(t('posDescPh')) + '">') +
+          modeSelect() + modeControls() +
+        '</div>' +
+        (draft.belegName ? '<p class="rk-pos-beleg">' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) + (!draft.dataUrl && draft.tooBig ? ' · ' + esc(t('tooBig')) : '') + '</p>' : '');
+    }
+    const ov = document.createElement('div');
+    ov.className = 'rk-modal-overlay';
+    ov.innerHTML = '<div class="rk-modal rk-modal-edit" role="dialog" aria-modal="true">' +
+      '<div class="rk-modal-head"><h3>' + esc(t('editPosTitle')) + '</h3>' +
+        '<button class="rk-icon-btn rk-modal-x" data-x aria-label="✕">✕</button></div>' +
+      '<div class="rk-pos-edit-body"></div>' +
+      '<div class="rk-pos-edit-total"><span>' + esc(t('thAmount')) + '</span><span class="rk-pos-edit-amount"></span></div>' +
+      '<div class="rk-modal-actions">' +
+        (draft.dataUrl ? '<button class="qrx-btn" data-view>' + esc(t('viewReceipt')) + '</button>' : '') +
+        '<button class="qrx-btn" data-del>' + esc(t('posDelete')) + '</button>' +
+        '<button class="qrx-btn" data-x>' + esc(t('cancel')) + '</button>' +
+        '<button class="qrx-btn qrx-btn-primary" data-save>' + esc(t('save')) + '</button>' +
+      '</div></div>';
+    document.body.appendChild(ov);
+    const bodyEl = ov.querySelector('.rk-pos-edit-body');
+    const amtEl = ov.querySelector('.rk-pos-edit-amount');
+    function render() { bodyEl.innerHTML = bodyHtml(); amtEl.textContent = eur(posAmount(draft)); }
+    render();
+    ov.addEventListener('input', onEf); ov.addEventListener('change', onEf);
+    function onEf(e) {
+      const ef = e.target.getAttribute('data-ef');
+      if (!ef) return;
+      if (ef === 'kind') { setPosKind(draft, e.target.value); render(); }
+      else if (ef === 'mode') { draft.mode = e.target.value; ensurePosDefaults(draft); render(); }
+      else if (ef === 'bez') draft.bez = e.target.value;
+      else { draft[ef] = num(e.target.value); amtEl.textContent = eur(posAmount(draft)); }
+    }
+    const done = () => { ov.remove(); renderPositions(); renderSummary(); };
+    const cancel = () => { if (isNew) state.current.positions.splice(idx, 1); done(); };
+    ov.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', cancel));
+    ov.addEventListener('click', (e) => { if (e.target === ov) cancel(); });
+    ov.querySelector('[data-del]').addEventListener('click', () => { state.current.positions.splice(idx, 1); done(); });
+    ov.querySelector('[data-save]').addEventListener('click', () => { state.current.positions[idx] = draft; done(); });
+    const vb = ov.querySelector('[data-view]');
+    if (vb) vb.addEventListener('click', () => showBeleg({ name: draft.belegName, dataUrl: draft.dataUrl, mime: draft.mime }));
   }
   function ensurePosDefaults(p) {
     if (p.mode === 'km') { if (p.ratePerKm == null || p.ratePerKm === '') p.ratePerKm = num(state.settings.kmCar); if (p.km == null) p.km = 0; }
@@ -2043,11 +2112,6 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     else p.mode = 'betrag';
     ensurePosDefaults(p);
   }
-  function updatePosAmount(idx) {
-    const el = $('rk-pos-amt-' + idx);
-    if (el) el.textContent = eur(posAmount(state.current.positions[idx]));
-  }
-
   // ---------------------------------------------------------------- Belege
   const RECEIPT_ICON = {
     hotel: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M12 9h.01M15 9h.01M9 13h.01M12 13h.01M15 13h.01',
@@ -2500,19 +2564,6 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     if (!state.current) return;
     const tp = state.current;
 
-    // Kosten-Positionen
-    const pfield = eln.getAttribute('data-pfield');
-    if (pfield) {
-      const idx = +eln.getAttribute('data-pos');
-      const p = tp.positions[idx];
-      if (!p) return;
-      if (pfield === 'kind') { setPosKind(p, eln.value); renderPositions(); renderSummary(); }
-      else if (pfield === 'mode') { p.mode = eln.value; ensurePosDefaults(p); renderPositions(); renderSummary(); }
-      else if (pfield === 'bez') { p.bez = eln.value; }
-      else { p[pfield] = num(eln.value); updatePosAmount(idx); renderSummary(); }
-      return;
-    }
-
     const f = eln.getAttribute('data-field');
     if (!f) return;
     switch (f) {
@@ -2556,7 +2607,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       case 'csv-all': exportCsv(state.trips, 'reisekosten-alle.csv'); break;
       case 'add-pos':
         state.current.positions.push(newPosition(target.getAttribute('data-kind'), state.current));
-        renderPositions(); renderSummary(); break;
+        renderPositions(); renderSummary();
+        editPosition(state.current.positions.length - 1, true); break;
+      case 'edit-pos': editPosition(+target.getAttribute('data-idx'), false); break;
       case 'del-pos':
         state.current.positions.splice(+target.getAttribute('data-idx'), 1);
         renderPositions(); renderSummary(); break;
