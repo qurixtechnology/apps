@@ -15,9 +15,8 @@
   // ---------------------------------------------------------------- Konstanten
   const KEY_TRIPS = 'reisekosten_trips';
   const KEY_SETTINGS = 'reisekosten_settings';
-  const KEY_FILE_PREFIX = 'reisekosten_file_';   // Beleg-Dateien liegen je in eigenem Key
+  const KEY_FILE_PREFIX = 'reisekosten_file_';   // (Legacy) frühere Beleg-Datei-Keys — werden aufgeräumt
   const KEY_PREFIX = 'reisekosten_';
-  const fileKey = (id) => KEY_FILE_PREFIX + id;
 
   // Gesetzliche Default-Beträge (Inland, Stand 2024–2026) — in den Einstellungen
   // überschreibbar, damit die App bei Änderungen ohne Code-Update stimmt.
@@ -86,7 +85,7 @@
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
       secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)', dropOr: 'oder Datei hierher ziehen',
-      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt und gegengeprüft. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig); der Beleg bleibt lokal im Browser.',
+      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Gespeichert werden nur die erkannten Werte und der Dateiname als Referenz — die Datei selbst wird nicht abgelegt (schont den Speicher).',
       receiptsEmpty: 'Noch keine Belege importiert.',
       readingPdf: 'PDF wird gelesen …', readingOcr: 'Text wird erkannt (OCR) … {pct}%', analysing: 'Beleg wird ausgewertet …',
       importFailed: 'Beleg konnte nicht gelesen werden: {msg}',
@@ -160,7 +159,7 @@
       setReset: 'Reset to statutory defaults',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
       secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)', dropOr: 'or drag a file here',
-      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically and cross-checked. The first detection loads the reader library once (internet needed); the receipt stays local in your browser.',
+      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). Only the detected values and the file name (as a reference) are stored — the file itself is not kept (saves storage).',
       receiptsEmpty: 'No receipts imported yet.',
       readingPdf: 'Reading PDF …', readingOcr: 'Recognising text (OCR) … {pct}%', analysing: 'Analysing receipt …',
       importFailed: 'Could not read the receipt: {msg}',
@@ -207,48 +206,21 @@
     state.settings = Object.assign({}, DEFAULTS, store.getJSON(KEY_SETTINGS, {}));
     const trips = store.getJSON(KEY_TRIPS, []);
     state.trips = Array.isArray(trips) ? trips.map(normalizeTrip) : [];
-    // Datei-Blobs aus den eigenen Keys in den Speicher laden (fürs Ansehen).
-    state.trips.forEach((tp) => (tp.positions || []).forEach((p) => {
-      if (p.fileId && !p.dataUrl) { const d = store.get(fileKey(p.fileId)); if (d) p.dataUrl = d; }
-    }));
+    purgeFileKeys();   // Referenz-only: evtl. früher eingebettete Dateien entfernen (Speicher freigeben)
   }
-  // Reisen ohne Datei-Blobs (dataUrl bleibt nur im Speicher).
-  function leanTrips() {
-    return state.trips.map((tp) => Object.assign({}, tp, {
-      positions: (tp.positions || []).map((p) => { const q = Object.assign({}, p); delete q.dataUrl; return q; }),
-    }));
-  }
-  // Verwaiste Datei-Keys entfernen (nicht mehr referenzierte Belege).
-  function cleanupFiles() {
-    const used = new Set();
-    state.trips.forEach((tp) => (tp.positions || []).forEach((p) => { if (p.fileId) used.add(p.fileId); }));
+  // Alle früheren Beleg-Datei-Keys entfernen — Dateien werden nicht mehr gespeichert.
+  function purgeFileKeys() {
     try {
       const del = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.indexOf(KEY_FILE_PREFIX) === 0 && !used.has(k.slice(KEY_FILE_PREFIX.length))) del.push(k);
-      }
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(KEY_FILE_PREFIX) === 0) del.push(k); }
       del.forEach((k) => store.remove(k));
     } catch (_) {}
   }
   function persistTrips() {
-    // fileIds vergeben, damit die Referenzen in der Reisen-JSON landen.
-    state.trips.forEach((tp) => (tp.positions || []).forEach((p) => { if (p.dataUrl && !p.fileId) p.fileId = newId(); }));
-    // 1) Reisen (mit fileId, ohne Blob) — klein und zuverlässig.
-    const okTrips = store.setJSON(KEY_TRIPS, leanTrips());
-    if (!okTrips) { try { alert(t('storageBlocked')); } catch (_) {} return false; }
-    // 2) Beleg-Dateien best-effort in eigene Keys; passt eine nicht, wird nur sie verworfen.
-    let dropped = false;
-    state.trips.forEach((tp) => (tp.positions || []).forEach((p) => {
-      if (!p.dataUrl || !p.fileId) return;
-      if (!store.set(fileKey(p.fileId), p.dataUrl)) {
-        store.remove(fileKey(p.fileId));
-        delete p.fileId; delete p.dataUrl; delete p.mime; p.tooBig = true; dropped = true;
-      }
-    }));
-    if (dropped) { store.setJSON(KEY_TRIPS, leanTrips()); try { alert(t('quotaWarn')); } catch (_) {} }
-    cleanupFiles();
-    return true;
+    const ok = store.setJSON(KEY_TRIPS, state.trips);
+    if (!ok) { try { alert(t('storageBlocked')); } catch (_) {} }
+    purgeFileKeys();   // evtl. verbliebene Legacy-Datei-Keys entfernen
+    return ok;
   }
   function saveSettings() { store.setJSON(KEY_SETTINGS, state.settings); }
 
@@ -289,7 +261,12 @@
     }, tp, { meals: tp.meals || {} });
     const legacy = tp.verkehr || tp.uebernachtung || (tp.extras && tp.extras.length) || (tp.belege && tp.belege.length);
     if (!Array.isArray(base.positions) || (!base.positions.length && legacy)) base.positions = migratePositions(base);
-    base.positions = (base.positions || []).map((p) => Object.assign({ id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0 }, p));
+    base.positions = (base.positions || []).map((p) => {
+      const q = Object.assign({ id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0 }, p);
+      // Referenz-only: eingebettete Dateien/Referenzen entfernen, Dateiname behalten.
+      delete q.fileId; delete q.dataUrl; delete q.mime; delete q.tooBig; delete q.method;
+      return q;
+    });
     // Alt-Felder nicht weiterschleppen
     ['verkehr', 'uebernachtung', 'extras', 'belege', 'nights'].forEach((k) => delete base[k]);
     return base;
@@ -538,7 +515,6 @@
     return [['fahrt', 'catFahrt'], ['uebernachtung', 'catUeb'], ['neben', 'catNeben']]
       .map(([v, k]) => '<option value="' + v + '"' + (sel === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('');
   }
-  const EYE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
   const nfmt = (n) => num(n).toLocaleString(locale());
   function posDetail(p) {
     if (p.mode === 'km') return nfmt(p.km) + ' km × ' + nfmt(p.ratePerKm) + ' ' + t('posKmRate');
@@ -549,14 +525,12 @@
   function posRowHtml(p, i) {
     const detail = posDetail(p);
     const clip = p.belegName ? ' <span class="rk-pos-clip" title="' + esc(p.belegName) + '">📎</span>' : '';
-    const viewBtn = p.dataUrl
-      ? '<button class="rk-icon-btn rk-pos-act" data-action="view-pos" data-idx="' + i + '" title="' + esc(t('viewReceipt')) + '" aria-label="' + esc(t('viewReceipt')) + '">' + EYE_SVG + '</button>' : '';
     return '<div class="rk-pos-row rk-pos-' + p.kind + '" data-action="edit-pos" data-idx="' + i + '" role="button" tabindex="0">' +
       '<span class="rk-pos-chip">' + esc(catLabel(p.kind)) + '</span>' +
       '<span class="rk-pos-main"><span class="rk-pos-desc">' + esc(p.bez || catLabel(p.kind)) + clip + '</span>' +
         (detail ? '<span class="rk-pos-detail">' + esc(detail) + '</span>' : '') + '</span>' +
       '<span class="rk-pos-amt">' + esc(eur(posAmount(p))) + '</span>' +
-      '<span class="rk-pos-actions">' + viewBtn +
+      '<span class="rk-pos-actions">' +
         '<button class="rk-icon-btn rk-pos-act" data-action="del-pos" data-idx="' + i + '" aria-label="✕">✕</button></span>' +
     '</div>';
   }
@@ -593,7 +567,7 @@
           field(t('posDesc'), '<input class="qrx-input" data-ef="bez" value="' + esc(draft.bez || '') + '" placeholder="' + esc(t('posDescPh')) + '">') +
           modeSelect() + modeControls() +
         '</div>' +
-        (draft.belegName ? '<p class="rk-pos-beleg">' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) + (!draft.dataUrl && draft.tooBig ? ' · ' + esc(t('tooBig')) : '') + '</p>' : '');
+        (draft.belegName ? '<p class="rk-pos-beleg">📎 ' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) + '</p>' : '');
     }
     const ov = document.createElement('div');
     ov.className = 'rk-modal-overlay';
@@ -603,7 +577,6 @@
       '<div class="rk-pos-edit-body"></div>' +
       '<div class="rk-pos-edit-total"><span>' + esc(t('thAmount')) + '</span><span class="rk-pos-edit-amount"></span></div>' +
       '<div class="rk-modal-actions">' +
-        (draft.dataUrl ? '<button class="qrx-btn" data-view>' + esc(t('viewReceipt')) + '</button>' : '') +
         '<button class="qrx-btn" data-del>' + esc(t('posDelete')) + '</button>' +
         '<button class="qrx-btn" data-x>' + esc(t('cancel')) + '</button>' +
         '<button class="qrx-btn qrx-btn-primary" data-save>' + esc(t('save')) + '</button>' +
@@ -628,8 +601,6 @@
     ov.addEventListener('click', (e) => { if (e.target === ov) cancel(); });
     ov.querySelector('[data-del]').addEventListener('click', () => { state.current.positions.splice(idx, 1); done(); });
     ov.querySelector('[data-save]').addEventListener('click', () => { state.current.positions[idx] = draft; done(); });
-    const vb = ov.querySelector('[data-view]');
-    if (vb) vb.addEventListener('click', () => showBeleg({ name: draft.belegName, dataUrl: draft.dataUrl, mime: draft.mime }));
   }
   function ensurePosDefaults(p) {
     if (p.mode === 'km') { if (p.ratePerKm == null || p.ratePerKm === '') p.ratePerKm = num(state.settings.kmCar); if (p.km == null) p.km = 0; }
@@ -655,69 +626,10 @@
   function kindForType(ty) { return ty === 'hotel' ? 'uebernachtung' : (ty === 'bahn' || ty === 'oepnv') ? 'fahrt' : 'neben'; }
   function catLabel(kind) { return t(kind === 'fahrt' ? 'catFahrt' : kind === 'uebernachtung' ? 'catUeb' : 'catNeben'); }
 
-  // Datei → speicherbare Repräsentation. Bilder werden verkleinert/rekomprimiert,
-  // PDFs unverändert als Data-URL. Zu große Dateien werden nicht eingebettet.
-  const MAX_EMBED = 3_000_000; // ~2,2 MB Datei (Data-URL-Länge)
-  function fileToStored(file) {
-    return new Promise((resolve) => {
-      if (file.type && file.type.startsWith('image/')) {
-        const rd = new FileReader();
-        rd.onload = () => {
-          const img = new Image();
-          img.onload = () => {
-            const max = 1500, scale = Math.min(1, max / Math.max(img.width, img.height));
-            const cw = Math.max(1, Math.round(img.width * scale)), ch = Math.max(1, Math.round(img.height * scale));
-            const c = document.createElement('canvas'); c.width = cw; c.height = ch;
-            c.getContext('2d').drawImage(img, 0, 0, cw, ch);
-            let url; try { url = c.toDataURL('image/jpeg', 0.72); } catch (_) { url = rd.result; }
-            resolve(url.length > MAX_EMBED ? { tooBig: true } : { dataUrl: url, mime: 'image/jpeg' });
-          };
-          img.onerror = () => resolve(null);
-          img.src = rd.result;
-        };
-        rd.onerror = () => resolve(null);
-        rd.readAsDataURL(file);
-      } else {
-        const rd = new FileReader();
-        rd.onload = () => {
-          const url = rd.result;
-          resolve(url.length > MAX_EMBED ? { tooBig: true } : { dataUrl: url, mime: file.type || 'application/pdf' });
-        };
-        rd.onerror = () => resolve(null);
-        rd.readAsDataURL(file);
-      }
-    });
-  }
-
-  // Gespeicherten Beleg ansehen (Bild oder PDF) in einem Overlay.
-  async function showBeleg(b) {
-    if (!b || !b.dataUrl) return;
-    let objUrl;
-    try { objUrl = URL.createObjectURL(await (await fetch(b.dataUrl)).blob()); }
-    catch (_) { objUrl = b.dataUrl; }
-    const isImg = (b.mime || '').startsWith('image/');
-    const ov = document.createElement('div');
-    ov.className = 'rk-modal-overlay';
-    ov.innerHTML =
-      '<div class="rk-modal rk-modal-viewer" role="dialog" aria-modal="true">' +
-        '<div class="rk-modal-head"><div><h3>' + esc(b.name || t('typeUnknown')) + '</h3></div>' +
-          '<button class="rk-icon-btn rk-modal-x" data-x aria-label="✕">✕</button></div>' +
-        '<div class="rk-viewer-body">' +
-          (isImg
-            ? '<img class="rk-viewer-img" src="' + objUrl + '" alt="' + esc(b.name || '') + '">'
-            : '<iframe class="rk-viewer-frame" src="' + objUrl + '" title="' + esc(b.name || '') + '"></iframe>') +
-        '</div>' +
-        '<div class="rk-modal-actions">' +
-          '<a class="qrx-btn" href="' + objUrl + '" target="_blank" rel="noopener">' + esc(t('openNewTab')) + '</a>' +
-          '<a class="qrx-btn" href="' + objUrl + '" download="' + esc(b.name || 'beleg') + '">' + esc(t('downloadFile')) + '</a>' +
-          '<button class="qrx-btn qrx-btn-primary" data-x>' + esc(t('dismiss')) + '</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(ov);
-    const close = () => { ov.remove(); if (objUrl && objUrl.startsWith('blob:')) URL.revokeObjectURL(objUrl); };
-    ov.querySelectorAll('[data-x]').forEach((x) => x.addEventListener('click', close));
-    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-  }
+  // Referenz-only: Beleg-Dateien werden NICHT gespeichert. Aus einem Beleg werden
+  // nur der Betrag/die Daten erkannt und der Dateiname als Referenz behalten —
+  // das hält den Speicher generell unbelastet (und inline-PDF-Anzeige ist auf
+  // Mobilbrowsern ohnehin unzuverlässig).
 
   // Eine oder mehrere Dateien importieren: Text gewinnen (PDF/OCR) → parsen →
   // Auswahl-Panel (je Beleg eine Position + optionale Reise-Vorschläge).
@@ -735,8 +647,7 @@
           prog.set(t('readingOcr', { pct: Math.round((p || 0) * 100) }), p);
         });
         const parsed = qrx.rkReceipts.parseReceipt(text);
-        const stored = await fileToStored(file);
-        detected.push({ fileName: file.name, parsed, stored, method });
+        detected.push({ fileName: file.name, parsed, method });
       } catch (e) { console.warn('receipt import failed', file.name, e); }
     }
     prog.close();
@@ -751,14 +662,14 @@
   }
   function periodText(pr) { return !pr ? t('noPeriod') : (pr.d0 === pr.d1 ? fmtDate(pr.d0) : fmtDate(pr.d0) + ' – ' + fmtDate(pr.d1)); }
 
-  // Aus einem erkannten Beleg eine Kosten-Position bauen (mit angehängter Datei).
+  // Aus einem erkannten Beleg eine Kosten-Position bauen. Der Dateiname wird als
+  // Referenz behalten, die Datei selbst NICHT gespeichert (Referenz-only).
   function positionFromReceipt(item) {
     const p = item.parsed, kind = kindForType(p.type);
     let bez = p.type === 'hotel' ? t('catUeb') : (p.type === 'bahn' || p.type === 'oepnv') ? typeLabelOf(p.type) : (item.fileName || t('typeUnknown')).replace(/\.[^.]+$/, '');
     if ((p.type === 'bahn' || p.type === 'oepnv') && p.travel && (p.travel.from || p.travel.to)) bez += ' ' + [p.travel.from, p.travel.to].filter(Boolean).join('→');
     const pos = { id: newId(), kind, bez, mode: 'betrag', betrag: p.total != null ? p.total : 0 };
-    if (item.stored && item.stored.dataUrl) { pos.belegName = item.fileName; pos.mime = item.stored.mime; pos.dataUrl = item.stored.dataUrl; pos.method = item.method; }
-    else if (item.stored && item.stored.tooBig) { pos.belegName = item.fileName; pos.tooBig = true; }
+    if (item.fileName) pos.belegName = item.fileName;
     return pos;
   }
 
@@ -1144,11 +1055,6 @@
       case 'del-pos':
         state.current.positions.splice(+target.getAttribute('data-idx'), 1);
         renderPositions(); renderSummary(); break;
-      case 'view-pos': {
-        const p = state.current.positions[+target.getAttribute('data-idx')];
-        if (p) showBeleg({ name: p.belegName, dataUrl: p.dataUrl, mime: p.mime });
-        break;
-      }
       case 'quick-meal': {
         const meal = target.getAttribute('data-meal');
         tripDays(state.current).forEach((d) => {
