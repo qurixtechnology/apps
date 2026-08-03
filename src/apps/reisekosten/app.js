@@ -85,7 +85,7 @@
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
       secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)', dropOr: 'oder Datei hierher ziehen',
-      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Gespeichert werden nur die erkannten Werte und der Dateiname als Referenz — die Datei selbst wird nicht abgelegt (schont den Speicher).',
+      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Gespeichert werden nur die erkannten Werte und der Dateiname als Referenz — die Datei selbst wird nicht abgelegt (schont den Speicher). Anzeigen geht per Klick auf 📎; nach einem Neuladen wählst du die Datei einmalig neu.',
       receiptsEmpty: 'Noch keine Belege importiert.',
       readingPdf: 'PDF wird gelesen …', readingOcr: 'Text wird erkannt (OCR) … {pct}%', analysing: 'Beleg wird ausgewertet …',
       importFailed: 'Beleg konnte nicht gelesen werden: {msg}',
@@ -116,6 +116,7 @@
       editPosTitle: 'Position bearbeiten', posCategory: 'Kategorie', posMode: 'Berechnung', posDelete: 'Löschen', posDesc: 'Bezeichnung',
       importingN: 'Beleg {i}/{n} wird gelesen …', nothingDetected: 'In den Dateien wurde nichts Auswertbares erkannt.',
       reportCosts: 'Kosten', thCat: 'Art', thDesc: 'Bezeichnung', thAmount: 'Betrag', posReceipt: 'Beleg',
+      viewReceipt: 'Anzeigen', viewFailed: 'Die Datei konnte nicht geöffnet werden.',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -159,7 +160,7 @@
       setReset: 'Reset to statutory defaults',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
       secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)', dropOr: 'or drag a file here',
-      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). Only the detected values and the file name (as a reference) are stored — the file itself is not kept (saves storage).',
+      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). Only the detected values and the file name (as a reference) are stored — the file itself is not kept (saves storage). Tap 📎 to view; after a reload you pick the file once more.',
       receiptsEmpty: 'No receipts imported yet.',
       readingPdf: 'Reading PDF …', readingOcr: 'Recognising text (OCR) … {pct}%', analysing: 'Analysing receipt …',
       importFailed: 'Could not read the receipt: {msg}',
@@ -190,6 +191,7 @@
       editPosTitle: 'Edit position', posCategory: 'Category', posMode: 'Calculation', posDelete: 'Delete', posDesc: 'Description',
       importingN: 'Reading receipt {i}/{n} …', nothingDetected: 'Nothing usable was detected in the files.',
       reportCosts: 'Costs', thCat: 'Type', thDesc: 'Description', thAmount: 'Amount', posReceipt: 'Receipt',
+      viewReceipt: 'View', viewFailed: 'The file could not be opened.',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -524,7 +526,10 @@
   // Kompakte, einzeilige Anzeige-Zeile; Klick öffnet das Bearbeiten-Popup.
   function posRowHtml(p, i) {
     const detail = posDetail(p);
-    const clip = p.belegName ? ' <span class="rk-pos-clip" title="' + esc(p.belegName) + '">📎</span>' : '';
+    const clip = p.belegName
+      ? ' <button type="button" class="rk-pos-clip" data-action="view-pos" data-idx="' + i + '"' +
+        ' title="' + esc(t('viewReceipt')) + ': ' + esc(p.belegName) + '" aria-label="' + esc(t('viewReceipt')) + '">📎</button>'
+      : '';
     return '<div class="rk-pos-row rk-pos-' + p.kind + '" data-action="edit-pos" data-idx="' + i + '" role="button" tabindex="0">' +
       '<span class="rk-pos-chip">' + esc(catLabel(p.kind)) + '</span>' +
       '<span class="rk-pos-main"><span class="rk-pos-desc">' + esc(p.bez || catLabel(p.kind)) + clip + '</span>' +
@@ -567,7 +572,8 @@
           field(t('posDesc'), '<input class="qrx-input" data-ef="bez" value="' + esc(draft.bez || '') + '" placeholder="' + esc(t('posDescPh')) + '">') +
           modeSelect() + modeControls() +
         '</div>' +
-        (draft.belegName ? '<p class="rk-pos-beleg">📎 ' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) + '</p>' : '');
+        (draft.belegName ? '<p class="rk-pos-beleg">📎 ' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) +
+          ' <button type="button" class="rk-link-btn" data-view-beleg>' + esc(t('viewReceipt')) + '</button></p>' : '');
     }
     const ov = document.createElement('div');
     ov.className = 'rk-modal-overlay';
@@ -598,7 +604,10 @@
     const done = () => { ov.remove(); renderPositions(); renderSummary(); };
     const cancel = () => { if (isNew) state.current.positions.splice(idx, 1); done(); };
     ov.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', cancel));
-    ov.addEventListener('click', (e) => { if (e.target === ov) cancel(); });
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov) { cancel(); return; }
+      if (e.target.closest('[data-view-beleg]') && draft.belegName) viewBeleg(draft.belegName);
+    });
     ov.querySelector('[data-del]').addEventListener('click', () => { state.current.positions.splice(idx, 1); done(); });
     ov.querySelector('[data-save]').addEventListener('click', () => { state.current.positions[idx] = draft; done(); });
   }
@@ -630,6 +639,42 @@
   // nur der Betrag/die Daten erkannt und der Dateiname als Referenz behalten —
   // das hält den Speicher generell unbelastet (und inline-PDF-Anzeige ist auf
   // Mobilbrowsern ohnehin unzuverlässig).
+  //
+  // Anzeigen bleibt trotzdem möglich: importierte Dateien liegen für die Dauer der
+  // geöffneten Seite im Arbeitsspeicher (sessionFiles, NICHT gespeichert). Ein Klick
+  // auf 📎 öffnet die Datei über eine Blob-URL in einem neuen Tab — so übernimmt der
+  // Browser/das Betriebssystem die Anzeige (funktioniert mobil, anders als die frühere
+  // Inline-Einbettung). Nach einem Neuladen ist der Speicher leer; dann wird die Datei
+  // einmalig neu ausgewählt und danach angezeigt.
+  const sessionFiles = new Map();
+
+  function openBelegFile(file) {
+    try {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
+    } catch (_) { try { alert(t('viewFailed')); } catch (_) {} }
+  }
+  // Datei einmalig vom Gerät wählen (wenn nicht mehr im Speicher, z. B. nach Reload).
+  function pickBelegFile(name) {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'application/pdf,image/*';
+    inp.style.display = 'none';
+    inp.addEventListener('change', () => {
+      const f = inp.files && inp.files[0];
+      inp.remove();
+      if (f) { if (name) sessionFiles.set(name, f); openBelegFile(f); }
+    });
+    document.body.appendChild(inp);
+    inp.click();
+  }
+  function viewBeleg(name) {
+    const f = name && sessionFiles.get(name);
+    if (f) openBelegFile(f); else pickBelegFile(name);
+  }
 
   // Eine oder mehrere Dateien importieren: Text gewinnen (PDF/OCR) → parsen →
   // Auswahl-Panel (je Beleg eine Position + optionale Reise-Vorschläge).
@@ -647,6 +692,7 @@
           prog.set(t('readingOcr', { pct: Math.round((p || 0) * 100) }), p);
         });
         const parsed = qrx.rkReceipts.parseReceipt(text);
+        sessionFiles.set(file.name, file);   // nur im Speicher der Seite (nicht persistiert) → Anzeigen möglich
         detected.push({ fileName: file.name, parsed, method });
       } catch (e) { console.warn('receipt import failed', file.name, e); }
     }
@@ -1052,6 +1098,11 @@
         renderPositions(); renderSummary();
         editPosition(state.current.positions.length - 1, true); break;
       case 'edit-pos': editPosition(+target.getAttribute('data-idx'), false); break;
+      case 'view-pos': {
+        const pv = state.current.positions[+target.getAttribute('data-idx')];
+        if (pv && pv.belegName) viewBeleg(pv.belegName);
+        break;
+      }
       case 'del-pos':
         state.current.positions.splice(+target.getAttribute('data-idx'), 1);
         renderPositions(); renderSummary(); break;

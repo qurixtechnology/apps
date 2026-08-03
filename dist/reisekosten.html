@@ -380,7 +380,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .rk-pos-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .rk-pos-desc { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk-pos-detail { font-size: 0.76rem; color: var(--qrx-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rk-pos-clip { font-size: 0.8rem; }
+.rk-pos-clip {
+  font-size: 0.9rem; line-height: 1; padding: 0.15rem 0.2rem; margin-left: 0.1rem;
+  border: 0; background: transparent; cursor: pointer; border-radius: var(--qrx-radius);
+  vertical-align: baseline;
+}
+.rk-pos-clip:hover { background: var(--qrx-bg-muted); }
 .rk-pos-amt { font-family: var(--qrx-font-mono); font-weight: 700; white-space: nowrap; }
 .rk-pos-actions { display: flex; gap: var(--qrx-s-1); flex-shrink: 0; }
 .rk-pos-act { width: 2rem; height: 2rem; }
@@ -395,6 +400,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .rk-pos-edit-total > span:first-child { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--qrx-text-subtle); }
 .rk-pos-edit-amount { font-family: var(--qrx-font-mono); font-weight: 700; font-size: 1.3rem; color: var(--qrx-primary); }
 .rk-pos-beleg { font-size: 0.8rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
+.rk-link-btn {
+  border: 0; background: transparent; padding: 0 0.2rem; cursor: pointer;
+  color: var(--qrx-primary); font: inherit; text-decoration: underline;
+}
+.rk-link-btn:hover { color: var(--qrx-primary-hover, var(--qrx-primary)); }
 
 /* --- Batch-Auswahl beim Import --- */
 .rk-batch-list { display: flex; flex-direction: column; gap: var(--qrx-s-1); }
@@ -590,10 +600,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 <p>
   Gespeichert werden nur die <b>erkannten Werte</b> und der <b>Dateiname als Referenz</b> (📎) — die
   PDF/Foto-Datei selbst wird <b>nicht abgelegt</b>. Das hält den Speicher generell unbelastet (wichtig
-  auf dem Handy) und vermeidet die auf Mobilbrowsern ohnehin unzuverlässige Inline-Anzeige von PDFs.
-  Das Original hast du weiterhin in deiner Mail/deinen Dateien; für die Einreichung fügst du es dort
-  bei. Alles läuft lokal im Browser, nichts wird hochgeladen; die Lese-Bibliothek wird beim ersten
-  Import einmalig aus dem Netz geladen.
+  auf dem Handy). <b>Anzeigen</b> ist trotzdem möglich: Ein Klick auf das 📎 öffnet den Beleg in einem
+  neuen Tab — die Anzeige übernimmt der Browser bzw. das Betriebssystem, was auch mobil funktioniert
+  (anders als eine eingebettete Inline-Vorschau). Die importierte Datei liegt dafür nur <b>im
+  Arbeitsspeicher der geöffneten Seite</b> (nicht gespeichert); nach einem <b>Neuladen</b> wählst du
+  die Datei beim ersten Anzeigen einmalig neu aus. Das Original hast du ohnehin in deiner Mail/deinen
+  Dateien; für die Einreichung fügst du es dort bei. Alles läuft lokal im Browser, nichts wird
+  hochgeladen; die Lese-Bibliothek wird beim ersten Import einmalig aus dem Netz geladen.
 </p>
 
 <h3>Abrechnung &amp; Export</h3>
@@ -674,10 +687,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 </p>
 <p>
   Only the <b>detected values</b> and the <b>file name as a reference</b> (📎) are stored — the
-  PDF/photo file itself is <b>not kept</b>. This keeps storage light (important on phones) and avoids
-  the inline PDF preview that is unreliable on mobile browsers anyway. You still have the original in
-  your mail/files and attach it there for submission. Everything runs locally in your browser, nothing
-  is uploaded; the reader library is loaded once from the network on the first import.
+  PDF/photo file itself is <b>not kept</b>. This keeps storage light (important on phones).
+  <b>Viewing</b> still works: tapping the 📎 opens the receipt in a new tab — the browser or operating
+  system renders it, which works on mobile too (unlike an embedded inline preview). For that, the
+  imported file is held only <b>in the memory of the open page</b> (not stored); after a <b>reload</b>
+  you pick the file once more the first time you view it. You still have the original in your
+  mail/files and attach it there for submission. Everything runs locally in your browser, nothing is
+  uploaded; the reader library is loaded once from the network on the first import.
 </p>
 
 <h3>Settlement &amp; export</h3>
@@ -741,7 +757,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260803-075722</span>
+    &middot; v<span data-build-version>260803-085915</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1604,7 +1620,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
       secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)', dropOr: 'oder Datei hierher ziehen',
-      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Gespeichert werden nur die erkannten Werte und der Dateiname als Referenz — die Datei selbst wird nicht abgelegt (schont den Speicher).',
+      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Gespeichert werden nur die erkannten Werte und der Dateiname als Referenz — die Datei selbst wird nicht abgelegt (schont den Speicher). Anzeigen geht per Klick auf 📎; nach einem Neuladen wählst du die Datei einmalig neu.',
       receiptsEmpty: 'Noch keine Belege importiert.',
       readingPdf: 'PDF wird gelesen …', readingOcr: 'Text wird erkannt (OCR) … {pct}%', analysing: 'Beleg wird ausgewertet …',
       importFailed: 'Beleg konnte nicht gelesen werden: {msg}',
@@ -1635,6 +1651,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       editPosTitle: 'Position bearbeiten', posCategory: 'Kategorie', posMode: 'Berechnung', posDelete: 'Löschen', posDesc: 'Bezeichnung',
       importingN: 'Beleg {i}/{n} wird gelesen …', nothingDetected: 'In den Dateien wurde nichts Auswertbares erkannt.',
       reportCosts: 'Kosten', thCat: 'Art', thDesc: 'Bezeichnung', thAmount: 'Betrag', posReceipt: 'Beleg',
+      viewReceipt: 'Anzeigen', viewFailed: 'Die Datei konnte nicht geöffnet werden.',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -1678,7 +1695,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       setReset: 'Reset to statutory defaults',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
       secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)', dropOr: 'or drag a file here',
-      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). Only the detected values and the file name (as a reference) are stored — the file itself is not kept (saves storage).',
+      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). Only the detected values and the file name (as a reference) are stored — the file itself is not kept (saves storage). Tap 📎 to view; after a reload you pick the file once more.',
       receiptsEmpty: 'No receipts imported yet.',
       readingPdf: 'Reading PDF …', readingOcr: 'Recognising text (OCR) … {pct}%', analysing: 'Analysing receipt …',
       importFailed: 'Could not read the receipt: {msg}',
@@ -1709,6 +1726,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       editPosTitle: 'Edit position', posCategory: 'Category', posMode: 'Calculation', posDelete: 'Delete', posDesc: 'Description',
       importingN: 'Reading receipt {i}/{n} …', nothingDetected: 'Nothing usable was detected in the files.',
       reportCosts: 'Costs', thCat: 'Type', thDesc: 'Description', thAmount: 'Amount', posReceipt: 'Receipt',
+      viewReceipt: 'View', viewFailed: 'The file could not be opened.',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -2043,7 +2061,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // Kompakte, einzeilige Anzeige-Zeile; Klick öffnet das Bearbeiten-Popup.
   function posRowHtml(p, i) {
     const detail = posDetail(p);
-    const clip = p.belegName ? ' <span class="rk-pos-clip" title="' + esc(p.belegName) + '">📎</span>' : '';
+    const clip = p.belegName
+      ? ' <button type="button" class="rk-pos-clip" data-action="view-pos" data-idx="' + i + '"' +
+        ' title="' + esc(t('viewReceipt')) + ': ' + esc(p.belegName) + '" aria-label="' + esc(t('viewReceipt')) + '">📎</button>'
+      : '';
     return '<div class="rk-pos-row rk-pos-' + p.kind + '" data-action="edit-pos" data-idx="' + i + '" role="button" tabindex="0">' +
       '<span class="rk-pos-chip">' + esc(catLabel(p.kind)) + '</span>' +
       '<span class="rk-pos-main"><span class="rk-pos-desc">' + esc(p.bez || catLabel(p.kind)) + clip + '</span>' +
@@ -2086,7 +2107,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           field(t('posDesc'), '<input class="qrx-input" data-ef="bez" value="' + esc(draft.bez || '') + '" placeholder="' + esc(t('posDescPh')) + '">') +
           modeSelect() + modeControls() +
         '</div>' +
-        (draft.belegName ? '<p class="rk-pos-beleg">📎 ' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) + '</p>' : '');
+        (draft.belegName ? '<p class="rk-pos-beleg">📎 ' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) +
+          ' <button type="button" class="rk-link-btn" data-view-beleg>' + esc(t('viewReceipt')) + '</button></p>' : '');
     }
     const ov = document.createElement('div');
     ov.className = 'rk-modal-overlay';
@@ -2117,7 +2139,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const done = () => { ov.remove(); renderPositions(); renderSummary(); };
     const cancel = () => { if (isNew) state.current.positions.splice(idx, 1); done(); };
     ov.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', cancel));
-    ov.addEventListener('click', (e) => { if (e.target === ov) cancel(); });
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov) { cancel(); return; }
+      if (e.target.closest('[data-view-beleg]') && draft.belegName) viewBeleg(draft.belegName);
+    });
     ov.querySelector('[data-del]').addEventListener('click', () => { state.current.positions.splice(idx, 1); done(); });
     ov.querySelector('[data-save]').addEventListener('click', () => { state.current.positions[idx] = draft; done(); });
   }
@@ -2149,6 +2174,42 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // nur der Betrag/die Daten erkannt und der Dateiname als Referenz behalten —
   // das hält den Speicher generell unbelastet (und inline-PDF-Anzeige ist auf
   // Mobilbrowsern ohnehin unzuverlässig).
+  //
+  // Anzeigen bleibt trotzdem möglich: importierte Dateien liegen für die Dauer der
+  // geöffneten Seite im Arbeitsspeicher (sessionFiles, NICHT gespeichert). Ein Klick
+  // auf 📎 öffnet die Datei über eine Blob-URL in einem neuen Tab — so übernimmt der
+  // Browser/das Betriebssystem die Anzeige (funktioniert mobil, anders als die frühere
+  // Inline-Einbettung). Nach einem Neuladen ist der Speicher leer; dann wird die Datei
+  // einmalig neu ausgewählt und danach angezeigt.
+  const sessionFiles = new Map();
+
+  function openBelegFile(file) {
+    try {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
+    } catch (_) { try { alert(t('viewFailed')); } catch (_) {} }
+  }
+  // Datei einmalig vom Gerät wählen (wenn nicht mehr im Speicher, z. B. nach Reload).
+  function pickBelegFile(name) {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'application/pdf,image/*';
+    inp.style.display = 'none';
+    inp.addEventListener('change', () => {
+      const f = inp.files && inp.files[0];
+      inp.remove();
+      if (f) { if (name) sessionFiles.set(name, f); openBelegFile(f); }
+    });
+    document.body.appendChild(inp);
+    inp.click();
+  }
+  function viewBeleg(name) {
+    const f = name && sessionFiles.get(name);
+    if (f) openBelegFile(f); else pickBelegFile(name);
+  }
 
   // Eine oder mehrere Dateien importieren: Text gewinnen (PDF/OCR) → parsen →
   // Auswahl-Panel (je Beleg eine Position + optionale Reise-Vorschläge).
@@ -2166,6 +2227,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           prog.set(t('readingOcr', { pct: Math.round((p || 0) * 100) }), p);
         });
         const parsed = qrx.rkReceipts.parseReceipt(text);
+        sessionFiles.set(file.name, file);   // nur im Speicher der Seite (nicht persistiert) → Anzeigen möglich
         detected.push({ fileName: file.name, parsed, method });
       } catch (e) { console.warn('receipt import failed', file.name, e); }
     }
@@ -2571,6 +2633,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
         renderPositions(); renderSummary();
         editPosition(state.current.positions.length - 1, true); break;
       case 'edit-pos': editPosition(+target.getAttribute('data-idx'), false); break;
+      case 'view-pos': {
+        const pv = state.current.positions[+target.getAttribute('data-idx')];
+        if (pv && pv.belegName) viewBeleg(pv.belegName);
+        break;
+      }
       case 'del-pos':
         state.current.positions.splice(+target.getAttribute('data-idx'), 1);
         renderPositions(); renderSummary(); break;
