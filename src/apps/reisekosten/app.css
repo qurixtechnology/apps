@@ -203,7 +203,12 @@
 .rk-pos-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .rk-pos-desc { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk-pos-detail { font-size: 0.76rem; color: var(--qrx-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rk-pos-clip { font-size: 0.8rem; }
+.rk-pos-clip {
+  font-size: 0.9rem; line-height: 1; padding: 0.15rem 0.2rem; margin-left: 0.1rem;
+  border: 0; background: transparent; cursor: pointer; border-radius: var(--qrx-radius);
+  vertical-align: baseline;
+}
+.rk-pos-clip:hover { background: var(--qrx-bg-muted); }
 .rk-pos-amt { font-family: var(--qrx-font-mono); font-weight: 700; white-space: nowrap; }
 .rk-pos-actions { display: flex; gap: var(--qrx-s-1); flex-shrink: 0; }
 .rk-pos-act { width: 2rem; height: 2rem; }
@@ -218,6 +223,11 @@
 .rk-pos-edit-total > span:first-child { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--qrx-text-subtle); }
 .rk-pos-edit-amount { font-family: var(--qrx-font-mono); font-weight: 700; font-size: 1.3rem; color: var(--qrx-primary); }
 .rk-pos-beleg { font-size: 0.8rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
+.rk-link-btn {
+  border: 0; background: transparent; padding: 0 0.2rem; cursor: pointer;
+  color: var(--qrx-primary); font: inherit; text-decoration: underline;
+}
+.rk-link-btn:hover { color: var(--qrx-primary-hover, var(--qrx-primary)); }
 
 /* --- Batch-Auswahl beim Import --- */
 .rk-batch-list { display: flex; flex-direction: column; gap: var(--qrx-s-1); }
