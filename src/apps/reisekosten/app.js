@@ -15,7 +15,7 @@
   // ---------------------------------------------------------------- Konstanten
   const KEY_TRIPS = 'reisekosten_trips';
   const KEY_SETTINGS = 'reisekosten_settings';
-  const KEY_FILE_PREFIX = 'reisekosten_file_';   // (Legacy) frühere Beleg-Datei-Keys — werden aufgeräumt
+  const KEY_FILE_PREFIX = 'reisekosten_file_';   // je „behaltenem" Beleg ein Key: reisekosten_file_<fileId>
   const KEY_PREFIX = 'reisekosten_';
 
   // Gesetzliche Default-Beträge (Inland, Stand 2024–2026) — in den Einstellungen
@@ -85,7 +85,7 @@
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
       secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)', dropOr: 'oder Datei hierher ziehen',
-      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Gespeichert werden nur die erkannten Werte und der Dateiname als Referenz — die Datei selbst wird nicht abgelegt (schont den Speicher). Anzeigen geht per Klick auf 📎; nach einem Neuladen wählst du die Datei einmalig neu.',
+      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Gespeichert werden nur die erkannten Werte und der Dateiname als Referenz — die Datei selbst wird standardmäßig nicht abgelegt (schont den Speicher). Anzeigen geht per Klick auf 📎 (hier direkt und in jeder Position); nach einem Neuladen wählst du eine nicht behaltene Datei einmalig neu. Beim Bearbeiten einer Position kannst du „Beleg behalten" ankreuzen, um genau diese Datei mitzuspeichern.',
       receiptsEmpty: 'Noch keine Belege importiert.',
       readingPdf: 'PDF wird gelesen …', readingOcr: 'Text wird erkannt (OCR) … {pct}%', analysing: 'Beleg wird ausgewertet …',
       importFailed: 'Beleg konnte nicht gelesen werden: {msg}',
@@ -117,6 +117,8 @@
       importingN: 'Beleg {i}/{n} wird gelesen …', nothingDetected: 'In den Dateien wurde nichts Auswertbares erkannt.',
       reportCosts: 'Kosten', thCat: 'Art', thDesc: 'Bezeichnung', thAmount: 'Betrag', posReceipt: 'Beleg',
       viewReceipt: 'Anzeigen', viewFailed: 'Die Datei konnte nicht geöffnet werden.',
+      keepReceipt: 'Beleg behalten', keepReceiptHint: 'Speichert genau diese Datei mit, damit sie auch nach dem Neuladen ohne erneutes Auswählen angezeigt werden kann (belegt etwas Speicher).',
+      keepFailed: 'Der Beleg konnte nicht gespeichert werden (Speicher voll?). Die Referenz bleibt erhalten.',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -160,7 +162,7 @@
       setReset: 'Reset to statutory defaults',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
       secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)', dropOr: 'or drag a file here',
-      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). Only the detected values and the file name (as a reference) are stored — the file itself is not kept (saves storage). Tap 📎 to view; after a reload you pick the file once more.',
+      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). Only the detected values and the file name (as a reference) are stored — by default the file itself is not kept (saves storage). Tap 📎 to view (here and on every position); after a reload a non-kept file is picked once more. While editing a position you can tick “Keep receipt" to store that one file with the trip.',
       receiptsEmpty: 'No receipts imported yet.',
       readingPdf: 'Reading PDF …', readingOcr: 'Recognising text (OCR) … {pct}%', analysing: 'Analysing receipt …',
       importFailed: 'Could not read the receipt: {msg}',
@@ -192,6 +194,8 @@
       importingN: 'Reading receipt {i}/{n} …', nothingDetected: 'Nothing usable was detected in the files.',
       reportCosts: 'Costs', thCat: 'Type', thDesc: 'Description', thAmount: 'Amount', posReceipt: 'Receipt',
       viewReceipt: 'View', viewFailed: 'The file could not be opened.',
+      keepReceipt: 'Keep receipt', keepReceiptHint: 'Stores this file with the trip so it can be viewed after a reload without picking it again (uses some storage).',
+      keepFailed: 'The receipt could not be stored (storage full?). The reference is kept.',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -208,20 +212,28 @@
     state.settings = Object.assign({}, DEFAULTS, store.getJSON(KEY_SETTINGS, {}));
     const trips = store.getJSON(KEY_TRIPS, []);
     state.trips = Array.isArray(trips) ? trips.map(normalizeTrip) : [];
-    purgeFileKeys();   // Referenz-only: evtl. früher eingebettete Dateien entfernen (Speicher freigeben)
+    purgeOrphanFileKeys();   // verwaiste Beleg-Dateien entfernen (nur behaltene bleiben)
   }
-  // Alle früheren Beleg-Datei-Keys entfernen — Dateien werden nicht mehr gespeichert.
-  function purgeFileKeys() {
+  // fileIds aller aktuell referenzierten „behaltenen" Belege.
+  function referencedFileKeys() {
+    const set = new Set();
+    (state.trips || []).forEach((tp) => (tp.positions || []).forEach((p) => { if (p.fileId) set.add(storedFileKey(p.fileId)); }));
+    return set;
+  }
+  // Beleg-Datei-Keys entfernen, die zu keiner Position mehr gehören (Legacy oder
+  // abgewähltes „behalten") — behaltene Dateien bleiben erhalten.
+  function purgeOrphanFileKeys() {
     try {
+      const keep = referencedFileKeys();
       const del = [];
-      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(KEY_FILE_PREFIX) === 0) del.push(k); }
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(KEY_FILE_PREFIX) === 0 && !keep.has(k)) del.push(k); }
       del.forEach((k) => store.remove(k));
     } catch (_) {}
   }
   function persistTrips() {
     const ok = store.setJSON(KEY_TRIPS, state.trips);
     if (!ok) { try { alert(t('storageBlocked')); } catch (_) {} }
-    purgeFileKeys();   // evtl. verbliebene Legacy-Datei-Keys entfernen
+    purgeOrphanFileKeys();   // verwaiste Beleg-Dateien aufräumen
     return ok;
   }
   function saveSettings() { store.setJSON(KEY_SETTINGS, state.settings); }
@@ -265,8 +277,10 @@
     if (!Array.isArray(base.positions) || (!base.positions.length && legacy)) base.positions = migratePositions(base);
     base.positions = (base.positions || []).map((p) => {
       const q = Object.assign({ id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0 }, p);
-      // Referenz-only: eingebettete Dateien/Referenzen entfernen, Dateiname behalten.
-      delete q.fileId; delete q.dataUrl; delete q.mime; delete q.tooBig; delete q.method;
+      // Dateiname (Referenz) und fileId (behaltener Beleg) behalten; alte inline-Felder verwerfen.
+      delete q.dataUrl; delete q.mime; delete q.tooBig; delete q.method;
+      // fileId nur behalten, wenn die zugehörige Datei wirklich (noch) gespeichert ist.
+      if (q.fileId && store.get(storedFileKey(q.fileId), null) == null) delete q.fileId;
       return q;
     });
     // Alt-Felder nicht weiterschleppen
@@ -553,6 +567,8 @@
     const orig = state.current.positions[idx];
     if (!orig) return;
     const draft = JSON.parse(JSON.stringify(orig));
+    let keepWanted = !!draft.fileId;   // „Beleg behalten" aktiv?
+    let pickedFile = null;             // frisch gewählte Datei (für Behalten/Anzeigen)
     const efNum = (ef, val, step) => '<input class="qrx-input" type="number" min="0" step="' + step + '" inputmode="decimal" data-ef="' + ef + '" value="' + esc(val) + '">';
     function modeSelect() {
       const opts = draft.kind === 'fahrt' ? [['km', 'modeKm'], ['betrag', 'modeBetrag']]
@@ -572,8 +588,12 @@
           field(t('posDesc'), '<input class="qrx-input" data-ef="bez" value="' + esc(draft.bez || '') + '" placeholder="' + esc(t('posDescPh')) + '">') +
           modeSelect() + modeControls() +
         '</div>' +
-        (draft.belegName ? '<p class="rk-pos-beleg">📎 ' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) +
-          ' <button type="button" class="rk-link-btn" data-view-beleg>' + esc(t('viewReceipt')) + '</button></p>' : '');
+        (draft.belegName ? '<div class="rk-pos-beleg">' +
+          '<span class="rk-pos-beleg-name">📎 ' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) + '</span> ' +
+          '<button type="button" class="rk-link-btn" data-view-beleg>' + esc(t('viewReceipt')) + '</button>' +
+          '<label class="rk-keep"><input type="checkbox" data-ef="keep"' + (keepWanted ? ' checked' : '') + '><span>' + esc(t('keepReceipt')) + '</span></label>' +
+          '<span class="rk-keep-hint">' + esc(t('keepReceiptHint')) + '</span>' +
+        '</div>' : '');
     }
     const ov = document.createElement('div');
     ov.className = 'rk-modal-overlay';
@@ -599,6 +619,15 @@
       if (ef === 'kind') { setPosKind(draft, e.target.value); render(); }
       else if (ef === 'mode') { draft.mode = e.target.value; ensurePosDefaults(draft); render(); }
       else if (ef === 'bez') draft.bez = e.target.value;
+      else if (ef === 'keep') {
+        if (e.target.checked) {
+          if (sessionFiles.has(draft.belegName) || draft.fileId) keepWanted = true;
+          else { // Datei nicht (mehr) im Speicher → einmalig wählen, dann behalten
+            e.target.checked = false;
+            pickBelegFile(draft.belegName, (f) => { pickedFile = f; keepWanted = true; render(); });
+          }
+        } else keepWanted = false;
+      }
       else { draft[ef] = num(e.target.value); amtEl.textContent = eur(posAmount(draft)); }
     }
     const done = () => { ov.remove(); renderPositions(); renderSummary(); };
@@ -606,10 +635,34 @@
     ov.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', cancel));
     ov.addEventListener('click', (e) => {
       if (e.target === ov) { cancel(); return; }
-      if (e.target.closest('[data-view-beleg]') && draft.belegName) viewBeleg(draft.belegName);
+      if (e.target.closest('[data-view-beleg]') && draft.belegName) viewBeleg(draft);
     });
-    ov.querySelector('[data-del]').addEventListener('click', () => { state.current.positions.splice(idx, 1); done(); });
-    ov.querySelector('[data-save]').addEventListener('click', () => { state.current.positions[idx] = draft; done(); });
+    ov.querySelector('[data-del]').addEventListener('click', () => {
+      if (draft.fileId) store.remove(storedFileKey(draft.fileId));
+      state.current.positions.splice(idx, 1); done();
+    });
+    ov.querySelector('[data-save]').addEventListener('click', async () => {
+      await commitKeep();
+      state.current.positions[idx] = draft;
+      done();
+    });
+    // „Beleg behalten" umsetzen: Datei speichern bzw. gespeicherte Datei entfernen.
+    async function commitKeep() {
+      if (!draft.belegName) { if (draft.fileId) { store.remove(storedFileKey(draft.fileId)); delete draft.fileId; } return; }
+      if (keepWanted) {
+        if (draft.fileId && !pickedFile && store.get(storedFileKey(draft.fileId), null) != null) return; // schon gespeichert
+        const file = pickedFile || sessionFiles.get(draft.belegName);
+        if (!file) return; // keine Datei verfügbar → nicht als behalten markieren
+        const fid = draft.fileId || ('f' + draft.id);
+        try {
+          const durl = await fileToDataUrl(file);
+          if (store.set(storedFileKey(fid), durl)) draft.fileId = fid;
+          else { try { alert(t('keepFailed')); } catch (_) {} delete draft.fileId; }
+        } catch (_) { try { alert(t('keepFailed')); } catch (_) {} }
+      } else if (draft.fileId) {
+        store.remove(storedFileKey(draft.fileId)); delete draft.fileId;
+      }
+    }
   }
   function ensurePosDefaults(p) {
     if (p.mode === 'km') { if (p.ratePerKm == null || p.ratePerKm === '') p.ratePerKm = num(state.settings.kmCar); if (p.km == null) p.km = 0; }
@@ -635,18 +688,42 @@
   function kindForType(ty) { return ty === 'hotel' ? 'uebernachtung' : (ty === 'bahn' || ty === 'oepnv') ? 'fahrt' : 'neben'; }
   function catLabel(kind) { return t(kind === 'fahrt' ? 'catFahrt' : kind === 'uebernachtung' ? 'catUeb' : 'catNeben'); }
 
-  // Referenz-only: Beleg-Dateien werden NICHT gespeichert. Aus einem Beleg werden
-  // nur der Betrag/die Daten erkannt und der Dateiname als Referenz behalten —
-  // das hält den Speicher generell unbelastet (und inline-PDF-Anzeige ist auf
-  // Mobilbrowsern ohnehin unzuverlässig).
+  // Standard: Beleg-Dateien werden NICHT gespeichert. Aus einem Beleg werden nur der
+  // Betrag/die Daten erkannt und der Dateiname als Referenz behalten — das hält den
+  // Speicher generell unbelastet (und inline-PDF-Anzeige ist auf Mobilbrowsern ohnehin
+  // unzuverlässig).
   //
-  // Anzeigen bleibt trotzdem möglich: importierte Dateien liegen für die Dauer der
-  // geöffneten Seite im Arbeitsspeicher (sessionFiles, NICHT gespeichert). Ein Klick
+  // Anzeigen ist trotzdem möglich: importierte Dateien liegen für die Dauer der
+  // geöffneten Seite im Arbeitsspeicher (sessionFiles, NICHT persistiert). Ein Klick
   // auf 📎 öffnet die Datei über eine Blob-URL in einem neuen Tab — so übernimmt der
   // Browser/das Betriebssystem die Anzeige (funktioniert mobil, anders als die frühere
-  // Inline-Einbettung). Nach einem Neuladen ist der Speicher leer; dann wird die Datei
-  // einmalig neu ausgewählt und danach angezeigt.
+  // Inline-Einbettung).
+  //
+  // Optional kann eine einzelne Position „Beleg behalten": dann wird genau diese Datei
+  // in einem eigenen localStorage-Key (reisekosten_file_<fileId>) als data-URL abgelegt
+  // und lässt sich auch nach einem Neuladen ohne erneutes Auswählen anzeigen. Nicht
+  // behaltene Belege werden nach einem Reload beim ersten Anzeigen einmalig neu gewählt.
   const sessionFiles = new Map();
+  const storedFileKey = (id) => KEY_FILE_PREFIX + id;
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(r.error || new Error('read failed'));
+      r.readAsDataURL(file);
+    });
+  }
+  function dataUrlToBlob(dataUrl) {
+    const comma = String(dataUrl).indexOf(',');
+    const head = String(dataUrl).slice(0, comma);
+    const body = String(dataUrl).slice(comma + 1);
+    const mime = (head.match(/data:([^;]+)/) || [])[1] || 'application/octet-stream';
+    const bin = /;base64/i.test(head) ? atob(body) : decodeURIComponent(body);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
 
   function openBelegFile(file) {
     try {
@@ -657,8 +734,9 @@
       setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
     } catch (_) { try { alert(t('viewFailed')); } catch (_) {} }
   }
-  // Datei einmalig vom Gerät wählen (wenn nicht mehr im Speicher, z. B. nach Reload).
-  function pickBelegFile(name) {
+  // Datei einmalig vom Gerät wählen (wenn nicht im Speicher, z. B. nach Reload) und
+  // für die Sitzung merken; cb bekommt die gewählte Datei.
+  function pickBelegFile(name, cb) {
     const inp = document.createElement('input');
     inp.type = 'file';
     inp.accept = 'application/pdf,image/*';
@@ -666,14 +744,21 @@
     inp.addEventListener('change', () => {
       const f = inp.files && inp.files[0];
       inp.remove();
-      if (f) { if (name) sessionFiles.set(name, f); openBelegFile(f); }
+      if (f) { if (name) sessionFiles.set(name, f); if (cb) cb(f); else openBelegFile(f); }
     });
     document.body.appendChild(inp);
     inp.click();
   }
-  function viewBeleg(name) {
-    const f = name && sessionFiles.get(name);
-    if (f) openBelegFile(f); else pickBelegFile(name);
+  // Position anzeigen: 1) im Speicher, 2) behaltene Datei aus localStorage, 3) auswählen.
+  function viewBeleg(pos) {
+    if (!pos || !pos.belegName) return;
+    const mem = sessionFiles.get(pos.belegName);
+    if (mem) { openBelegFile(mem); return; }
+    if (pos.fileId) {
+      const durl = store.get(storedFileKey(pos.fileId), null);
+      if (durl) { try { openBelegFile(dataUrlToBlob(durl)); } catch (_) { try { alert(t('viewFailed')); } catch (_) {} } return; }
+    }
+    pickBelegFile(pos.belegName);
   }
 
   // Eine oder mehrere Dateien importieren: Text gewinnen (PDF/OCR) → parsen →
@@ -693,7 +778,7 @@
         });
         const parsed = qrx.rkReceipts.parseReceipt(text);
         sessionFiles.set(file.name, file);   // nur im Speicher der Seite (nicht persistiert) → Anzeigen möglich
-        detected.push({ fileName: file.name, parsed, method });
+        detected.push({ fileName: file.name, parsed, method, file });
       } catch (e) { console.warn('receipt import failed', file.name, e); }
     }
     prog.close();
@@ -753,6 +838,7 @@
         '<input type="checkbox" data-i="' + i + '" checked>' + svgIcon(it.parsed.type) +
         '<div class="rk-batch-main"><span class="rk-batch-name">' + esc(it.fileName) + '</span>' +
           '<span class="rk-batch-meta">' + esc(meta) + '</span></div>' +
+        (it.file ? '<button type="button" class="rk-link-btn rk-batch-view" data-vi="' + i + '">' + esc(t('viewReceipt')) + '</button>' : '') +
       '</label>';
     }).join('');
 
@@ -811,6 +897,12 @@
     const close = () => ov.remove();
     ov.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', close));
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    // Anzeigen je Beleg (verhindert das Umschalten der Checkbox des umgebenden Labels).
+    ov.querySelectorAll('.rk-batch-view').forEach((b) => b.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const it = items[+b.getAttribute('data-vi')];
+      if (it && it.file) openBelegFile(it.file);
+    }));
     ov.querySelector('[data-apply]').addEventListener('click', () => {
       const checked = [];
       ov.querySelectorAll('input[type="checkbox"][data-i]').forEach((cb) => { if (cb.checked) checked.push(items[+cb.getAttribute('data-i')]); });
@@ -1100,7 +1192,7 @@
       case 'edit-pos': editPosition(+target.getAttribute('data-idx'), false); break;
       case 'view-pos': {
         const pv = state.current.positions[+target.getAttribute('data-idx')];
-        if (pv && pv.belegName) viewBeleg(pv.belegName);
+        if (pv && pv.belegName) viewBeleg(pv);
         break;
       }
       case 'del-pos':
