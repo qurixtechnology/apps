@@ -146,6 +146,7 @@
 .rk-report-meta { display: grid; gap: var(--qrx-s-2) var(--qrx-s-6); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin: var(--qrx-s-5) 0; }
 .rk-report-meta div { font-size: 0.9rem; }
 .rk-report-meta b { color: var(--qrx-text-muted); font-weight: 600; }
+.rk-table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .rk-table { width: 100%; border-collapse: collapse; margin: var(--qrx-s-4) 0; font-size: 0.875rem; }
 .rk-table th, .rk-table td { padding: var(--qrx-s-2) var(--qrx-s-3); border-bottom: 1px solid var(--qrx-border); text-align: left; }
 .rk-table th { color: var(--qrx-text-muted); font-weight: 600; }
@@ -335,14 +336,38 @@
   /* Kategorie steht über den farbigen linken Rand — Text-Chip spart Platz für die Bezeichnung */
   .rk-pos-chip { display: none; }
   .rk-pos-row { padding-left: var(--qrx-s-3); }
-  /* Shell-Fußzeile umbrechen — verhindert horizontalen Überlauf (der sonst fixe Overlays verschiebt) */
+  /* Shell-Chrome mobil entlasten — verhindert horizontalen Überlauf (nur in dieser App gebündelt) */
   .qrx-shell-footer { flex-wrap: wrap; }
+  .qrx-shell-header, .qrx-shell-footer { padding-left: var(--qrx-s-4); padding-right: var(--qrx-s-4); }
+  .qrx-header-brand { min-width: 0; }
+  .qrx-header-title, .qrx-header-app-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qrx-footer-brand { flex-wrap: wrap; }
   /* Popup: Felder untereinander, scrollbar, Aktionen umbrechen */
   .rk-modal-overlay { align-items: flex-start; overflow-y: auto; padding: var(--qrx-s-3); }
   .rk-modal { padding: var(--qrx-s-5); max-height: none; }
   .rk-modal-edit .rk-grid { grid-template-columns: 1fr; }
   .rk-modal-actions { flex-wrap: wrap; }
   .rk-modal-actions .qrx-btn { flex: 1 1 auto; justify-content: center; }
+  /* Abrechnung: weniger Rand, kompaktere Tabellen, lange Texte umbrechen → kein Überlauf */
+  .rk-report-sheet { padding: var(--qrx-s-4); }
+  .rk-table { font-size: 0.8rem; }
+  .rk-table th, .rk-table td { padding: var(--qrx-s-2); }
+  .rk-table td { overflow-wrap: anywhere; }
+  .rk-table td.rk-num, .rk-table th.rk-num { white-space: nowrap; }
+  .rk-report-meta { gap: var(--qrx-s-2); }
+  .rk-report-sign { flex-direction: column; gap: var(--qrx-s-6); }
+}
+
+/* Sehr schmale Geräte (z. B. 320px): Tabellen fest umbrechen, damit sie garantiert
+   in die Breite passen (statt zu scrollen). Für ≥360px bleibt das flexible Layout. */
+@media (max-width: 360px) {
+  .qrx-shell-app { padding-left: var(--qrx-s-3); padding-right: var(--qrx-s-3); }
+  .rk-table { table-layout: fixed; }
+  .rk-table td, .rk-table th { overflow-wrap: anywhere; }
+  .rk-table td.rk-num, .rk-table th.rk-num { white-space: normal; }
+  /* letzte Sicherung gegen horizontalen Rest-Überlauf; „clip" bewahrt sticky-Elemente
+     und die Tabellen scrollen weiterhin in ihren eigenen Wrappern */
+  .rk { overflow-x: clip; }
 }
 
 /* --- Druck --- */
@@ -351,6 +376,7 @@
   .rk-topbar, .rk-summary, .rk-report-actions, .rk-noprint { display: none !important; }
   .qrx-shell-app { padding: 0 !important; max-width: none !important; }
   .rk-report-sheet { border: none; box-shadow: none; padding: 0; max-width: none; }
+  .rk-table-wrap { overflow: visible !important; }
   .rk-table th, .rk-table td { border-color: #999 !important; }
   body { background: #fff !important; }
 }
