@@ -1071,27 +1071,27 @@
             '<div><b>' + esc(t('reportPeriod')) + ':</b> ' + esc(fmtDateTime(tp.abreise) + ' – ' + fmtDateTime(tp.rueckkehr)) + '</div>' +
             '<div><b>' + esc(t('reportDays')) + ':</b> ' + esc(t('reportDaysVal', { days: c.dayCount, hours: Math.round(c.hours) })) + '</div>' +
           '</div>' +
-          '<table class="rk-table"><thead><tr><th>' + esc(t('thDate')) + '</th><th>' + esc(t('thType')) + '</th>' +
+          '<div class="rk-table-wrap"><table class="rk-table"><thead><tr><th>' + esc(t('thDate')) + '</th><th>' + esc(t('thType')) + '</th>' +
             '<th>' + esc(t('thMeals')) + '</th><th class="rk-num">' + esc(t('thPerDiem')) + '</th></tr></thead>' +
             '<tbody>' + daysRows + '</tbody>' +
             '<tfoot>' + rowFoot(t('sumVerpflegung'), c.verpflegung) + '</tfoot>' +
-          '</table>' +
+          '</table></div>' +
           (tp.positions && tp.positions.length
             ? '<h3 class="rk-report-h3">' + esc(t('reportCosts')) + '</h3>' +
-              '<table class="rk-table"><thead><tr><th>' + esc(t('thCat')) + '</th><th>' + esc(t('thDesc')) + '</th>' +
+              '<div class="rk-table-wrap"><table class="rk-table"><thead><tr><th>' + esc(t('thCat')) + '</th><th>' + esc(t('thDesc')) + '</th>' +
                 '<th>' + esc(t('thPayer')) + '</th><th class="rk-num">' + esc(t('thAmount')) + '</th></tr></thead><tbody>' +
                 tp.positions.map((p) => '<tr><td>' + esc(catLabel(p.kind)) + '</td><td>' + esc(p.bez || p.belegName || '–') + '</td>' +
                   '<td>' + esc(t(p.payer === 'company' ? 'payerCompany' : 'payerSelf')) + '</td>' +
                   '<td class="rk-num">' + esc(eur(posAmount(p))) + '</td></tr>').join('') +
-              '</tbody></table>'
+              '</tbody></table></div>'
             : '') +
-          '<table class="rk-table rk-report-totals"><tbody>' +
+          '<div class="rk-table-wrap"><table class="rk-table rk-report-totals"><tbody>' +
             rowFoot(t('sumVerpflegung'), c.verpflegung) + rowFoot(t('sumFahrt'), c.fahrt) +
             rowFoot(t('sumUebernachtung'), c.uebernachtung) + rowFoot(t('sumNeben'), c.neben) +
             (c.firma > 0 ? rowFoot(t('sumFirma'), -c.firma) : '') +
             '<tr class="rk-report-grand"><td colspan="3">' + esc(c.firma > 0 ? t('sumErstattung') : t('sumTotal')) + '</td>' +
               '<td class="rk-num">' + esc(eur(c.firma > 0 ? c.erstattung : c.total)) + '</td></tr>' +
-          '</tbody></table>' +
+          '</tbody></table></div>' +
           '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' +
         '</div>' +
       '</div>';
