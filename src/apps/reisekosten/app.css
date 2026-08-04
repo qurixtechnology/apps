@@ -209,9 +209,17 @@
   vertical-align: baseline;
 }
 .rk-pos-clip:hover { background: var(--qrx-bg-muted); }
+.rk-pos-firma {
+  display: inline-block; margin-left: 0.35rem; padding: 0.05rem 0.4rem; border-radius: 999px;
+  font-size: 0.68rem; font-weight: 600; vertical-align: middle; white-space: nowrap;
+  background: color-mix(in srgb, var(--qrx-text-muted) 18%, transparent); color: var(--qrx-text-muted);
+}
 .rk-pos-amt { font-family: var(--qrx-font-mono); font-weight: 700; white-space: nowrap; }
+.rk-pos-paidco .rk-pos-amt { color: var(--qrx-text-subtle); font-weight: 600; }
 .rk-pos-actions { display: flex; gap: var(--qrx-s-1); flex-shrink: 0; }
 .rk-pos-act { width: 2rem; height: 2rem; }
+.rk-pos-payer-hint { font-size: 0.78rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
+.rk-sum-firma .rk-sum-value { color: var(--qrx-text-muted); }
 
 /* --- Positions-Popup (Bearbeiten) --- */
 .rk-modal-edit { max-width: 480px; }

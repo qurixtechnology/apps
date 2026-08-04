@@ -119,6 +119,9 @@
       viewReceipt: 'Anzeigen', viewFailed: 'Die Datei konnte nicht geöffnet werden.',
       keepReceipt: 'Beleg behalten', keepReceiptHint: 'Speichert genau diese Datei mit, damit sie auch nach dem Neuladen ohne erneutes Auswählen angezeigt werden kann (belegt etwas Speicher).',
       keepFailed: 'Der Beleg konnte nicht gespeichert werden (Speicher voll?). Die Referenz bleibt erhalten.',
+      posPayer: 'Bezahlt von', payerSelf: 'Selbst', payerCompany: 'Firma', payerCompanyShort: 'Firma',
+      payerCompanyHint: 'Von der Firma getragen — wird dir nicht erstattet, zählt aber zu den Gesamtkosten.',
+      sumFirma: 'davon Firma bezahlt', sumErstattung: 'Erstattung an dich', thPayer: 'Bezahlt von',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -196,6 +199,9 @@
       viewReceipt: 'View', viewFailed: 'The file could not be opened.',
       keepReceipt: 'Keep receipt', keepReceiptHint: 'Stores this file with the trip so it can be viewed after a reload without picking it again (uses some storage).',
       keepFailed: 'The receipt could not be stored (storage full?). The reference is kept.',
+      posPayer: 'Paid by', payerSelf: 'Myself', payerCompany: 'Company', payerCompanyShort: 'Company',
+      payerCompanyHint: 'Paid by the company — not reimbursed to you, but still part of the total cost.',
+      sumFirma: 'of which company-paid', sumErstattung: 'Reimbursement to you', thPayer: 'Paid by',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -276,7 +282,8 @@
     const legacy = tp.verkehr || tp.uebernachtung || (tp.extras && tp.extras.length) || (tp.belege && tp.belege.length);
     if (!Array.isArray(base.positions) || (!base.positions.length && legacy)) base.positions = migratePositions(base);
     base.positions = (base.positions || []).map((p) => {
-      const q = Object.assign({ id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0 }, p);
+      const q = Object.assign({ id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0, payer: 'self' }, p);
+      if (q.payer !== 'company') q.payer = 'self';
       // Dateiname (Referenz) und fileId (behaltener Beleg) behalten; alte inline-Felder verwerfen.
       delete q.dataUrl; delete q.mime; delete q.tooBig; delete q.method;
       // fileId nur behalten, wenn die zugehörige Datei wirklich (noch) gespeichert ist.
@@ -298,9 +305,9 @@
     return round2(num(p.betrag));
   }
   function newPosition(kind, tp) {
-    if (kind === 'fahrt') return { id: newId(), kind, bez: '', mode: 'km', km: 0, ratePerKm: num(state.settings.kmCar), betrag: 0 };
-    if (kind === 'uebernachtung') return { id: newId(), kind, bez: t('catUeb'), mode: 'pauschale', nights: Math.max(0, tripDays(tp).length - 1), nightRate: nightRate(tp), betrag: 0 };
-    return { id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0 };
+    if (kind === 'fahrt') return { id: newId(), kind, bez: '', mode: 'km', km: 0, ratePerKm: num(state.settings.kmCar), betrag: 0, payer: 'self' };
+    if (kind === 'uebernachtung') return { id: newId(), kind, bez: t('catUeb'), mode: 'pauschale', nights: Math.max(0, tripDays(tp).length - 1), nightRate: nightRate(tp), betrag: 0, payer: 'self' };
+    return { id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0, payer: 'self' };
   }
 
   // ---------------------------------------------------------------- Datumslogik
@@ -358,9 +365,13 @@
     const sumKind = (k) => round2(pos.filter((p) => p.kind === k).reduce((s, p) => s + posAmount(p), 0));
     const fahrt = sumKind('fahrt'), uebernachtung = sumKind('uebernachtung'), neben = sumKind('neben');
 
-    const total = round2(verpflegung + fahrt + uebernachtung + neben);
+    // Von der Firma getragene Positionen werden NICHT an den Reisenden erstattet.
+    const firma = round2(pos.filter((p) => p.payer === 'company').reduce((s, p) => s + posAmount(p), 0));
+    const kostenSelbst = round2(fahrt + uebernachtung + neben - firma);   // selbst getragene Kosten
+    const total = round2(verpflegung + fahrt + uebernachtung + neben);     // Gesamtkosten der Reise
+    const erstattung = round2(verpflegung + kostenSelbst);                 // Auszahlung an den Reisenden
     const hours = (trip.abreise && trip.rueckkehr) ? (new Date(trip.rueckkehr) - new Date(trip.abreise)) / 3600000 : 0;
-    return { rows, days, verpflegung, fahrt, uebernachtung, neben, total, hours: Math.max(0, hours), dayCount: days.length };
+    return { rows, days, verpflegung, fahrt, uebernachtung, neben, firma, kostenSelbst, total, erstattung, hours: Math.max(0, hours), dayCount: days.length };
   }
 
   // ---------------------------------------------------------------- Views
@@ -403,7 +414,7 @@
     });
     const keys = Object.keys(groups).sort().reverse();
     let grand = 0;
-    state.trips.forEach((tp) => { grand += compute(tp).total; });
+    state.trips.forEach((tp) => { grand += compute(tp).erstattung; });
 
     let html =
       '<div class="rk-summary rk-noprint" style="position:static;margin-bottom:var(--qrx-s-6)">' +
@@ -414,7 +425,7 @@
 
     keys.forEach((key) => {
       const monthTrips = groups[key];
-      const sum = monthTrips.reduce((s, tp) => s + compute(tp).total, 0);
+      const sum = monthTrips.reduce((s, tp) => s + compute(tp).erstattung, 0);
       const title = key === '0000-00' ? '—' :
         new Date(key + '-01T12:00:00').toLocaleDateString(locale(), { month: 'long', year: 'numeric' });
       html += '<div class="rk-month-group"><div class="rk-month-head">' +
@@ -432,7 +443,7 @@
           '<div class="rk-trip-card-head"><span class="rk-trip-dest">' + esc(dest) + '</span>' +
           '<span class="rk-trip-flag' + (inland ? '' : ' rk-abroad') + '">' + esc(inland ? 'Inland' : (destName(tp) || 'Ausland')) + '</span></div>' +
           '<div class="rk-trip-dates">' + esc(range) + '</div>' +
-          '<div class="rk-trip-foot"><span class="rk-trip-total">' + esc(eur(c.total)) + '</span></div>' +
+          '<div class="rk-trip-foot"><span class="rk-trip-total">' + esc(eur(c.erstattung)) + '</span></div>' +
           '</article>';
       });
       html += '</div></div>';
@@ -544,9 +555,10 @@
       ? ' <button type="button" class="rk-pos-clip" data-action="view-pos" data-idx="' + i + '"' +
         ' title="' + esc(t('viewReceipt')) + ': ' + esc(p.belegName) + '" aria-label="' + esc(t('viewReceipt')) + '">📎</button>'
       : '';
-    return '<div class="rk-pos-row rk-pos-' + p.kind + '" data-action="edit-pos" data-idx="' + i + '" role="button" tabindex="0">' +
+    const firmaTag = p.payer === 'company' ? '<span class="rk-pos-firma" title="' + esc(t('payerCompany')) + '">' + esc(t('payerCompanyShort')) + '</span>' : '';
+    return '<div class="rk-pos-row rk-pos-' + p.kind + (p.payer === 'company' ? ' rk-pos-paidco' : '') + '" data-action="edit-pos" data-idx="' + i + '" role="button" tabindex="0">' +
       '<span class="rk-pos-chip">' + esc(catLabel(p.kind)) + '</span>' +
-      '<span class="rk-pos-main"><span class="rk-pos-desc">' + esc(p.bez || catLabel(p.kind)) + clip + '</span>' +
+      '<span class="rk-pos-main"><span class="rk-pos-desc">' + esc(p.bez || catLabel(p.kind)) + clip + firmaTag + '</span>' +
         (detail ? '<span class="rk-pos-detail">' + esc(detail) + '</span>' : '') + '</span>' +
       '<span class="rk-pos-amt">' + esc(eur(posAmount(p))) + '</span>' +
       '<span class="rk-pos-actions">' +
@@ -582,12 +594,18 @@
       if (draft.kind === 'uebernachtung' && draft.mode === 'pauschale') return field(t('posNights'), efNum('nights', draft.nights, '1')) + field(t('posNightRate'), efNum('nightRate', draft.nightRate, '0.01'));
       return field(t('fldAmount'), efNum('betrag', draft.betrag, '0.01'));
     }
+    function payerSelect() {
+      return field(t('posPayer'), '<select class="qrx-select" data-ef="payer">' +
+        [['self', 'payerSelf'], ['company', 'payerCompany']]
+          .map(([v, k]) => '<option value="' + v + '"' + (draft.payer === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('') + '</select>');
+    }
     function bodyHtml() {
       return '<div class="rk-grid">' +
           field(t('posCategory'), '<select class="qrx-select" data-ef="kind">' + catOptions(draft.kind) + '</select>') +
           field(t('posDesc'), '<input class="qrx-input" data-ef="bez" value="' + esc(draft.bez || '') + '" placeholder="' + esc(t('posDescPh')) + '">') +
-          modeSelect() + modeControls() +
+          modeSelect() + modeControls() + payerSelect() +
         '</div>' +
+        (draft.payer === 'company' ? '<p class="rk-pos-payer-hint">' + esc(t('payerCompanyHint')) + '</p>' : '') +
         (draft.belegName ? '<div class="rk-pos-beleg">' +
           '<span class="rk-pos-beleg-name">📎 ' + esc(t('posReceipt')) + ': ' + esc(draft.belegName) + '</span> ' +
           '<button type="button" class="rk-link-btn" data-view-beleg>' + esc(t('viewReceipt')) + '</button>' +
@@ -619,6 +637,7 @@
       if (ef === 'kind') { setPosKind(draft, e.target.value); render(); }
       else if (ef === 'mode') { draft.mode = e.target.value; ensurePosDefaults(draft); render(); }
       else if (ef === 'bez') draft.bez = e.target.value;
+      else if (ef === 'payer') { draft.payer = e.target.value; render(); }
       else if (ef === 'keep') {
         if (e.target.checked) {
           if (sessionFiles.has(draft.belegName) || draft.fileId) keepWanted = true;
@@ -799,7 +818,7 @@
     const p = item.parsed, kind = kindForType(p.type);
     let bez = p.type === 'hotel' ? t('catUeb') : (p.type === 'bahn' || p.type === 'oepnv') ? typeLabelOf(p.type) : (item.fileName || t('typeUnknown')).replace(/\.[^.]+$/, '');
     if ((p.type === 'bahn' || p.type === 'oepnv') && p.travel && (p.travel.from || p.travel.to)) bez += ' ' + [p.travel.from, p.travel.to].filter(Boolean).join('→');
-    const pos = { id: newId(), kind, bez, mode: 'betrag', betrag: p.total != null ? p.total : 0 };
+    const pos = { id: newId(), kind, bez, mode: 'betrag', betrag: p.total != null ? p.total : 0, payer: 'self' };
     if (item.fileName) pos.belegName = item.fileName;
     return pos;
   }
@@ -974,13 +993,20 @@
     const box = $('rk-summary');
     if (!box) return;
     const c = compute(state.current);
+    const firmaLine = c.firma > 0
+      ? '<div class="rk-sum-item rk-sum-firma"><span class="rk-sum-label">' + esc(t('sumFirma')) + '</span>' +
+        '<span class="rk-sum-value">− ' + esc(eur(c.firma)) + '</span></div>'
+      : '';
+    const totalLabel = c.firma > 0 ? t('sumErstattung') : t('sumTotal');
+    const totalVal = c.firma > 0 ? c.erstattung : c.total;
     box.innerHTML = '<div class="rk-summary">' +
       sumItem('sumVerpflegung', c.verpflegung) +
       sumItem('sumFahrt', c.fahrt) +
       sumItem('sumUebernachtung', c.uebernachtung) +
       sumItem('sumNeben', c.neben) +
-      '<div class="rk-sum-item rk-sum-total"><span class="rk-sum-label">' + esc(t('sumTotal')) + '</span>' +
-        '<span class="rk-sum-value">' + esc(eur(c.total)) + '</span></div>' +
+      firmaLine +
+      '<div class="rk-sum-item rk-sum-total"><span class="rk-sum-label">' + esc(totalLabel) + '</span>' +
+        '<span class="rk-sum-value">' + esc(eur(totalVal)) + '</span></div>' +
       '<div class="rk-summary-actions">' +
         '<button class="qrx-btn qrx-btn-primary" data-action="save">' + esc(t('save')) + '</button>' +
         '<button class="qrx-btn" data-action="report">' + esc(t('report')) + '</button>' +
@@ -1053,15 +1079,18 @@
           (tp.positions && tp.positions.length
             ? '<h3 class="rk-report-h3">' + esc(t('reportCosts')) + '</h3>' +
               '<table class="rk-table"><thead><tr><th>' + esc(t('thCat')) + '</th><th>' + esc(t('thDesc')) + '</th>' +
-                '<th class="rk-num">' + esc(t('thAmount')) + '</th></tr></thead><tbody>' +
-                tp.positions.map((p) => '<tr><td>' + esc(catLabel(p.kind)) + '</td><td>' + esc(p.bez || p.belegName || '–') +
-                  '</td><td class="rk-num">' + esc(eur(posAmount(p))) + '</td></tr>').join('') +
+                '<th>' + esc(t('thPayer')) + '</th><th class="rk-num">' + esc(t('thAmount')) + '</th></tr></thead><tbody>' +
+                tp.positions.map((p) => '<tr><td>' + esc(catLabel(p.kind)) + '</td><td>' + esc(p.bez || p.belegName || '–') + '</td>' +
+                  '<td>' + esc(t(p.payer === 'company' ? 'payerCompany' : 'payerSelf')) + '</td>' +
+                  '<td class="rk-num">' + esc(eur(posAmount(p))) + '</td></tr>').join('') +
               '</tbody></table>'
             : '') +
           '<table class="rk-table rk-report-totals"><tbody>' +
             rowFoot(t('sumVerpflegung'), c.verpflegung) + rowFoot(t('sumFahrt'), c.fahrt) +
             rowFoot(t('sumUebernachtung'), c.uebernachtung) + rowFoot(t('sumNeben'), c.neben) +
-            '<tr class="rk-report-grand"><td colspan="3">' + esc(t('sumTotal')) + '</td><td class="rk-num">' + esc(eur(c.total)) + '</td></tr>' +
+            (c.firma > 0 ? rowFoot(t('sumFirma'), -c.firma) : '') +
+            '<tr class="rk-report-grand"><td colspan="3">' + esc(c.firma > 0 ? t('sumErstattung') : t('sumTotal')) + '</td>' +
+              '<td class="rk-num">' + esc(eur(c.firma > 0 ? c.erstattung : c.total)) + '</td></tr>' +
           '</tbody></table>' +
           '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' +
         '</div>' +
@@ -1082,7 +1111,7 @@
   function csvNum(n) { return (Math.round((n || 0) * 100) / 100).toFixed(2).replace('.', ','); }
   function csvCell(s) { s = String(s == null ? '' : s); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function exportCsv(trips, filename) {
-    const head = ['Anlass', 'Ort', 'Ziel', 'Abreise', 'Rückkehr', 'Tage', 'Verpflegung', 'Fahrt', 'Übernachtung', 'Nebenkosten', 'Summe'];
+    const head = ['Anlass', 'Ort', 'Ziel', 'Abreise', 'Rückkehr', 'Tage', 'Verpflegung', 'Fahrt', 'Übernachtung', 'Nebenkosten', 'Gesamtkosten', 'Firma bezahlt', 'Erstattung'];
     const lines = [head.map(csvCell).join(';')];
     trips.forEach((tp) => {
       const c = compute(tp);
@@ -1090,6 +1119,7 @@
         tp.reason, tp.ort, isInland(tp) ? 'Inland' : (destName(tp) || 'Ausland'),
         tp.abreise, tp.rueckkehr, c.dayCount,
         csvNum(c.verpflegung), csvNum(c.fahrt), csvNum(c.uebernachtung), csvNum(c.neben), csvNum(c.total),
+        csvNum(c.firma), csvNum(c.erstattung),
       ].map(csvCell).join(';'));
     });
     const csv = '﻿' + lines.join('\r\n');
