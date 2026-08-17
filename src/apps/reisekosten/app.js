@@ -807,7 +807,14 @@
 
   function receiptPeriod(parsed) {
     if (parsed.type === 'hotel' && parsed.hotel && parsed.hotel.checkIn) return { d0: parsed.hotel.checkIn, d1: parsed.hotel.checkOut || parsed.hotel.checkIn };
-    if (parsed.dates && parsed.dates.length) return { d0: parsed.dates[0], d1: parsed.dates[parsed.dates.length - 1] };
+    // Bahn/ÖPNV: Reise-/Leistungsdaten bevorzugen (Rechnungsdatum ≠ Reisedatum).
+    const td = parsed.travel && parsed.travel.dates;
+    if (td && td.length) return { d0: td[0], d1: td[td.length - 1] };
+    // sonst: alle Datumsangaben, aber ein erkanntes Rechnungsdatum ausschließen
+    let dates = parsed.dates || [];
+    const inv = parsed.travel && parsed.travel.invoiceDate;
+    if (inv && dates.length > 1) { const f = dates.filter((d) => d !== inv); if (f.length) dates = f; }
+    if (dates.length) return { d0: dates[0], d1: dates[dates.length - 1] };
     return null;
   }
   function periodText(pr) { return !pr ? t('noPeriod') : (pr.d0 === pr.d1 ? fmtDate(pr.d0) : fmtDate(pr.d0) + ' – ' + fmtDate(pr.d1)); }
