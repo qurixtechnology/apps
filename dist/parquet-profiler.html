@@ -2150,7 +2150,7 @@ body.pp-fullscreen .pp-sql-result {
     </div>
 
     <div class="pp-sql-result" id="pp-sqlResult"></div>
-  </section>
+  </section>
 </main>
 
 <footer class="qrx-shell-footer">
@@ -2159,7 +2159,7 @@ body.pp-fullscreen .pp-sql-result {
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260731-175844</span>
+    &middot; v<span data-build-version>260817-122028</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -4636,10 +4636,11 @@ body.pp-fullscreen .pp-sql-result {
     });
   }
 
-  function writeAppState(clone) {
+  async function writeAppState(clone) {
     if (!window.qurixApp.serializeState) return;
     let stateData;
-    try { stateData = window.qurixApp.serializeState(); }
+    // serializeState may be async (e.g. reading IndexedDB); await works for sync returns too.
+    try { stateData = await window.qurixApp.serializeState(); }
     catch (e) { console.warn('qurix: state serialize failed', e); return; }
     let s = clone.querySelector('#qrx-app-state');
     if (!s) {
@@ -4674,10 +4675,10 @@ body.pp-fullscreen .pp-sql-result {
     download(clone);
   });
 
-  document.querySelector('[data-action="export-html-state"]').addEventListener('click', () => {
+  document.querySelector('[data-action="export-html-state"]').addEventListener('click', async () => {
     const clone = document.documentElement.cloneNode(true);
     syncFormState(clone);
-    writeAppState(clone);
+    await writeAppState(clone);
     download(clone, 'snapshot');
   });
 })();

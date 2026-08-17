@@ -113,10 +113,11 @@
     });
   }
 
-  function writeAppState(clone) {
+  async function writeAppState(clone) {
     if (!window.qurixApp.serializeState) return;
     let stateData;
-    try { stateData = window.qurixApp.serializeState(); }
+    // serializeState may be async (e.g. reading IndexedDB); await works for sync returns too.
+    try { stateData = await window.qurixApp.serializeState(); }
     catch (e) { console.warn('qurix: state serialize failed', e); return; }
     let s = clone.querySelector('#qrx-app-state');
     if (!s) {
@@ -151,10 +152,10 @@
     download(clone);
   });
 
-  document.querySelector('[data-action="export-html-state"]').addEventListener('click', () => {
+  document.querySelector('[data-action="export-html-state"]').addEventListener('click', async () => {
     const clone = document.documentElement.cloneNode(true);
     syncFormState(clone);
-    writeAppState(clone);
+    await writeAppState(clone);
     download(clone, 'snapshot');
   });
 })();
