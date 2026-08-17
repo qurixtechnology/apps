@@ -64,19 +64,22 @@
   führend, der Beleg dient als Kontrolle.
 </p>
 <p>
-  Gespeichert werden nur die <b>erkannten Werte</b> und der <b>Dateiname als Referenz</b> (📎) — die
-  PDF/Foto-Datei selbst wird <b>nicht abgelegt</b>. Das hält den Speicher generell unbelastet (wichtig
-  auf dem Handy). <b>Anzeigen</b> ist trotzdem möglich: Ein Klick auf das 📎 öffnet den Beleg in einem
-  neuen Tab — die Anzeige übernimmt der Browser bzw. das Betriebssystem, was auch mobil funktioniert
-  (anders als eine eingebettete Inline-Vorschau). Die importierte Datei liegt dafür nur <b>im
-  Arbeitsspeicher der geöffneten Seite</b> (nicht gespeichert); nach einem <b>Neuladen</b> wählst du
-  die Datei beim ersten Anzeigen einmalig neu aus. Schon beim <b>Erfassen</b> lässt sich jeder Beleg
-  über <b>Anzeigen</b> in der Auswahl-Liste prüfen. Wer einen einzelnen Beleg dauerhaft dabei haben
-  möchte, kann ihn beim Bearbeiten der Position mit <b>„Beleg behalten"</b> mitspeichern — dann ist er
-  auch nach einem Neuladen ohne erneutes Auswählen sichtbar (belegt entsprechend etwas Speicher).
-  Das Original hast du ohnehin in deiner Mail/deinen Dateien; für die Einreichung fügst du es dort bei.
-  Alles läuft lokal im Browser, nichts wird hochgeladen; die Lese-Bibliothek wird beim ersten Import
-  einmalig aus dem Netz geladen.
+  Gespeichert werden die <b>erkannten Werte</b>, der <b>Dateiname</b> (📎) und <b>standardmäßig auch die
+  Datei selbst</b> — als Blob lokal in <b>IndexedDB</b> (großes Kontingent, kein Base64-Aufschlag; die
+  Reisenliste bleibt dadurch schlank). So lässt sich der Beleg per Klick auf das 📎 <b>direkt anzeigen</b>,
+  auch nach einem Neuladen: Der Beleg öffnet sich in einem neuen Tab, die Anzeige übernimmt der Browser
+  bzw. das Betriebssystem (funktioniert auch mobil). Schon beim <b>Erfassen</b> lässt sich jeder Beleg
+  über <b>Anzeigen</b> in der Auswahl-Liste prüfen.
+</p>
+<p>
+  Wer Speicher sparen möchte, wählt im Import-Panel <b>„Belege behalten"</b> ab — dann wird nur der
+  <b>Dateiname als Referenz</b> gespeichert und die Datei beim Anzeigen bei Bedarf einmalig neu
+  ausgewählt. Pro Position lässt sich das im Bearbeiten-Popup jederzeit umstellen. Der Beleg-Speicher
+  liegt lokal auf diesem Gerät/Browser (keine Synchronisation) und ist „best effort" — bei „Websitedaten
+  löschen" oder extremer Speicherknappheit kann er geräumt werden; das Original hast du ohnehin in deiner
+  Mail/deinen Dateien. Der Export <b>„Mit Daten"</b> enthält die behaltenen Belege und stellt sie beim
+  erneuten Öffnen wieder her. Alles läuft lokal im Browser, nichts wird hochgeladen; die Lese-Bibliothek
+  wird beim ersten Import einmalig aus dem Netz geladen.
 </p>
 
 <h3>Abrechnung &amp; Export</h3>
