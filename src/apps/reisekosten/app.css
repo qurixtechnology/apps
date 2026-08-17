@@ -154,6 +154,14 @@
 .rk-table tfoot td { font-weight: 700; border-top: 2px solid var(--qrx-border-strong); border-bottom: none; }
 .rk-report-sign { display: flex; gap: var(--qrx-s-8); margin-top: var(--qrx-s-10); }
 .rk-report-sign div { flex: 1; border-top: 1px solid var(--qrx-text-muted); padding-top: var(--qrx-s-2); font-size: 0.82rem; color: var(--qrx-text-muted); }
+/* Belege-Anhänge in der Abrechnung */
+.rk-att-head { margin-top: var(--qrx-s-10); }
+.rk-att { margin: var(--qrx-s-5) 0; }
+.rk-att-cap { font-size: 0.8rem; color: var(--qrx-text-muted); margin-bottom: var(--qrx-s-2); }
+.rk-att-name { color: var(--qrx-text-subtle); }
+.rk-att-img { max-width: 100%; height: auto; display: block; border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius); }
+.rk-att-loading, .rk-att-note { font-size: 0.82rem; color: var(--qrx-text-muted); }
+.rk-att-fail, .rk-att-missing { font-size: 0.82rem; color: var(--qrx-warning); }
 
 /* --- Belege --- */
 .rk-dropzone {
@@ -380,4 +388,9 @@
   .rk-table-wrap { overflow: visible !important; }
   .rk-table th, .rk-table td { border-color: #999 !important; }
   body { background: #fff !important; }
+  /* Belege: jeder Beleg auf eigener Seite; Überschrift bleibt beim ersten Beleg */
+  .rk-att-head { break-after: avoid; page-break-after: avoid; }
+  .rk-att-cap { break-after: avoid; page-break-after: avoid; }
+  .rk-att { break-before: page; page-break-before: always; break-inside: avoid; page-break-inside: avoid; }
+  .rk-att-img { max-height: 245mm; border: none !important; }
 }

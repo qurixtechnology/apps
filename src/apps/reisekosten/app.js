@@ -124,6 +124,11 @@
       sumFirma: 'davon Firma bezahlt', sumErstattung: 'Erstattung an dich', thPayer: 'Bezahlt von',
       batchKeepTitle: 'Belege speichern', batchKeep: 'Belege behalten (auch nach Neuladen direkt anzeigbar)',
       batchKeepHint: 'Standardmäßig aktiv: Die Dateien werden lokal mitgespeichert. Zum Sparen von Speicher abwählen — dann bleibt nur der Dateiname als Referenz und die Datei wird beim Anzeigen bei Bedarf neu ausgewählt.',
+      attHeading: 'Belege (Anhang)', attTitle: 'Beleg', attLoading: 'Belege werden für den Anhang aufbereitet …',
+      attFail: 'Beleg (PDF) konnte nicht eingebunden werden (Internet zur Aufbereitung nötig).',
+      attUnsupported: 'Dieses Dateiformat kann nicht als Anhang dargestellt werden.',
+      attMissing: 'Beleg-Datei nicht gefunden.', attTruncated: 'Nur die ersten {n} Seiten wurden eingebunden.',
+      attRefOnly: 'Hinweis: {n} Beleg(e) sind nur als Referenz gespeichert und daher nicht im Anhang enthalten.',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -206,6 +211,11 @@
       sumFirma: 'of which company-paid', sumErstattung: 'Reimbursement to you', thPayer: 'Paid by',
       batchKeepTitle: 'Store receipts', batchKeep: 'Keep receipts (viewable directly after reload)',
       batchKeepHint: 'On by default: the files are stored locally. Untick to save storage — only the file name is kept as a reference and the file is picked again when you view it.',
+      attHeading: 'Receipts (attachment)', attTitle: 'Receipt', attLoading: 'Preparing receipts for the attachment …',
+      attFail: 'Could not embed receipt (PDF) — internet needed to prepare it.',
+      attUnsupported: 'This file format cannot be shown as an attachment.',
+      attMissing: 'Receipt file not found.', attTruncated: 'Only the first {n} pages were included.',
+      attRefOnly: 'Note: {n} receipt(s) are stored as a reference only and are therefore not attached.',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -1198,8 +1208,61 @@
               '<td class="rk-num">' + esc(eur(c.firma > 0 ? c.erstattung : c.total)) + '</td></tr>' +
           '</tbody></table></div>' +
           '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' +
+          '<div class="rk-report-attachments" id="rk-attachments"></div>' +
         '</div>' +
       '</div>';
+    attachmentsReady = loadAttachments(tp);   // Belege asynchron als Anhang rendern
+  }
+
+  // Behaltene Belege als Anhang-Seiten rendern (Bilder direkt, PDFs zu Seitenbildern).
+  let attachmentsReady = Promise.resolve();
+  let attachmentUrls = [];
+  function attPage(title, name, inner) {
+    return '<figure class="rk-att">' +
+      '<figcaption class="rk-att-cap">' + esc(title) + (name ? ' <span class="rk-att-name">(' + esc(name) + ')</span>' : '') + '</figcaption>' +
+      inner + '</figure>';
+  }
+  async function loadAttachments(tp) {
+    const box = document.getElementById('rk-attachments');
+    if (!box) return;
+    attachmentUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (_) {} });
+    attachmentUrls = [];
+    const positions = tp.positions || [];
+    const kept = positions.filter((p) => p.fileId);
+    const refOnly = positions.filter((p) => p.belegName && !p.fileId).length;
+    const refNote = refOnly ? '<p class="rk-att-note">' + esc(t('attRefOnly', { n: refOnly })) + '</p>' : '';
+    if (!kept.length) { box.innerHTML = refNote; return; }
+    box.innerHTML = '<h3 class="rk-report-h3 rk-att-head">' + esc(t('attHeading')) + '</h3>' + refNote +
+      '<p class="rk-att-loading">' + esc(t('attLoading')) + '</p>';
+    const parts = [];
+    for (const p of kept) {
+      let rec = null; try { rec = await idbGet(p.fileId); } catch (_) {}
+      const title = t('attTitle') + ': ' + (p.bez || p.belegName || catLabel(p.kind));
+      const name = (rec && rec.name) || p.belegName || '';
+      if (!rec || !rec.blob) { parts.push(attPage(title, name, '<p class="rk-att-fail">' + esc(t('attMissing')) + '</p>')); continue; }
+      const blob = rec.blob;
+      if (/^image\//.test(blob.type)) {
+        const url = URL.createObjectURL(blob); attachmentUrls.push(url);
+        parts.push(attPage(title, name, '<img class="rk-att-img" src="' + url + '" alt="">'));
+      } else if (blob.type === 'application/pdf' || /\.pdf$/i.test(name)) {
+        try {
+          const res = await qrx.rkReceipts.pdfToImages(blob, { scale: 1.6, maxPages: 20 });
+          res.images.forEach((src, i) => {
+            const cap = res.images.length > 1 ? title + ' (' + (i + 1) + '/' + res.images.length + ')' : title;
+            parts.push(attPage(cap, name, '<img class="rk-att-img" src="' + src + '" alt="">'));
+          });
+          if (res.truncated) parts.push(attPage(title, name, '<p class="rk-att-note">' + esc(t('attTruncated', { n: 20 })) + '</p>'));
+        } catch (_) { parts.push(attPage(title, name, '<p class="rk-att-fail">' + esc(t('attFail')) + '</p>')); }
+      } else {
+        parts.push(attPage(title, name, '<p class="rk-att-fail">' + esc(t('attUnsupported')) + '</p>'));
+      }
+    }
+    box.innerHTML = '<h3 class="rk-report-h3 rk-att-head">' + esc(t('attHeading')) + '</h3>' + refNote + parts.join('');
+  }
+  // Drucken erst, wenn die Belege-Anhänge fertig gerendert sind.
+  async function doPrint() {
+    try { await attachmentsReady; } catch (_) {}
+    window.print();
   }
   function rowFoot(label, val) {
     return '<tr><td colspan="3">' + esc(label) + '</td><td class="rk-num">' + esc(eur(val)) + '</td></tr>';
@@ -1317,7 +1380,7 @@
       case 'save': saveCurrent(); break;
       case 'delete-trip': deleteCurrent(); break;
       case 'report': saveCurrentQuiet(); renderReport(state.current); showView('report'); break;
-      case 'print': window.print(); break;
+      case 'print': doPrint(); break;
       case 'csv-trip': exportCsv([state.current], 'reisekosten-' + (state.current.ort || 'reise') + '.csv'); break;
       case 'csv-all': exportCsv(state.trips, 'reisekosten-alle.csv'); break;
       case 'add-pos':

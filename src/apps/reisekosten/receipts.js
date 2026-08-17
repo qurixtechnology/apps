@@ -244,6 +244,29 @@
     return text;
   }
 
+  // Öffentlich: PDF (Blob/File) → ein Bild je Seite (JPEG-data-URL). Für die
+  // Abrechnung/Anhänge: eingebettete PDFs drucken nicht zuverlässig, gerenderte
+  // Seitenbilder dagegen schon (auch mobil).
+  async function pdfToImages(source, opts) {
+    opts = opts || {};
+    const scale = opts.scale || 1.6;
+    const maxPages = opts.maxPages || 20;
+    const pdfjs = await ensurePdf();
+    const data = new Uint8Array(await source.arrayBuffer());
+    const doc = await pdfjs.getDocument({ data }).promise;
+    const images = [];
+    const n = Math.min(doc.numPages, maxPages);
+    for (let p = 1; p <= n; p++) {
+      const page = await doc.getPage(p);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      images.push(canvas.toDataURL('image/jpeg', 0.85));
+    }
+    return { images, pages: doc.numPages, truncated: doc.numPages > n };
+  }
+
   // Öffentlich: Datei → Text (PDF-Text, sonst OCR). onProgress(0..1) optional.
   async function extractText(file, onProgress) {
     const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
@@ -257,7 +280,7 @@
     return { text, method: 'image-ocr' };
   }
 
-  const api = { LIBS, parseReceipt, findAmounts, pickTotal, findDates, detectType, extractText, ensurePdf, ensureOcr };
+  const api = { LIBS, parseReceipt, findAmounts, pickTotal, findDates, detectType, extractText, pdfToImages, ensurePdf, ensureOcr };
   if (typeof window !== 'undefined') { (window.qrx = window.qrx || {}).rkReceipts = api; }
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof self !== 'undefined' ? self : this);
