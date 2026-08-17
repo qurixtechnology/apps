@@ -204,6 +204,7 @@
 .rk-pos-fahrt { border-left-color: var(--qrx-primary); }
 .rk-pos-uebernachtung { border-left-color: var(--qrx-accent); }
 .rk-pos-neben { border-left-color: var(--qrx-warning); }
+.rk-pos-ausgabe { border-left-color: var(--qrx-accent); }
 .rk-pos-chip {
   flex-shrink: 0; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
   padding: 0.15rem 0.45rem; border-radius: 999px; background: var(--qrx-bg-muted); color: var(--qrx-text-muted);
@@ -231,6 +232,10 @@
 .rk-pos-act { width: 2rem; height: 2rem; }
 .rk-pos-payer-hint { font-size: 0.78rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
 .rk-sum-firma .rk-sum-value { color: var(--qrx-text-muted); }
+.rk-sum-note .rk-sum-label, .rk-sum-note .rk-sum-value { color: var(--qrx-text-muted); }
+.rk-report-note { font-size: 0.8rem; color: var(--qrx-text-muted); margin: var(--qrx-s-3) 0 0; }
+.rk-flag-expense { background: color-mix(in srgb, var(--qrx-accent) 16%, transparent); color: var(--qrx-accent-hover); }
+.rk-card-expense { border-left: 3px solid var(--qrx-accent); }
 
 /* --- Positions-Popup (Bearbeiten) --- */
 .rk-modal-edit { max-width: 480px; }
