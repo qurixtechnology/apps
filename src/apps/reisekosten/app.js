@@ -30,6 +30,7 @@
     defaultPayer: 'self',   // Standard für „Bezahlt von" bei neuen Positionen
     empName: '',            // Name des Mitarbeiters (für die Abrechnung)
     empNumber: '',          // Mitarbeiternummer (optional)
+    showSignature: false,   // Unterschriftszeile in der Abrechnung (Standard: aus)
   };
   // Mahlzeitenkürzung als Anteil des vollen Tagessatzes (§ 9 Abs. 4a EStG).
   const REDUCE = { f: 0.20, m: 0.40, a: 0.40 };
@@ -88,7 +89,7 @@
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       setEmployee: 'Mitarbeiter / Abrechnung', setEmpName: 'Name des Mitarbeiters', setEmpNamePh: 'Vor- und Nachname',
       setEmpNumber: 'Mitarbeiternummer', setEmpNumberPh: 'z. B. 12345', optional: 'optional',
-      setDefaultPayer: 'Standard „Bezahlt von"',
+      setDefaultPayer: 'Standard „Bezahlt von"', setShowSignature: 'Unterschriftszeilen in der Abrechnung anzeigen',
       setEmployeeHint: 'Name (und optional Nummer) erscheinen im Kopf der Abrechnung. „Bezahlt von" ist die Vorbelegung für neu angelegte und importierte Positionen.',
       reportEmployee: 'Mitarbeiter', reportEmpNumber: 'Personalnr.',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
@@ -180,7 +181,7 @@
       setReset: 'Reset to statutory defaults',
       setEmployee: 'Employee / settlement', setEmpName: 'Employee name', setEmpNamePh: 'First and last name',
       setEmpNumber: 'Employee number', setEmpNumberPh: 'e.g. 12345', optional: 'optional',
-      setDefaultPayer: 'Default “Paid by”',
+      setDefaultPayer: 'Default “Paid by”', setShowSignature: 'Show signature lines in the settlement',
       setEmployeeHint: 'The name (and optional number) appear in the settlement header. “Paid by” is the default for newly added and imported positions.',
       reportEmployee: 'Employee', reportEmpNumber: 'Employee no.',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
@@ -1176,7 +1177,9 @@
           [['self', 'payerSelf'], ['company', 'payerCompany']]
             .map(([v, k]) => '<option value="' + v + '"' + (s.defaultPayer === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('') +
           '</select>') +
-      '</div><div class="rk-note">' + esc(t('setEmployeeHint')) + '</div></div>' +
+      '</div>' +
+        '<label class="rk-setting-check"><input type="checkbox" data-setting="showSignature"' + (s.showSignature ? ' checked' : '') + '><span>' + esc(t('setShowSignature')) + '</span></label>' +
+      '<div class="rk-note">' + esc(t('setEmployeeHint')) + '</div></div>' +
       '<div class="rk-section"><h2>' + esc(t('setPerspektive')) + '</h2>' +
         field(t('setPerspektive'), '<select class="qrx-select" data-setting="perspektive">' +
           [['beides', 'pBeides'], ['arbeitnehmer', 'pArbeitnehmer'], ['selbst', 'pSelbst']]
@@ -1236,7 +1239,7 @@
             '<tr class="rk-report-grand"><td colspan="3">' + esc(c.firma > 0 ? t('sumErstattung') : t('sumTotal')) + '</td>' +
               '<td class="rk-num">' + esc(eur(c.firma > 0 ? c.erstattung : c.total)) + '</td></tr>' +
           '</tbody></table></div>' +
-          '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' +
+          (state.settings.showSignature ? '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' : '') +
           '<div class="rk-report-attachments" id="rk-attachments"></div>' +
         '</div>' +
       '</div>';
@@ -1364,7 +1367,7 @@
     }
     const settingKey = eln.getAttribute('data-setting');
     if (settingKey) {
-      state.settings[settingKey] = eln.type === 'number' ? num(eln.value) : eln.value;
+      state.settings[settingKey] = eln.type === 'checkbox' ? eln.checked : (eln.type === 'number' ? num(eln.value) : eln.value);
       saveSettings();
       return;
     }
