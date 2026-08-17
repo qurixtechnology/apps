@@ -27,6 +27,9 @@
     kmCar: 0.30,       // PKW €/km
     kmBike: 0.20,      // Motorrad €/km
     perspektive: 'beides',
+    defaultPayer: 'self',   // Standard für „Bezahlt von" bei neuen Positionen
+    empName: '',            // Name des Mitarbeiters (für die Abrechnung)
+    empNumber: '',          // Mitarbeiternummer (optional)
   };
   // Mahlzeitenkürzung als Anteil des vollen Tagessatzes (§ 9 Abs. 4a EStG).
   const REDUCE = { f: 0.20, m: 0.40, a: 0.40 };
@@ -83,6 +86,11 @@
       setTitle: 'Einstellungen', setRates: 'Inland-Pauschalen & Kilometersätze', setPerspektive: 'Perspektive',
       pBeides: 'Neutral (beides)', pArbeitnehmer: 'Arbeitnehmer → Arbeitgeber', pSelbst: 'Selbstständig / Steuererklärung',
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
+      setEmployee: 'Mitarbeiter / Abrechnung', setEmpName: 'Name des Mitarbeiters', setEmpNamePh: 'Vor- und Nachname',
+      setEmpNumber: 'Mitarbeiternummer', setEmpNumberPh: 'z. B. 12345', optional: 'optional',
+      setDefaultPayer: 'Standard „Bezahlt von"',
+      setEmployeeHint: 'Name (und optional Nummer) erscheinen im Kopf der Abrechnung. „Bezahlt von" ist die Vorbelegung für neu angelegte und importierte Positionen.',
+      reportEmployee: 'Mitarbeiter', reportEmpNumber: 'Personalnr.',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
       secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)', dropOr: 'oder Datei hierher ziehen',
       receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Erkannte Werte, der Dateiname (📎) und standardmäßig auch die Datei selbst werden gespeichert (lokal in IndexedDB) — so lässt sich der Beleg per Klick auf 📎 auch nach einem Neuladen direkt anzeigen. Beim Import kannst du „Belege behalten" abwählen, um nur die Referenz zu speichern (Speicher sparen); eine nicht behaltene Datei wird beim Anzeigen bei Bedarf neu ausgewählt.',
@@ -170,6 +178,11 @@
       setTitle: 'Settings', setRates: 'Domestic allowances & mileage rates', setPerspektive: 'Perspective',
       pBeides: 'Neutral (both)', pArbeitnehmer: 'Employee → employer', pSelbst: 'Self-employed / tax return',
       setReset: 'Reset to statutory defaults',
+      setEmployee: 'Employee / settlement', setEmpName: 'Employee name', setEmpNamePh: 'First and last name',
+      setEmpNumber: 'Employee number', setEmpNumberPh: 'e.g. 12345', optional: 'optional',
+      setDefaultPayer: 'Default “Paid by”',
+      setEmployeeHint: 'The name (and optional number) appear in the settlement header. “Paid by” is the default for newly added and imported positions.',
+      reportEmployee: 'Employee', reportEmpNumber: 'Employee no.',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
       secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)', dropOr: 'or drag a file here',
       receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). The detected values, the file name (📎) and by default the file itself are stored (locally in IndexedDB) — so a receipt can be viewed directly via 📎 even after a reload. On import you can untick “Keep receipts" to store only the reference (to save storage); a non-kept file is picked again when you view it.',
@@ -342,10 +355,12 @@
     if (p.mode === 'pauschale') return round2(num(p.nights) * num(p.nightRate));
     return round2(num(p.betrag));
   }
+  function defaultPayer() { return state.settings.defaultPayer === 'company' ? 'company' : 'self'; }
   function newPosition(kind, tp) {
-    if (kind === 'fahrt') return { id: newId(), kind, bez: '', mode: 'km', km: 0, ratePerKm: num(state.settings.kmCar), betrag: 0, payer: 'self' };
-    if (kind === 'uebernachtung') return { id: newId(), kind, bez: t('catUeb'), mode: 'pauschale', nights: Math.max(0, tripDays(tp).length - 1), nightRate: nightRate(tp), betrag: 0, payer: 'self' };
-    return { id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0, payer: 'self' };
+    const payer = defaultPayer();
+    if (kind === 'fahrt') return { id: newId(), kind, bez: '', mode: 'km', km: 0, ratePerKm: num(state.settings.kmCar), betrag: 0, payer };
+    if (kind === 'uebernachtung') return { id: newId(), kind, bez: t('catUeb'), mode: 'pauschale', nights: Math.max(0, tripDays(tp).length - 1), nightRate: nightRate(tp), betrag: 0, payer };
+    return { id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0, payer };
   }
 
   // ---------------------------------------------------------------- Datumslogik
@@ -918,7 +933,7 @@
     const p = item.parsed, kind = kindForType(p.type);
     let bez = p.type === 'hotel' ? t('catUeb') : (p.type === 'bahn' || p.type === 'oepnv') ? typeLabelOf(p.type) : (item.fileName || t('typeUnknown')).replace(/\.[^.]+$/, '');
     if ((p.type === 'bahn' || p.type === 'oepnv') && p.travel && (p.travel.from || p.travel.to)) bez += ' ' + [p.travel.from, p.travel.to].filter(Boolean).join('→');
-    const pos = { id: newId(), kind, bez, mode: 'betrag', betrag: p.total != null ? p.total : 0, payer: 'self' };
+    const pos = { id: newId(), kind, bez, mode: 'betrag', betrag: p.total != null ? p.total : 0, payer: defaultPayer() };
     if (item.fileName) pos.belegName = item.fileName;
     return pos;
   }
@@ -1154,6 +1169,14 @@
         numField('PKW €/km', 'kmCar', '0.01') +
         numField('Motorrad €/km', 'kmBike', '0.01') +
       '</div></div>' +
+      '<div class="rk-section"><h2>' + esc(t('setEmployee')) + '</h2><div class="rk-settings-grid">' +
+        field(t('setEmpName'), '<input class="qrx-input" data-setting="empName" value="' + esc(s.empName || '') + '" placeholder="' + esc(t('setEmpNamePh')) + '">') +
+        field(t('setEmpNumber') + ' (' + esc(t('optional')) + ')', '<input class="qrx-input" data-setting="empNumber" value="' + esc(s.empNumber || '') + '" placeholder="' + esc(t('setEmpNumberPh')) + '">') +
+        field(t('setDefaultPayer'), '<select class="qrx-select" data-setting="defaultPayer">' +
+          [['self', 'payerSelf'], ['company', 'payerCompany']]
+            .map(([v, k]) => '<option value="' + v + '"' + (s.defaultPayer === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('') +
+          '</select>') +
+      '</div><div class="rk-note">' + esc(t('setEmployeeHint')) + '</div></div>' +
       '<div class="rk-section"><h2>' + esc(t('setPerspektive')) + '</h2>' +
         field(t('setPerspektive'), '<select class="qrx-select" data-setting="perspektive">' +
           [['beides', 'pBeides'], ['arbeitnehmer', 'pArbeitnehmer'], ['selbst', 'pSelbst']]
@@ -1185,6 +1208,8 @@
         '<div class="rk-report-sheet">' +
           '<h1>' + esc(t('reportTitle')) + '</h1>' +
           '<div class="rk-report-meta">' +
+            (state.settings.empName ? '<div><b>' + esc(t('reportEmployee')) + ':</b> ' + esc(state.settings.empName) + '</div>' : '') +
+            (state.settings.empNumber ? '<div><b>' + esc(t('reportEmpNumber')) + ':</b> ' + esc(state.settings.empNumber) + '</div>' : '') +
             '<div><b>' + esc(t('reportPlace')) + ':</b> ' + esc(dest) + '</div>' +
             '<div><b>' + esc(t('reportReason')) + ':</b> ' + esc(tp.reason || '–') + '</div>' +
             '<div><b>' + esc(t('reportPeriod')) + ':</b> ' + esc(fmtDateTime(tp.abreise) + ' – ' + fmtDateTime(tp.rueckkehr)) + '</div>' +
