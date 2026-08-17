@@ -99,6 +99,36 @@
     return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
   }
 
+  // Einen einzelnen Datums-String (dd.mm.yy[yy], dd/mm/yyyy, yyyy-mm-dd) nach ISO.
+  function parseOneDate(s) {
+    s = String(s).trim();
+    let m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})$/);
+    if (m) { let y = +m[3]; if (y < 100) y += 2000; const d = +m[1], mo = +m[2]; return (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && y >= 2000 && y < 2100) ? iso(y, mo, d) : null; }
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) { const y = +m[1], mo = +m[2], d = +m[3]; return (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) ? iso(y, mo, d) : null; }
+    return null;
+  }
+
+  // Rechnungs-/Buchungsdatum (NICHT das Reisedatum) — z. B. „Rechnungsdatum: 25.04.2025".
+  function invoiceDateOf(text) {
+    const m = text.match(/(?:rechnungs|belegs?|buchungs|bestell|auftrags)\W{0,3}datum\s*[:\s]\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}|\d{4}-\d{2}-\d{2})/i);
+    return m ? parseOneDate(m[1]) : null;
+  }
+
+  // Reise-/Leistungsdaten aus Bahn-/ÖPNV-Belegen. Bei DB-Rechnungen steht das
+  // Leistungsdatum direkt hinter dem Preis („… 56,98 € 20.05.25"); zusätzlich werden
+  // „Leistungsdatum", „Hinfahrt/Rückfahrt", „Reisetag" u. Ä. ausgewertet. So wird das
+  // Rechnungsdatum nicht mit dem Reisezeitraum verwechselt.
+  function railServiceDates(text) {
+    const out = new Set();
+    let m;
+    const reEuro = /(?:€|\bEUR\b)\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})/g;
+    while ((m = reEuro.exec(text))) { const d = parseOneDate(m[1]); if (d) out.add(d); }
+    const reLabel = /(?:leistungs\W{0,3}datum|leistungszeitraum|reisetag|reisedatum|fahrt(?:ag|\s*am)|hinfahrt|rückfahrt|rueckfahrt|abfahrt|travel\s*date)\D{0,24}?(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}|\d{4}-\d{2}-\d{2})(?:\s*(?:–|—|-|bis|to)\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}|\d{4}-\d{2}-\d{2}))?/gi;
+    while ((m = reLabel.exec(text))) { const a = parseOneDate(m[1]); if (a) out.add(a); if (m[2]) { const b = parseOneDate(m[2]); if (b) out.add(b); } }
+    return [...out].sort();
+  }
+
   function detectType(text) {
     const t = text.toLowerCase();
     if (/hotel|übernachtung|beherberg|zimmer|room\s*rate|check[\s-]?out|check[\s-]?in|logis|pension|gästehaus|n[aä]chtigung/.test(t)) return 'hotel';
@@ -133,15 +163,24 @@
       result.hotel = { checkIn, checkOut, nights, breakfast };
     } else if (type === 'bahn' || type === 'oepnv') {
       const roundTrip = /hin.?\s*und\s*rück|hin.?\s*&\s*rück|round\s*trip/.test(low) ||
-        (/hinfahrt/.test(low) && /rückfahrt|rueckfahrt/.test(low));
+        (/hinfahrt/.test(low) && /rückfahrt|rueckfahrt/.test(low)) || /↔/.test(text);
       let from = null, to = null;
       let mr = text.match(/\bvon\s+([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)\s+nach\s+([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)(?:\s{2,}|[\n,;]|$)/);
-      if (!mr) mr = text.match(/([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)\s*(?:→|->|—|–)\s*([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)(?:\s{2,}|[\n,;]|$)/);
+      if (!mr) mr = text.match(/([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)\s*(?:↔|⟷|→|->|—|–)\s*([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)(?:\s{2,}|[\n,;]|$)/);
       if (mr) {
         const clean = (s) => s.replace(/\s+(ICE|IC|EC|RE|RB|IRE|TGV|Wagen|Platz|Gleis|S-?Bahn|U-?Bahn)\b.*$/i, '').trim();
         from = clean(mr[1]); to = clean(mr[2]);
       }
-      result.travel = { roundTrip, from, to };
+      // Reisezeitraum aus Leistungsdaten ableiten (Rechnungsdatum ausschließen).
+      // Hinweis: In DB-Rechnungen steht hinter dem Brutto-€ einer Zeile das
+      // Buchungsdatum der Folgezeile (= Rechnungsdatum); dieses wird herausgefiltert,
+      // solange echte Leistungsdaten übrig bleiben.
+      const invoiceDate = invoiceDateOf(text);
+      let service = railServiceDates(text);
+      if (invoiceDate) { const f = service.filter((d) => d !== invoiceDate); if (f.length) service = f; }
+      let travelDates = service.length ? service : dates.filter((d) => d !== invoiceDate);
+      if (!travelDates.length) travelDates = dates.slice();
+      result.travel = { roundTrip, from, to, dates: travelDates, invoiceDate: invoiceDate || null };
     }
     return result;
   }

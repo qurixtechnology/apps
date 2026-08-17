@@ -642,10 +642,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   Bei mehreren Belegen erscheint eine <b>Auswahl-Liste</b> (Typ · Betrag · Zeitraum). Du hakst an,
   welche als <b>neue Position</b> übernommen werden — die <b>Beträge</b> aller Belege lassen sich so
   gemeinsam übernehmen. Den <b>Reisezeitraum</b> wählst du separat aus den erkannten Zeiträumen; der
-  von <b>mehreren Belegen bestätigte</b> ist vorausgewählt. Das hilft, wenn mal ein
-  <b>Rechnungsdatum</b> statt der Reisedaten erkannt wurde — mit mehreren Belegen steigt die Chance,
-  den richtigen Zeitraum zu treffen. Optional wird das Frühstück gesetzt. So bleibt deine manuelle
-  Pflege führend, der Beleg dient als Kontrolle.
+  von <b>mehreren Belegen bestätigte</b> ist vorausgewählt. Bei <b>Bahn-Belegen</b> (z. B.
+  DB-Rechnungen) wird gezielt das <b>Leistungsdatum</b> (die Reisedaten) verwendet und das
+  <b>Rechnungsdatum</b> ausgeschlossen — der Zeitraum ist also auch dann korrekt, wenn die Fahrkarte
+  Wochen vorher gekauft wurde. Optional wird das Frühstück gesetzt. So bleibt deine manuelle Pflege
+  führend, der Beleg dient als Kontrolle.
 </p>
 <p>
   Gespeichert werden nur die <b>erkannten Werte</b> und der <b>Dateiname als Referenz</b> (📎) — die
@@ -742,9 +743,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   With several receipts a <b>selection list</b> appears (type · amount · period). You tick which to add
   as a <b>new position</b> — so the <b>amounts</b> of all receipts can be imported together. The
   <b>trip period</b> is chosen separately from the detected periods; the one <b>confirmed by several
-  receipts</b> is preselected. This helps when an <b>invoice date</b> was detected instead of the
-  travel dates — with more receipts the chance of hitting the right period rises. Breakfast can
-  optionally be set. Your manual entries stay in charge and the receipt serves as a check.
+  receipts</b> is preselected. For <b>rail receipts</b> (e.g. Deutsche Bahn invoices) the
+  <b>service date</b> (the travel dates) is used specifically and the <b>invoice date</b> is excluded —
+  so the period is correct even when the ticket was bought weeks earlier. Breakfast can optionally be
+  set. Your manual entries stay in charge and the receipt serves as a check.
 </p>
 <p>
   Only the <b>detected values</b> and the <b>file name as a reference</b> (📎) are stored — the
@@ -821,7 +823,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260804-163920</span>
+    &middot; v<span data-build-version>260817-074748</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1308,6 +1310,36 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
   }
 
+  // Einen einzelnen Datums-String (dd.mm.yy[yy], dd/mm/yyyy, yyyy-mm-dd) nach ISO.
+  function parseOneDate(s) {
+    s = String(s).trim();
+    let m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})$/);
+    if (m) { let y = +m[3]; if (y < 100) y += 2000; const d = +m[1], mo = +m[2]; return (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && y >= 2000 && y < 2100) ? iso(y, mo, d) : null; }
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) { const y = +m[1], mo = +m[2], d = +m[3]; return (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) ? iso(y, mo, d) : null; }
+    return null;
+  }
+
+  // Rechnungs-/Buchungsdatum (NICHT das Reisedatum) — z. B. „Rechnungsdatum: 25.04.2025".
+  function invoiceDateOf(text) {
+    const m = text.match(/(?:rechnungs|belegs?|buchungs|bestell|auftrags)\W{0,3}datum\s*[:\s]\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}|\d{4}-\d{2}-\d{2})/i);
+    return m ? parseOneDate(m[1]) : null;
+  }
+
+  // Reise-/Leistungsdaten aus Bahn-/ÖPNV-Belegen. Bei DB-Rechnungen steht das
+  // Leistungsdatum direkt hinter dem Preis („… 56,98 € 20.05.25"); zusätzlich werden
+  // „Leistungsdatum", „Hinfahrt/Rückfahrt", „Reisetag" u. Ä. ausgewertet. So wird das
+  // Rechnungsdatum nicht mit dem Reisezeitraum verwechselt.
+  function railServiceDates(text) {
+    const out = new Set();
+    let m;
+    const reEuro = /(?:€|\bEUR\b)\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})/g;
+    while ((m = reEuro.exec(text))) { const d = parseOneDate(m[1]); if (d) out.add(d); }
+    const reLabel = /(?:leistungs\W{0,3}datum|leistungszeitraum|reisetag|reisedatum|fahrt(?:ag|\s*am)|hinfahrt|rückfahrt|rueckfahrt|abfahrt|travel\s*date)\D{0,24}?(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}|\d{4}-\d{2}-\d{2})(?:\s*(?:–|—|-|bis|to)\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}|\d{4}-\d{2}-\d{2}))?/gi;
+    while ((m = reLabel.exec(text))) { const a = parseOneDate(m[1]); if (a) out.add(a); if (m[2]) { const b = parseOneDate(m[2]); if (b) out.add(b); } }
+    return [...out].sort();
+  }
+
   function detectType(text) {
     const t = text.toLowerCase();
     if (/hotel|übernachtung|beherberg|zimmer|room\s*rate|check[\s-]?out|check[\s-]?in|logis|pension|gästehaus|n[aä]chtigung/.test(t)) return 'hotel';
@@ -1342,15 +1374,24 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       result.hotel = { checkIn, checkOut, nights, breakfast };
     } else if (type === 'bahn' || type === 'oepnv') {
       const roundTrip = /hin.?\s*und\s*rück|hin.?\s*&\s*rück|round\s*trip/.test(low) ||
-        (/hinfahrt/.test(low) && /rückfahrt|rueckfahrt/.test(low));
+        (/hinfahrt/.test(low) && /rückfahrt|rueckfahrt/.test(low)) || /↔/.test(text);
       let from = null, to = null;
       let mr = text.match(/\bvon\s+([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)\s+nach\s+([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)(?:\s{2,}|[\n,;]|$)/);
-      if (!mr) mr = text.match(/([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)\s*(?:→|->|—|–)\s*([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)(?:\s{2,}|[\n,;]|$)/);
+      if (!mr) mr = text.match(/([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)\s*(?:↔|⟷|→|->|—|–)\s*([A-ZÄÖÜ][\wäöüÄÖÜ .()\/-]{1,40}?)(?:\s{2,}|[\n,;]|$)/);
       if (mr) {
         const clean = (s) => s.replace(/\s+(ICE|IC|EC|RE|RB|IRE|TGV|Wagen|Platz|Gleis|S-?Bahn|U-?Bahn)\b.*$/i, '').trim();
         from = clean(mr[1]); to = clean(mr[2]);
       }
-      result.travel = { roundTrip, from, to };
+      // Reisezeitraum aus Leistungsdaten ableiten (Rechnungsdatum ausschließen).
+      // Hinweis: In DB-Rechnungen steht hinter dem Brutto-€ einer Zeile das
+      // Buchungsdatum der Folgezeile (= Rechnungsdatum); dieses wird herausgefiltert,
+      // solange echte Leistungsdaten übrig bleiben.
+      const invoiceDate = invoiceDateOf(text);
+      let service = railServiceDates(text);
+      if (invoiceDate) { const f = service.filter((d) => d !== invoiceDate); if (f.length) service = f; }
+      let travelDates = service.length ? service : dates.filter((d) => d !== invoiceDate);
+      if (!travelDates.length) travelDates = dates.slice();
+      result.travel = { roundTrip, from, to, dates: travelDates, invoiceDate: invoiceDate || null };
     }
     return result;
   }
@@ -2406,7 +2447,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
   function receiptPeriod(parsed) {
     if (parsed.type === 'hotel' && parsed.hotel && parsed.hotel.checkIn) return { d0: parsed.hotel.checkIn, d1: parsed.hotel.checkOut || parsed.hotel.checkIn };
-    if (parsed.dates && parsed.dates.length) return { d0: parsed.dates[0], d1: parsed.dates[parsed.dates.length - 1] };
+    // Bahn/ÖPNV: Reise-/Leistungsdaten bevorzugen (Rechnungsdatum ≠ Reisedatum).
+    const td = parsed.travel && parsed.travel.dates;
+    if (td && td.length) return { d0: td[0], d1: td[td.length - 1] };
+    // sonst: alle Datumsangaben, aber ein erkanntes Rechnungsdatum ausschließen
+    let dates = parsed.dates || [];
+    const inv = parsed.travel && parsed.travel.invoiceDate;
+    if (inv && dates.length > 1) { const f = dates.filter((d) => d !== inv); if (f.length) dates = f; }
+    if (dates.length) return { d0: dates[0], d1: dates[dates.length - 1] };
     return null;
   }
   function periodText(pr) { return !pr ? t('noPeriod') : (pr.d0 === pr.d1 ? fmtDate(pr.d0) : fmtDate(pr.d0) + ' – ' + fmtDate(pr.d1)); }
