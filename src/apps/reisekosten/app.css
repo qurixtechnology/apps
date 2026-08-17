@@ -129,6 +129,8 @@
 
 /* --- Einstellungen --- */
 .rk-settings-grid { display: grid; gap: var(--qrx-s-4); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.rk-setting-check { display: inline-flex; align-items: center; gap: var(--qrx-s-2); margin-top: var(--qrx-s-4); cursor: pointer; }
+.rk-setting-check input { width: 1.05rem; height: 1.05rem; }
 .rk-note {
   font-size: 0.82rem; color: var(--qrx-text-muted);
   background: var(--qrx-bg-subtle); border-left: 3px solid var(--qrx-warning);

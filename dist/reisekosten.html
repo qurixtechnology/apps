@@ -306,6 +306,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
 /* --- Einstellungen --- */
 .rk-settings-grid { display: grid; gap: var(--qrx-s-4); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.rk-setting-check { display: inline-flex; align-items: center; gap: var(--qrx-s-2); margin-top: var(--qrx-s-4); cursor: pointer; }
+.rk-setting-check input { width: 1.05rem; height: 1.05rem; }
 .rk-note {
   font-size: 0.82rem; color: var(--qrx-text-muted);
   background: var(--qrx-bg-subtle); border-left: 3px solid var(--qrx-warning);
@@ -844,7 +846,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260817-141104</span>
+    &middot; v<span data-build-version>260817-142217</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1715,6 +1717,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     defaultPayer: 'self',   // Standard für „Bezahlt von" bei neuen Positionen
     empName: '',            // Name des Mitarbeiters (für die Abrechnung)
     empNumber: '',          // Mitarbeiternummer (optional)
+    showSignature: false,   // Unterschriftszeile in der Abrechnung (Standard: aus)
   };
   // Mahlzeitenkürzung als Anteil des vollen Tagessatzes (§ 9 Abs. 4a EStG).
   const REDUCE = { f: 0.20, m: 0.40, a: 0.40 };
@@ -1773,7 +1776,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       setEmployee: 'Mitarbeiter / Abrechnung', setEmpName: 'Name des Mitarbeiters', setEmpNamePh: 'Vor- und Nachname',
       setEmpNumber: 'Mitarbeiternummer', setEmpNumberPh: 'z. B. 12345', optional: 'optional',
-      setDefaultPayer: 'Standard „Bezahlt von"',
+      setDefaultPayer: 'Standard „Bezahlt von"', setShowSignature: 'Unterschriftszeilen in der Abrechnung anzeigen',
       setEmployeeHint: 'Name (und optional Nummer) erscheinen im Kopf der Abrechnung. „Bezahlt von" ist die Vorbelegung für neu angelegte und importierte Positionen.',
       reportEmployee: 'Mitarbeiter', reportEmpNumber: 'Personalnr.',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
@@ -1865,7 +1868,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       setReset: 'Reset to statutory defaults',
       setEmployee: 'Employee / settlement', setEmpName: 'Employee name', setEmpNamePh: 'First and last name',
       setEmpNumber: 'Employee number', setEmpNumberPh: 'e.g. 12345', optional: 'optional',
-      setDefaultPayer: 'Default “Paid by”',
+      setDefaultPayer: 'Default “Paid by”', setShowSignature: 'Show signature lines in the settlement',
       setEmployeeHint: 'The name (and optional number) appear in the settlement header. “Paid by” is the default for newly added and imported positions.',
       reportEmployee: 'Employee', reportEmpNumber: 'Employee no.',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
@@ -2861,7 +2864,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
           [['self', 'payerSelf'], ['company', 'payerCompany']]
             .map(([v, k]) => '<option value="' + v + '"' + (s.defaultPayer === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('') +
           '</select>') +
-      '</div><div class="rk-note">' + esc(t('setEmployeeHint')) + '</div></div>' +
+      '</div>' +
+        '<label class="rk-setting-check"><input type="checkbox" data-setting="showSignature"' + (s.showSignature ? ' checked' : '') + '><span>' + esc(t('setShowSignature')) + '</span></label>' +
+      '<div class="rk-note">' + esc(t('setEmployeeHint')) + '</div></div>' +
       '<div class="rk-section"><h2>' + esc(t('setPerspektive')) + '</h2>' +
         field(t('setPerspektive'), '<select class="qrx-select" data-setting="perspektive">' +
           [['beides', 'pBeides'], ['arbeitnehmer', 'pArbeitnehmer'], ['selbst', 'pSelbst']]
@@ -2921,7 +2926,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
             '<tr class="rk-report-grand"><td colspan="3">' + esc(c.firma > 0 ? t('sumErstattung') : t('sumTotal')) + '</td>' +
               '<td class="rk-num">' + esc(eur(c.firma > 0 ? c.erstattung : c.total)) + '</td></tr>' +
           '</tbody></table></div>' +
-          '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' +
+          (state.settings.showSignature ? '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' : '') +
           '<div class="rk-report-attachments" id="rk-attachments"></div>' +
         '</div>' +
       '</div>';
@@ -3049,7 +3054,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     }
     const settingKey = eln.getAttribute('data-setting');
     if (settingKey) {
-      state.settings[settingKey] = eln.type === 'number' ? num(eln.value) : eln.value;
+      state.settings[settingKey] = eln.type === 'checkbox' ? eln.checked : (eln.type === 'number' ? num(eln.value) : eln.value);
       saveSettings();
       return;
     }
