@@ -380,6 +380,7 @@
 }
 
 /* --- Druck --- */
+@page { size: A4 portrait; margin: 14mm; }
 @media print {
   .qrx-shell-header, .qrx-shell-footer, .qrx-shell-docs,
   .rk-topbar, .rk-summary, .rk-report-actions, .rk-noprint { display: none !important; }
