@@ -92,6 +92,17 @@
       setDefaultPayer: 'Standard „Bezahlt von"', setShowSignature: 'Unterschriftszeilen in der Abrechnung anzeigen',
       setEmployeeHint: 'Name (und optional Nummer) erscheinen im Kopf der Abrechnung. „Bezahlt von" ist die Vorbelegung für neu angelegte und importierte Positionen.',
       reportEmployee: 'Mitarbeiter', reportEmpNumber: 'Personalnr.',
+      newExpense: '+ Ausgabe', deleteExpense: 'Ausgabe löschen',
+      secExpense: 'Ausgabe / Auslage', secExpenseCosts: 'Positionen & Belege',
+      expReason: 'Anlass / Bezeichnung', expReasonPh: 'z. B. Bewirtung Kundentermin', expCategory: 'Kategorie', expDate: 'Datum',
+      cat_bewirtung: 'Bewirtung', cat_buero: 'Büromaterial', cat_porto: 'Porto / Versand', cat_software: 'Software / Gebühren', cat_sonstiges: 'Sonstiges',
+      catAusgabe: 'Ausgabe', addPosition: '+ Position',
+      bewTitle: 'Bewirtung – Angaben', bewTeilnehmer: 'Teilnehmer', bewTeilnehmerPh: 'Namen (kommagetrennt)', bewOrt: 'Ort', bewOrtPh: 'Restaurant / Ort',
+      bewArt: 'Art', bewGeschaeftlich: 'Geschäftlich (Geschäftspartner, 70 %)', bewBetrieblich: 'Betrieblich / Mitarbeiter (100 %)',
+      bewHint: 'Für den steuerlichen Abzug sind Anlass, Teilnehmer, Ort, Datum und Betrag anzugeben (bei Restaurant zusätzlich der maschinelle Bewirtungsbeleg).',
+      sumAusgaben: 'Ausgaben', sumBewirtung70: 'davon abziehbar (70 %)', sumBewirtung30: 'nicht abziehbar (30 %)',
+      reportExpenseTitle: 'Auslagen- / Ausgabenabrechnung',
+      bew70Note: 'Hinweis: Bei geschäftlicher Bewirtung sind i. d. R. nur 70 % als Betriebsausgabe abziehbar (Vorsteuer 100 %). Richtwert ohne Gewähr — bitte mit der Buchhaltung/Steuerberatung prüfen.',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
       secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)', dropOr: 'oder Datei hierher ziehen',
       receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Erkannte Werte, der Dateiname (📎) und standardmäßig auch die Datei selbst werden gespeichert (lokal in IndexedDB) — so lässt sich der Beleg per Klick auf 📎 auch nach einem Neuladen direkt anzeigen. Beim Import kannst du „Belege behalten" abwählen, um nur die Referenz zu speichern (Speicher sparen); eine nicht behaltene Datei wird beim Anzeigen bei Bedarf neu ausgewählt.',
@@ -184,6 +195,17 @@
       setDefaultPayer: 'Default “Paid by”', setShowSignature: 'Show signature lines in the settlement',
       setEmployeeHint: 'The name (and optional number) appear in the settlement header. “Paid by” is the default for newly added and imported positions.',
       reportEmployee: 'Employee', reportEmpNumber: 'Employee no.',
+      newExpense: '+ Expense', deleteExpense: 'Delete expense',
+      secExpense: 'Expense / reimbursement', secExpenseCosts: 'Items & receipts',
+      expReason: 'Purpose / description', expReasonPh: 'e.g. client entertainment', expCategory: 'Category', expDate: 'Date',
+      cat_bewirtung: 'Entertainment', cat_buero: 'Office supplies', cat_porto: 'Postage / shipping', cat_software: 'Software / fees', cat_sonstiges: 'Other',
+      catAusgabe: 'Expense', addPosition: '+ Item',
+      bewTitle: 'Entertainment – details', bewTeilnehmer: 'Participants', bewTeilnehmerPh: 'Names (comma-separated)', bewOrt: 'Venue', bewOrtPh: 'Restaurant / place',
+      bewArt: 'Type', bewGeschaeftlich: 'Business (partners, 70%)', bewBetrieblich: 'Internal / employees (100%)',
+      bewHint: 'For the tax deduction, state the occasion, participants, venue, date and amount (for restaurants also the machine-generated receipt).',
+      sumAusgaben: 'Expenses', sumBewirtung70: 'of which deductible (70%)', sumBewirtung30: 'non-deductible (30%)',
+      reportExpenseTitle: 'Expense / reimbursement settlement',
+      bew70Note: 'Note: for business entertainment usually only 70% is deductible as a business expense (input VAT 100%). Guideline value without warranty — please verify with accounting/tax advice.',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
       secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)', dropOr: 'or drag a file here',
       receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). The detected values, the file name (📎) and by default the file itself are stored (locally in IndexedDB) — so a receipt can be viewed directly via 📎 even after a reload. On import you can untick “Keep receipts" to store only the reference (to save storage); a non-kept file is picked again when you view it.',
@@ -326,28 +348,50 @@
     return pos;
   }
 
+  const EXPENSE_CATS = ['bewirtung', 'buero', 'porto', 'software', 'sonstiges'];
+  function isExpense(tp) { return !!tp && tp.kind === 'expense'; }
   function normalizeTrip(tp) {
+    if (tp && tp.kind === 'expense') return normalizeExpense(tp);
     const base = Object.assign({
-      id: newId(), ort: '', country: 'DE', abName: '', abFull: 0, abNight: 0,
+      id: newId(), kind: 'trip', ort: '', country: 'DE', abName: '', abFull: 0, abNight: 0,
       abreise: '', rueckkehr: '', reason: '', notiz: '', meals: {}, positions: [],
     }, tp, { meals: tp.meals || {} });
+    base.kind = 'trip';
     const legacy = tp.verkehr || tp.uebernachtung || (tp.extras && tp.extras.length) || (tp.belege && tp.belege.length);
     if (!Array.isArray(base.positions) || (!base.positions.length && legacy)) base.positions = migratePositions(base);
-    base.positions = (base.positions || []).map((p) => {
-      const q = Object.assign({ id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0, payer: 'self' }, p);
-      if (q.payer !== 'company') q.payer = 'self';
-      // Dateiname (Referenz) und fileId (behaltener Beleg) behalten; alte inline-Felder verwerfen.
-      // Die Existenz der Datei (IndexedDB) wird asynchron beim Anzeigen geprüft; fehlt sie,
-      // wird beim Klick einmalig neu ausgewählt.
-      delete q.dataUrl; delete q.mime; delete q.tooBig; delete q.method;
-      return q;
-    });
+    base.positions = base.positions.map(normalizePosition);
     // Alt-Felder nicht weiterschleppen
     ['verkehr', 'uebernachtung', 'extras', 'belege', 'nights'].forEach((k) => delete base[k]);
     return base;
   }
+  function normalizeExpense(tp) {
+    const base = Object.assign({
+      id: newId(), kind: 'expense', category: 'sonstiges', date: '', reason: '', notiz: '', positions: [],
+    }, tp);
+    base.kind = 'expense';
+    if (EXPENSE_CATS.indexOf(base.category) < 0) base.category = 'sonstiges';
+    base.bewirtung = Object.assign({ teilnehmer: '', ort: '', art: 'geschaeftlich' }, tp.bewirtung || {});
+    if (base.bewirtung.art !== 'betrieblich') base.bewirtung.art = 'geschaeftlich';
+    base.positions = (Array.isArray(base.positions) ? base.positions : []).map((p) => normalizePosition(Object.assign({ kind: 'ausgabe' }, p)));
+    // reisebezogene Felder entfernen
+    ['ort', 'country', 'abName', 'abFull', 'abNight', 'abreise', 'rueckkehr', 'meals', 'verkehr', 'uebernachtung', 'extras', 'belege', 'nights'].forEach((k) => delete base[k]);
+    return base;
+  }
+  function normalizePosition(p) {
+    const q = Object.assign({ id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0, payer: 'self' }, p);
+    if (q.payer !== 'company') q.payer = 'self';
+    if (q.kind === 'ausgabe') q.mode = 'betrag';
+    // Dateiname (Referenz) und fileId (behaltener Beleg) behalten; alte inline-Felder verwerfen.
+    delete q.dataUrl; delete q.mime; delete q.tooBig; delete q.method;
+    return q;
+  }
   function blankTrip() {
-    return normalizeTrip({ id: newId(), country: 'DE' });
+    return normalizeTrip({ id: newId(), kind: 'trip', country: 'DE' });
+  }
+  function blankExpense() {
+    const now = new Date();
+    const date = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
+    return normalizeExpense({ id: newId(), kind: 'expense', category: 'sonstiges', date });
   }
 
   // ---------------------------------------------------------------- Positionen
@@ -361,6 +405,7 @@
     const payer = defaultPayer();
     if (kind === 'fahrt') return { id: newId(), kind, bez: '', mode: 'km', km: 0, ratePerKm: num(state.settings.kmCar), betrag: 0, payer };
     if (kind === 'uebernachtung') return { id: newId(), kind, bez: t('catUeb'), mode: 'pauschale', nights: Math.max(0, tripDays(tp).length - 1), nightRate: nightRate(tp), betrag: 0, payer };
+    if (kind === 'ausgabe') return { id: newId(), kind: 'ausgabe', bez: '', mode: 'betrag', betrag: 0, payer };
     return { id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0, payer };
   }
 
@@ -400,6 +445,7 @@
 
   // Vollständige Berechnung einer Reise.
   function compute(trip) {
+    if (isExpense(trip)) return computeExpense(trip);
     const days = tripDays(trip);
     const full = fullDayRate(trip), over8 = over8Rate(trip);
     const rows = days.map((d) => {
@@ -426,6 +472,24 @@
     const erstattung = round2(verpflegung + kostenSelbst);                 // Auszahlung an den Reisenden
     const hours = (trip.abreise && trip.rueckkehr) ? (new Date(trip.rueckkehr) - new Date(trip.abreise)) / 3600000 : 0;
     return { rows, days, verpflegung, fahrt, uebernachtung, neben, firma, kostenSelbst, total, erstattung, hours: Math.max(0, hours), dayCount: days.length };
+  }
+  // Ausgaben/Auslagen: keine Verpflegung, nur Positionssummen.
+  function computeExpense(exp) {
+    const pos = exp.positions || [];
+    const total = round2(pos.reduce((s, p) => s + posAmount(p), 0));
+    const firma = round2(pos.filter((p) => p.payer === 'company').reduce((s, p) => s + posAmount(p), 0));
+    const kostenSelbst = round2(total - firma);
+    const erstattung = kostenSelbst;                       // Auszahlung an den Mitarbeiter (selbst verauslagt)
+    // Bewirtung: geschäftlich nur 70 % als Betriebsausgabe abziehbar (Richtwert, ohne Gewähr).
+    const isBewirtung = exp.category === 'bewirtung';
+    const geschaeftlich = isBewirtung && (!exp.bewirtung || exp.bewirtung.art !== 'betrieblich');
+    const abziehbar = geschaeftlich ? round2(total * 0.70) : total;
+    const nichtAbziehbar = round2(total - abziehbar);
+    return {
+      rows: [], days: [], verpflegung: 0, fahrt: 0, uebernachtung: 0, neben: 0,
+      firma, kostenSelbst, total, erstattung, hours: 0, dayCount: 0,
+      isExpense: true, abziehbar, nichtAbziehbar, geschaeftlich, isBewirtung,
+    };
   }
 
   // ---------------------------------------------------------------- Views
@@ -457,13 +521,15 @@
     if (!state.trips.length) {
       el.innerHTML =
         '<div class="rk-empty"><h2>' + esc(t('emptyTitle')) + '</h2><p>' + esc(t('emptyText')) + '</p>' +
-        '<p><button class="qrx-btn qrx-btn-primary" data-action="new">' + esc(t('newTrip')) + '</button></p></div>';
+        '<p><button class="qrx-btn qrx-btn-primary" data-action="new">' + esc(t('newTrip')) + '</button> ' +
+        '<button class="qrx-btn" data-action="new-expense">' + esc(t('newExpense')) + '</button></p></div>';
       return;
     }
-    // nach Monat gruppieren (Abreise), neueste zuerst
+    // nach Monat gruppieren (Reise: Abreise, Ausgabe: Datum), neueste zuerst
+    const entryMonth = (tp) => (isExpense(tp) ? (tp.date || '0000-00') : (tp.abreise || '0000-00')).slice(0, 7);
     const groups = {};
     state.trips.forEach((tp) => {
-      const key = (tp.abreise || '0000-00').slice(0, 7);
+      const key = entryMonth(tp);
       (groups[key] = groups[key] || []).push(tp);
     });
     const keys = Object.keys(groups).sort().reverse();
@@ -488,6 +554,16 @@
         '<div class="rk-trip-list">';
       monthTrips.forEach((tp) => {
         const c = compute(tp);
+        if (isExpense(tp)) {
+          const titleTxt = tp.reason || expCatLabel(tp.category);
+          html += '<article class="rk-trip-card rk-card-expense" data-action="edit" data-id="' + esc(tp.id) + '">' +
+            '<div class="rk-trip-card-head"><span class="rk-trip-dest">' + esc(titleTxt) + '</span>' +
+            '<span class="rk-trip-flag rk-flag-expense">' + esc(expCatLabel(tp.category)) + '</span></div>' +
+            '<div class="rk-trip-dates">' + esc(tp.date ? fmtDate(tp.date) : t('invalidDates')) + '</div>' +
+            '<div class="rk-trip-foot"><span class="rk-trip-total">' + esc(eur(c.erstattung)) + '</span></div>' +
+            '</article>';
+          return;
+        }
         const inland = isInland(tp);
         const dest = tp.ort || destName(tp) || t('untitled');
         const range = tp.abreise && tp.rueckkehr
@@ -517,6 +593,7 @@
 
   // ============================================================ FORMULAR
   function renderEdit() {
+    if (isExpense(state.current)) { renderExpenseEdit(); return; }
     const tp = state.current;
     const el = views.edit;
     el.innerHTML =
@@ -565,6 +642,56 @@
     renderPositions();
     rebuildDays();
     refreshCalc();
+  }
+
+  // Formular für eine Ausgabe/Auslage (ohne Reiselogik).
+  function renderExpenseEdit() {
+    const tp = state.current;
+    const el = views.edit;
+    const catSelect = '<select class="qrx-select" data-field="category">' +
+      EXPENSE_CATS.map((c) => '<option value="' + c + '"' + (tp.category === c ? ' selected' : '') + '>' + esc(expCatLabel(c)) + '</option>').join('') + '</select>';
+    const bewSection = tp.category === 'bewirtung'
+      ? '<div class="rk-section"><h2>' + esc(t('bewTitle')) + '</h2>' +
+          '<div class="rk-grid">' +
+            field(t('bewTeilnehmer'), '<input class="qrx-input" data-field="teilnehmer" value="' + esc(tp.bewirtung.teilnehmer || '') + '" placeholder="' + esc(t('bewTeilnehmerPh')) + '">', 'rk-span-2') +
+            field(t('bewOrt'), '<input class="qrx-input" data-field="bewOrt" value="' + esc(tp.bewirtung.ort || '') + '" placeholder="' + esc(t('bewOrtPh')) + '">') +
+            field(t('bewArt'), '<select class="qrx-select" data-field="bewArt">' +
+              [['geschaeftlich', 'bewGeschaeftlich'], ['betrieblich', 'bewBetrieblich']]
+                .map(([v, k]) => '<option value="' + v + '"' + (tp.bewirtung.art === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('') + '</select>') +
+          '</div>' +
+          '<p class="rk-hint">' + esc(t('bewHint')) + '</p>' +
+        '</div>'
+      : '';
+    el.innerHTML =
+      '<div class="rk-form">' +
+        '<div class="rk-form-head">' +
+          '<button class="rk-back" data-action="back">← ' + esc(t('back')) + '</button>' +
+        '</div>' +
+        '<div class="rk-section"><h2>' + esc(t('secExpense')) + '</h2>' +
+          '<div class="rk-grid">' +
+            field(t('expReason'), '<input class="qrx-input" data-field="reason" value="' + esc(tp.reason || '') + '" placeholder="' + esc(t('expReasonPh')) + '">', 'rk-span-2') +
+            field(t('expCategory'), catSelect) +
+            field(t('expDate'), '<input class="qrx-input" type="date" data-field="date" value="' + esc((tp.date || '').slice(0, 10)) + '">') +
+          '</div>' +
+        '</div>' +
+        bewSection +
+        '<div class="rk-section"><h2>' + esc(t('secExpenseCosts')) + '</h2>' +
+          '<div id="rk-positions"></div>' +
+          '<div class="rk-pos-add">' +
+            '<button class="qrx-btn qrx-btn-sm" data-action="add-pos" data-kind="ausgabe">' + esc(t('addPosition')) + '</button>' +
+          '</div>' +
+          '<label class="rk-dropzone" id="rk-dropzone">' +
+            '<input id="rk-file" type="file" accept="application/pdf,image/*" multiple hidden>' +
+            '<svg class="rk-dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>' +
+            '<span class="rk-dropzone-title">' + esc(t('importReceipt')) + '</span>' +
+            '<span class="rk-dropzone-sub">' + esc(t('dropOr')) + '</span>' +
+          '</label>' +
+          '<p class="rk-hint">' + esc(t('receiptHint')) + '</p>' +
+        '</div>' +
+        '<div id="rk-summary"></div>' +
+      '</div>';
+    renderPositions();
+    renderSummary();
   }
 
   function field(label, control, extraClass) {
@@ -654,8 +781,10 @@
           .map(([v, k]) => '<option value="' + v + '"' + (draft.payer === v ? ' selected' : '') + '>' + esc(t(k)) + '</option>').join('') + '</select>');
     }
     function bodyHtml() {
+      const catField = draft.kind === 'ausgabe' ? ''
+        : field(t('posCategory'), '<select class="qrx-select" data-ef="kind">' + catOptions(draft.kind) + '</select>');
       return '<div class="rk-grid">' +
-          field(t('posCategory'), '<select class="qrx-select" data-ef="kind">' + catOptions(draft.kind) + '</select>') +
+          catField +
           field(t('posDesc'), '<input class="qrx-input" data-ef="bez" value="' + esc(draft.bez || '') + '" placeholder="' + esc(t('posDescPh')) + '">') +
           modeSelect() + modeControls() + payerSelect() +
         '</div>' +
@@ -767,7 +896,8 @@
   function typeLabelOf(ty) { return t('type' + ty.charAt(0).toUpperCase() + ty.slice(1)) || t('typeUnknown'); }
   // Position-Art aus Beleg-Typ.
   function kindForType(ty) { return ty === 'hotel' ? 'uebernachtung' : (ty === 'bahn' || ty === 'oepnv') ? 'fahrt' : 'neben'; }
-  function catLabel(kind) { return t(kind === 'fahrt' ? 'catFahrt' : kind === 'uebernachtung' ? 'catUeb' : 'catNeben'); }
+  function catLabel(kind) { return t(kind === 'fahrt' ? 'catFahrt' : kind === 'uebernachtung' ? 'catUeb' : kind === 'ausgabe' ? 'catAusgabe' : 'catNeben'); }
+  function expCatLabel(cat) { return t('cat_' + (EXPENSE_CATS.indexOf(cat) >= 0 ? cat : 'sonstiges')); }
 
   // Standard: Beleg-Dateien werden NICHT gespeichert. Aus einem Beleg werden nur der
   // Betrag/die Daten erkannt und der Dateiname als Referenz behalten — das hält den
@@ -995,7 +1125,7 @@
     const defaultVal = (!tripHasPeriod && candidates.length) ? (candidates[0].d0 + '|' + candidates[0].d1) : 'keep';
 
     let periodSection = '';
-    if (candidates.length) {
+    if (candidates.length && !isExpense(tp)) {
       const opt = (val, label, checked) =>
         '<label class="rk-batch-item rk-batch-radio"><input type="radio" name="rk-period" value="' + esc(val) + '"' + (checked ? ' checked' : '') + '><span>' + label + '</span></label>';
       let opts = candidates.map((c) => {
@@ -1054,21 +1184,22 @@
       let keepFail = 0;
       for (const it of checked) {
         const pos = positionFromReceipt(it);
+        if (isExpense(tp)) pos.kind = 'ausgabe';   // Ausgabe: einheitliche Positionsart
         if (keep && it.file) {   // Datei mitspeichern (IndexedDB) → nach Neuladen direkt anzeigbar
           const fid = 'f' + pos.id;
           try { await idbPut(fid, it.file, it.fileName); pos.fileId = fid; } catch (_) { keepFail++; }
         }
         tp.positions.push(pos);
       }
-      // Gewählten Reisezeitraum setzen (überschreibt bewusst, wenn ein Kandidat gewählt wurde).
+      // Gewählten Reisezeitraum setzen (nur bei Reisen; überschreibt bewusst, wenn gewählt).
       const sel = ov.querySelector('input[name="rk-period"]:checked');
-      if (sel && sel.value !== 'keep') {
+      if (!isExpense(tp) && sel && sel.value !== 'keep') {
         const parts = sel.value.split('|');
         tp.abreise = parts[0] + 'T08:00';
         tp.rueckkehr = parts[1] + 'T18:00';
       }
       const doBreak = ov.querySelector('input[data-sug="breakfast"]');
-      if (doBreak && doBreak.checked && checked.some((it) => it.parsed.type === 'hotel' && it.parsed.hotel && it.parsed.hotel.breakfast)) {
+      if (!isExpense(tp) && doBreak && doBreak.checked && checked.some((it) => it.parsed.type === 'hotel' && it.parsed.hotel && it.parsed.hotel.breakfast)) {
         tripDays(tp).forEach((d) => { if (d.type === 'none' || d.type === 'arrival') return; tp.meals[d.date] = tp.meals[d.date] || {}; tp.meals[d.date].f = true; });
       }
       close();
@@ -1134,6 +1265,23 @@
       : '';
     const totalLabel = c.firma > 0 ? t('sumErstattung') : t('sumTotal');
     const totalVal = c.firma > 0 ? c.erstattung : c.total;
+    const actions = '<div class="rk-summary-actions">' +
+        '<button class="qrx-btn qrx-btn-primary" data-action="save">' + esc(t('save')) + '</button>' +
+        '<button class="qrx-btn" data-action="report">' + esc(t('report')) + '</button>' +
+        '<button class="qrx-btn" data-action="csv-trip">' + esc(t('csv')) + '</button>' +
+        '<button class="qrx-btn" data-action="delete-trip">' + esc(t(isExpense(state.current) ? 'deleteExpense' : 'deleteTrip')) + '</button>' +
+      '</div>';
+    if (c.isExpense) {
+      const bewLine = c.isBewirtung && c.geschaeftlich && c.total > 0
+        ? '<div class="rk-sum-item rk-sum-note"><span class="rk-sum-label">' + esc(t('sumBewirtung70')) + '</span>' +
+          '<span class="rk-sum-value">' + esc(eur(c.abziehbar)) + '</span></div>'
+        : '';
+      box.innerHTML = '<div class="rk-summary">' +
+        sumItem('sumAusgaben', c.total) + firmaLine + bewLine +
+        '<div class="rk-sum-item rk-sum-total"><span class="rk-sum-label">' + esc(t('sumErstattung')) + '</span>' +
+          '<span class="rk-sum-value">' + esc(eur(c.erstattung)) + '</span></div>' + actions + '</div>';
+      return;
+    }
     box.innerHTML = '<div class="rk-summary">' +
       sumItem('sumVerpflegung', c.verpflegung) +
       sumItem('sumFahrt', c.fahrt) +
@@ -1142,12 +1290,7 @@
       firmaLine +
       '<div class="rk-sum-item rk-sum-total"><span class="rk-sum-label">' + esc(totalLabel) + '</span>' +
         '<span class="rk-sum-value">' + esc(eur(totalVal)) + '</span></div>' +
-      '<div class="rk-summary-actions">' +
-        '<button class="qrx-btn qrx-btn-primary" data-action="save">' + esc(t('save')) + '</button>' +
-        '<button class="qrx-btn" data-action="report">' + esc(t('report')) + '</button>' +
-        '<button class="qrx-btn" data-action="csv-trip">' + esc(t('csv')) + '</button>' +
-        '<button class="qrx-btn" data-action="delete-trip">' + esc(t('deleteTrip')) + '</button>' +
-      '</div></div>';
+      actions + '</div>';
   }
   function sumItem(key, val) {
     return '<div class="rk-sum-item"><span class="rk-sum-label">' + esc(t(key)) + '</span>' +
@@ -1193,6 +1336,7 @@
 
   // ============================================================ ABRECHNUNG
   function renderReport(tp) {
+    if (isExpense(tp)) { renderExpenseReport(tp); return; }
     const c = compute(tp);
     const el = views.report;
     const typeLabel = { single: 'typeSingle', arrival: 'typeArrival', departure: 'typeDeparture', full: 'typeFull', none: 'typeNone' };
@@ -1244,6 +1388,61 @@
         '</div>' +
       '</div>';
     attachmentsReady = loadAttachments(tp);   // Belege asynchron als Anhang rendern
+  }
+
+  // Abrechnung für eine Ausgabe/Auslage.
+  function renderExpenseReport(exp) {
+    const c = compute(exp);
+    const el = views.report;
+    const s = state.settings;
+    const bewMeta = exp.category === 'bewirtung'
+      ? (exp.bewirtung.ort ? '<div><b>' + esc(t('bewOrt')) + ':</b> ' + esc(exp.bewirtung.ort) + '</div>' : '') +
+        (exp.bewirtung.teilnehmer ? '<div><b>' + esc(t('bewTeilnehmer')) + ':</b> ' + esc(exp.bewirtung.teilnehmer) + '</div>' : '') +
+        '<div><b>' + esc(t('bewArt')) + ':</b> ' + esc(t(exp.bewirtung.art === 'betrieblich' ? 'bewBetrieblich' : 'bewGeschaeftlich')) + '</div>'
+      : '';
+    const posRows = (exp.positions || []).map((p) =>
+      '<tr><td>' + esc(p.bez || p.belegName || '–') + '</td>' +
+      '<td>' + esc(t(p.payer === 'company' ? 'payerCompany' : 'payerSelf')) + '</td>' +
+      '<td class="rk-num">' + esc(eur(posAmount(p))) + '</td></tr>').join('');
+    const bewFoot = (c.isBewirtung && c.geschaeftlich && c.total > 0)
+      ? rowFoot2(t('sumBewirtung70'), c.abziehbar) + rowFoot2(t('sumBewirtung30'), c.nichtAbziehbar)
+      : '';
+    el.innerHTML =
+      '<div class="rk-report">' +
+        '<div class="rk-report-actions rk-noprint">' +
+          '<button class="rk-back" data-action="back">← ' + esc(t('back')) + '</button>' +
+          '<button class="qrx-btn qrx-btn-primary" data-action="print">' + esc(t('print')) + '</button>' +
+          '<button class="qrx-btn" data-action="csv-trip" data-id="' + esc(exp.id) + '">' + esc(t('csv')) + '</button>' +
+        '</div>' +
+        '<div class="rk-report-sheet">' +
+          '<h1>' + esc(t('reportExpenseTitle')) + '</h1>' +
+          '<div class="rk-report-meta">' +
+            (s.empName ? '<div><b>' + esc(t('reportEmployee')) + ':</b> ' + esc(s.empName) + '</div>' : '') +
+            (s.empNumber ? '<div><b>' + esc(t('reportEmpNumber')) + ':</b> ' + esc(s.empNumber) + '</div>' : '') +
+            '<div><b>' + esc(t('expCategory')) + ':</b> ' + esc(expCatLabel(exp.category)) + '</div>' +
+            '<div><b>' + esc(t('expDate')) + ':</b> ' + esc(exp.date ? fmtDate(exp.date) : '–') + '</div>' +
+            '<div><b>' + esc(t('reportReason')) + ':</b> ' + esc(exp.reason || '–') + '</div>' +
+            bewMeta +
+          '</div>' +
+          '<div class="rk-table-wrap"><table class="rk-table"><thead><tr><th>' + esc(t('thDesc')) + '</th>' +
+            '<th>' + esc(t('thPayer')) + '</th><th class="rk-num">' + esc(t('thAmount')) + '</th></tr></thead><tbody>' +
+            (posRows || '<tr><td colspan="3">–</td></tr>') + '</tbody>' +
+            '<tfoot>' +
+              (c.firma > 0 ? rowFoot2(t('sumAusgaben'), c.total) + rowFoot2(t('sumFirma'), -c.firma) : '') +
+              bewFoot +
+              '<tr class="rk-report-grand"><td colspan="2">' + esc(c.firma > 0 ? t('sumErstattung') : t('sumAusgaben')) + '</td>' +
+                '<td class="rk-num">' + esc(eur(c.firma > 0 ? c.erstattung : c.total)) + '</td></tr>' +
+            '</tfoot>' +
+          '</table></div>' +
+          (c.isBewirtung && c.geschaeftlich ? '<p class="rk-report-note">' + esc(t('bew70Note')) + '</p>' : '') +
+          (s.showSignature ? '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' : '') +
+          '<div class="rk-report-attachments" id="rk-attachments"></div>' +
+        '</div>' +
+      '</div>';
+    attachmentsReady = loadAttachments(exp);
+  }
+  function rowFoot2(label, val) {
+    return '<tr><td colspan="2">' + esc(label) + '</td><td class="rk-num">' + esc(eur(val)) + '</td></tr>';
   }
 
   // Behaltene Belege als Anhang-Seiten rendern (Bilder direkt, PDFs zu Seitenbildern).
@@ -1311,12 +1510,19 @@
   function csvNum(n) { return (Math.round((n || 0) * 100) / 100).toFixed(2).replace('.', ','); }
   function csvCell(s) { s = String(s == null ? '' : s); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function exportCsv(trips, filename) {
-    const head = ['Anlass', 'Ort', 'Ziel', 'Abreise', 'Rückkehr', 'Tage', 'Verpflegung', 'Fahrt', 'Übernachtung', 'Nebenkosten', 'Gesamtkosten', 'Firma bezahlt', 'Erstattung'];
+    const head = ['Typ', 'Kategorie', 'Anlass', 'Ort', 'Ziel', 'Abreise/Datum', 'Rückkehr', 'Tage', 'Verpflegung', 'Fahrt', 'Übernachtung', 'Nebenkosten', 'Gesamtkosten', 'Firma bezahlt', 'Erstattung'];
     const lines = [head.map(csvCell).join(';')];
     trips.forEach((tp) => {
       const c = compute(tp);
+      if (isExpense(tp)) {
+        lines.push([
+          'Ausgabe', expCatLabel(tp.category), tp.reason, tp.bewirtung ? tp.bewirtung.ort : '', '',
+          tp.date, '', '', '', '', '', '', csvNum(c.total), csvNum(c.firma), csvNum(c.erstattung),
+        ].map(csvCell).join(';'));
+        return;
+      }
       lines.push([
-        tp.reason, tp.ort, isInland(tp) ? 'Inland' : (destName(tp) || 'Ausland'),
+        'Reise', '', tp.reason, tp.ort, isInland(tp) ? 'Inland' : (destName(tp) || 'Ausland'),
         tp.abreise, tp.rueckkehr, c.dayCount,
         csvNum(c.verpflegung), csvNum(c.fahrt), csvNum(c.uebernachtung), csvNum(c.neben), csvNum(c.total),
         csvNum(c.firma), csvNum(c.erstattung),
@@ -1336,6 +1542,11 @@
   }
   function newTrip() {
     state.current = blankTrip();
+    renderEdit();
+    showView('edit');
+  }
+  function newExpense() {
+    state.current = blankExpense();
     renderEdit();
     showView('edit');
   }
@@ -1378,6 +1589,11 @@
     if (!f) return;
     switch (f) {
       case 'reason': tp.reason = eln.value; break;
+      case 'date': tp.date = eln.value; break;
+      case 'category': tp.category = eln.value; renderExpenseEdit(); break;
+      case 'teilnehmer': tp.bewirtung.teilnehmer = eln.value; break;
+      case 'bewOrt': tp.bewirtung.ort = eln.value; break;
+      case 'bewArt': tp.bewirtung.art = eln.value; renderSummary(); break;
       case 'ort': tp.ort = eln.value; break;
       case 'abName': tp.abName = eln.value; break;
       case 'country':
@@ -1407,13 +1623,14 @@
     const action = target.getAttribute('data-action');
     switch (action) {
       case 'new': newTrip(); break;
+      case 'new-expense': newExpense(); break;
       case 'edit': openTrip(target.getAttribute('data-id')); break;
       case 'back': renderList(); showView('list'); break;
       case 'save': saveCurrent(); break;
       case 'delete-trip': deleteCurrent(); break;
       case 'report': saveCurrentQuiet(); renderReport(state.current); showView('report'); break;
       case 'print': doPrint(); break;
-      case 'csv-trip': exportCsv([state.current], 'reisekosten-' + (state.current.ort || 'reise') + '.csv'); break;
+      case 'csv-trip': exportCsv([state.current], 'reisekosten-' + (isExpense(state.current) ? (state.current.category || 'ausgabe') : (state.current.ort || 'reise')) + '.csv'); break;
       case 'csv-all': exportCsv(state.trips, 'reisekosten-alle.csv'); break;
       case 'add-pos':
         state.current.positions.push(newPosition(target.getAttribute('data-kind'), state.current));
@@ -1516,6 +1733,8 @@
 
   const rkRoot = document.querySelector('.rk');
   document.querySelector('.rk-nav-new').addEventListener('click', newTrip);
+  const navExp = document.querySelector('.rk-nav-expense');
+  if (navExp) navExp.addEventListener('click', newExpense);
   document.querySelector('.rk-nav-settings').addEventListener('click', () => { renderSettings(); showView('settings'); });
   rkRoot.addEventListener('input', onInput);
   rkRoot.addEventListener('change', onInput);
