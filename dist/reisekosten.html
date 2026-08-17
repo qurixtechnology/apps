@@ -331,6 +331,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .rk-table tfoot td { font-weight: 700; border-top: 2px solid var(--qrx-border-strong); border-bottom: none; }
 .rk-report-sign { display: flex; gap: var(--qrx-s-8); margin-top: var(--qrx-s-10); }
 .rk-report-sign div { flex: 1; border-top: 1px solid var(--qrx-text-muted); padding-top: var(--qrx-s-2); font-size: 0.82rem; color: var(--qrx-text-muted); }
+/* Belege-Anhänge in der Abrechnung */
+.rk-att-head { margin-top: var(--qrx-s-10); }
+.rk-att { margin: var(--qrx-s-5) 0; }
+.rk-att-cap { font-size: 0.8rem; color: var(--qrx-text-muted); margin-bottom: var(--qrx-s-2); }
+.rk-att-name { color: var(--qrx-text-subtle); }
+.rk-att-img { max-width: 100%; height: auto; display: block; border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius); }
+.rk-att-loading, .rk-att-note { font-size: 0.82rem; color: var(--qrx-text-muted); }
+.rk-att-fail, .rk-att-missing { font-size: 0.82rem; color: var(--qrx-warning); }
 
 /* --- Belege --- */
 .rk-dropzone {
@@ -557,6 +565,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   .rk-table-wrap { overflow: visible !important; }
   .rk-table th, .rk-table td { border-color: #999 !important; }
   body { background: #fff !important; }
+  /* Belege: jeder Beleg auf eigener Seite; Überschrift bleibt beim ersten Beleg */
+  .rk-att-head { break-after: avoid; page-break-after: avoid; }
+  .rk-att-cap { break-after: avoid; page-break-after: avoid; }
+  .rk-att { break-before: page; page-break-before: always; break-inside: avoid; page-break-inside: avoid; }
+  .rk-att-img { max-height: 245mm; border: none !important; }
 }
 </style>
 </head>
@@ -830,7 +843,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260817-124740</span>
+    &middot; v<span data-build-version>260817-130311</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1462,6 +1475,29 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     return text;
   }
 
+  // Öffentlich: PDF (Blob/File) → ein Bild je Seite (JPEG-data-URL). Für die
+  // Abrechnung/Anhänge: eingebettete PDFs drucken nicht zuverlässig, gerenderte
+  // Seitenbilder dagegen schon (auch mobil).
+  async function pdfToImages(source, opts) {
+    opts = opts || {};
+    const scale = opts.scale || 1.6;
+    const maxPages = opts.maxPages || 20;
+    const pdfjs = await ensurePdf();
+    const data = new Uint8Array(await source.arrayBuffer());
+    const doc = await pdfjs.getDocument({ data }).promise;
+    const images = [];
+    const n = Math.min(doc.numPages, maxPages);
+    for (let p = 1; p <= n; p++) {
+      const page = await doc.getPage(p);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      images.push(canvas.toDataURL('image/jpeg', 0.85));
+    }
+    return { images, pages: doc.numPages, truncated: doc.numPages > n };
+  }
+
   // Öffentlich: Datei → Text (PDF-Text, sonst OCR). onProgress(0..1) optional.
   async function extractText(file, onProgress) {
     const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
@@ -1475,7 +1511,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     return { text, method: 'image-ocr' };
   }
 
-  const api = { LIBS, parseReceipt, findAmounts, pickTotal, findDates, detectType, extractText, ensurePdf, ensureOcr };
+  const api = { LIBS, parseReceipt, findAmounts, pickTotal, findDates, detectType, extractText, pdfToImages, ensurePdf, ensureOcr };
   if (typeof window !== 'undefined') { (window.qrx = window.qrx || {}).rkReceipts = api; }
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof self !== 'undefined' ? self : this);
@@ -1772,6 +1808,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       sumFirma: 'davon Firma bezahlt', sumErstattung: 'Erstattung an dich', thPayer: 'Bezahlt von',
       batchKeepTitle: 'Belege speichern', batchKeep: 'Belege behalten (auch nach Neuladen direkt anzeigbar)',
       batchKeepHint: 'Standardmäßig aktiv: Die Dateien werden lokal mitgespeichert. Zum Sparen von Speicher abwählen — dann bleibt nur der Dateiname als Referenz und die Datei wird beim Anzeigen bei Bedarf neu ausgewählt.',
+      attHeading: 'Belege (Anhang)', attTitle: 'Beleg', attLoading: 'Belege werden für den Anhang aufbereitet …',
+      attFail: 'Beleg (PDF) konnte nicht eingebunden werden (Internet zur Aufbereitung nötig).',
+      attUnsupported: 'Dieses Dateiformat kann nicht als Anhang dargestellt werden.',
+      attMissing: 'Beleg-Datei nicht gefunden.', attTruncated: 'Nur die ersten {n} Seiten wurden eingebunden.',
+      attRefOnly: 'Hinweis: {n} Beleg(e) sind nur als Referenz gespeichert und daher nicht im Anhang enthalten.',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -1854,6 +1895,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       sumFirma: 'of which company-paid', sumErstattung: 'Reimbursement to you', thPayer: 'Paid by',
       batchKeepTitle: 'Store receipts', batchKeep: 'Keep receipts (viewable directly after reload)',
       batchKeepHint: 'On by default: the files are stored locally. Untick to save storage — only the file name is kept as a reference and the file is picked again when you view it.',
+      attHeading: 'Receipts (attachment)', attTitle: 'Receipt', attLoading: 'Preparing receipts for the attachment …',
+      attFail: 'Could not embed receipt (PDF) — internet needed to prepare it.',
+      attUnsupported: 'This file format cannot be shown as an attachment.',
+      attMissing: 'Receipt file not found.', attTruncated: 'Only the first {n} pages were included.',
+      attRefOnly: 'Note: {n} receipt(s) are stored as a reference only and are therefore not attached.',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -2846,8 +2892,61 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
               '<td class="rk-num">' + esc(eur(c.firma > 0 ? c.erstattung : c.total)) + '</td></tr>' +
           '</tbody></table></div>' +
           '<div class="rk-report-sign"><div>' + esc(t('reportSignEmp')) + '</div><div>' + esc(t('reportSignApprove')) + '</div></div>' +
+          '<div class="rk-report-attachments" id="rk-attachments"></div>' +
         '</div>' +
       '</div>';
+    attachmentsReady = loadAttachments(tp);   // Belege asynchron als Anhang rendern
+  }
+
+  // Behaltene Belege als Anhang-Seiten rendern (Bilder direkt, PDFs zu Seitenbildern).
+  let attachmentsReady = Promise.resolve();
+  let attachmentUrls = [];
+  function attPage(title, name, inner) {
+    return '<figure class="rk-att">' +
+      '<figcaption class="rk-att-cap">' + esc(title) + (name ? ' <span class="rk-att-name">(' + esc(name) + ')</span>' : '') + '</figcaption>' +
+      inner + '</figure>';
+  }
+  async function loadAttachments(tp) {
+    const box = document.getElementById('rk-attachments');
+    if (!box) return;
+    attachmentUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (_) {} });
+    attachmentUrls = [];
+    const positions = tp.positions || [];
+    const kept = positions.filter((p) => p.fileId);
+    const refOnly = positions.filter((p) => p.belegName && !p.fileId).length;
+    const refNote = refOnly ? '<p class="rk-att-note">' + esc(t('attRefOnly', { n: refOnly })) + '</p>' : '';
+    if (!kept.length) { box.innerHTML = refNote; return; }
+    box.innerHTML = '<h3 class="rk-report-h3 rk-att-head">' + esc(t('attHeading')) + '</h3>' + refNote +
+      '<p class="rk-att-loading">' + esc(t('attLoading')) + '</p>';
+    const parts = [];
+    for (const p of kept) {
+      let rec = null; try { rec = await idbGet(p.fileId); } catch (_) {}
+      const title = t('attTitle') + ': ' + (p.bez || p.belegName || catLabel(p.kind));
+      const name = (rec && rec.name) || p.belegName || '';
+      if (!rec || !rec.blob) { parts.push(attPage(title, name, '<p class="rk-att-fail">' + esc(t('attMissing')) + '</p>')); continue; }
+      const blob = rec.blob;
+      if (/^image\//.test(blob.type)) {
+        const url = URL.createObjectURL(blob); attachmentUrls.push(url);
+        parts.push(attPage(title, name, '<img class="rk-att-img" src="' + url + '" alt="">'));
+      } else if (blob.type === 'application/pdf' || /\.pdf$/i.test(name)) {
+        try {
+          const res = await qrx.rkReceipts.pdfToImages(blob, { scale: 1.6, maxPages: 20 });
+          res.images.forEach((src, i) => {
+            const cap = res.images.length > 1 ? title + ' (' + (i + 1) + '/' + res.images.length + ')' : title;
+            parts.push(attPage(cap, name, '<img class="rk-att-img" src="' + src + '" alt="">'));
+          });
+          if (res.truncated) parts.push(attPage(title, name, '<p class="rk-att-note">' + esc(t('attTruncated', { n: 20 })) + '</p>'));
+        } catch (_) { parts.push(attPage(title, name, '<p class="rk-att-fail">' + esc(t('attFail')) + '</p>')); }
+      } else {
+        parts.push(attPage(title, name, '<p class="rk-att-fail">' + esc(t('attUnsupported')) + '</p>'));
+      }
+    }
+    box.innerHTML = '<h3 class="rk-report-h3 rk-att-head">' + esc(t('attHeading')) + '</h3>' + refNote + parts.join('');
+  }
+  // Drucken erst, wenn die Belege-Anhänge fertig gerendert sind.
+  async function doPrint() {
+    try { await attachmentsReady; } catch (_) {}
+    window.print();
   }
   function rowFoot(label, val) {
     return '<tr><td colspan="3">' + esc(label) + '</td><td class="rk-num">' + esc(eur(val)) + '</td></tr>';
@@ -2965,7 +3064,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       case 'save': saveCurrent(); break;
       case 'delete-trip': deleteCurrent(); break;
       case 'report': saveCurrentQuiet(); renderReport(state.current); showView('report'); break;
-      case 'print': window.print(); break;
+      case 'print': doPrint(); break;
       case 'csv-trip': exportCsv([state.current], 'reisekosten-' + (state.current.ort || 'reise') + '.csv'); break;
       case 'csv-all': exportCsv(state.trips, 'reisekosten-alle.csv'); break;
       case 'add-pos':
