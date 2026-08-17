@@ -1231,7 +1231,7 @@
   function deleteCurrent() {
     if (!confirm(t('confirmDelete'))) return;
     state.trips = state.trips.filter((x) => x.id !== state.current.id);
-    saveTrips();
+    persistTrips();   // speichert die Reisenliste (räumt auch verwaiste Belege der gelöschten Reise auf)
     renderList();
     showView('list');
   }

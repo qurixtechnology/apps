@@ -823,7 +823,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260817-122028</span>
+    &middot; v<span data-build-version>260817-123026</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2872,7 +2872,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   function deleteCurrent() {
     if (!confirm(t('confirmDelete'))) return;
     state.trips = state.trips.filter((x) => x.id !== state.current.id);
-    saveTrips();
+    persistTrips();   // speichert die Reisenliste (räumt auch verwaiste Belege der gelöschten Reise auf)
     renderList();
     showView('list');
   }
