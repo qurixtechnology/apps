@@ -844,7 +844,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260817-131127</span>
+    &middot; v<span data-build-version>260817-133830</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1929,6 +1929,10 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // Einmalige Migration alter localStorage-data-URL-Belege → IndexedDB (schont Speicher),
   // danach verwaiste Dateien (LS-Legacy + IndexedDB) entfernen.
   async function initFiles() {
+    // Bei geöffnetem Snapshot NICHT aufräumen: hydrateState spielt Reisen + Belege
+    // erst ein und lädt dann neu — vorher könnten sonst noch nicht referenzierte
+    // Dateien fälschlich als „verwaist" gelöscht werden.
+    if (document.getElementById('qrx-app-state')) return;
     // 1) Legacy-Dateien aus localStorage nach IndexedDB übernehmen
     try {
       const legacy = [];
@@ -3137,17 +3141,21 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   };
   window.qurixApp.hydrateState = async function (s) {
     if (!s || typeof s !== 'object') return;
-    let changed = false;
     const idbWrites = [];
-    Object.keys(s).forEach((k) => {
-      if (k.indexOf(KEY_PREFIX) !== 0) return;
-      if (k.indexOf(KEY_FILE_PREFIX) === 0) {   // Datei → IndexedDB
+    for (const k of Object.keys(s)) {
+      if (k.indexOf(KEY_PREFIX) !== 0) continue;
+      if (k.indexOf(KEY_FILE_PREFIX) === 0) {   // behaltene Datei → IndexedDB
         const id = k.slice(KEY_FILE_PREFIX.length);
-        try { idbWrites.push(idbPut(id, dataUrlToBlob(s[k]), null)); changed = true; } catch (_) {}
-      } else if (store.get(k) !== s[k]) { store.set(k, s[k]); changed = true; }
-    });
+        let exists = false;
+        try { const rec = await idbGet(id); exists = !!(rec && rec.blob); } catch (_) {}
+        if (!exists) { try { idbWrites.push(idbPut(id, dataUrlToBlob(s[k]), null)); } catch (_) {} }
+      } else if (store.get(k) !== s[k]) { store.set(k, s[k]); }
+    }
     try { await Promise.all(idbWrites); } catch (_) {}
-    if (changed) location.reload();
+    // KEIN location.reload(): direkt aus dem Speicher neu rendern. Das State-<script>
+    // bleibt in der exportierten Datei erhalten — ein Reload würde sonst erneut
+    // hydratisieren und in eine Endlosschleife laufen.
+    try { load(); renderList(); showView('list'); } catch (_) {}
   };
 
   // localStorage nutzbar? (privater Modus / deaktivierte Website-Daten blockieren es)
