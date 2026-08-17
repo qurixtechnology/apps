@@ -85,7 +85,7 @@
       setReset: 'Auf gesetzliche Standardwerte zurücksetzen',
       disclaimer: 'Hinweis: Alle Beträge sind Richtwerte ohne Gewähr. Verpflegungs- und Übernachtungspauschalen sind Jahreswerte (BMF); bitte gegen das aktuelle BMF-Schreiben prüfen. Für dieselbe auswärtige Tätigkeitsstätte gilt die Verpflegungspauschale nur für die ersten drei Monate.',
       secReceipts: 'Belege', importReceipt: '＋ Beleg importieren (PDF/Foto)', dropOr: 'oder Datei hierher ziehen',
-      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Gespeichert werden nur die erkannten Werte und der Dateiname als Referenz — die Datei selbst wird standardmäßig nicht abgelegt (schont den Speicher). Anzeigen geht per Klick auf 📎 (hier direkt und in jeder Position); nach einem Neuladen wählst du eine nicht behaltene Datei einmalig neu. Beim Bearbeiten einer Position kannst du „Beleg behalten" ankreuzen, um genau diese Datei mitzuspeichern.',
+      receiptHint: 'PDF, Foto oder Scan — Beträge und Daten werden automatisch erkannt. Erste Erkennung lädt einmalig die Lese-Bibliothek (Internet nötig). Erkannte Werte, der Dateiname (📎) und standardmäßig auch die Datei selbst werden gespeichert (lokal in IndexedDB) — so lässt sich der Beleg per Klick auf 📎 auch nach einem Neuladen direkt anzeigen. Beim Import kannst du „Belege behalten" abwählen, um nur die Referenz zu speichern (Speicher sparen); eine nicht behaltene Datei wird beim Anzeigen bei Bedarf neu ausgewählt.',
       receiptsEmpty: 'Noch keine Belege importiert.',
       readingPdf: 'PDF wird gelesen …', readingOcr: 'Text wird erkannt (OCR) … {pct}%', analysing: 'Beleg wird ausgewertet …',
       importFailed: 'Beleg konnte nicht gelesen werden: {msg}',
@@ -122,6 +122,8 @@
       posPayer: 'Bezahlt von', payerSelf: 'Selbst', payerCompany: 'Firma', payerCompanyShort: 'Firma',
       payerCompanyHint: 'Von der Firma getragen — wird dir nicht erstattet, zählt aber zu den Gesamtkosten.',
       sumFirma: 'davon Firma bezahlt', sumErstattung: 'Erstattung an dich', thPayer: 'Bezahlt von',
+      batchKeepTitle: 'Belege speichern', batchKeep: 'Belege behalten (auch nach Neuladen direkt anzeigbar)',
+      batchKeepHint: 'Standardmäßig aktiv: Die Dateien werden lokal mitgespeichert. Zum Sparen von Speicher abwählen — dann bleibt nur der Dateiname als Referenz und die Datei wird beim Anzeigen bei Bedarf neu ausgewählt.',
     },
     en: {
       appTitle: 'Travel Expenses', appSubtitle: 'German travel-expense rules — calculated automatically.',
@@ -165,7 +167,7 @@
       setReset: 'Reset to statutory defaults',
       disclaimer: 'Note: all amounts are guideline values without warranty. Meal and accommodation flat rates are annual (BMF); please verify against the current BMF publication. For the same external workplace the meal allowance applies only for the first three months.',
       secReceipts: 'Receipts', importReceipt: '＋ Import receipt (PDF/photo)', dropOr: 'or drag a file here',
-      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). Only the detected values and the file name (as a reference) are stored — by default the file itself is not kept (saves storage). Tap 📎 to view (here and on every position); after a reload a non-kept file is picked once more. While editing a position you can tick “Keep receipt" to store that one file with the trip.',
+      receiptHint: 'PDF, photo or scan — amounts and dates are detected automatically. The first detection loads the reader library once (internet needed). The detected values, the file name (📎) and by default the file itself are stored (locally in IndexedDB) — so a receipt can be viewed directly via 📎 even after a reload. On import you can untick “Keep receipts" to store only the reference (to save storage); a non-kept file is picked again when you view it.',
       receiptsEmpty: 'No receipts imported yet.',
       readingPdf: 'Reading PDF …', readingOcr: 'Recognising text (OCR) … {pct}%', analysing: 'Analysing receipt …',
       importFailed: 'Could not read the receipt: {msg}',
@@ -202,6 +204,8 @@
       posPayer: 'Paid by', payerSelf: 'Myself', payerCompany: 'Company', payerCompanyShort: 'Company',
       payerCompanyHint: 'Paid by the company — not reimbursed to you, but still part of the total cost.',
       sumFirma: 'of which company-paid', sumErstattung: 'Reimbursement to you', thPayer: 'Paid by',
+      batchKeepTitle: 'Store receipts', batchKeep: 'Keep receipts (viewable directly after reload)',
+      batchKeepHint: 'On by default: the files are stored locally. Untick to save storage — only the file name is kept as a reference and the file is picked again when you view it.',
     },
   });
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
@@ -894,7 +898,8 @@
   function periodText(pr) { return !pr ? t('noPeriod') : (pr.d0 === pr.d1 ? fmtDate(pr.d0) : fmtDate(pr.d0) + ' – ' + fmtDate(pr.d1)); }
 
   // Aus einem erkannten Beleg eine Kosten-Position bauen. Der Dateiname wird als
-  // Referenz behalten, die Datei selbst NICHT gespeichert (Referenz-only).
+  // Referenz behalten; die Datei selbst wird beim Import standardmäßig mitgespeichert
+  // (fileId wird im Auswahl-Panel gesetzt), außer man wählt „Belege behalten" dort ab.
   function positionFromReceipt(item) {
     const p = item.parsed, kind = kindForType(p.type);
     let bez = p.type === 'hotel' ? t('catUeb') : (p.type === 'bahn' || p.type === 'oepnv') ? typeLabelOf(p.type) : (item.fileName || t('typeUnknown')).replace(/\.[^.]+$/, '');
@@ -981,12 +986,20 @@
         '<label class="rk-batch-item"><input type="checkbox" data-sug="breakfast" checked><span>' + esc(t('suggBreakfast')) + '</span></label>'
       : '';
 
+    // Belege standardmäßig behalten (in IndexedDB) — optional hier abwählen.
+    const anyFile = items.some((it) => it.file);
+    const keepSection = anyFile
+      ? '<div class="rk-batch-sub">' + esc(t('batchKeepTitle')) + '</div>' +
+        '<label class="rk-batch-item"><input type="checkbox" data-keep checked><span>' + esc(t('batchKeep')) + '</span></label>' +
+        '<div class="rk-batch-hint">' + esc(t('batchKeepHint')) + '</div>'
+      : '';
+
     ov.innerHTML =
       '<div class="rk-modal rk-modal-cross" role="dialog" aria-modal="true">' +
         '<div class="rk-modal-head"><div><h3>' + esc(items.length > 1 ? t('batchTitle') : t('batchOne')) + '</h3>' +
           '<p class="rk-modal-sub">' + esc(t('batchSub', { n: items.length })) + '</p></div>' +
           '<button class="rk-icon-btn rk-modal-x" data-x aria-label="✕">✕</button></div>' +
-        '<div class="rk-batch-list">' + rows + '</div>' + periodSection + breakfastSection +
+        '<div class="rk-batch-list">' + rows + '</div>' + periodSection + breakfastSection + keepSection +
         '<div class="rk-modal-actions">' +
           '<button class="qrx-btn" data-x>' + esc(t('dismiss')) + '</button>' +
           '<button class="qrx-btn qrx-btn-primary" data-apply>' + esc(t('applyBatch')) + '</button>' +
@@ -1003,10 +1016,20 @@
       const it = items[+b.getAttribute('data-vi')];
       if (it && it.file) openBelegFile(it.file);
     }));
-    ov.querySelector('[data-apply]').addEventListener('click', () => {
+    ov.querySelector('[data-apply]').addEventListener('click', async () => {
+      const keepEl = ov.querySelector('input[data-keep]');
+      const keep = keepEl ? keepEl.checked : false;   // Belege standardmäßig behalten
       const checked = [];
       ov.querySelectorAll('input[type="checkbox"][data-i]').forEach((cb) => { if (cb.checked) checked.push(items[+cb.getAttribute('data-i')]); });
-      checked.forEach((it) => tp.positions.push(positionFromReceipt(it)));
+      let keepFail = 0;
+      for (const it of checked) {
+        const pos = positionFromReceipt(it);
+        if (keep && it.file) {   // Datei mitspeichern (IndexedDB) → nach Neuladen direkt anzeigbar
+          const fid = 'f' + pos.id;
+          try { await idbPut(fid, it.file, it.fileName); pos.fileId = fid; } catch (_) { keepFail++; }
+        }
+        tp.positions.push(pos);
+      }
       // Gewählten Reisezeitraum setzen (überschreibt bewusst, wenn ein Kandidat gewählt wurde).
       const sel = ov.querySelector('input[name="rk-period"]:checked');
       if (sel && sel.value !== 'keep') {
@@ -1020,6 +1043,7 @@
       }
       close();
       renderEdit();
+      if (keepFail) { try { alert(t('keepFailed')); } catch (_) {} }
     });
   }
 
