@@ -211,35 +211,55 @@
   const num = (v) => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isNaN(n) ? 0 : n; };
 
   // ---------------------------------------------------------------- Persistenz
-  // Beleg-Dateien (base64) liegen NICHT in der Reisen-JSON, sondern je Datei in
-  // einem eigenen localStorage-Key. So bleibt die Reisenliste klein und wird auch
-  // bei knappem Speicher (mobil) zuverlässig gesichert; Dateien sind best-effort.
+  // Reisen/Einstellungen liegen klein in localStorage. Behaltene Beleg-Dateien
+  // liegen NICHT in der Reisen-JSON, sondern als Blob in IndexedDB (großes
+  // Kontingent, kein Base64-Aufschlag) — so bleibt die Reisenliste klein und wird
+  // auch bei knappem Speicher (mobil) zuverlässig gesichert; Dateien sind best-effort.
   function load() {
     state.settings = Object.assign({}, DEFAULTS, store.getJSON(KEY_SETTINGS, {}));
     const trips = store.getJSON(KEY_TRIPS, []);
     state.trips = Array.isArray(trips) ? trips.map(normalizeTrip) : [];
-    purgeOrphanFileKeys();   // verwaiste Beleg-Dateien entfernen (nur behaltene bleiben)
+    initFiles();   // Legacy-Dateien nach IndexedDB migrieren + Verwaiste aufräumen (asynchron)
   }
   // fileIds aller aktuell referenzierten „behaltenen" Belege.
-  function referencedFileKeys() {
+  function referencedFileIds() {
     const set = new Set();
-    (state.trips || []).forEach((tp) => (tp.positions || []).forEach((p) => { if (p.fileId) set.add(storedFileKey(p.fileId)); }));
+    (state.trips || []).forEach((tp) => (tp.positions || []).forEach((p) => { if (p.fileId) set.add(String(p.fileId)); }));
     return set;
   }
-  // Beleg-Datei-Keys entfernen, die zu keiner Position mehr gehören (Legacy oder
-  // abgewähltes „behalten") — behaltene Dateien bleiben erhalten.
-  function purgeOrphanFileKeys() {
+  // Einmalige Migration alter localStorage-data-URL-Belege → IndexedDB (schont Speicher),
+  // danach verwaiste Dateien (LS-Legacy + IndexedDB) entfernen.
+  async function initFiles() {
+    // 1) Legacy-Dateien aus localStorage nach IndexedDB übernehmen
     try {
-      const keep = referencedFileKeys();
+      const legacy = [];
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(KEY_FILE_PREFIX) === 0) legacy.push(k); }
+      for (const k of legacy) {
+        const id = k.slice(KEY_FILE_PREFIX.length);
+        const durl = store.get(k, null);
+        if (!durl) { store.remove(k); continue; }
+        try { await idbPut(id, dataUrlToBlob(durl), null); store.remove(k); } catch (_) {}
+      }
+    } catch (_) {}
+    // 2) Verwaiste Dateien entfernen (nicht mehr referenzierte fileIds)
+    await purgeOrphanFiles();
+  }
+  async function purgeOrphanFiles() {
+    const keep = referencedFileIds();
+    try {
       const del = [];
-      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(KEY_FILE_PREFIX) === 0 && !keep.has(k)) del.push(k); }
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(KEY_FILE_PREFIX) === 0 && !keep.has(k.slice(KEY_FILE_PREFIX.length))) del.push(k); }
       del.forEach((k) => store.remove(k));
+    } catch (_) {}
+    try {
+      const ids = await idbKeys();
+      for (const id of ids) { if (!keep.has(String(id))) { try { await idbDelete(id); } catch (_) {} } }
     } catch (_) {}
   }
   function persistTrips() {
     const ok = store.setJSON(KEY_TRIPS, state.trips);
     if (!ok) { try { alert(t('storageBlocked')); } catch (_) {} }
-    purgeOrphanFileKeys();   // verwaiste Beleg-Dateien aufräumen
+    purgeOrphanFiles();   // verwaiste Beleg-Dateien aufräumen (asynchron, best effort)
     return ok;
   }
   function saveSettings() { store.setJSON(KEY_SETTINGS, state.settings); }
@@ -285,9 +305,9 @@
       const q = Object.assign({ id: newId(), kind: 'neben', bez: '', mode: 'betrag', betrag: 0, payer: 'self' }, p);
       if (q.payer !== 'company') q.payer = 'self';
       // Dateiname (Referenz) und fileId (behaltener Beleg) behalten; alte inline-Felder verwerfen.
+      // Die Existenz der Datei (IndexedDB) wird asynchron beim Anzeigen geprüft; fehlt sie,
+      // wird beim Klick einmalig neu ausgewählt.
       delete q.dataUrl; delete q.mime; delete q.tooBig; delete q.method;
-      // fileId nur behalten, wenn die zugehörige Datei wirklich (noch) gespeichert ist.
-      if (q.fileId && store.get(storedFileKey(q.fileId), null) == null) delete q.fileId;
       return q;
     });
     // Alt-Felder nicht weiterschleppen
@@ -657,7 +677,7 @@
       if (e.target.closest('[data-view-beleg]') && draft.belegName) viewBeleg(draft);
     });
     ov.querySelector('[data-del]').addEventListener('click', () => {
-      if (draft.fileId) store.remove(storedFileKey(draft.fileId));
+      if (draft.fileId) removeStoredFile(draft.fileId);
       state.current.positions.splice(idx, 1); done();
     });
     ov.querySelector('[data-save]').addEventListener('click', async () => {
@@ -665,23 +685,31 @@
       state.current.positions[idx] = draft;
       done();
     });
-    // „Beleg behalten" umsetzen: Datei speichern bzw. gespeicherte Datei entfernen.
+    // „Beleg behalten" umsetzen: Datei in IndexedDB speichern bzw. entfernen.
     async function commitKeep() {
-      if (!draft.belegName) { if (draft.fileId) { store.remove(storedFileKey(draft.fileId)); delete draft.fileId; } return; }
+      if (!draft.belegName) { if (draft.fileId) { await removeStoredFile(draft.fileId); delete draft.fileId; } return; }
       if (keepWanted) {
-        if (draft.fileId && !pickedFile && store.get(storedFileKey(draft.fileId), null) != null) return; // schon gespeichert
+        if (draft.fileId && !pickedFile) {   // schon gespeichert?
+          try { const rec = await idbGet(draft.fileId); if (rec && rec.blob) return; } catch (_) {}
+          if (store.get(storedFileKey(draft.fileId), null) != null) return;   // Legacy
+        }
         const file = pickedFile || sessionFiles.get(draft.belegName);
         if (!file) return; // keine Datei verfügbar → nicht als behalten markieren
         const fid = draft.fileId || ('f' + draft.id);
         try {
-          const durl = await fileToDataUrl(file);
-          if (store.set(storedFileKey(fid), durl)) draft.fileId = fid;
-          else { try { alert(t('keepFailed')); } catch (_) {} delete draft.fileId; }
-        } catch (_) { try { alert(t('keepFailed')); } catch (_) {} }
+          await idbPut(fid, file, draft.belegName);
+          draft.fileId = fid;
+          store.remove(storedFileKey(fid));   // evtl. Legacy-data-URL ablösen
+        } catch (_) { try { alert(t('keepFailed')); } catch (_) {} delete draft.fileId; }
       } else if (draft.fileId) {
-        store.remove(storedFileKey(draft.fileId)); delete draft.fileId;
+        await removeStoredFile(draft.fileId); delete draft.fileId;
       }
     }
+  }
+  // Behaltene Datei entfernen (IndexedDB + evtl. Legacy-localStorage).
+  async function removeStoredFile(id) {
+    try { await idbDelete(id); } catch (_) {}
+    try { store.remove(storedFileKey(id)); } catch (_) {}
   }
   function ensurePosDefaults(p) {
     if (p.mode === 'km') { if (p.ratePerKm == null || p.ratePerKm === '') p.ratePerKm = num(state.settings.kmCar); if (p.km == null) p.km = 0; }
@@ -719,11 +747,55 @@
   // Inline-Einbettung).
   //
   // Optional kann eine einzelne Position „Beleg behalten": dann wird genau diese Datei
-  // in einem eigenen localStorage-Key (reisekosten_file_<fileId>) als data-URL abgelegt
-  // und lässt sich auch nach einem Neuladen ohne erneutes Auswählen anzeigen. Nicht
-  // behaltene Belege werden nach einem Reload beim ersten Anzeigen einmalig neu gewählt.
+  // als Blob in IndexedDB (Schlüssel = fileId) abgelegt und lässt sich auch nach einem
+  // Neuladen ohne erneutes Auswählen direkt anzeigen. Nicht behaltene Belege werden nach
+  // einem Reload beim ersten Anzeigen einmalig neu gewählt. (Frühere data-URL-Belege in
+  // localStorage werden beim Laden automatisch nach IndexedDB migriert.)
   const sessionFiles = new Map();
   const storedFileKey = (id) => KEY_FILE_PREFIX + id;
+
+  // ---- IndexedDB für behaltene Belege (Blobs, großes Kontingent, kein Base64) ----
+  const IDB_NAME = 'reisekosten', IDB_STORE = 'belege';
+  let _idb = null;
+  function idbOpen() {
+    if (_idb) return _idb;
+    _idb = new Promise((resolve, reject) => {
+      let req;
+      try { req = indexedDB.open(IDB_NAME, 1); } catch (e) { reject(e); return; }
+      req.onupgradeneeded = () => { const db = req.result; if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    _idb.catch(() => { _idb = null; });
+    return _idb;
+  }
+  function idbReq(req) { return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
+  async function idbPut(id, blob, name) {
+    const db = await idbOpen();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put({ blob, name: name || '', ts: Date.now() }, id);
+      tx.oncomplete = () => res(true); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  }
+  async function idbGet(id) { const db = await idbOpen(); return idbReq(db.transaction(IDB_STORE).objectStore(IDB_STORE).get(id)); }
+  async function idbDelete(id) {
+    const db = await idbOpen();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(id);
+      tx.oncomplete = () => res(true); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  }
+  async function idbKeys() { const db = await idbOpen(); return idbReq(db.transaction(IDB_STORE).objectStore(IDB_STORE).getAllKeys()); }
+  async function idbEntries() {
+    const db = await idbOpen();
+    const store1 = db.transaction(IDB_STORE).objectStore(IDB_STORE);
+    const keys = await idbReq(store1.getAllKeys());
+    const store2 = db.transaction(IDB_STORE).objectStore(IDB_STORE);
+    const vals = await idbReq(store2.getAll());
+    return keys.map((k, i) => ({ id: String(k), rec: vals[i] }));
+  }
 
   function fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -768,13 +840,15 @@
     document.body.appendChild(inp);
     inp.click();
   }
-  // Position anzeigen: 1) im Speicher, 2) behaltene Datei aus localStorage, 3) auswählen.
-  function viewBeleg(pos) {
+  // Position anzeigen: 1) im Speicher, 2) behaltene Datei aus IndexedDB (Legacy:
+  // localStorage-data-URL), 3) einmalig auswählen.
+  async function viewBeleg(pos) {
     if (!pos || !pos.belegName) return;
     const mem = sessionFiles.get(pos.belegName);
     if (mem) { openBelegFile(mem); return; }
     if (pos.fileId) {
-      const durl = store.get(storedFileKey(pos.fileId), null);
+      try { const rec = await idbGet(pos.fileId); if (rec && rec.blob) { openBelegFile(rec.blob); return; } } catch (_) {}
+      const durl = store.get(storedFileKey(pos.fileId), null);   // Legacy
       if (durl) { try { openBelegFile(dataUrlToBlob(durl)); } catch (_) { try { alert(t('viewFailed')); } catch (_) {} } return; }
     }
     pickBelegFile(pos.belegName);
@@ -1268,10 +1342,11 @@
 
   // ---------------------------------------------------------------- Snapshot
   // "Mit Daten exportieren" serialisiert ALLE reisekosten_*-Keys (Reisen,
-  // Einstellungen und die einzelnen Beleg-Dateien); hydrateState schreibt sie
-  // zurück und lädt einmal neu.
+  // Einstellungen) PLUS die behaltenen Belege aus IndexedDB (als data-URL unter
+  // reisekosten_file_<id>). hydrateState schreibt Reisen/Einstellungen nach
+  // localStorage und die Dateien zurück nach IndexedDB und lädt einmal neu.
   window.qurixApp = window.qurixApp || {};
-  window.qurixApp.serializeState = function () {
+  window.qurixApp.serializeState = async function () {
     const data = {};
     try {
       for (let i = 0; i < localStorage.length; i++) {
@@ -1279,15 +1354,27 @@
         if (k && k.indexOf(KEY_PREFIX) === 0) { const v = localStorage.getItem(k); if (v != null) data[k] = v; }
       }
     } catch (_) {}
+    // Behaltene Belege (IndexedDB) als data-URL beilegen, damit sie im Export enthalten sind.
+    try {
+      const entries = await idbEntries();
+      for (const e of entries) {
+        if (e.rec && e.rec.blob) { try { data[storedFileKey(e.id)] = await fileToDataUrl(e.rec.blob); } catch (_) {} }
+      }
+    } catch (_) {}
     return data;
   };
-  window.qurixApp.hydrateState = function (s) {
+  window.qurixApp.hydrateState = async function (s) {
     if (!s || typeof s !== 'object') return;
     let changed = false;
+    const idbWrites = [];
     Object.keys(s).forEach((k) => {
       if (k.indexOf(KEY_PREFIX) !== 0) return;
-      if (store.get(k) !== s[k]) { store.set(k, s[k]); changed = true; }
+      if (k.indexOf(KEY_FILE_PREFIX) === 0) {   // Datei → IndexedDB
+        const id = k.slice(KEY_FILE_PREFIX.length);
+        try { idbWrites.push(idbPut(id, dataUrlToBlob(s[k]), null)); changed = true; } catch (_) {}
+      } else if (store.get(k) !== s[k]) { store.set(k, s[k]); changed = true; }
     });
+    try { await Promise.all(idbWrites); } catch (_) {}
     if (changed) location.reload();
   };
 
