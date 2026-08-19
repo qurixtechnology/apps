@@ -149,6 +149,8 @@
       engineFailed: 'DuckDB could not be initialised',
       registering: 'Registering files …',
       filesFailed: 'Files could not be loaded',
+      structureOf: 'Structure of',
+      convertedCopy: 'the converted copy — not your {kind} file',
       attaching: 'Attaching DuckDB tables …',
       attachFailed: 'DuckDB tables could not be attached',
       readingMeta: 'Reading Parquet metadata …',
@@ -208,7 +210,7 @@
       connectWithDuckdb: 'Connect with DuckDB',
       dateienAuswahlen: 'Choose files',
       eineOderMehrereDateien: 'Drop one or more files here, or click to choose files',
-      parquetDateienLaden: 'Load Parquet files',
+      parquetDateienLaden: 'Load files',
       colTabOverview: 'Overview',
       colTabPatterns: 'Patterns',
     },
@@ -248,6 +250,8 @@
       engineFailed: 'DuckDB konnte nicht initialisiert werden',
       registering: 'Dateien werden registriert …',
       filesFailed: 'Dateien konnten nicht geladen werden',
+      structureOf: 'Struktur von',
+      convertedCopy: 'der umgewandelten Kopie — nicht deiner {kind}-Datei',
       attaching: 'DuckDB-Tabellen werden eingebunden …',
       attachFailed: 'DuckDB-Tabellen konnten nicht eingebunden werden',
       readingMeta: 'Parquet-Metadaten werden gelesen …',
@@ -307,7 +311,7 @@
       connectWithDuckdb: 'Connect with DuckDB',
       dateienAuswahlen: 'Dateien auswählen',
       eineOderMehrereDateien: 'Eine oder mehrere Dateien hier ablegen oder klicken, um Dateien auszuwählen',
-      parquetDateienLaden: 'Parquet-Dateien laden',
+      parquetDateienLaden: 'Dateien laden',
       colTabOverview: 'Übersicht',
       colTabPatterns: 'Muster',
     },
@@ -378,11 +382,12 @@
     return map[category] || map.other;
   }
 
-  function showError(title, detail) {
+  function showError(title, detail, href) {
     errorBox.innerHTML = `
       <div class="pp-error">
         <strong>${escapeHtml(title)}</strong>
         ${detail ? `<pre>${escapeHtml(detail)}</pre>` : ''}
+        ${href ? `<a class="pp-error-link" href="${escapeHtml(href)}">${escapeHtml(qrx.i18n.t('sourcePicker.converterLink'))} →</a>` : ''}
       </div>`;
   }
   function clearError() { errorBox.innerHTML = ''; }
@@ -482,7 +487,8 @@
 
   // Derive a safe, unique SQL view name (and VFS filename) from a file name.
   function makeAlias(fileName, taken) {
-    let base = String(fileName).replace(/\.parquet$/i, '').toLowerCase()
+    // Any extension, not just .parquet — the profiler reads CSV and JSON too now.
+    let base = String(fileName).replace(/\.[^.]*$/, '').toLowerCase()
       .replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
     if (!base) base = 'file';
     if (/^[0-9]/.test(base)) base = 't_' + base;
@@ -495,7 +501,17 @@
     return state.files.find(f => f.id === state.activeFileId) || null;
   }
 
-  // Register one or more new files (does NOT replace existing ones).
+  // Register one or more new sources (does NOT replace existing ones).
+  //
+  // qrx.source does the reading: a Parquet is registered as a lazy handle and
+  // keeps its real footer, everything else is rewritten to Parquet once. Either
+  // way what lands in the VFS is a Parquet file, which is why every footer query
+  // below stayed exactly as it was — `PARQUET_SQL` is still just a path.
+  //
+  // What DOES change is the meaning: on a rewritten source the footer describes
+  // OUR copy, so `rec.normalized` gates the structure display. Presenting
+  // DuckDB's writer defaults as the user's file would be worse than showing
+  // nothing, in the one app whose whole point is structural analysis.
   async function addFiles(fileList) {
     const incoming = Array.from(fileList || []).filter(Boolean);
     if (!incoming.length) return;
@@ -504,50 +520,77 @@
     showLoading(t('registering'));
     try {
       await initDuckDB();
-      const FR = state.duckdb.DuckDBDataProtocol.BROWSER_FILEREADER;
       const taken = new Set(['data']);   // reserve the convenience-view name
       for (const f of state.files) taken.add(f.alias);
       let firstNewId = null;
+      const failed = [];
+      let needConverter = false;
 
       for (const file of incoming) {
+        // Decide before touching memory: an unreadable format or an oversized
+        // in-browser rewrite becomes a message pointing at the converter, never
+        // an out-of-memory crash. Parquet is lazy and always passes.
+        let pf;
+        try { pf = await qrx.source.preflight(file); }
+        catch (e) { failed.push((e && e.message) ? e.message : String(e)); continue; }
+        if (pf.decision === 'block') {
+          failed.push(pf.message);
+          if (pf.recommendConverter) needConverter = true;
+          continue;
+        }
+        if (pf.decision === 'confirm' && !await qrx.ui.confirmLargeFile(file)) continue;
+
+        let desc;
+        try {
+          desc = await qrx.source.open(file, { kind: pf.kind, onStatus: (m) => { if (m) showLoading(m); }, pickTable: qrx.ui.tablePicker });
+        } catch (e) {
+          if (e && e.code === 'cancelled') continue;   // user closed the table picker
+          // One unreadable file among several must not lose the others.
+          failed.push((e && e.message) ? e.message : String(e));
+          continue;
+        }
         const id = 'f' + (fileSeq++);
         const alias = makeAlias(file.name, taken);
         taken.add(alias);
-        const vfsName = alias + '.parquet';   // friendly VFS path mirrors the alias
-
-        try { await state.db.dropFile(vfsName); } catch (e) { /* ignore */ }
-        // Lazy, range-read registration — minimal memory footprint.
-        await state.db.registerFileHandle(vfsName, file, FR, true);
 
         // Per-file view so SQL users can `FROM alias` and join across files.
         try {
-          await runQuery(`CREATE OR REPLACE VIEW ${quoteIdent(alias)} AS SELECT * FROM '${vfsName}'`);
+          await runQuery(`CREATE OR REPLACE VIEW ${quoteIdent(alias)} AS SELECT * FROM ${desc.from}`);
         } catch (e) { console.warn('view create failed for', alias, e); }
 
-        // Cheap footer-only row count for the list display.
-        let rows = null;
-        try {
-          const m = rowsFromQuery(await runQuery(
-            `SELECT num_rows FROM parquet_file_metadata('${vfsName}')`));
-          if (m[0] && m[0].num_rows != null) rows = Number(m[0].num_rows);
-        } catch (e) { /* leave null on error */ }
-
-        const rec = { id, name: file.name, size: file.size, vfsName, alias, handle: file,
-                      rows, profiled: false, mode: 'handle' };
+        const rec = { id, name: file.name, size: file.size, vfsName: desc.vfsName, alias,
+                      handle: desc.handle, rows: desc.rows, profiled: false,
+                      // A rewritten source already sits in the WASM heap as our
+                      // Parquet; re-registering it from the original File would
+                      // put the CSV bytes under a .parquet name.
+                      mode: desc.normalized ? 'buffer' : 'handle',
+                      // An ATTACHed DuckDB/SQLite file has no Parquet footer and must
+                      // not be re-registered (that would break the attachment). Route
+                      // it through the same footer-less path a DuckDB-server table uses.
+                      kind: desc.attached ? 'duckdb' : undefined,
+                      sqlRef: desc.attached ? desc.from : undefined,
+                      source: desc, normalized: desc.normalized, format: desc.kind,
+                      warnings: desc.warnings.slice() };
         state.files.push(rec);
         if (firstNewId === null) firstNewId = id;
       }
 
       hideLoading();
+      // Rejected files (unsupported / too large) are shown with a converter
+      // link rather than thrown, so the recommendation survives even when the
+      // very first drop is a single unreadable file.
+      if (failed.length) showError(t('filesFailed'), failed.join(' '), needConverter ? 'table-format-converter.html' : null);
 
-      if (!state.activeFileId) {
-        // First file(s) ever — reveal the workspace and profile the first one.
-        await setActiveFile(firstNewId);
-      } else {
-        // Already profiling a file; just refresh the list + SQL helper.
-        renderFileList();
-        rebuildSqlExamples();
-        renderSqlTables();
+      if (firstNewId !== null) {
+        if (!state.activeFileId) {
+          // First file(s) ever — reveal the workspace and profile the first one.
+          await setActiveFile(firstNewId);
+        } else {
+          // Already profiling a file; just refresh the list + SQL helper.
+          renderFileList();
+          rebuildSqlExamples();
+          renderSqlTables();
+        }
       }
     } catch (e) {
       console.error(e);
@@ -664,13 +707,20 @@
   }
   // Ensure registration matches the toggle: active file buffered iff bufferActive,
   // every other file back to a lazy handle so its RAM is released.
+  //
+  // A rewritten source is exempt: its Parquet already lives in the WASM heap and
+  // rec.handle still points at the ORIGINAL file (a CSV, say). Re-registering
+  // that under the .parquet VFS name would put CSV bytes where every footer
+  // query expects Parquet.
+  const canRegister = (f) => f && f.kind !== 'duckdb' && !f.normalized;
+
   async function applyRegistrationModes(activeId) {
     for (const f of state.files) {
-      if (f.kind === 'duckdb') continue;   // server table: nothing registered locally
+      if (!canRegister(f)) continue;
       if (f.id !== activeId && f.mode === 'buffer') await registerAsHandle(f);
     }
     const act = state.files.find(f => f.id === activeId);
-    if (!act || act.kind === 'duckdb') return;
+    if (!canRegister(act)) return;
     if (state.bufferActive) await registerAsBuffer(act);
     else await registerAsHandle(act);
   }
@@ -799,7 +849,8 @@
     try { await runQuery(`DROP VIEW IF EXISTS ${quoteIdent(rec.alias)}`); } catch (e) { /* ignore */ }
     // a DuckDB-server source is a materialised table, not a view
     try { await runQuery(`DROP TABLE IF EXISTS ${quoteIdent(rec.alias)}`); } catch (e) { /* ignore */ }
-    try { await state.db.dropFile(rec.vfsName); } catch (e) { /* ignore */ }
+    if (rec.source) await qrx.source.release(rec.source);
+    else { try { await state.db.dropFile(rec.vfsName); } catch (e) { /* ignore */ } }
     state.files.splice(idx, 1);
 
     if (state.activeFileId === id) {
@@ -1004,6 +1055,14 @@
 
     const items = [];
     items.push([t('fileSize'), formatBytes(state.fileMeta.size)]);
+    // On a rewritten source everything below comes from the Parquet WE wrote:
+    // row groups, compression and the writer string are DuckDB's defaults, not
+    // a property of the file the user dropped. Say so instead of implying it.
+    const activeRec = activeFileRec();
+    if (activeRec && activeRec.normalized) {
+      items.push([t('structureOf'),
+        t('convertedCopy', { kind: qrx.source.LABELS[activeRec.format] || activeRec.format })]);
+    }
     if (compressed) {
       items.push([t('compressed'),
         `${formatBytes(compressed)}${compressionRatio ? ` (${compressionRatio.toFixed(2)}\u00D7)` : ''}`]);
@@ -4130,9 +4189,11 @@
   qrx.ui.dropzone(dropZone, {
     input: fileInput,
     multiple: true,
-    accept: '.parquet,application/octet-stream',
+    accept: qrx.source.ACCEPT,
     activeClass: 'pp-drag-active',
     extraTargets: [statusSection],      // the file-list panel accepts drops too
+    // addFiles() opens each file through qrx.source itself — it has to, because
+    // several files arrive at once and one bad file must not lose the rest.
     onFiles: (files) => addFiles(files),
   });
 

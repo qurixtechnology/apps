@@ -4,8 +4,8 @@
   "theme": "qurix",
   "output": "parquet-validator.html",
   "card": {
-    "description": "Prüft eine Datei gegen einen Regelsatz — vollständig im Browser. Regeln je Spalte (nicht null, eindeutig, erlaubte Werte, Wertebereich, Länge, Regex, dominantes Muster, Typ, Referenz) oder eigenes SQL; der Bericht zeigt pro Regel die Verstöße mit Absprung in die konkreten Zeilen. Der Regelsatz ist als JSON portabel — einmal definieren, jeden Export erneut prüfen.",
-    "description_en": "Validate a file against a ruleset — entirely in the browser. Per-column rules (not null, unique, allowed values, range, length, regex, dominant pattern, type, reference) or custom SQL; the report shows each rule's violations with a jump into the offending rows. The ruleset is portable JSON — define once, re-check every export.",
+    "description": "Prüft eine Datei (Parquet, CSV, JSON, NDJSON) gegen einen Regelsatz — vollständig im Browser. Regeln je Spalte (nicht null, eindeutig, erlaubte Werte, Wertebereich, Länge, Regex, dominantes Muster, Typ, Referenz) oder eigenes SQL; der Bericht zeigt pro Regel die Verstöße mit Absprung in die konkreten Zeilen. Der Regelsatz ist als JSON portabel — einmal definieren, jeden Export erneut prüfen.",
+    "description_en": "Validate a file (Parquet, CSV, JSON, NDJSON) against a ruleset — entirely in the browser. Per-column rules (not null, unique, allowed values, range, length, regex, dominant pattern, type, reference) or custom SQL; the report shows each rule's violations with a jump into the offending rows. The ruleset is portable JSON — define once, re-check every export.",
     "tags": [
       "Parquet",
       "Validierung",
@@ -22,6 +22,8 @@
     "../../shared/qrx-core.js",
     "../../shared/qrx-i18n.js",
     "../../shared/qrx-duckdb.js",
+    "../../shared/qrx-source.js",
+    "../../shared/qrx-source-ext.js",
     "../../shared/qrx-test.js",
     "../../shared/duckdb-server.js",
     "../../shared/qrx-patterns.js",

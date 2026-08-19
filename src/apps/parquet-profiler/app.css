@@ -1026,6 +1026,11 @@ body.pp-fullscreen .pp-sql-result {
   background: var(--qrx-bg); padding: var(--qrx-s-2) var(--qrx-s-3);
   border-radius: var(--qrx-radius-sm); white-space: pre-wrap; overflow-x: auto;
 }
+.pp-error-link {
+  display: inline-block; margin-top: var(--qrx-s-3); font-weight: 600;
+  color: var(--qrx-primary); text-decoration: none;
+}
+.pp-error-link:hover { text-decoration: underline; }
 
 /* Static-snapshot mode ("Export with data" reopened without the source file):
    the data frozen in the DOM stays browsable, but live controls inside the tab

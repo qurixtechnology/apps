@@ -1,7 +1,7 @@
     <h2>Parquet Profiler</h2>
     <p>
       Eine browserbasierte Anwendung zur strukturellen und statistischen Analyse von
-      Parquet-Dateien. Die Verarbeitung erfolgt vollständig <strong>lokal</strong> im Browser
+      tabellarischer Dateien — Parquet, CSV, JSON und NDJSON. Die Verarbeitung erfolgt vollständig <strong>lokal</strong> im Browser
       über DuckDB-WASM &mdash; es findet keine Datenübertragung an einen Server statt.
       Dateien werden standardmäßig <strong>referenziert</strong> statt komplett geladen:
       DuckDB liest nur die tatsächlich benötigten Bytebereiche, sodass auch mehrere große
@@ -10,7 +10,7 @@
 
     <h3>Workflow</h3>
     <ol>
-      <li>Eine oder mehrere Parquet-Dateien per Drag &amp; Drop oder Dateiauswahl laden.
+      <li>Eine oder mehrere Dateien per Drag &amp; Drop oder Dateiauswahl laden. Parquet wird direkt gelesen; CSV, JSON und NDJSON werden einmalig nach Parquet umgeschrieben — die Strukturangaben beschreiben dann diese Kopie, was die App auch so kennzeichnet.
           Bei mehreren Dateien wird die markierte Datei profiliert; ein Klick wechselt die aktive Datei.</li>
       <li>
         Die <strong>Datei-Metadaten</strong> (Zeilen, Spalten, Row Groups, Kompression,

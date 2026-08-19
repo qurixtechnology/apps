@@ -53,6 +53,7 @@
   // ---- State ----
   const state = {
     file: null, fileSize: 0, duckFile: null,
+    source: null,         // the qrx.source descriptor behind the view `original`
     loaded: false,        // a source is bound to view `original` (file OR DuckDB server)
     remote: null,         // {uri, table} when the source is a DuckDB server table
     schema: [],            // original columns [{name,type,typeClass}]
@@ -172,7 +173,9 @@
       columnToAnalyze: 'Column to analyze',
       piiScanSource: 'PII scan source',
       protectionLevel: 'Protection level',
-      dropAParquetFile: 'Drop a Parquet file here or click to pick one',
+      dropAParquetFile: 'Drop a file here or click to pick one',
+      readingSchema: 'Reading schema…',
+      loadFailed: 'Could not read this file: {msg}',
       exportToDuckdb: 'Export to DuckDB…',
       exportCleanedParquet: 'Export cleaned Parquet',
       export: 'Export',
@@ -243,8 +246,8 @@
       writesTheCleanedResult: 'Writes the cleaned result — all applied rules included — to a table on the DuckDB server.',
       exportToDuckdb2: 'Export to DuckDB',
       connectWithDuckdb: 'Connect with DuckDB',
-      parquetParquetPqEverything: 'Parquet (.parquet / .pq) · everything runs locally in your browser — no upload',
-      dropAParquetFile2: 'Drop a Parquet file here, or click to pick one',
+      parquetParquetPqEverything: 'Parquet · CSV · JSON · Excel · SQLite · DuckDB · Markdown · HTML · runs locally — no upload',
+      dropAParquetFile2: 'Drop a file here, or click to pick one',
     },
     de: {
       step: 'Schritt',
@@ -294,7 +297,9 @@
       columnToAnalyze: 'Zu analysierende Spalte',
       piiScanSource: 'Quelle für die PII-Suche',
       protectionLevel: 'Schutzstufe',
-      dropAParquetFile: 'Parquet-Datei hier ablegen oder klicken, um eine auszuwählen',
+      dropAParquetFile: 'Datei hier ablegen oder klicken, um eine auszuwählen',
+      readingSchema: 'Schema wird gelesen…',
+      loadFailed: 'Die Datei konnte nicht gelesen werden: {msg}',
       exportToDuckdb: 'Nach DuckDB exportieren …',
       exportCleanedParquet: 'Bereinigtes Parquet exportieren',
       export: 'Export',
@@ -364,8 +369,8 @@
       writesTheCleanedResult: 'Schreibt das bereinigte Ergebnis — inklusive aller angewandten Regeln — in eine Tabelle auf dem DuckDB-Server.',
       exportToDuckdb2: 'Nach DuckDB exportieren',
       connectWithDuckdb: 'Mit DuckDB verbinden',
-      parquetParquetPqEverything: 'Parquet (.parquet / .pq) · läuft vollständig lokal im Browser — kein Upload',
-      dropAParquetFile2: 'Parquet-Datei hier ablegen oder klicken, um eine auszuwählen',
+      parquetParquetPqEverything: 'Parquet · CSV · JSON · Excel · SQLite · DuckDB · Markdown · HTML · lokal im Browser — kein Upload',
+      dropAParquetFile2: 'Datei hier ablegen oder klicken, um eine auszuwählen',
       removeExactDuplicates: 'Exakte Duplikatzeilen entfernen',
     },
   });
@@ -1448,9 +1453,15 @@
   }
 
   // ---- Load / reset ----
-  async function loadFile(file) {
+  // The format is qrx.source's problem: Parquet comes through untouched, CSV /
+  // JSON / NDJSON are rewritten to Parquet once on the way in. What arrives
+  // here is always a Parquet expression — which is what keeps `original` a
+  // VIEW. Bound to a raw CSV the same view would re-parse the whole file on
+  // every rule change, and this app recomputes after every edit.
+  const SRC_ICONS = { parquet: 'PRQ', csv: 'CSV', json: 'JSN', ndjson: 'NDJ' };
+
+  async function loadSource(desc) {
     try {
-      setStatus('Loading DuckDB engine…');
       await initDuckDB();
       // tear down any previous source
       try { await conn.query('DROP VIEW IF EXISTS cleaned'); } catch (_) {}
@@ -1458,20 +1469,31 @@
       // DuckDB-server source — drop whichever exists.
       try { await conn.query('DROP VIEW IF EXISTS original'); } catch (_) {}
       try { await conn.query('DROP TABLE IF EXISTS original'); } catch (_) {}
-      if (state.duckFile) { try { await db.dropFile(state.duckFile); } catch (_) {} }
-      state.file = file; state.fileSize = file.size; state.remote = null; state.loaded = false;
+      if (state.source && state.source !== desc) await qrx.source.release(state.source);
+      state.source = desc;
+      state.file = desc.handle; state.fileSize = desc.bytes; state.remote = null; state.loaded = false;
       state.pipeline = []; state.page = 0; state.view = 'original'; state.cleanedSig = null; state.colWidths = {};
       resetReview();
-      const vname = `input_${Date.now()}_` + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      state.duckFile = vname;
-      setStatus('Registering file…');
-      await db.registerFileHandle(vname, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
-      setStatus('Reading schema…');
-      await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM read_parquet('${sqlEscape(vname)}')`);
-      await finalizeSource('PRQ', file.name, `Parquet · ${fmtBytes(file.size)}`);
+      setStatus(t('readingSchema'));
+      await conn.query(`CREATE OR REPLACE VIEW original AS SELECT * FROM ${desc.from}`);
+      const label = desc.normalized
+        ? `${qrx.source.LABELS[desc.kind] || desc.kind} → Parquet` : 'Parquet';
+      await finalizeSource(SRC_ICONS[desc.kind] || 'PRQ', desc.name, `${label} · ${fmtBytes(desc.bytes)}`);
+      if (desc.warnings.length) setStatus(desc.warnings.join(' '), 'warn');
     } catch (err) {
       console.error(err);
-      setStatus('Could not read this Parquet file: ' + (err && err.message ? err.message : String(err)), 'error');
+      setStatus(t('loadFailed', { msg: (err && err.message) ? err.message : String(err) }), 'error');
+    }
+  }
+
+  // Kept for anything that still hands over a raw File (the test hook does).
+  async function loadFile(file) {
+    try {
+      await initDuckDB();
+      const desc = await qrx.source.open(file, { onStatus: setStatus });
+      await loadSource(desc);
+    } catch (err) {
+      setStatus((err && err.message) ? err.message : String(err), 'error');
     }
   }
   // Shared tail of every load path — the view `original` is already bound, so
@@ -1495,6 +1517,10 @@
   }
   function resetFile() {
     try { if (conn) { conn.query('DROP VIEW IF EXISTS cleaned'); conn.query('DROP VIEW IF EXISTS original'); conn.query('DROP TABLE IF EXISTS original'); } } catch (_) {}
+    if (state.source) {
+      const stale = state.source; state.source = null;
+      qrx.source.release(stale).catch(e => console.warn('cleaner: source release failed', e));
+    }
     if (state.duckFile && db) { try { db.dropFile(state.duckFile); } catch (_) {} }
     state.file = null; state.duckFile = null; state.schema = []; state.pipeline = [];
     state.loaded = false; state.remote = null;
@@ -2159,7 +2185,13 @@
   // Shared widget (src/shared/qrx-ui.js): drag-depth tracking, directory-safe
   // drop extraction, keyboard activation — and it ignores clicks on controls
   // inside the zone, so a button in there no longer opens the file dialog too.
-  qrx.ui.dropzone(dropzone, { input: filePicker, onFiles: (files) => loadFile(files[0]) });
+  qrx.ui.sourcePicker(dropzone, {
+    input: filePicker,
+    status: statusWidget,
+    multiple: true, combine: true,   // several same-type files → one dataset
+    converterHref: 'table-format-converter.html',
+    onSource: (desc) => loadSource(desc),
+  });
 
   addStepBtn.addEventListener('click', () => addStep(addStepSelect.value));
   saltInput.addEventListener('input', () => { state.salt = saltInput.value; scheduleRecompute(); });

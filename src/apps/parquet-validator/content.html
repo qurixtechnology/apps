@@ -7,10 +7,10 @@
 
     <!-- Drop zone (initial state) -->
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
-         data-qrx-i18n-aria-label="app.dropAria" aria-label="Parquet-Datei hier ablegen oder klicken">
-      <p class="dz-title" data-qrx-i18n="app.dropTitle">Parquet-Datei hier ablegen oder klicken</p>
-      <p class="dz-sub" data-qrx-i18n="app.dropFormats">Parquet — bis ~1 GB · oder eine DuckDB-Verbindung</p>
-      <input type="file" id="filePicker" hidden accept=".parquet,.pq">
+         data-qrx-i18n-aria-label="app.dropAria" aria-label="Datei hier ablegen oder klicken">
+      <p class="dz-title" data-qrx-i18n="app.dropTitle">Datei hier ablegen oder klicken</p>
+      <p class="dz-sub" data-qrx-i18n="app.dropFormats">Parquet · CSV · JSON · NDJSON — oder eine DuckDB-Verbindung</p>
+      <input type="file" id="filePicker" hidden multiple accept=".parquet,.pq,.csv,.tsv,.txt,.json,.ndjson,.jsonl">
       <div class="dz-actions">
         <button class="qrx-btn" id="srvConnectBtn" type="button"
                 data-qrx-i18n="app.connectBtn" data-qrx-i18n-title="app.connectBtnHint"
@@ -36,8 +36,8 @@
         </summary>
         <div class="v-card-body">
           <div id="refList" class="v-reflist"></div>
-          <input type="file" id="refPicker" hidden accept=".parquet,.pq">
-          <button class="qrx-btn qrx-btn-sm" id="addRefBtn" type="button" data-qrx-i18n="app.addRef">+ Referenz-Parquet</button>
+          <input type="file" id="refPicker" hidden accept=".parquet,.pq,.csv,.tsv,.txt,.json,.ndjson,.jsonl">
+          <button class="qrx-btn qrx-btn-sm" id="addRefBtn" type="button" data-qrx-i18n="app.addRef">+ Referenzdatei</button>
         </div>
       </details>
 

@@ -669,6 +669,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .qrx-picker label.is-disabled { opacity: .55; cursor: default; }
 .qrx-picker label.is-disabled:hover { background: none; }
 .qrx-picker input { accent-color: var(--qrx-primary); }
+.qrx-picker-meta { margin-left: auto; color: var(--qrx-text-muted); font-size: 0.75rem; font-family: var(--qrx-font-sans); }
 
 /* --- status bar ---------------------------------------------------------- */
 .qrx-status {
@@ -1137,7 +1138,7 @@ flowchart LR
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260817-122028</span>
+    &middot; v<span data-build-version>260818-190309</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -1985,6 +1986,219 @@ flowchart LR
     };
     el.hidden = true;
     return api;
+  };
+
+  qrx.i18n.register('sourcePicker', {
+    de: {
+      confirmTitle: 'Große Datei',
+      confirmHint: '{name} ({size}) wird einmalig nach Parquet umgeschrieben, damit die '
+        + 'Analyse danach schnell bleibt. Das dauert einen Moment und belegt Arbeitsspeicher.',
+      confirmGo: 'Umschreiben',
+      converterLink: 'Zum Table Format Converter',
+    },
+    en: {
+      confirmTitle: 'Large file',
+      confirmHint: '{name} ({size}) will be rewritten to Parquet once, so the analysis '
+        + 'stays fast afterwards. This takes a moment and uses memory.',
+      confirmGo: 'Rewrite',
+      converterLink: 'Open the Table Format Converter',
+    },
+  });
+
+  // A single reusable "this file is large, rewrite it?" dialog. Returns a
+  // Promise<boolean>. Shared so the sourcePicker and the profiler's own
+  // multi-file loader ask the same question the same way. `file` needs only
+  // { name, size }.
+  let largeConfirmModal = null;
+  ui.confirmLargeFile = function confirmLargeFile(file) {
+    const T = (k, p) => qrx.i18n.t('sourcePicker.' + k, p);
+    return new Promise((resolve) => {
+      const hint = T('confirmHint', { name: file.name, size: qrx.core.fmt.bytes(file.size) });
+      if (!largeConfirmModal) {
+        largeConfirmModal = ui.modal({
+          titleKey: 'sourcePicker.confirmTitle',
+          actions: [
+            { key: 'cancel', labelKey: 'ui.cancel', onClick: (m) => m.close() },
+            { key: 'go', labelKey: 'sourcePicker.confirmGo', primary: true,
+              onClick: (m) => { largeConfirmModal._go = true; m.close(); } },
+          ],
+          onClose: () => {
+            const go = !!largeConfirmModal._go; largeConfirmModal._go = false;
+            const done = largeConfirmModal._resolve; largeConfirmModal._resolve = null;
+            if (done) done(go);
+          },
+        });
+      }
+      largeConfirmModal._go = false;
+      largeConfirmModal._resolve = resolve;
+      largeConfirmModal.setTitle(undefined, 'sourcePicker.confirmTitle');
+      const h = largeConfirmModal.el.querySelector('.qrx-modal-hint');
+      h.textContent = hint; h.hidden = false;
+      largeConfirmModal.open('[data-key="go"]');
+    });
+  };
+
+  qrx.i18n.register('tablePicker', {
+    de: {
+      title: 'Tabelle wählen',
+      hint: 'Diese Datei enthält mehrere Tabellen/Blätter. Welche soll geladen werden?',
+      pick: 'Laden', rows: 'Zeilen',
+    },
+    en: {
+      title: 'Choose a table',
+      hint: 'This file holds several tables/sheets. Which one should be loaded?',
+      pick: 'Load', rows: 'rows',
+    },
+  });
+
+  // Ask which table/sheet to load from a multi-table source (DuckDB/SQLite files,
+  // Excel workbooks). Resolves to the chosen name, or null if cancelled. With a
+  // single item it resolves immediately without a dialog. `items` is a list of
+  // { name, rows?, label? } (or bare strings).
+  ui.tablePicker = function tablePicker(items, opts = {}) {
+    const list = (items || []).map((it) => (typeof it === 'string' ? { name: it } : it))
+      .filter((x) => x && x.name != null);
+    if (list.length <= 1) return Promise.resolve(list.length ? list[0].name : null);
+    const esc = qrx.core.escapeHtml;
+    const T = (k, p) => qrx.i18n.t('tablePicker.' + k, p);
+    return new Promise((resolve) => {
+      let picked = list[0].name;
+      const body = document.createElement('div');
+      body.className = 'qrx-picker';
+      body.innerHTML = list.map((it, i) => {
+        const meta = it.rows != null ? ` <span class="qrx-picker-meta">${esc(qrx.core.fmt.number(it.rows))} ${esc(T('rows'))}</span>` : '';
+        return `<label><input type="radio" name="qrx-tp" value="${esc(it.name)}"${i === 0 ? ' checked' : ''}>`
+          + `<span>${esc(it.label || it.name)}</span>${meta}</label>`;
+      }).join('');
+      body.addEventListener('change', (e) => { const r = e.target.closest('input[type=radio]'); if (r) picked = r.value; });
+      const m = ui.modal({
+        titleKey: 'tablePicker.title', hintKey: 'tablePicker.hint', body,
+        actions: [
+          { key: 'cancel', labelKey: 'ui.cancel', onClick: (mm) => mm.close() },
+          { key: 'go', labelKey: 'tablePicker.pick', primary: true, onClick: (mm) => { m._picked = picked; mm.close(); } },
+        ],
+        onClose: () => { const v = m._picked || null; m.destroy(); resolve(v); },
+      });
+      m.open('[data-key="go"]');
+    });
+  };
+
+  /**
+   * The whole "get a file in" step: drop zone, format detection, normalisation
+   * and the messages around it. Wraps ui.dropzone and qrx.source so an app no
+   * longer knows what a Parquet is — it receives a descriptor and queries
+   * `desc.from`.
+   *
+   * Two things it handles that a plain dropzone cannot:
+   *  - a format DuckDB can't read here (Excel, SQLite, …) becomes a readable
+   *    message plus a link to the converter, not a stack trace,
+   *  - a large file that needs rewriting is CONFIRMED first. There is no
+   *    reliable way to cancel a running COPY in duckdb-wasm, so the question
+   *    comes before the work rather than as a cancel button during it.
+   *
+   * opts: { input, accept, multiple, combine, label, extraTargets, activeClass,
+   *         status,          // a qrx.ui.status api (or anything with .set)
+   *         confirmBytes,    // ask before rewriting above this size (0 = never)
+   *         blockBytes,      // refuse an in-browser rewrite above this size
+   *         converterHref,   // shown when a format needs the converter
+   *         onSource(desc), onError(err) }
+   *
+   * With `combine`, dropping several files of the SAME type yields one merged
+   * source (UNION ALL BY NAME); without it, each file is opened on its own.
+   */
+  ui.sourcePicker = function sourcePicker(mount, opts = {}) {
+    const policy = {
+      confirmBytes: opts.confirmBytes != null ? opts.confirmBytes : qrx.source.CONFIRM_BYTES,
+      blockBytes: opts.blockBytes != null ? opts.blockBytes : qrx.source.BLOCK_BYTES,
+    };
+    // Multi-table sources (DuckDB/SQLite files, Excel) ask which table to load.
+    const pickTable = opts.pickTable || ui.tablePicker;
+    const status = opts.status || null;
+    const say = (msg, kind) => { if (status && status.set) status.set(msg || '', kind); };
+
+    let current = null;
+
+    const zone = ui.dropzone(mount, {
+      input: opts.input,
+      accept: opts.accept || qrx.source.ACCEPT,
+      multiple: !!opts.multiple,
+      label: opts.label,
+      activeClass: opts.activeClass,
+      extraTargets: opts.extraTargets,
+      onFiles: (files) => { queue(files); },
+    });
+
+    // Files are opened one after another, never concurrently: each one runs a
+    // COPY through the same DuckDB connection, and two of those in flight would
+    // compete for the same WASM heap.
+    let chain = Promise.resolve();
+    function queue(files) {
+      const list = Array.from(files || []).filter(Boolean);
+      if (!list.length) return;
+      if (opts.combine && list.length > 1) { chain = chain.then(() => openCombined(list)).catch(() => {}); return; }
+      for (const f of list) chain = chain.then(() => open(f)).catch(() => {});
+    }
+
+    function fail(err) {
+      if (err && err.code === 'cancelled') { say(''); return; }   // user closed the table picker
+      say(err && err.message ? err.message : String(err), 'error');
+      if (opts.onError) opts.onError(err);
+      else console.warn('qrx.ui.sourcePicker:', err);
+    }
+
+    // Turn a preflight 'block' into a typed, link-carrying error.
+    function blocked(p) {
+      const err = new Error(p.message);
+      err.code = p.supported === false ? 'unsupported-format' : 'too-large';
+      err.kind = p.kind;
+      if (p.recommendConverter) err.converterHref = opts.converterHref || null;
+      return err;
+    }
+
+    async function open(file) {
+      try {
+        const p = await qrx.source.preflight(file, policy);
+        if (p.decision === 'block') throw blocked(p);
+        if (p.decision === 'confirm' && !await ui.confirmLargeFile(file)) { say(''); return null; }
+        const desc = await qrx.source.open(file, { kind: p.kind, onStatus: (m) => say(m), pickTable });
+        return deliver(desc);
+      } catch (err) { fail(err); return null; }
+    }
+
+    async function openCombined(list) {
+      try {
+        const p = await qrx.source.preflightMany(list, policy);
+        if (p.decision === 'block') throw blocked(p);
+        if (p.decision === 'confirm'
+            && !await ui.confirmLargeFile({ name: qrx.i18n.t('source.nFiles', { n: list.length }), size: p.bytes })) {
+          say(''); return null;
+        }
+        const desc = await qrx.source.openMany(list, { onStatus: (m) => say(m), pickTable });
+        return deliver(desc);
+      } catch (err) { fail(err); return null; }
+    }
+
+    function deliver(desc) {
+      current = desc;
+      say(desc.warnings.length ? desc.warnings.join(' ') : '', desc.warnings.length ? 'warn' : undefined);
+      if (opts.onSource) opts.onSource(desc);
+      return desc;
+    }
+
+    return {
+      el: zone.el,
+      input: zone.input,
+      pick: zone.pick,
+      open,
+      deliver: (files) => queue(files),
+      current: () => current,
+      async release() {
+        if (!current) return;
+        const d = current; current = null;
+        await qrx.source.release(d);
+      },
+      destroy() {},
+    };
   };
 
   qrx.i18n.register('grid', {

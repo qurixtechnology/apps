@@ -2,7 +2,8 @@
 // Gated: skips with a clear reason when no suitable Python/DuckDB is present.
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { launch, openApp, settle, text, tableRows } from '../helpers/browser.mjs';
+import { join } from 'node:path';
+import { launch, openApp, settle, text, tableRows, ROOT } from '../helpers/browser.mjs';
 import { unavailableReason, startServer, stopServer, queryServer, URI, TOKEN } from '../helpers/quack.mjs';
 
 const reason = unavailableReason();
@@ -174,6 +175,33 @@ describe('quack integration', opts, () => {
         { timeout: 180_000 });
       assert.match(await text(page, '#exportProgress'), /Wrote from_converter/);
       assert.equal(Number(queryServer('SELECT count(*) FROM r.main.from_converter')[0][0]), 3);
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  // Regression: the DIALOG-first test above skips the export form's own connect
+  // path (serverConn.connected is already true). Exporting straight from the
+  // form used to throw "srvAttach/srvIsAuthError is not defined" — this drives
+  // exactly that path.
+  test('converter: exports to DuckDB straight from the export form (no dialog)', async () => {
+    const page = await app('table-format-converter.html');
+    try {
+      await page.waitForSelector('#filePicker', { timeout: 30_000 });
+      await (await page.$('#filePicker')).uploadFile(join(ROOT, 'tests/fixtures/tiny.parquet'));
+      await page.waitForFunction(() => !document.getElementById('workspace').hidden, { timeout: 120_000 });
+
+      await page.evaluate(() => document.querySelector('.format-chip[data-format="duckdb"]').click());
+      await page.evaluate((u, tk) => {
+        document.getElementById('ex_srv_uri').value = u;
+        document.getElementById('ex_srv_token').value = tk;
+        document.getElementById('ex_srv_table').value = 'from_form';
+      }, URI, TOKEN);
+      await page.click('#exportBtn');
+      await page.waitForFunction(
+        () => /Wrote|Failed|error|not defined/i.test(document.getElementById('exportProgress').textContent),
+        { timeout: 180_000 });
+      assert.match(await text(page, '#exportProgress'), /Wrote from_form/, 'the form-driven attach + write works');
+      assert.equal(Number(queryServer('SELECT count(*) FROM r.main.from_form')[0][0]), 6);
       page.assertNoErrors();
     } finally { await page.close(); }
   });
