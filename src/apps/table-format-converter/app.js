@@ -3627,9 +3627,10 @@
       if (!token) token = (await tokenVault.get(uri)) || '';
       exportProgress.textContent = 'Connecting…';
       try {
-        await srvAttach(uri, token);
+        await initDuckDB();
+        await srv.attach(conn, uri, token);
       } catch (e) {
-        if (srvIsAuthError(e)) {
+        if (srv.isAuthError(e)) {
           tokenVault.forget(uri);
           renderExportOptions();
           throw new Error((typed ? 'Token rejected.' : 'Saved token was rejected — enter it again.') + ' ' + (e.message || ''));
