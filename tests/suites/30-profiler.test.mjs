@@ -268,5 +268,40 @@ describe('profiler', () => {
       page.assertNoErrors();
     } finally { await page.close(); }
   });
+
+  test('reads a SQLite database file (via sql.js, normalised)', async () => {
+    const page = await openProfiler({ query: 'qrxtest' });
+    try {
+      await loadFiles(page, 'tiny.sqlite');   // one table → no picker; read by sql.js → Parquet
+      const info = await page.evaluate(() => {
+        const s = window.__qrx.profiler.state;
+        const rec = s.files.find(f => f.id === s.activeFileId);
+        return { cols: s.columns.map(c => c.name), rows: s.rowCountTotal, format: rec.format, normalized: rec.normalized };
+      });
+      assert.deepEqual(info.cols, ['id', 'name', 'city'], 'the table columns are profiled');
+      assert.equal(info.rows, 4);
+      assert.equal(info.format, 'sqlite', 'the origin format is remembered for the label');
+      assert.equal(info.normalized, true, 'rewritten to Parquet — structure shown as the converted copy');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('reads a Markdown file through the shared extension', async () => {
+    const page = await openProfiler({ query: 'qrxtest' });
+    try {
+      await loadFiles(page, 'tiny.md');   // md is parsed to a Parquet-fast source by qrx-source-ext
+      const cols = await page.evaluate(() => window.__qrx.profiler.state.columns.map(c => c.name));
+      assert.deepEqual(cols, ['id', 'city', 'pop'], 'the pipe table becomes real columns');
+      const n = await page.evaluate(() => window.__qrx.profiler.state.rowCountTotal);
+      assert.equal(n, 3);
+      // a rewritten source is flagged so the profiler labels the structure honestly
+      const rec = await page.evaluate(() => {
+        const s = window.__qrx.profiler.state;
+        return s.files.find(f => f.id === s.activeFileId).normalized;
+      });
+      assert.equal(rec, true, 'the structure is of the converted copy, and marked so');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
 });
 

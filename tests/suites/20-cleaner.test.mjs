@@ -87,26 +87,15 @@ describe('cleaner', () => {
     } finally { await page.close(); }
   });
 
-  test('refuses a format it cannot read and points at the converter', async () => {
-    const page = await openCleaner();
+  test('reads a Markdown file through the shared extension', async () => {
+    const page = await openCleaner({ query: 'qrxtest' });
     try {
-      await page.waitForSelector('#filePicker', { timeout: 30_000 });
-      await page.evaluate(() => {
-        const input = document.getElementById('filePicker');
-        const dt = new DataTransfer();
-        dt.items.add(new File(['PK'], 'book.xlsx'));
-        input.files = dt.files;
-        input.dispatchEvent(new Event('change'));
-      });
-      await page.waitForFunction(() => {
-        const s = document.querySelector('#statusBar .qrx-status-text');
-        return s && s.textContent.trim().length > 0;
-      }, { timeout: 20_000 });
-      const msg = await text(page, '#statusBar .qrx-status-text');
-      assert.match(msg, /Excel/);
-      assert.match(msg, /Converter/);
+      await load(page, 'tiny.md');   // exotic format, parsed to a Parquet-fast source
       const wsHidden = await page.evaluate(() => document.getElementById('workspace').hidden);
-      assert.equal(wsHidden, true, 'nothing is loaded, the drop zone stays');
+      assert.equal(wsHidden, false, 'the pipe table loaded into the workspace');
+      const n = await page.evaluate(async () =>
+        Number(window.qrx.duckdb.rows(await window.qrx.duckdb.query('SELECT count(*)::BIGINT AS n FROM original'))[0].n));
+      assert.equal(n, 3, 'the three rows are queryable as the cleaning source');
       page.assertNoErrors();
     } finally { await page.close(); }
   });

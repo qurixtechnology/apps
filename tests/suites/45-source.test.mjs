@@ -70,7 +70,10 @@ describe('source: format detection', () => {
     assert.equal(got.csv.willNormalize, true, 'a CSV must be rewritten, or every query re-parses it');
     assert.equal(got.par.plan, 'lazy');
     assert.equal(got.par.willNormalize, false, 'Parquet must be passed through untouched');
-    assert.equal(got.xls.supported, false);
+    // qrx-source-ext (loaded here) teaches the module to read Excel — it is a
+    // size-gated 'parse' format now, no longer refused.
+    assert.equal(got.xls.supported, true);
+    assert.equal(got.xls.plan, 'parse');
     assert.equal(got.xls.label, 'Excel/ODS');
   });
 });
@@ -204,21 +207,6 @@ describe('source: opening a Parquet', () => {
 });
 
 describe('source: refusals and cleanup', () => {
-  test('an unreadable format is a typed error, not a crash', async () => {
-    const got = await page.evaluate(async () => {
-      try {
-        await window.qrx.source.open(new File(['x'], 'book.xlsx'));
-        return { threw: false };
-      } catch (e) {
-        return { threw: true, code: e.code, kind: e.kind, name: e.name, msg: e.message };
-      }
-    });
-    assert.equal(got.threw, true);
-    assert.equal(got.code, 'unsupported-format');
-    assert.equal(got.kind, 'xlsx');
-    assert.match(got.msg, /Converter/, 'the message has to point somewhere useful');
-  });
-
   test('release() drops the registration', async () => {
     const got = await page.evaluate(async (csv) => {
       const s = window.qrx.source;
@@ -265,27 +253,28 @@ describe('sourcePicker: the widget around it', () => {
     assert.equal(got.afterRelease, null, 'release() forgets the source');
   });
 
-  test('turns an unsupported format into a message, not an exception', async () => {
+  test('turns an oversized file into a message with a converter link, not an exception', async () => {
     const got = await page.evaluate(async () => {
       const host = document.createElement('div');
       document.body.appendChild(host);
       const errs = [], shown = [];
       const picker = window.qrx.ui.sourcePicker(host, {
         confirmBytes: 0,
+        blockBytes: 1,                                   // anything counts as too large
         status: { set: (m, k) => { if (m) shown.push([m, k]); } },
         converterHref: 'table-format-converter.html',
         onError: (e) => errs.push({ code: e.code, kind: e.kind, href: e.converterHref }),
         onSource: () => { throw new Error('must not be called'); },
       });
-      const result = await picker.open(new File(['PK'], 'sheet.xlsx'));
+      const result = await picker.open(new File(['a,b\n1,2\n'], 'big.csv'));
       picker.destroy(); host.remove();
       return { result, errs, shown };
     });
 
     assert.equal(got.result, null, 'open() resolves to null instead of rejecting');
     assert.equal(got.errs.length, 1);
-    assert.equal(got.errs[0].code, 'unsupported-format');
-    assert.equal(got.errs[0].kind, 'xlsx');
+    assert.equal(got.errs[0].code, 'too-large');
+    assert.equal(got.errs[0].kind, 'csv');
     assert.equal(got.errs[0].href, 'table-format-converter.html', 'the app can offer a way out');
     assert.equal(got.shown[0][1], 'error', 'and the message reaches the status bar');
   });
@@ -327,5 +316,159 @@ describe('sourcePicker: the widget around it', () => {
 
   test('the page stayed clean throughout', () => {
     page.assertNoErrors('qrx.ui.sourcePicker');
+  });
+});
+
+describe('source: preflight policy', () => {
+  test('decides format and size before touching the file', async () => {
+    const got = await page.evaluate(async () => {
+      const s = window.qrx.source;
+      const csv = new File(['a,b\n1,2\n'], 'x.csv');
+      const par = new File([new Uint8Array([0x50, 0x41, 0x52, 0x31])], 'x.parquet');
+      const xls = new File(['PK'], 'x.xlsx');
+      return {
+        parquet:     await s.preflight(par),                       // lazy → never gated
+        parquetHuge: await s.preflight(par, { confirmBytes: 1, blockBytes: 1 }),
+        csvOk:       await s.preflight(csv),
+        csvConfirm:  await s.preflight(csv, { confirmBytes: 3 }),
+        csvBlock:    await s.preflight(csv, { blockBytes: 3 }),
+        xlsxOk:      await s.preflight(xls),                        // parse, small → ok
+        xlsxBlock:   await s.preflight(xls, { blockBytes: 1 }),     // parse, over the ceiling
+      };
+    });
+    assert.equal(got.parquet.decision, 'ok');
+    assert.equal(got.parquetHuge.decision, 'ok', 'a Parquet is byte-range read — size never matters');
+    assert.equal(got.csvOk.decision, 'ok');
+    assert.equal(got.csvConfirm.decision, 'confirm', 'a large rewrite is worth a heads-up');
+    assert.equal(got.csvBlock.decision, 'block');
+    assert.equal(got.csvBlock.recommendConverter, true, 'and points at the streaming converter');
+    assert.equal(got.xlsxOk.plan, 'parse');
+    assert.equal(got.xlsxOk.decision, 'ok', 'a small Excel file just parses');
+    assert.equal(got.xlsxBlock.decision, 'block', 'an oversized parse is refused');
+    assert.match(got.xlsxBlock.message, /Converter/);
+  });
+});
+
+describe('source: combining several files', () => {
+  test('openMany unions same-type files into one source', async () => {
+    const got = await page.evaluate(async () => {
+      const s = window.qrx.source;
+      const a = new File(['id,name\n1,Ada\n2,Grace\n'], 'a.csv');
+      const b = new File(['id,name\n3,Alan\n'], 'b.csv');
+      const desc = await s.openMany([a, b]);
+      const rows = Number(window.qrx.duckdb.rows(
+        await window.qrx.duckdb.query(`SELECT count(*)::BIGINT AS n FROM ${desc.from}`))[0].n);
+      const out = { rows, cols: desc.columns.map(c => c.name), parts: desc.parts.length, kind: desc.kind };
+      await s.release(desc);
+      out.afterRelease = desc.from;
+      return out;
+    });
+    assert.equal(got.rows, 3, 'two CSVs become three rows');
+    assert.deepEqual(got.cols, ['id', 'name']);
+    assert.equal(got.parts, 2);
+    assert.equal(got.afterRelease, null, 'release() tears down every part');
+  });
+
+  test('preflightMany blocks a mix of types, openMany refuses it', async () => {
+    const got = await page.evaluate(async () => {
+      const s = window.qrx.source;
+      const csv = new File(['a\n1\n'], 'a.csv');
+      const par = new File([new Uint8Array([0x50, 0x41, 0x52, 0x31])], 'b.parquet');
+      const pre = await s.preflightMany([csv, par]);
+      let code = null;
+      try { await s.openMany([csv, par]); } catch (e) { code = e.code; }
+      return { decision: pre.decision, message: pre.message, code };
+    });
+    assert.equal(got.decision, 'block');
+    assert.match(got.message, /typ/i, 'names the single-type requirement');
+    assert.equal(got.code, 'mixed-kinds');
+  });
+});
+
+describe('source: exotic formats (qrx-source-ext)', () => {
+  test('the extension registered its plans and widened ACCEPT', async () => {
+    const got = await page.evaluate(() => ({
+      duckdb: window.qrx.source.PLANS.duckdb,
+      sqlite: window.qrx.source.PLANS.sqlite,
+      markdown: window.qrx.source.PLANS.markdown,
+      html: window.qrx.source.PLANS.html,
+      hasOpen: typeof window.qrx.source.openExternal === 'function',
+      xlsx: window.qrx.source.ACCEPT.includes('.xlsx'),
+      duckdbExt: window.qrx.source.ACCEPT.includes('.duckdb'),
+    }));
+    assert.equal(got.duckdb, 'attach', 'DuckDB files attach lazily');
+    assert.equal(got.sqlite, 'parse');
+    assert.equal(got.markdown, 'parse');
+    assert.equal(got.html, 'parse');
+    assert.equal(got.hasOpen, true);
+    assert.ok(got.xlsx && got.duckdbExt, 'the picker accepts the new extensions');
+  });
+
+  test('preflight: DuckDB attaches (ungated), a parse format is size-gated', async () => {
+    const got = await page.evaluate(async () => {
+      const s = window.qrx.source;
+      const duck = new File([new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0x44, 0x55, 0x43, 0x4B])], 'x.duckdb');
+      const md = new File(['# t\n\n| a |\n|---|\n| 1 |\n'], 'x.md');
+      return {
+        duck: await s.preflight(duck),
+        duckHuge: await s.preflight(duck, { confirmBytes: 1, blockBytes: 1 }),
+        md: await s.preflight(md, { confirmBytes: 3 }),
+      };
+    });
+    assert.equal(got.duck.plan, 'attach');
+    assert.equal(got.duck.decision, 'ok');
+    assert.equal(got.duckHuge.decision, 'ok', 'an attached DB is never gated on size');
+    assert.equal(got.md.plan, 'parse');
+    assert.equal(got.md.decision, 'confirm', 'a parse format is gated like a rewrite');
+  });
+
+  test('reads a Markdown pipe table', async () => {
+    const got = await page.evaluate(async () => {
+      const md = '# People\n\n| id | name |\n|----|------|\n| 1 | Ada |\n| 2 | Grace |\n';
+      const desc = await window.qrx.source.openExternal(new File([md], 'x.md'), {});
+      const n = Number(window.qrx.duckdb.rows(await window.qrx.duckdb.query(
+        `SELECT count(*)::BIGINT AS n FROM ${desc.from}`))[0].n);
+      const out = { cols: desc.columns.map(c => c.name), n, normalized: desc.normalized };
+      await window.qrx.source.release(desc);
+      return out;
+    });
+    assert.deepEqual(got.cols, ['id', 'name']);
+    assert.equal(got.n, 2);
+    assert.equal(got.normalized, true, 'parsed once, then queried as a Parquet-fast CSV');
+  });
+
+  test('reads an HTML <table>', async () => {
+    const got = await page.evaluate(async () => {
+      const html = '<table><caption>People</caption><tr><th>id</th><th>name</th></tr>'
+        + '<tr><td>1</td><td>Ada</td></tr><tr><td>2</td><td>Grace</td></tr><tr><td>3</td><td>Alan</td></tr></table>';
+      const desc = await window.qrx.source.openExternal(new File([html], 'x.html'), {});
+      const n = Number(window.qrx.duckdb.rows(await window.qrx.duckdb.query(
+        `SELECT count(*)::BIGINT AS n FROM ${desc.from}`))[0].n);
+      const out = { cols: desc.columns.map(c => c.name), n };
+      await window.qrx.source.release(desc);
+      return out;
+    });
+    assert.deepEqual(got.cols, ['id', 'name']);
+    assert.equal(got.n, 3);
+  });
+
+  // (DuckDB/SQLite ATTACH is exercised structurally by the plan/preflight tests
+  // and by a broken-file refusal below; a full attach round trip needs a real
+  // .duckdb/.sqlite file, which cannot be minted in-page — copyFileToBuffer does
+  // not see an ATTACH-created database. Covered manually / by the app suites.)
+
+  test('a broken exotic file fails with a typed error, not a crash', async () => {
+    const got = await page.evaluate(async () => {
+      try {
+        // a Markdown file with no pipe table — fails deterministically, no CDN
+        await window.qrx.source.open(new File(['just prose, no table here'], 'x.md'));
+        return { threw: false };
+      } catch (e) {
+        return { threw: true, code: e.code, name: e.name };
+      }
+    });
+    assert.equal(got.threw, true);
+    assert.equal(got.name, 'SourceError', 'a typed error the app can turn into a message');
+    assert.equal(got.code, 'read-failed');
   });
 });

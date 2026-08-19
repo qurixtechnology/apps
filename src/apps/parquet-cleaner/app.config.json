@@ -24,6 +24,7 @@
     "../../shared/qrx-i18n.js",
     "../../shared/qrx-duckdb.js",
     "../../shared/qrx-source.js",
+    "../../shared/qrx-source-ext.js",
     "../../shared/qrx-test.js",
     "../../shared/duckdb-server.js",
     "../../shared/qrx-patterns.js",

@@ -41,6 +41,10 @@
       describing: 'Schema wird gelesen…',
       unsupported: 'Dateien vom Typ {kind} können hier nicht direkt gelesen werden — '
         + 'wandle sie zuerst mit dem Table Format Converter in Parquet um.',
+      tooLarge: 'Die {kind}-Datei ist mit {size} zu groß, um sie hier im Browser einzulesen — '
+        + 'wandle sie mit dem Table Format Converter zu Parquet um (der liest streamend, ohne alles in den Speicher zu laden).',
+      mixedKinds: 'Zum Kombinieren bitte nur Dateien desselben Typs auswählen.',
+      nFiles: '{n} Dateien',
       raggedRows: 'Die Datei hat Zeilen mit abweichender Spaltenzahl — fehlende Werte wurden '
         + 'mit NULL aufgefüllt, unlesbare Zeilen übersprungen.',
       readFailed: 'Die Datei konnte nicht gelesen werden: {msg}',
@@ -52,6 +56,10 @@
       describing: 'Reading schema…',
       unsupported: '{kind} files cannot be read here directly — convert them to '
         + 'Parquet with the Table Format Converter first.',
+      tooLarge: 'The {kind} file is too large ({size}) to read here in the browser — '
+        + 'convert it to Parquet with the Table Format Converter (it streams, without loading everything into memory).',
+      mixedKinds: 'To combine files, please pick files of the same type only.',
+      nFiles: '{n} files',
       raggedRows: 'The file has rows with differing field counts — missing values were '
         + 'padded with NULL, unreadable rows skipped.',
       readFailed: 'Could not read this file: {msg}',
@@ -78,6 +86,21 @@
 
   /** File extensions this module can open — for an <input accept="…">. */
   const ACCEPT = '.parquet,.pq,.csv,.tsv,.txt,.json,.ndjson,.jsonl';
+
+  // --- Resource policy ------------------------------------------------------
+  // Only a `normalize` (CSV/JSON → Parquet) rewrite is memory-hungry: the COPY
+  // reads the whole file. Parquet is 'lazy' (byte-range) and never gated, no
+  // matter the size. Above CONFIRM the rewrite is worth a heads-up; above BLOCK
+  // an in-browser rewrite is likely to run the WASM heap out, so we refuse and
+  // point at the converter (which streams the conversion instead).
+  const CONFIRM_BYTES = 64 * 1024 * 1024;         // 64 MB — CSV/JSON rewrite
+  const BLOCK_BYTES = 1024 * 1024 * 1024;         // 1 GB
+  // 'parse' formats (Excel/ODS, Markdown, HTML, sql.js SQLite) are fully
+  // decoded in memory and can balloon well past their file size, so they are
+  // gated much tighter than a straight CSV rewrite.
+  const PARSE_CONFIRM_BYTES = 16 * 1024 * 1024;   // 16 MB
+  const PARSE_BLOCK_BYTES = 128 * 1024 * 1024;    // 128 MB
+  const fmtBytes = (n) => qrx.core.fmt.bytes(n);
 
   /** Human label per kind, for messages ("XLSX files cannot be read here"). */
   const LABELS = {
@@ -261,6 +284,62 @@
   }
 
   /**
+   * The one place that decides how to treat a file, so every app reacts the
+   * same. Reads only the sniff bytes, never the whole file.
+   *
+   * opts: { kind (skip detect), confirmBytes, blockBytes }
+   * @returns {{ kind,label,plan,bytes,supported,willNormalize,
+   *             decision:'ok'|'confirm'|'block', recommendConverter, message }}
+   *   - 'block'   : cannot / should not load here → recommendConverter, message set
+   *   - 'confirm' : loadable but a large rewrite → ask before doing the work
+   *   - 'ok'      : just load it
+   */
+  async function preflight(file, opts = {}) {
+    const kind = opts.kind || await detect(file);
+    const plan = PLANS[kind] || 'external';
+    const label = LABELS[kind] || kind.toUpperCase();
+    const bytes = file.size;
+    const base = { kind, label, plan, bytes, supported: plan !== 'external', willNormalize: plan === 'normalize' };
+    if (plan === 'external') {
+      return Object.assign(base, { decision: 'block', recommendConverter: true, message: t('unsupported', { kind: label }) });
+    }
+    // 'lazy' (Parquet) and 'attach' (DuckDB/SQLite) are byte-range / catalogue
+    // reads — never gated on size. Only a full read ('normalize', 'parse') is.
+    const gated = plan === 'normalize' || plan === 'parse';
+    if (!gated) return Object.assign(base, { decision: 'ok', recommendConverter: false, message: '' });
+    const isParse = plan === 'parse';
+    const confirmBytes = opts.confirmBytes != null ? opts.confirmBytes : (isParse ? PARSE_CONFIRM_BYTES : CONFIRM_BYTES);
+    const blockBytes = opts.blockBytes != null ? opts.blockBytes : (isParse ? PARSE_BLOCK_BYTES : BLOCK_BYTES);
+    if (blockBytes && bytes > blockBytes) {
+      return Object.assign(base, { decision: 'block', recommendConverter: true, message: t('tooLarge', { kind: label, size: fmtBytes(bytes) }) });
+    }
+    if (confirmBytes && bytes > confirmBytes) {
+      return Object.assign(base, { decision: 'confirm', recommendConverter: false, message: '' });
+    }
+    return Object.assign(base, { decision: 'ok', recommendConverter: false, message: '' });
+  }
+
+  /**
+   * Preflight a whole batch that will be COMBINED into one source. Requires a
+   * single kind, sums the sizes for the size decision, and surfaces the
+   * mixed-type case as its own block.
+   */
+  async function preflightMany(files, opts = {}) {
+    const list = Array.from(files || []).filter(Boolean);
+    if (list.length <= 1) return list.length ? preflight(list[0], opts) : null;
+    const kinds = [];
+    for (const f of list) kinds.push(await detect(f));
+    if (kinds.some(k => k !== kinds[0])) {
+      return { kind: null, plan: null, supported: false, willNormalize: false, bytes: 0,
+               decision: 'block', recommendConverter: false, message: t('mixedKinds') };
+    }
+    const totalBytes = list.reduce((s, f) => s + f.size, 0);
+    // Reuse the single-file policy on the aggregate, tagged with the shared kind.
+    const p = await preflight({ size: totalBytes, name: list[0].name }, Object.assign({}, opts, { kind: kinds[0] }));
+    return Object.assign(p, { bytes: totalBytes, count: list.length });
+  }
+
+  /**
    * Open a file as a queryable source.
    *
    * opts: { onStatus(msg), kind (skip detection), keepRaw (leave the original
@@ -284,7 +363,13 @@
     say(t('detecting'));
     const kind = opts.kind || await detect(file);
     const plan = PLANS[kind] || 'external';
-    if (plan === 'external') {
+    // 'attach' (DuckDB/SQLite) and 'parse' (Excel/Markdown/HTML) are handled by
+    // the optional qrx-source-ext module. Delegate when it is loaded; otherwise
+    // they behave like any other unsupported format.
+    if ((plan === 'attach' || plan === 'parse') && qrx.source && qrx.source.openExternal) {
+      return qrx.source.openExternal(file, Object.assign({}, opts, { kind, plan }));
+    }
+    if (plan === 'external' || plan === 'attach' || plan === 'parse') {
       throw SourceError('unsupported-format',
         t('unsupported', { kind: LABELS[kind] || kind.toUpperCase() }), { kind });
     }
@@ -367,17 +452,80 @@
     return desc;
   }
 
+  /**
+   * Open several same-kind files as ONE combined source. Each file goes through
+   * open() (so a CSV is still normalised once, a Parquet still stays a lazy
+   * handle), then the parts are stitched with UNION ALL BY NAME so a column that
+   * moved or is missing in one file still lines up. A one-element list is just
+   * open(). Callers preflight the batch (size, single-kind) via preflightMany().
+   *
+   * @returns a descriptor like open()'s, plus `parts` (the per-file descriptors);
+   *          release() tears the whole set down.
+   */
+  async function openMany(files, opts = {}) {
+    const list = Array.from(files || []).filter(Boolean);
+    if (list.length <= 1) return list.length ? open(list[0], opts) : null;
+    const say = (m) => { try { opts.onStatus && opts.onStatus(m); } catch (_) {} };
+
+    const kinds = [];
+    for (const f of list) kinds.push(await detect(f));
+    const kind = kinds[0];
+    if (kinds.some(k => k !== kind)) throw SourceError('mixed-kinds', t('mixedKinds'));
+    if ((PLANS[kind] || 'external') === 'external') {
+      throw SourceError('unsupported-format', t('unsupported', { kind: LABELS[kind] || kind.toUpperCase() }), { kind });
+    }
+
+    const parts = [];
+    try {
+      for (const f of list) parts.push(await open(f, Object.assign({}, opts, { kind, onStatus: say })));
+    } catch (e) {
+      for (const p of parts) { try { await release(p); } catch (_) {} }
+      throw e;
+    }
+
+    const desc = {
+      id: 'src' + (seq++), name: t('nFiles', { n: list.length }),
+      bytes: list.reduce((s, f) => s + f.size, 0),
+      kind, plan: PLANS[kind], normalized: parts.some(p => p.normalized),
+      from: '(' + parts.map(p => `SELECT * FROM ${p.from}`).join(' UNION ALL BY NAME ') + ')',
+      parts, handle: null, encoding: null,
+      warnings: parts.flatMap(p => p.warnings || []),
+      vfsName: null, rawVfsName: null, rows: null, columns: [],
+    };
+    say(t('describing'));
+    try {
+      const d = qrx.duckdb.rows(await qrx.duckdb.query(`DESCRIBE SELECT * FROM ${desc.from}`));
+      desc.columns = d.map(r => ({ name: r.column_name, type: r.column_type, typeClass: qrx.duckdb.typeClass(r.column_type) }));
+      const c = qrx.duckdb.rows(await qrx.duckdb.query(`SELECT count(*)::BIGINT AS n FROM ${desc.from}`));
+      desc.rows = Number(c[0].n);
+    } catch (e) {
+      for (const p of parts) { try { await release(p); } catch (_) {} }
+      throw readFailed(e);
+    }
+    say('');
+    return desc;
+  }
+
   /** Drop everything a descriptor registered. Safe to call twice. */
   async function release(desc) {
     if (!desc) return;
+    if (desc.parts) {
+      for (const p of desc.parts) { try { await release(p); } catch (_) {} }
+      desc.parts = null; desc.from = null;
+      return;
+    }
+    // External sources (ATTACHed DuckDB/SQLite, a sql.js handle) carry their own
+    // teardown — DETACH, free the JS engine — as desc.dispose().
+    if (typeof desc.dispose === 'function') { try { await desc.dispose(); } catch (_) {} desc.dispose = null; }
     await qrx.duckdb.dropFiles([desc.vfsName, desc.rawVfsName].filter(Boolean));
     desc.vfsName = null; desc.rawVfsName = null; desc.handle = null; desc.from = null;
   }
 
   qrx.source = {
-    ACCEPT, PLANS, LABELS,
-    detect, inspect, open, release,
+    ACCEPT, PLANS, LABELS, CONFIRM_BYTES, BLOCK_BYTES, PARSE_CONFIRM_BYTES, PARSE_BLOCK_BYTES,
+    detect, inspect, preflight, preflightMany, open, openMany, release,
     // exposed for tests and for callers that want the sniff on its own
     detectEncoding,
+    // openExternal is installed by the optional qrx-source-ext module
   };
 })();

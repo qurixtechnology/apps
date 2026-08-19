@@ -246,7 +246,7 @@
       writesTheCleanedResult: 'Writes the cleaned result — all applied rules included — to a table on the DuckDB server.',
       exportToDuckdb2: 'Export to DuckDB',
       connectWithDuckdb: 'Connect with DuckDB',
-      parquetParquetPqEverything: 'Parquet · CSV · JSON · NDJSON · everything runs locally in your browser — no upload',
+      parquetParquetPqEverything: 'Parquet · CSV · JSON · Excel · SQLite · DuckDB · Markdown · HTML · runs locally — no upload',
       dropAParquetFile2: 'Drop a file here, or click to pick one',
     },
     de: {
@@ -369,7 +369,7 @@
       writesTheCleanedResult: 'Schreibt das bereinigte Ergebnis — inklusive aller angewandten Regeln — in eine Tabelle auf dem DuckDB-Server.',
       exportToDuckdb2: 'Nach DuckDB exportieren',
       connectWithDuckdb: 'Mit DuckDB verbinden',
-      parquetParquetPqEverything: 'Parquet · CSV · JSON · NDJSON · läuft vollständig lokal im Browser — kein Upload',
+      parquetParquetPqEverything: 'Parquet · CSV · JSON · Excel · SQLite · DuckDB · Markdown · HTML · lokal im Browser — kein Upload',
       dropAParquetFile2: 'Datei hier ablegen oder klicken, um eine auszuwählen',
       removeExactDuplicates: 'Exakte Duplikatzeilen entfernen',
     },
@@ -2188,6 +2188,7 @@
   qrx.ui.sourcePicker(dropzone, {
     input: filePicker,
     status: statusWidget,
+    multiple: true, combine: true,   // several same-type files → one dataset
     converterHref: 'table-format-converter.html',
     onSource: (desc) => loadSource(desc),
   });

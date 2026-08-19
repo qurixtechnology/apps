@@ -48,7 +48,7 @@
     de: {
       dropTitle: 'Datei hier ablegen oder klicken',
       dropAria: 'Datei hier ablegen oder klicken',
-      dropFormats: 'Parquet · CSV · JSON · NDJSON — oder eine DuckDB-Verbindung',
+      dropFormats: 'Parquet · CSV · JSON · Excel · SQLite · DuckDB · Markdown · HTML — oder DuckDB-Server',
       converted: 'aus {kind} umgewandelt',
       previewTitle: 'Vorschau', previewRows: 'erste {n} von {total} Zeilen',
       connectBtn: 'Mit DuckDB verbinden', connectBtnHint: 'Eine Tabelle von einem laufenden DuckDB-Server lesen',
@@ -88,7 +88,7 @@
     },
     en: {
       dropTitle: 'Drop a file here or click', dropAria: 'Drop a file here or click',
-      dropFormats: 'Parquet · CSV · JSON · NDJSON — or a DuckDB connection',
+      dropFormats: 'Parquet · CSV · JSON · Excel · SQLite · DuckDB · Markdown · HTML — or a DuckDB server',
       converted: 'converted from {kind}',
       previewTitle: 'Preview', previewRows: 'first {n} of {total} rows',
       connectBtn: 'Connect with DuckDB', connectBtnHint: 'Read a table from a running DuckDB server',
@@ -721,6 +721,7 @@
   qrx.ui.sourcePicker(dropzoneEl, {
     input: filePicker,
     status: statusWidget,
+    multiple: true, combine: true,   // several same-type files → one dataset
     converterHref: 'table-format-converter.html',
     onSource: (desc) => loadSource(desc),
   });

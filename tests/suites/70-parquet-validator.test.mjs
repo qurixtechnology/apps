@@ -233,31 +233,41 @@ describe('validator app', () => {
     } finally { await p.close(); }
   });
 
-  test('an unreadable format is refused with a way out', async () => {
+  test('reads a Markdown file through the shared extension', async () => {
     const p = await openValidator({ query: 'qrxtest' });
     try {
-      // Driven through the real input, so the dropzone -> picker path is the
-      // one under test. No fixture needed: the refusal is decided by format.
-      await p.evaluate(() => {
-        const input = document.getElementById('filePicker');
-        const dt = new DataTransfer();
-        dt.items.add(new File(['PK'], 'book.xlsx'));
-        input.files = dt.files;
-        input.dispatchEvent(new Event('change'));
-      });
-      await p.waitForFunction(() => {
-        const s = document.querySelector('#statusBar .qrx-status-text');
-        return s && s.textContent.trim().length > 0;
-      }, { timeout: 20_000 });
-      const got = await p.evaluate(() => ({
-        msg: document.querySelector('#statusBar .qrx-status-text').textContent,
-        isError: document.getElementById('statusBar').classList.contains('is-error'),
-        dzHidden: document.getElementById('dropzone').hidden,
+      await (await p.$('#filePicker')).uploadFile(join(FIX, 'tiny.md'));
+      await p.waitForFunction(() => window.__qrx.validator.state.total > 0, { timeout: 60_000 });
+      const info = await p.evaluate(() => ({
+        total: window.__qrx.validator.state.total,
+        cols: window.__qrx.validator.state.columns.map(c => c.name),
       }));
-      assert.equal(got.isError, true);
-      assert.match(got.msg, /Excel/, 'the message names the format');
-      assert.match(got.msg, /Converter/, 'and points at the app that can read it');
-      assert.equal(got.dzHidden, false, 'the drop zone stays, so another file can follow');
+      assert.equal(info.total, 3, 'the pipe table rows are the validation source');
+      assert.deepEqual(info.cols, ['id', 'city', 'pop']);
+      p.assertNoErrors();
+    } finally { await p.close(); }
+  });
+
+  test('a multi-table database prompts a picker and loads the chosen table', async () => {
+    const p = await openValidator({ query: 'qrxtest' });
+    try {
+      await (await p.$('#filePicker')).uploadFile(join(FIX, 'multi.sqlite'));
+      await p.waitForSelector('.qrx-modal:not([hidden]) .qrx-picker', { timeout: 60_000 });
+      const labels = await p.$$eval('.qrx-picker label', els => els.map(e => e.textContent.replace(/\s+/g, ' ').trim()));
+      assert.deepEqual([...labels].sort(), ['cities', 'people'], 'both tables are offered');
+      // choose the second table (people) and load it
+      await p.evaluate(() => {
+        const rs = document.querySelectorAll('.qrx-picker input[type=radio]');
+        rs[1].checked = true; rs[1].dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await p.evaluate(() => document.querySelector('.qrx-modal:not([hidden]) [data-key="go"]').click());
+      await p.waitForFunction(() => window.__qrx.validator.state.total > 0, { timeout: 30_000 });
+      const info = await p.evaluate(() => ({
+        total: window.__qrx.validator.state.total,
+        cols: window.__qrx.validator.state.columns.map(c => c.name),
+      }));
+      assert.equal(info.total, 2, 'the chosen "people" table (2 rows) is loaded');
+      assert.deepEqual(info.cols, ['pid', 'name'], 'and its columns, not the other table\'s');
       p.assertNoErrors();
     } finally { await p.close(); }
   });
@@ -357,6 +367,21 @@ describe('validator app', () => {
       await p.waitForSelector('.v-rule .v-sql', { timeout: 20000 });
       const sql = await p.evaluate(() => document.querySelector('.v-rule [data-role="copysql"]').getAttribute('data-sql'));
       assert.match(sql, /SELECT \*[\s\S]*FROM data[\s\S]*WHERE NOT/, 'the violation query is offered to copy');
+      p.assertNoErrors();
+    } finally { await p.close(); }
+  });
+
+  test('several dropped files are combined into one dataset', async () => {
+    const p = await openValidator({ query: 'qrxtest' });
+    try {
+      await (await p.$('#filePicker')).uploadFile(join(FIX, 'tiny.parquet'), join(FIX, 'pii.parquet'));
+      await p.waitForFunction(() => window.__qrx.validator.state.total > 0, { timeout: 60_000 });
+      const info = await p.evaluate(() => {
+        const s = window.__qrx.validator.state;
+        return { total: s.total, parts: (s.source && s.source.parts ? s.source.parts.length : 0) };
+      });
+      assert.equal(info.total, 66, 'tiny (6) + pii (60) rows union into one source');
+      assert.equal(info.parts, 2, 'the combined source is made of the two files');
       p.assertNoErrors();
     } finally { await p.close(); }
   });

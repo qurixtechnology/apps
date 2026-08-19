@@ -51,6 +51,7 @@
 .qrx-picker label.is-disabled { opacity: .55; cursor: default; }
 .qrx-picker label.is-disabled:hover { background: none; }
 .qrx-picker input { accent-color: var(--qrx-primary); }
+.qrx-picker-meta { margin-left: auto; color: var(--qrx-text-muted); font-size: 0.75rem; font-family: var(--qrx-font-sans); }
 
 /* --- status bar ---------------------------------------------------------- */
 .qrx-status {

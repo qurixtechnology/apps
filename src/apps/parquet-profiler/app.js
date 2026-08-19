@@ -382,11 +382,12 @@
     return map[category] || map.other;
   }
 
-  function showError(title, detail) {
+  function showError(title, detail, href) {
     errorBox.innerHTML = `
       <div class="pp-error">
         <strong>${escapeHtml(title)}</strong>
         ${detail ? `<pre>${escapeHtml(detail)}</pre>` : ''}
+        ${href ? `<a class="pp-error-link" href="${escapeHtml(href)}">${escapeHtml(qrx.i18n.t('sourcePicker.converterLink'))} →</a>` : ''}
       </div>`;
   }
   function clearError() { errorBox.innerHTML = ''; }
@@ -523,12 +524,27 @@
       for (const f of state.files) taken.add(f.alias);
       let firstNewId = null;
       const failed = [];
+      let needConverter = false;
 
       for (const file of incoming) {
+        // Decide before touching memory: an unreadable format or an oversized
+        // in-browser rewrite becomes a message pointing at the converter, never
+        // an out-of-memory crash. Parquet is lazy and always passes.
+        let pf;
+        try { pf = await qrx.source.preflight(file); }
+        catch (e) { failed.push((e && e.message) ? e.message : String(e)); continue; }
+        if (pf.decision === 'block') {
+          failed.push(pf.message);
+          if (pf.recommendConverter) needConverter = true;
+          continue;
+        }
+        if (pf.decision === 'confirm' && !await qrx.ui.confirmLargeFile(file)) continue;
+
         let desc;
         try {
-          desc = await qrx.source.open(file, { onStatus: (m) => { if (m) showLoading(m); } });
+          desc = await qrx.source.open(file, { kind: pf.kind, onStatus: (m) => { if (m) showLoading(m); }, pickTable: qrx.ui.tablePicker });
         } catch (e) {
+          if (e && e.code === 'cancelled') continue;   // user closed the table picker
           // One unreadable file among several must not lose the others.
           failed.push((e && e.message) ? e.message : String(e));
           continue;
@@ -548,25 +564,33 @@
                       // Parquet; re-registering it from the original File would
                       // put the CSV bytes under a .parquet name.
                       mode: desc.normalized ? 'buffer' : 'handle',
+                      // An ATTACHed DuckDB/SQLite file has no Parquet footer and must
+                      // not be re-registered (that would break the attachment). Route
+                      // it through the same footer-less path a DuckDB-server table uses.
+                      kind: desc.attached ? 'duckdb' : undefined,
+                      sqlRef: desc.attached ? desc.from : undefined,
                       source: desc, normalized: desc.normalized, format: desc.kind,
                       warnings: desc.warnings.slice() };
         state.files.push(rec);
         if (firstNewId === null) firstNewId = id;
       }
 
-      if (failed.length && !state.files.length) throw new Error(failed.join(' '));
-      if (failed.length) showError(t('filesFailed'), failed.join(' '));
-
       hideLoading();
+      // Rejected files (unsupported / too large) are shown with a converter
+      // link rather than thrown, so the recommendation survives even when the
+      // very first drop is a single unreadable file.
+      if (failed.length) showError(t('filesFailed'), failed.join(' '), needConverter ? 'table-format-converter.html' : null);
 
-      if (!state.activeFileId) {
-        // First file(s) ever — reveal the workspace and profile the first one.
-        await setActiveFile(firstNewId);
-      } else {
-        // Already profiling a file; just refresh the list + SQL helper.
-        renderFileList();
-        rebuildSqlExamples();
-        renderSqlTables();
+      if (firstNewId !== null) {
+        if (!state.activeFileId) {
+          // First file(s) ever — reveal the workspace and profile the first one.
+          await setActiveFile(firstNewId);
+        } else {
+          // Already profiling a file; just refresh the list + SQL helper.
+          renderFileList();
+          rebuildSqlExamples();
+          renderSqlTables();
+        }
       }
     } catch (e) {
       console.error(e);
