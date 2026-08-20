@@ -495,6 +495,76 @@
     window.print();
   });
 
+  // ----- Optional qurix header/footer (PDF & Word) -----
+  // Off by default. When on, the shell logo + document title print as a page
+  // header and "qurix Technology" as a footer, repeated on every page.
+  //
+  // For PDF we use the reliable cross-browser technique: only at print time,
+  // the rendered document is wrapped in a table whose <thead> (header) and
+  // <tfoot> (footer) the browser repeats on every printed page, with the
+  // content flowing in the <tbody> in between — so nothing ever overlaps.
+  // (position:fixed headers are not honoured consistently by Chromium's print
+  // engine — they overlap the content or vanish once margins are set.) The
+  // wrap is undone right after printing, so the live document is untouched.
+  // For Word, buildWordHtml emits real mso header/footer elements instead.
+  const BRAND_KEY = 'md_brand_hf';
+  const brandChk = document.querySelector('[data-action="brand-toggle"]');
+
+  // The logo is the shell's header image — a PNG data-URI in chrome.html.
+  function qurixLogoDataUrl() {
+    const img = document.querySelector('.qrx-header-logo');
+    return img && img.src && /^data:/.test(img.src) ? img.src : null;
+  }
+  // A human-readable title (front-matter title, else the filename sans suffix).
+  function brandTitle() {
+    return currentFmTitle
+      || (currentFilename ? currentFilename.replace(/\.[^.]+$/, '') : '')
+      || 'Document';
+  }
+  function brandingOn() { return !!(brandChk && brandChk.checked); }
+
+  // Print-time wrapping: move .md-paper into a repeating-header/footer table.
+  let brandWrap = null, brandOrigParent = null, brandOrigNext = null;
+  function brandBeforePrint() {
+    if (brandWrap) return;                                   // already wrapped
+    if (!brandingOn()) return;
+    if (output.hasAttribute('hidden') || !output.innerHTML.trim()) return;
+    if (fsReturn) closeFullscreen();                         // don't wrap a moved-out node
+
+    const logo = qurixLogoDataUrl();
+    brandWrap = document.createElement('table');
+    brandWrap.id = 'md-brand-print';
+    brandWrap.innerHTML =
+      '<thead><tr><th><div class="md-brand-hd">'
+      +   (logo ? '<img class="md-brand-logo" alt="qurix">' : '<span></span>')
+      +   '<span class="md-brand-ttl"></span>'
+      + '</div></th></tr></thead>'
+      + '<tbody><tr><td class="md-brand-cell"></td></tr></tbody>'
+      + '<tfoot><tr><td><div class="md-brand-ft">qurix Technology · www.qurix.tech</div></td></tr></tfoot>';
+    if (logo) brandWrap.querySelector('.md-brand-logo').src = logo;
+    brandWrap.querySelector('.md-brand-ttl').textContent = brandTitle();
+
+    brandOrigParent = output.parentNode;
+    brandOrigNext = output.nextSibling;
+    brandWrap.querySelector('.md-brand-cell').appendChild(output);   // move the paper in
+    brandOrigParent.insertBefore(brandWrap, brandOrigNext);
+  }
+  function brandAfterPrint() {
+    if (!brandWrap) return;
+    brandOrigParent.insertBefore(output, brandOrigNext);             // move the paper back
+    brandWrap.remove();
+    brandWrap = brandOrigParent = brandOrigNext = null;
+  }
+  if (brandChk) {
+    try { brandChk.checked = window.qrx.core.storage.get(BRAND_KEY) === '1'; } catch (_) {}
+    brandChk.addEventListener('change', () => {
+      try { window.qrx.core.storage.set(BRAND_KEY, brandingOn() ? '1' : '0'); } catch (_) {}
+    });
+    // Fires for both the toolbar button (which calls window.print) and Ctrl+P.
+    window.addEventListener('beforeprint', brandBeforePrint);
+    window.addEventListener('afterprint', brandAfterPrint);
+  }
+
   // ----- Word export (.doc) -----
   // Wrap the rendered HTML in a Word-compatible (Office HTML) document. No
   // dependency: Word/LibreOffice open .doc-flavoured HTML natively. To match the
@@ -666,13 +736,38 @@
     return o;
   }
 
-  function buildWordHtml(bodyHtml) {
+  function buildWordHtml(bodyHtml, brand) {
     const title = escapeHtml(pdfBaseName());
-    return '<!DOCTYPE html>'
-      + '<html xmlns:o="urn:schemas-microsoft-com:office:office" '
+    const head = '<html xmlns:o="urn:schemas-microsoft-com:office:office" '
       +   'xmlns:w="urn:schemas-microsoft-com:office:word" '
       +   'xmlns="http://www.w3.org/1999/xhtml">'
-      + '<head><meta charset="utf-8"><title>' + title + '</title>'
+      + '<head><meta charset="utf-8"><title>' + title + '</title>';
+    if (brand) {
+      // Real Word header/footer: a named page section bound to header/footer
+      // elements. The logo <img> resolves to an MHTML part (see exportWord).
+      const hdr = escapeHtml(brand.title || '');
+      return '<!DOCTYPE html>' + head
+        + '<style>'
+        +   '@page Section1 { size:21cm 29.7cm; margin:2.6cm 2cm 2cm 2cm; '
+        +     'mso-header-margin:1cm; mso-footer-margin:1cm; mso-header:h1; mso-footer:f1; }'
+        +   'div.Section1 { page:Section1; }'
+        +   'body{margin:0;background:#ffffff;} table{border-collapse:collapse;}'
+        +   'div.Section1 img{max-width:100%;height:auto;}'   // only body images auto-size
+        +   'p.MsoHeader,p.MsoFooter{margin:0;}'
+        + '</style></head><body>'
+        +   '<div class="Section1">' + bodyHtml + '</div>'
+        +   '<div style="mso-element:header" id="h1"><table width="100%" style="border:none;border-collapse:collapse"><tr>'
+        +     '<td style="border:none;padding:0"><img src="' + brand.logoUrl + '"'
+        +       ' width="' + brand.logoW + '" height="' + brand.logoH + '"'
+        +       ' style="width:' + brand.logoW + 'px;height:' + brand.logoH + 'px;display:block"/></td>'
+        +     '<td style="border:none;padding:0;text-align:right;font-size:10pt;color:#5A6B75">' + hdr + '</td>'
+        +   '</tr></table></div>'
+        +   '<div style="mso-element:footer" id="f1">'
+        +     '<p class="MsoFooter" style="text-align:center;font-size:9pt;color:#5A6B75">qurix Technology · www.qurix.tech</p>'
+        +   '</div>'
+        + '</body></html>';
+    }
+    return '<!DOCTYPE html>' + head
       + '<style>@page{margin:2cm;}body{margin:0;background:#ffffff;}'
       +   'img{max-width:100%;height:auto;}table{border-collapse:collapse;}</style></head>'
       + '<body>' + bodyHtml + '</body></html>';
@@ -774,8 +869,25 @@
       const wrapper = document.createElement('div');
       wrapper.setAttribute('style', bodyContextCss(output));
       wrapper.innerHTML = clone.innerHTML;
-      const html = buildWordHtml(wrapper.outerHTML);
-      // With diagrams → MHTML (so images render); otherwise plain Office-HTML.
+      // Optional qurix header/footer: push the logo into the image parts (which
+      // forces the MHTML path) and hand the header title to buildWordHtml.
+      let brand = null;
+      if (brandingOn()) {
+        const logo = qurixLogoDataUrl();
+        const m = logo && /^data:image\/png;base64,([\s\S]+)$/.exec(logo);
+        if (m) {
+          const logoUrl = WORD_DOC_BASE + 'qurix-logo.png';
+          images.push({ url: logoUrl, b64: m[1] });
+          // Word ignores CSS height on <img>, so size it with explicit pixel
+          // width/height attributes derived from the logo's true aspect ratio.
+          const el = document.querySelector('.qrx-header-logo');
+          const nw = (el && el.naturalWidth) || 0, nh = (el && el.naturalHeight) || 0;
+          const h = 30, w = nh ? Math.round(h * nw / nh) : 90;   // ~0.8cm tall
+          brand = { logoUrl, title: brandTitle(), logoW: w, logoH: h };
+        }
+      }
+      const html = buildWordHtml(wrapper.outerHTML, brand);
+      // With diagrams (or branding logo) → MHTML; otherwise plain Office-HTML.
       const blob = images.length
         ? new Blob([buildMhtmlDoc(html, images)], { type: 'application/msword' })
         : new Blob(['﻿', html], { type: 'application/msword' });

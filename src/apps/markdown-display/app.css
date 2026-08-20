@@ -408,6 +408,33 @@
   .md-toolbar { padding: var(--qrx-s-3); }
 }
 
+/* Optional qurix branding toggle in the toolbar */
+.md-brand-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.8125rem; color: var(--qrx-text-muted); cursor: pointer; user-select: none;
+  white-space: nowrap; margin-right: var(--qrx-s-2);
+}
+.md-brand-toggle input { accent-color: var(--qrx-primary); cursor: pointer; }
+
+/* Optional qurix branding: at print time only, app.js wraps the document in a
+   table so #md-brand-print's <thead>/<tfoot> repeat as a page header/footer on
+   every page (with the content flowing between them — no overlap). The wrapper
+   never exists on screen, so an unbranded export is untouched. */
+#md-brand-print { width: 100%; border-collapse: collapse; }
+#md-brand-print > thead { display: table-header-group; }
+#md-brand-print > tfoot { display: table-footer-group; }
+#md-brand-print th, #md-brand-print td { padding: 0; border: none; text-align: left; vertical-align: top; }
+.md-brand-hd {
+  display: flex; align-items: center; justify-content: space-between; gap: 8mm;
+  padding-bottom: 3mm; margin-bottom: 7mm; border-bottom: 0.3mm solid #DBE3E8;
+}
+.md-brand-hd .md-brand-logo { height: 9mm; width: auto; }
+.md-brand-hd .md-brand-ttl { font-size: 10pt; color: #5A6B75; text-align: right; }
+.md-brand-ft {
+  padding-top: 3mm; margin-top: 7mm; text-align: center;
+  font-size: 9pt; color: #5A6B75; border-top: 0.3mm solid #DBE3E8;
+}
+
 /* === Export as PDF: native print of the rendered document only === */
 @page { size: A4; margin: 12mm; }
 @media print {
