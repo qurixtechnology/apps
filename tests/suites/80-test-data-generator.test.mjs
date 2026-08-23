@@ -53,14 +53,23 @@ describe('test data generator', () => {
         const orphanItems = Number(window.qrx.duckdb.rows(await D.conn().query(
           'SELECT count(*) n FROM order_items i LEFT JOIN orders o ON i.order_id=o.id WHERE o.id IS NULL'))[0].n);
         const anyIssue = st.tables.some((t) => Object.values(t.issues).some((v) => v > 0));
-        return { names, createdAt: typeOf('created_at'), revenue: typeOf('revenue_ytd'), orphanOrders, orphanItems, anyIssue };
+        // money round-trip: the value read back from DuckDB must match the
+        // in-memory value (DECIMAL used to read back as an unscaled integer).
+        const cust = st.tables.find((t) => t.name === 'customers');
+        const memRow = cust.rows.find((x) => x.revenue_ytd != null);
+        const dbRev = Number(window.qrx.duckdb.rows(await D.conn().query(
+          `SELECT revenue_ytd FROM customers WHERE id=${memRow.id}`))[0].revenue_ytd);
+        return { names, createdAt: typeOf('created_at'), revenue: typeOf('revenue_ytd'),
+          orphanOrders, orphanItems, anyIssue, memRev: memRow.revenue_ytd, dbRev };
       });
       assert.deepEqual(r.names, ['customers', 'products', 'employees', 'orders', 'order_items', 'transactions']);
       assert.equal(r.createdAt, 'DATE', 'clean dates stay typed');
-      assert.equal(r.revenue, 'DECIMAL(14,2)', 'clean money stays decimal');
+      assert.equal(r.revenue, 'DOUBLE', 'money is DOUBLE (round-trips cleanly, unlike DECIMAL in WASM)');
       assert.equal(r.orphanOrders, 0, 'every order references a real customer');
       assert.equal(r.orphanItems, 0, 'every line item references a real order');
       assert.equal(r.anyIssue, false, 'clinically clean injects no issues');
+      assert.ok(Math.abs(r.memRev - r.dbRev) < 0.01,
+        `money round-trips correctly (memory ${r.memRev} vs DuckDB ${r.dbRev})`);
       page.assertNoErrors();
     } finally { await page.close(); }
   });

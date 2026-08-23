@@ -409,7 +409,10 @@
 
   // kind → clean DuckDB type
   const CLEAN_TYPE = {
-    id: 'BIGINT', fk: 'BIGINT', int: 'INTEGER', money: 'DECIMAL(14,2)', date: 'DATE',
+    // money is DOUBLE, not DECIMAL: DuckDB-WASM hands DECIMAL back to Arrow as an
+    // unscaled 128-bit integer, so 16486.37 would read back / preview as "1648637".
+    // DOUBLE round-trips cleanly and round2() keeps the two decimals.
+    id: 'BIGINT', fk: 'BIGINT', int: 'INTEGER', money: 'DOUBLE', date: 'DATE',
     bool: 'BOOLEAN', code: 'VARCHAR', name: 'VARCHAR', email: 'VARCHAR', phone: 'VARCHAR',
     iban: 'VARCHAR', country: 'VARCHAR', category: 'VARCHAR', text: 'VARCHAR',
   };
@@ -567,11 +570,16 @@
       const m = { name: col.name, type, typeClass: tc, nullRate: tot ? 1 - nn / tot : 0, distinct: dc, kind: 'text' };
 
       if (tc === 't-number') {
-        const s = D.rows(await conn.query(`SELECT min(${q}) mn, max(${q}) mx, avg(${q}) av, stddev_pop(${q}) sd FROM tdg_src`))[0];
+        // Cast to DOUBLE: min()/max() on a DECIMAL return an unscaled Arrow value
+        // that Number() cannot read (→ NaN).
+        const s = D.rows(await conn.query(
+          `SELECT min(CAST(${q} AS DOUBLE)) mn, max(CAST(${q} AS DOUBLE)) mx, avg(CAST(${q} AS DOUBLE)) av, stddev_pop(CAST(${q} AS DOUBLE)) sd FROM tdg_src`))[0];
         m.min = Number(s.mn); m.max = Number(s.mx); m.mean = Number(s.av); m.std = Number(s.sd) || 0;
         m.isInt = /INT/i.test(type) && !/DECIMAL|DOUBLE|FLOAT|REAL|NUMERIC/i.test(type);
         m.decimals = m.isInt ? 0 : decimalsOf(type);
         m.kind = m.isInt ? 'int' : 'money';
+        // Generate DECIMAL sources as DOUBLE so values round-trip correctly.
+        if (/DECIMAL|NUMERIC/i.test(type)) m.type = 'DOUBLE';
       } else if (tc === 't-date') {
         const s = D.rows(await conn.query(`SELECT min(${q}) mn, max(${q}) mx FROM tdg_src`))[0];
         m.minMs = s.mn instanceof Date ? s.mn.getTime() : Date.parse(s.mn) || (now.getTime() - 3650 * DAY);
@@ -714,7 +722,8 @@
     // 2) Outliers on still-numeric / still-date columns
     if (k.outliers > 0) {
       for (const col of cols) {
-        const numeric = col.type === 'DECIMAL(14,2)' || col.type === 'INTEGER';
+        // still numeric = a money/int column that formatChaos did NOT turn to text
+        const numeric = col.type !== 'VARCHAR' && (col.kind === 'money' || col.kind === 'int');
         const isMoney = col.kind === 'money';
         for (const r of rows) {
           if (r[col.name] == null) continue;
