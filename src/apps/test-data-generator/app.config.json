@@ -1,0 +1,33 @@
+{
+  "name": "Test Data Generator",
+  "lang": "de",
+  "theme": "qurix",
+  "output": "test-data-generator.html",
+  "card": {
+    "title": "Testdaten-Generator",
+    "title_en": "Test Data Generator",
+    "description": "Erzeugt realistische, verknüpfte Testdaten für typische Unternehmensbereiche — oder leitet Struktur, Statistik und Muster aus einer importierten Datei ab. Qualitätsstufe von klinisch sauber bis stark fehlerhaft frei einstellbar, Export in alle von DuckDB unterstützten Formate.",
+    "description_en": "Generates realistic, linked test data for typical business domains — or derives structure, statistics and patterns from an imported file. Data quality is tunable from clinically clean to heavily flawed, with export to every format DuckDB supports.",
+    "tags": ["Testdaten", "Aus Datei", "Alle Formate"],
+    "tags_en": ["Test data", "From a file", "All formats"]
+  },
+  "fonts": [],
+  "inlineScripts": [
+    "../../shared/qrx-core.js",
+    "../../shared/qrx-i18n.js",
+    "../../shared/qrx-duckdb.js",
+    "../../shared/qrx-patterns.js",
+    "../../shared/qrx-source.js",
+    "../../shared/qrx-source-ext.js",
+    "../../shared/qrx-test.js",
+    "../../shared/qrx-ui.js"
+  ],
+  "inlineStyles": ["../../shared/qrx-ui.css"],
+  "headAssets": [
+    {
+      "comment": "SheetJS (xlsx) via the official SheetJS CDN, pinned — used for the Excel/ODS export targets",
+      "src": "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
+      "crossorigin": "anonymous"
+    }
+  ]
+}

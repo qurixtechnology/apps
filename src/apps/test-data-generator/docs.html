@@ -1,0 +1,79 @@
+<h3>Was macht diese App?</h3>
+<p>
+  Der <strong>Testdaten-Generator</strong> erzeugt realistische, referenziell verknüpfte
+  Testdaten für typische Unternehmensbereiche — vollständig im Browser, ohne dass Daten
+  den Rechner verlassen. Generierung, Vorschau und Export laufen lokal auf DuckDB-WASM.
+</p>
+
+<h3>Bereiche</h3>
+<ul>
+  <li><strong>Kunden</strong> — Personen und Firmen mit Anschrift, E-Mail, Telefon, Segment.</li>
+  <li><strong>Aufträge &amp; Positionen</strong> — Bestellungen mit Positionszeilen, verknüpft mit Kunden, Produkten und Mitarbeitern.</li>
+  <li><strong>Buchungen</strong> — Finanztransaktionen mit Betrag, IBAN, Kategorie, optionalem Kunden-/Auftragsbezug.</li>
+  <li><strong>Produkte &amp; Mitarbeiter</strong> — Artikelstamm und Personal mit Abteilung, Rolle, Gehalt.</li>
+</ul>
+<p>
+  Die Tabellen sind über echte Fremdschlüssel verknüpft (z.&nbsp;B. verweist jeder Auftrag auf
+  einen existierenden Kunden), sodass Joins beim Testen funktionieren. Abhängige Tabellen
+  werden bei Bedarf automatisch ergänzt.
+</p>
+
+<h3>Aus Datei ableiten</h3>
+<p>
+  Alternativ zu den Vorlagen lässt sich über <strong>„Aus Datei ableiten"</strong> eine
+  bestehende Datei importieren (CSV, TSV, Parquet, JSON, NDJSON — shared Import-Widget).
+  Daraus wird <em>keine Kopie</em> erzeugt, sondern ein Modell gelernt und neue, synthetische
+  Zeilen generiert, die die Datei nachbilden:
+</p>
+<ul>
+  <li><strong>Struktur</strong> — dieselben Spalten und exakten Datentypen.</li>
+  <li><strong>Statistik</strong> — Wertebereiche (min/max), Mittelwert/Streuung bei Zahlen,
+    Datumsspannen und die NULL-Quote je Spalte.</li>
+  <li><strong>Spaltentyp &amp; Faker</strong> — für Textspalten wird die <em>Bedeutung</em>
+    erkannt (Name, Firma, Stadt, Straße, Land, Verwendungszweck …). Solche Felder werden
+    <strong>vollsynthetisch über einen Faker</strong> erzeugt (aus den Locale-Pools DE/EN), sodass
+    <strong>keine Originalzeichen</strong> übrig bleiben — auch keine geteilten Namensteile.</li>
+  <li><strong>Muster</strong> — strukturierte Felder (Codes, Telefon, IBAN, PLZ, E-Mail) folgen
+    ihrem Zeichenmuster (z.&nbsp;B. <code>CUST-9999</code>); nur nicht-personenbezogene Struktur
+    (ein <code>+49&nbsp;</code>, <code>@host</code>) bleibt erhalten, die variablen Stellen werden
+    neu gewürfelt.</li>
+  <li><strong>Kategorien</strong> — Spalten mit wenigen verschiedenen Werten werden als Kategorien
+    behandelt und bleiben <strong>wie im Original</strong> (gemäß Häufigkeit neu gezogen).</li>
+</ul>
+<p>
+  <strong>Kategorisierung abwählen:</strong> Bei jeder als Kategorie erkannten Spalte lässt sich
+  in der Struktur-Übersicht der Schalter <em>„als Kategorie"</em> deaktivieren. Dann werden die
+  echten Werte nicht mehr übernommen, sondern <strong>über den Faker vollsynthetisch</strong>
+  erzeugt — wichtig bei personenbezogenen Feldern (z.&nbsp;B. Namen auf einem Kontoauszug).
+</p>
+<p>
+  Die Qualitätsregler wirken zusätzlich auch hier — Voreinstellung ist <em>klinisch sauber</em>,
+  sodass die Datei zunächst originalgetreu nachgebildet wird.
+</p>
+
+<h3>Qualitätsstufe</h3>
+<p>
+  Vier Voreinstellungen — von <em>klinisch sauber</em> über <em>leicht</em> und
+  <em>realistisch</em> bis <em>stark fehlerhaft</em>. Über die Feinjustierung lassen sich
+  einzelne Fehlerarten stufenlos steuern:
+</p>
+<ul>
+  <li><strong>Fehlende Werte (NULL)</strong>, <strong>Dubletten</strong>, <strong>Tippfehler</strong>,</li>
+  <li><strong>Formatinkonsistenz</strong> (gemischte Datums-, Zahlen-, Telefon- und Länderformate — dann als Text),</li>
+  <li><strong>Ausreißer</strong> (negative Preise, unmögliche Datumswerte, extreme Beträge) und</li>
+  <li><strong>Whitespace &amp; Groß-/Kleinschreibung</strong>.</li>
+</ul>
+
+<h3>Reproduzierbarkeit</h3>
+<p>
+  Gleicher <strong>Seed</strong> + gleiche Einstellungen ⇒ exakt dieselben Daten. Über 🎲 wird
+  ein neuer Zufalls-Seed gewürfelt. Region <strong>DE/EN</strong> steuert Namen, Adressen,
+  IBAN und Telefonformate.
+</p>
+
+<h3>Export</h3>
+<p>
+  In alle von DuckDB unterstützten Formate: <strong>Parquet, CSV, JSON, NDJSON, Excel (xlsx),
+  ODS, Markdown, HTML</strong>. Bei mehreren Tabellen wird Excel/ODS als eine Mappe mit einem
+  Blatt pro Tabelle geschrieben, andere Formate als ZIP mit einer Datei je Tabelle.
+</p>

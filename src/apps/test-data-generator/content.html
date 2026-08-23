@@ -1,0 +1,168 @@
+  <div class="tdg">
+
+    <p class="tdg-intro" data-qrx-i18n="app.intro">
+      Erzeugt realistische, verknüpfte Testdaten für typische Unternehmensbereiche.
+      Nichts verlässt den Browser — die Generierung und der Export laufen vollständig lokal auf DuckDB-WASM.
+    </p>
+
+    <!-- ============================ CONFIG ============================ -->
+    <details class="qrx-card tdg-panel" id="tdg-config-panel" open>
+      <summary class="tdg-panel-summary">
+        <span class="tdg-panel-title" data-qrx-i18n="app.configTitle">Konfiguration</span>
+        <span class="tdg-panel-hint" id="tdg-config-summary"></span>
+        <span class="tdg-panel-chevron" aria-hidden="true"></span>
+      </summary>
+
+      <div class="tdg-panel-body tdg-config">
+
+        <!-- Mode: built-in domains vs. derive from an imported file -->
+        <div class="tdg-modes" id="tdg-modes" role="group">
+          <button type="button" class="tdg-mode is-active" data-mode="domains" data-qrx-i18n="app.mode.domains">Vorlagen (Bereiche)</button>
+          <button type="button" class="tdg-mode" data-mode="file" data-qrx-i18n="app.mode.file">Aus Datei ableiten</button>
+        </div>
+
+        <!-- ===== FILE MODE ===== -->
+        <div class="tdg-mode-file" id="tdg-mode-file" hidden>
+          <div class="tdg-drop" id="tdg-drop" tabindex="0" role="button"
+               data-qrx-i18n-aria-label="app.importAria" aria-label="Datei hierher ziehen oder klicken">
+            <input type="file" id="tdg-file-input" hidden>
+            <p class="tdg-drop-title" data-qrx-i18n="app.importDrop">Datei hierher ziehen oder klicken zum Auswählen</p>
+            <p class="tdg-drop-sub" data-qrx-i18n="app.importFormats">CSV · TSV · Parquet · JSON · NDJSON — Struktur, Statistik und Muster werden übernommen</p>
+          </div>
+          <div id="tdg-import-status" hidden></div>
+
+          <div class="tdg-template" id="tdg-template" hidden>
+            <div class="tdg-template-head" id="tdg-template-head"></div>
+            <div class="tdg-template-cols" id="tdg-template-cols"></div>
+            <div class="qrx-form-group" style="margin-top:var(--qrx-s-4)">
+              <label class="qrx-label" for="tdg-file-rows" data-qrx-i18n="app.fileRows">Anzahl zu erzeugender Zeilen</label>
+              <input class="qrx-input" id="tdg-file-rows" type="number" min="1" max="1000000" step="1" value="1000">
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== DOMAINS MODE ===== -->
+        <div class="tdg-mode-domains" id="tdg-mode-domains">
+        <div class="tdg-config-cols">
+
+          <!-- Domains -->
+          <fieldset class="tdg-fieldset">
+            <legend data-qrx-i18n="app.domains">Bereiche</legend>
+            <label class="tdg-check">
+              <input type="checkbox" data-domain="customers" checked>
+              <span data-qrx-i18n="app.dom.customers">Kundendaten</span>
+            </label>
+            <label class="tdg-check">
+              <input type="checkbox" data-domain="orders" checked>
+              <span data-qrx-i18n="app.dom.orders">Auftrags- / Bestelldaten</span>
+            </label>
+            <label class="tdg-check">
+              <input type="checkbox" data-domain="finance" checked>
+              <span data-qrx-i18n="app.dom.finance">Finanz- / Buchungsdaten</span>
+            </label>
+            <label class="tdg-check">
+              <input type="checkbox" data-domain="catalog" checked>
+              <span data-qrx-i18n="app.dom.catalog">Produkt- &amp; Mitarbeiterdaten</span>
+            </label>
+            <p class="tdg-hint" id="tdg-dep-hint" hidden></p>
+          </fieldset>
+
+          <div class="tdg-config-right">
+            <!-- Region -->
+            <div class="qrx-form-group">
+              <label class="qrx-label" for="tdg-region" data-qrx-i18n="app.region">Region der Daten</label>
+              <select class="qrx-select" id="tdg-region">
+                <option value="de" data-qrx-i18n="app.region.de">Deutschland (DE)</option>
+                <option value="en" data-qrx-i18n="app.region.en">International (EN)</option>
+              </select>
+            </div>
+
+            <!-- Size -->
+            <div class="qrx-form-group">
+              <label class="qrx-label" for="tdg-size" data-qrx-i18n="app.size">Datenmenge — Basis-Datensätze</label>
+              <input class="qrx-input" id="tdg-size" type="number" min="1" max="200000" step="1" value="1000">
+              <p class="tdg-hint" id="tdg-size-hint"></p>
+            </div>
+          </div>
+        </div>
+        </div><!-- /tdg-mode-domains -->
+
+        <!-- Quality -->
+        <div class="qrx-form-group">
+          <label class="qrx-label" data-qrx-i18n="app.quality">Qualitätsstufe</label>
+          <div class="tdg-presets" id="tdg-presets" role="group">
+            <button type="button" class="tdg-preset" data-preset="clean"   data-qrx-i18n="app.q.clean">klinisch sauber</button>
+            <button type="button" class="tdg-preset" data-preset="light"   data-qrx-i18n="app.q.light">leicht</button>
+            <button type="button" class="tdg-preset is-active" data-preset="realistic" data-qrx-i18n="app.q.realistic">realistisch</button>
+            <button type="button" class="tdg-preset" data-preset="messy"   data-qrx-i18n="app.q.messy">stark fehlerhaft</button>
+          </div>
+          <p class="tdg-hint" id="tdg-quality-hint"></p>
+        </div>
+
+        <!-- Fine tune -->
+        <details class="tdg-advanced" id="tdg-advanced">
+          <summary data-qrx-i18n="app.fineTune">Feinjustierung der Fehlerarten</summary>
+          <div class="tdg-sliders" id="tdg-sliders"><!-- rendered by app.js --></div>
+        </details>
+
+        <!-- Seed + generate -->
+        <div class="tdg-run-row">
+          <div class="tdg-seed-row">
+            <div style="flex:1">
+              <label class="qrx-label" for="tdg-seed" data-qrx-i18n="app.seed">Seed (für reproduzierbare Daten)</label>
+              <input class="qrx-input" id="tdg-seed" type="text" value="qurix" spellcheck="false">
+            </div>
+            <button type="button" class="qrx-btn qrx-btn-sm tdg-reroll" id="tdg-reroll"
+                    data-qrx-i18n-title="app.rerollHint" title="Neuen Zufalls-Seed würfeln">🎲</button>
+          </div>
+          <button type="button" class="qrx-btn qrx-btn-primary tdg-generate" id="tdg-generate"
+                  data-qrx-i18n="app.generate">Testdaten erzeugen</button>
+        </div>
+        <div id="tdg-status" hidden></div>
+      </div>
+    </details>
+
+    <!-- ============================ RESULTS =========================== -->
+    <details class="qrx-card tdg-panel" id="tdg-results" hidden>
+      <summary class="tdg-panel-summary">
+        <span class="tdg-panel-title" data-qrx-i18n="app.resultsTitle">Daten &amp; Export</span>
+        <span class="tdg-panel-hint" id="tdg-results-summary"></span>
+        <span class="tdg-panel-chevron" aria-hidden="true"></span>
+      </summary>
+
+      <div class="tdg-panel-body">
+        <div class="tdg-tabs" id="tdg-tabs" role="tablist"><!-- table tabs --></div>
+
+        <div class="tdg-preview">
+          <div class="tdg-preview-head">
+            <span class="tdg-preview-title" id="tdg-preview-title"></span>
+            <span class="tdg-hint" id="tdg-preview-meta"></span>
+          </div>
+          <div class="tdg-report" id="tdg-report"></div>
+          <div class="tdg-grid-wrap" id="tdg-grid"></div>
+        </div>
+
+        <!-- Export -->
+        <div class="tdg-export">
+          <h3 class="tdg-h3" data-qrx-i18n="app.exportTitle">Export</h3>
+          <p class="tdg-hint" data-qrx-i18n="app.exportHint">
+            Alle von DuckDB unterstützten Formate. Bei mehreren Tabellen: Excel/ODS als eine Mappe mit einem Blatt pro Tabelle, sonst als ZIP.
+          </p>
+          <div class="tdg-formats" id="tdg-formats" role="group"><!-- format chips --></div>
+          <div id="tdg-export-options" class="tdg-export-options"></div>
+          <div class="tdg-export-controls">
+            <div class="qrx-form-group" style="margin:0;flex:1;min-width:180px">
+              <label class="qrx-label" for="tdg-export-scope" data-qrx-i18n="app.scope">Umfang</label>
+              <select class="qrx-select" id="tdg-export-scope">
+                <option value="current" data-qrx-i18n="app.scope.current">Aktuelle Tabelle</option>
+                <option value="all" data-qrx-i18n="app.scope.all">Alle Tabellen</option>
+              </select>
+            </div>
+            <button type="button" class="qrx-btn qrx-btn-accent tdg-export-btn" id="tdg-export-btn"
+                    data-qrx-i18n="app.exportBtn">Exportieren</button>
+          </div>
+          <div id="tdg-export-status" hidden></div>
+        </div>
+      </div>
+    </details>
+  </div>

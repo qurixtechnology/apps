@@ -1,0 +1,76 @@
+<h3>What does this app do?</h3>
+<p>
+  The <strong>Test Data Generator</strong> creates realistic, referentially-linked test data
+  for typical business domains — entirely in the browser, with no data leaving your machine.
+  Generation, preview and export all run locally on DuckDB-WASM.
+</p>
+
+<h3>Domains</h3>
+<ul>
+  <li><strong>Customers</strong> — people and companies with address, e-mail, phone, segment.</li>
+  <li><strong>Orders &amp; line items</strong> — orders with item lines, linked to customers, products and employees.</li>
+  <li><strong>Transactions</strong> — financial bookings with amount, IBAN, category, optional customer/order reference.</li>
+  <li><strong>Products &amp; employees</strong> — product master data and staff with department, role, salary.</li>
+</ul>
+<p>
+  Tables are linked through real foreign keys (e.g. every order references an existing
+  customer), so joins work when testing. Dependent tables are added automatically when needed.
+</p>
+
+<h3>Derive from a file</h3>
+<p>
+  As an alternative to the templates, <strong>“Derive from a file”</strong> imports an existing
+  file (CSV, TSV, Parquet, JSON, NDJSON — the shared import widget). It does <em>not</em> copy
+  the data; it learns a model and generates new, synthetic rows that mirror the file:
+</p>
+<ul>
+  <li><strong>Structure</strong> — the same columns and exact data types.</li>
+  <li><strong>Statistics</strong> — value ranges (min/max), mean/spread for numbers, date spans,
+    and the per-column NULL rate.</li>
+  <li><strong>Column type &amp; Faker</strong> — for text columns the <em>meaning</em> is detected
+    (name, company, city, street, country, reference …). Such fields are generated
+    <strong>fully synthetically by a Faker</strong> (from the DE/EN locale pools), so
+    <strong>no original characters remain</strong> — not even shared name fragments.</li>
+  <li><strong>Patterns</strong> — structured fields (codes, phone, IBAN, postal, e-mail) follow
+    their character pattern (e.g. <code>CUST-9999</code>); only non-personal structure (a
+    <code>+49&nbsp;</code>, <code>@host</code>) is kept while variable positions are re-rolled.</li>
+  <li><strong>Categories</strong> — columns with few distinct values are treated as categories and
+    kept <strong>as in the original</strong> (resampled by frequency).</li>
+</ul>
+<p>
+  <strong>Turning categorisation off:</strong> for any column detected as a category, the
+  <em>“as category”</em> switch in the structure overview can be disabled. Real values are then no
+  longer kept; instead they are generated <strong>fully synthetically via the Faker</strong> —
+  important for personal fields (e.g. names on a bank statement).
+</p>
+<p>
+  The quality sliders apply on top here too — the default is <em>clinically clean</em>, so the
+  file is reproduced faithfully at first.
+</p>
+
+<h3>Quality level</h3>
+<p>
+  Four presets — from <em>clinically clean</em> through <em>light</em> and <em>realistic</em>
+  to <em>heavily flawed</em>. The fine-tune section controls individual issue types on a
+  continuous scale:
+</p>
+<ul>
+  <li><strong>Missing values (NULL)</strong>, <strong>duplicates</strong>, <strong>typos</strong>,</li>
+  <li><strong>Format inconsistency</strong> (mixed date, number, phone and country formats — then stored as text),</li>
+  <li><strong>Outliers</strong> (negative prices, impossible dates, extreme amounts) and</li>
+  <li><strong>Whitespace &amp; casing</strong>.</li>
+</ul>
+
+<h3>Reproducibility</h3>
+<p>
+  Same <strong>seed</strong> + same settings ⇒ exactly the same data. The 🎲 button rolls a
+  new random seed. The <strong>DE/EN</strong> region controls names, addresses, IBAN and phone
+  formats.
+</p>
+
+<h3>Export</h3>
+<p>
+  To every format DuckDB supports: <strong>Parquet, CSV, JSON, NDJSON, Excel (xlsx), ODS,
+  Markdown, HTML</strong>. With multiple tables, Excel/ODS is written as one workbook with a
+  sheet per table; other formats as a ZIP with one file per table.
+</p>
