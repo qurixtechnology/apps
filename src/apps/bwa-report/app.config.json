@@ -1,0 +1,29 @@
+{
+  "name": "BWA Report",
+  "lang": "de",
+  "theme": "qurix",
+  "output": "bwa-report.html",
+  "card": {
+    "title": "BWA-Bericht",
+    "title_en": "BWA Report",
+    "description": "Importiert eine DATEV-BWA (PDF) und erstellt daraus einen verständlichen Bericht — auch für Laien. Zeigt die wirtschaftliche Lage, Ergebnis, Kostenstruktur und Liquidität als klare Kennzahlen mit Ampel-Bewertung und konkreten Empfehlungen. Für StartUps und kleine Unternehmen ohne eigene Finanzabteilung.",
+    "description_en": "Imports a DATEV BWA (PDF) and turns it into a report anyone can understand. Shows the economic situation, result, cost structure and liquidity as clear KPIs with a traffic-light rating and concrete recommendations. For startups and small businesses without a finance department.",
+    "tags": ["BWA", "KPIs", "Liquidität"],
+    "tags_en": ["BWA", "KPIs", "Liquidity"]
+  },
+  "fonts": ["qurix.fonts.html"],
+  "inlineScripts": [
+    "../../shared/qrx-core.js",
+    "../../shared/qrx-i18n.js",
+    "../../shared/qrx-test.js",
+    "../../shared/qrx-ui.js"
+  ],
+  "inlineStyles": ["../../shared/qrx-ui.css"],
+  "headAssets": [
+    {
+      "comment": "PDF text extraction (pdf.js UMD build → window.pdfjsLib), pinned — used to read DATEV BWA PDFs locally",
+      "src": "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
+      "crossorigin": "anonymous"
+    }
+  ]
+}
