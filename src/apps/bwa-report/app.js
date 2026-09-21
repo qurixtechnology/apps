@@ -44,6 +44,10 @@
       'def.dpo': 'Zahlungsziel gegenüber Lieferanten in Tagen (offene Verbindlichkeiten ÷ Kosten × Tage).',
       'def.breakeven': 'Umsatz, ab dem die Kosten gedeckt sind. Der Sicherheitsabstand zeigt, wie weit du darüber liegst. Grobe Schätzung.',
       'def.expenseDrill': 'Die betragsmäßig größten einzelnen Aufwandskonten aus den Summen & Salden — oft steckt hier der Großteil der „Sonstigen Kosten“.',
+      secCockpit: 'Cockpit', gaugeSafety: 'Sicherheitsabstand', gaugeCluster: 'Klumpenrisiko (Top-Kunde)', gaugeTaxCov: 'Steuer-Deckung',
+      'def.marge': 'Umsatzrendite = Betriebsergebnis ÷ Umsatz. Wie viel von jedem Euro Umsatz als Ergebnis übrig bleibt.',
+      'def.cluster': 'Anteil des größten Kunden an den offenen Forderungen. Hoch = starke Abhängigkeit von einem Kunden (Risiko).',
+      'def.taxcov': 'Wie weit die Steuerrückstellungen die überschlägig erwartete Ertragsteuer decken (Verlustvorträge berücksichtigt). Grobe Orientierung.',
       periodLine: 'Monat {m} · kumuliert {p} · Stand {d}',
       // sections
       secGlance: 'Auf einen Blick', secErtrag: 'Wirtschaftliche Lage', secKosten: 'Kostenstruktur',
@@ -132,6 +136,10 @@
       'def.dpo': 'Payment terms towards suppliers in days (open payables ÷ costs × days).',
       'def.breakeven': 'The revenue at which costs are covered. The safety margin shows how far above it you are. Rough estimate.',
       'def.expenseDrill': 'The largest individual expense accounts from the trial balance — often the bulk of “other costs” sits here.',
+      secCockpit: 'Cockpit', gaugeSafety: 'Safety margin', gaugeCluster: 'Concentration (top customer)', gaugeTaxCov: 'Tax coverage',
+      'def.marge': 'Operating margin = operating result ÷ revenue. How much of each euro of revenue remains as result.',
+      'def.cluster': 'Share of the largest customer in open receivables. High = strong dependence on one customer (risk).',
+      'def.taxcov': 'How far the tax provisions cover the roughly expected income tax (loss carry-forwards considered). Rough orientation.',
       periodLine: 'Month {m} · year-to-date {p} · as of {d}',
       secGlance: 'At a glance', secErtrag: 'Economic situation', secKosten: 'Cost structure',
       secLiqui: 'Liquidity', secBewertung: 'Rating & recommendations', secDetails: 'Details',
@@ -353,6 +361,11 @@
     if (isKapGes && o.ergebnisVorSteuernYtd > 0) {
       o.taxCheck = { rate: 0.30, base: o.ergebnisVorSteuernYtd, expected: o.ergebnisVorSteuernYtd * 0.30,
         reserved: o.taxProvisions, lossCarry: o.lossCarry, hasSusa: parsed.hasSusa };
+      if (parsed.hasSusa) {
+        // loss carry-forwards shield the current profit → adjust the expected tax
+        const taxable = Math.max(0, o.ergebnisVorSteuernYtd - o.lossCarry), expAdj = taxable * 0.30;
+        o.taxCoverage = expAdj > 0 ? o.taxProvisions / expAdj : 2;   // 2 = comfortably covered
+      }
     }
     if (parsed.hasSusa && a.length) {
       const L = {
@@ -444,6 +457,51 @@
     </div>`;
   }
   function money2(n) { return `<span class="${n < 0 ? 'bwa-neg' : ''}">${eur0(n)}</span>`; }
+
+  // Semicircle gauge ("Tacho") for a bounded ratio KPI with green/amber/red zones.
+  function gauge(spec) {
+    const cx = 100, cy = 100, r = 80, rMid = 69, thick = 22;
+    const clamp = (v) => Math.max(spec.min, Math.min(spec.max, v));
+    const ang = (v) => Math.PI * (1 - (clamp(v) - spec.min) / (spec.max - spec.min));
+    const arc = (a0, a1) => {
+      const steps = Math.max(2, Math.round(Math.abs(a0 - a1) / 0.08)); let d = '';
+      for (let i = 0; i <= steps; i++) { const a = a0 + (a1 - a0) * i / steps; d += (i ? 'L' : 'M') + (cx + rMid * Math.cos(a)).toFixed(1) + ' ' + (cy - rMid * Math.sin(a)).toFixed(1) + ' '; }
+      return d;
+    };
+    let arcs = '', from = spec.min;
+    for (const z of spec.zones) { const to = Math.min(z.to, spec.max); arcs += `<path d="${arc(ang(from), ang(to))}" class="bwa-g-${z.cls}" fill="none" stroke-width="${thick}"/>`; from = to; if (from >= spec.max) break; }
+    let cls = spec.zones[spec.zones.length - 1].cls;
+    for (const z of spec.zones) { if (clamp(spec.value) <= z.to) { cls = z.cls; break; } }
+    const av = ang(spec.value), nx = cx + (r - 8) * Math.cos(av), ny = cy - (r - 8) * Math.sin(av);
+    const lvl = cls === 'g' ? 'good' : cls === 'a' ? 'ok' : 'bad';
+    return `<div class="bwa-gauge">
+      <div class="bwa-gauge-label">${esc(t(spec.labelKey))}${info(spec.defKey)}</div>
+      <svg viewBox="0 0 200 116" class="bwa-gauge-svg" aria-hidden="true">${arcs}
+        <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" class="bwa-g-needle"/>
+        <circle cx="${cx}" cy="${cy}" r="4.5" class="bwa-g-hub"/></svg>
+      <div class="bwa-gauge-value">${esc(spec.fmt(spec.value))}</div>
+      <div class="bwa-gauge-verdict bwa-verd-${cls}">${esc(lvlWord(lvl))}</div>
+    </div>`;
+  }
+  function renderCockpit(K) {
+    const gs = [];
+    gs.push(gauge({ labelKey: 'kMarge', defKey: 'marge', value: K.umsatzrenditeYtd, min: -0.10, max: 0.30,
+      zones: [{ to: 0, cls: 'r' }, { to: 0.10, cls: 'a' }, { to: 0.30, cls: 'g' }], fmt: (v) => pct(v, 1) }));
+    if (K.breakEven && K.breakEven.umsatz != null)
+      gs.push(gauge({ labelKey: 'gaugeSafety', defKey: 'breakeven', value: K.breakEven.safety, min: -0.30, max: 0.40,
+        zones: [{ to: 0, cls: 'r' }, { to: 0.15, cls: 'a' }, { to: 0.40, cls: 'g' }], fmt: (v) => pct(v, 0) }));
+    if (K.liquidity && K.liquidity.runwayMonths != null)
+      gs.push(gauge({ labelKey: 'kRunway', defKey: 'runway', value: K.liquidity.runwayMonths, min: 0, max: 12,
+        zones: [{ to: 3, cls: 'r' }, { to: 6, cls: 'a' }, { to: 12, cls: 'g' }], fmt: (v) => t('months', { n: v.toFixed(1) }) }));
+    if (K.concentration && K.concentration.customers)
+      gs.push(gauge({ labelKey: 'gaugeCluster', defKey: 'cluster', value: K.concentration.customers.top1, min: 0, max: 1,
+        zones: [{ to: 0.25, cls: 'g' }, { to: 0.40, cls: 'a' }, { to: 1, cls: 'r' }], fmt: (v) => pct(v, 0) }));
+    if (K.taxCoverage != null)
+      gs.push(gauge({ labelKey: 'gaugeTaxCov', defKey: 'taxcov', value: K.taxCoverage, min: 0, max: 1.5,
+        zones: [{ to: 0.70, cls: 'r' }, { to: 1.0, cls: 'a' }, { to: 1.5, cls: 'g' }],
+        fmt: () => (K.taxCoverage > 1.5 ? '≥ ' : '') + pct(Math.min(K.taxCoverage, 1.5), 0) }));
+    return gs.length >= 2 ? section('secCockpit', `<div class="bwa-cockpit">${gs.join('')}</div>`) : '';
+  }
 
   // Mini sparkline for a KPI card (from the multi-period series).
   function sparkSVG(vals) {
@@ -629,7 +687,8 @@
       </details>`;
 
     $('bwa-body').innerHTML =
-      section('secGlance', `<div class="bwa-cards">${glance}</div>`)
+      renderCockpit(K)
+      + section('secGlance', `<div class="bwa-cards">${glance}</div>`)
       + section('secErtrag', ertragBody)
       + section('secKosten', kostenBody)
       + section('secLiqui', liquiBody)

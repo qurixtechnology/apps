@@ -72,6 +72,23 @@
 .bwa-subtitle { margin-top: var(--qrx-s-4); }
 .bwa-subnote { margin: 0 0 var(--qrx-s-3); }
 
+/* Cockpit gauges */
+.bwa-cockpit { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: var(--qrx-s-3); }
+.bwa-gauge { border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius); padding: var(--qrx-s-3) var(--qrx-s-2) var(--qrx-s-2);
+  background: var(--qrx-surface); text-align: center; }
+.bwa-gauge-label { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.78rem; color: var(--qrx-text-muted); font-weight: 500; min-height: 2.4em; }
+.bwa-gauge-svg { width: 82%; max-width: 150px; height: auto; display: block; margin: 2px auto 0; }
+.bwa-g-g { stroke: var(--qrx-success); }
+.bwa-g-a { stroke: var(--qrx-warning); }
+.bwa-g-r { stroke: var(--qrx-danger); }
+.bwa-g-needle { stroke: var(--qrx-text); stroke-width: 3; stroke-linecap: round; }
+.bwa-g-hub { fill: var(--qrx-text); }
+.bwa-gauge-value { font-size: 1.15rem; font-weight: 700; color: var(--qrx-text); margin-top: -4px; font-variant-numeric: tabular-nums; }
+.bwa-gauge-verdict { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.bwa-verd-g { color: var(--qrx-success); }
+.bwa-verd-a { color: var(--qrx-warning); }
+.bwa-verd-r { color: var(--qrx-danger); }
+
 .bwa-sec { margin-bottom: var(--qrx-s-6); }
 .bwa-h3 { font-size: 1.15rem; font-weight: 600; color: var(--qrx-text); margin: 0 0 var(--qrx-s-3);
   padding-bottom: var(--qrx-s-2); border-bottom: 1px solid var(--qrx-border); }

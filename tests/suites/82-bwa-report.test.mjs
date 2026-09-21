@@ -108,6 +108,22 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('renders a cockpit of gauges with the right green/amber/red verdicts', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await importFixture(page);
+      const g = await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-cockpit .bwa-gauge')].map((el) => ({
+        value: el.querySelector('.bwa-gauge-value').textContent,
+        cls: [...el.querySelector('.bwa-gauge-verdict').classList].find((c) => c.startsWith('bwa-verd-')),
+      })));
+      assert.equal(g.length, 5, 'five gauges (margin, safety, runway, concentration, tax coverage)');
+      // margin 30% → good, safety 37.5% → good, runway 2.86mo → bad(<3),
+      // top-customer 60% → bad(>40%), tax coverage 0% (no provisions) → bad(<70%)
+      assert.deepEqual(g.map((x) => x.cls), ['bwa-verd-g', 'bwa-verd-g', 'bwa-verd-r', 'bwa-verd-r', 'bwa-verd-r']);
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('adds the year projection and a tax-reserve orientation with tooltips', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {
