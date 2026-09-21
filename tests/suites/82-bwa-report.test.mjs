@@ -124,6 +124,41 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('computes the VAT status (output − input − advance payments) and renders it', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await importFixture(page);
+      // The VAT (USt) status is derived purely from the trial-balance VAT accounts.
+      // Feed a synthetic trial balance to the exposed pure kpi engine.
+      const r = await page.evaluate(() => {
+        const p = window.__bwa.parsed;
+        const synth = {
+          meta: p.meta, ker: p.ker, hasSusa: true,
+          susa: [
+            { no: 1576, label: 'Abziehbare Vorsteuer 19%', saldoAbs: 3000, side: 'S' },
+            { no: 1571, label: 'Abziehbare Vorsteuer 7%', saldoAbs: 200, side: 'S' },
+            { no: 1776, label: 'Umsatzsteuer 19%', saldoAbs: 9000, side: 'H' },
+            { no: 1780, label: 'Umsatzsteuer-Vorauszahlungen', saldoAbs: 2500, side: 'S' },
+          ],
+        };
+        const K = window.__bwa.kpis(synth);
+        const A = window.__bwa.assess(K);
+        return { ust: K.ust, recUst: A.recs.some((x) => /Umsatzsteuer/.test(x) && /abzuf/.test(x)) };
+      });
+      assert.ok(r.ust, 'VAT status computed from the trial-balance VAT accounts');
+      assert.equal(r.ust.output, 9000, 'output VAT = sum of Haben-side 1770–1799');
+      assert.equal(r.ust.vorsteuer, 3200, 'input VAT = sum of Soll-side 1570–1589');
+      assert.equal(r.ust.prepaid, 2500, 'advance payments = Soll-side within 1770–1799');
+      assert.equal(r.ust.net, 3300, 'open liability = output − input − prepaid');
+      assert.ok(r.recUst, 'a recommendation flags the VAT still to be remitted');
+      // The bwa-sample fixture has no VAT accounts, so the box must not appear there.
+      const boxShown = await page.evaluate(() =>
+        /Umsatzsteuer — Status/.test(document.getElementById('bwa-body').textContent));
+      assert.equal(boxShown, false, 'no VAT box when the trial balance carries no VAT accounts');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('adds the year projection and a tax-reserve orientation with tooltips', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {

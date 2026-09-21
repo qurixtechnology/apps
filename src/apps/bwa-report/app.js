@@ -90,6 +90,13 @@
       taxCheckReserved: 'Bisher zurückgestellt (Steuerrückstellungen): {reserved}.',
       taxCheckLoss: 'Es bestehen Verlustvorträge ({loss}) — die tatsächliche Steuerlast kann dadurch geringer ausfallen oder entfallen.',
       taxCheckCaveat: 'Grobe Orientierung; Gewerbesteuer-Hebesatz, Verlustvorträge und Abgrenzungen verändern den Betrag deutlich. Keine Steuerberatung.',
+      // USt (VAT) status
+      ustTitle: 'Umsatzsteuer — Status (Fremdgeld)',
+      ustOutput: 'Umsatzsteuer (aus Umsätzen)', ustVorsteuer: 'Vorsteuer (abziehbar)',
+      ustPrepaid: 'Geleistete Vorauszahlungen', ustOwed: 'Offene USt-Zahllast', ustCredit: 'USt-Guthaben',
+      ustNote: 'Die Umsatzsteuer ist durchlaufendes Fremdgeld — sie gehört dem Finanzamt, nicht dem Unternehmen. Die offene Zahllast separat bereithalten. Aus den Konten der Summen & Salden; nicht in der Netto-Liquidität oben enthalten. Keine USt-Voranmeldung.',
+      'rec.ust': 'Rund {amount} Umsatzsteuer sind noch ans Finanzamt abzuführen (durchlaufendes Fremdgeld). Diese Liquidität separat bereithalten, nicht verplanen.',
+      'def.ust': 'Aus den USt-Konten der Summen & Salden: vereinnahmte Umsatzsteuer minus abziehbare Vorsteuer minus bereits geleistete Vorauszahlungen ergibt die offene Zahllast (bzw. ein Guthaben). Grobe Orientierung, keine USt-Voranmeldung.',
       // glossary (tooltips)
       'def.umsatz': 'Erlöse aus der eigentlichen Geschäftstätigkeit (ohne Umsatzsteuer). „Kumuliert“ = seit Jahresbeginn.',
       'def.betriebsergebnis': 'Ergebnis aus dem eigentlichen Geschäft: Leistung minus Kosten — vor neutralen Posten (z. B. Zinsen) und Steuern.',
@@ -177,6 +184,12 @@
       taxCheckReserved: 'Set aside so far (tax provisions): {reserved}.',
       taxCheckLoss: 'Loss carry-forwards ({loss}) exist — the actual tax burden may be lower or nil.',
       taxCheckCaveat: 'Rough orientation; the trade-tax multiplier, loss carry-forwards and accruals change the amount considerably. Not tax advice.',
+      ustTitle: 'VAT — status (pass-through money)',
+      ustOutput: 'Output VAT (on sales)', ustVorsteuer: 'Input VAT (deductible)',
+      ustPrepaid: 'Advance payments made', ustOwed: 'Open VAT liability', ustCredit: 'VAT credit',
+      ustNote: 'VAT is pass-through money — it belongs to the tax office, not the company. Keep the open liability separate. From the trial-balance accounts; not included in the net liquidity above. Not a VAT return.',
+      'rec.ust': 'About {amount} VAT is still to be remitted to the tax office (pass-through money). Keep this cash separate and unspent.',
+      'def.ust': 'From the VAT accounts of the trial balance: output VAT collected minus deductible input VAT minus advance payments already made gives the open liability (or a credit). Rough orientation, not a VAT return.',
       'def.umsatz': 'Revenue from the core business (excl. VAT). “YTD” = since the start of the year.',
       'def.betriebsergebnis': 'Result from the core business: output minus costs — before neutral items (e.g. interest) and taxes.',
       'def.ergebnis': 'Preliminary overall result after neutral items, before year-end entries. May still change.',
@@ -382,6 +395,19 @@
       L.dpo = (L.payablesLuL > 0 && o.gesamtkostenYtd > 0) ? L.payablesLuL / o.gesamtkostenYtd * days : null;
       o.liquidity = L;
     }
+    // USt (VAT) status — SKR03 input VAT 1570–1589 (Soll), output VAT 1770–1799
+    // (Haben), advance payments 1780/1781 (Soll). VAT is pass-through money; the
+    // open liability is not part of net liquidity above (shown as orientation).
+    if (parsed.hasSusa && a.length) {
+      const vst = a.filter((x) => x.no >= 1570 && x.no <= 1589);
+      const ustAll = a.filter((x) => x.no >= 1770 && x.no <= 1799);
+      if (vst.length || ustAll.length) {
+        const vorsteuer = vst.reduce((s, x) => s + (x.side === 'S' ? x.saldoAbs : x.side === 'H' ? -x.saldoAbs : 0), 0);
+        const output = ustAll.filter((x) => x.side === 'H').reduce((s, x) => s + x.saldoAbs, 0);
+        const prepaid = ustAll.filter((x) => x.side === 'S').reduce((s, x) => s + x.saldoAbs, 0);
+        o.ust = { output, vorsteuer, prepaid, net: output - vorsteuer - prepaid };
+      }
+    }
     o.concentration = concentrationOf(a);
     return o;
   }
@@ -428,6 +454,7 @@
       if (gl && L.receivables > 0.15 * gl) recs.push(t('rec.receivables', { amount: eur0(L.receivables) }));
       if (!ergPos && L.runwayMonths != null && L.runwayMonths < 3) recs.push(t('rec.runway', { m: L.runwayMonths.toFixed(1) }));
     }
+    if (K.ust && K.ust.net > 0) recs.push(t('rec.ust', { amount: eur0(K.ust.net) }));
     if (K.umsatzTrend < -0.15) recs.push(t('rec.trend', { p: pct(Math.abs(K.umsatzTrend)) }));
     const cc = K.concentration && K.concentration.customers;
     if (cc && cc.top1 >= 0.30) recs.push(t('rec.concentration', { share: pct(cc.top1, 0), name: cc.top[0].label || ('Konto ' + cc.top[0].no) }));
@@ -457,6 +484,21 @@
     </div>`;
   }
   function money2(n) { return `<span class="${n < 0 ? 'bwa-neg' : ''}">${eur0(n)}</span>`; }
+
+  // VAT status box (pass-through money): output VAT − input VAT − advance payments.
+  function ustBox(K) {
+    const U = K.ust;
+    if (!U) return '';
+    const owed = U.net >= 0;
+    const cards = card(t('ustOutput'), eur0(U.output), null, null)
+      + card(t('ustVorsteuer'), eur0(U.vorsteuer), null, null)
+      + (U.prepaid > 0 ? card(t('ustPrepaid'), eur0(U.prepaid), null, null) : '')
+      + card(owed ? t('ustOwed') : t('ustCredit'), eur0(Math.abs(U.net)), null, owed ? 'ok' : 'good');
+    return `<div class="bwa-taxbox">
+      <div class="bwa-taxbox-head"><strong>${esc(t('ustTitle'))}</strong>${info('ust')}</div>
+      <div class="bwa-cards">${cards}</div>
+      <p class="bwa-note">${esc(t('ustNote'))}</p></div>`;
+  }
 
   // Semicircle gauge ("Tacho") for a bounded ratio KPI with green/amber/red zones.
   function gauge(spec) {
@@ -673,7 +715,7 @@
       const runwayHint = L.runwayMonths != null ? `<p class="bwa-note">${esc(t('runwayHint', { m: t('months', { n: L.runwayMonths.toFixed(1) }) }))}</p>` : '';
       const liquiText = t('aLiqui' + capitalize(A.liqui), { netto: eur0(L.netLiquidity) });
       liquiBody = `<div class="bwa-cards">${cards}</div>
-        <div class="bwa-assess bwa-assess-${A.liqui}">${dot(A.liqui)}<div>${esc(liquiText)}</div></div>${runwayHint}${taxBox}`;
+        <div class="bwa-assess bwa-assess-${A.liqui}">${dot(A.liqui)}<div>${esc(liquiText)}</div></div>${runwayHint}${ustBox(K)}${taxBox}`;
     } else {
       liquiBody = `<p class="bwa-note">${esc(t('noSusa'))}</p>${taxBox}`;
     }
