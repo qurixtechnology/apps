@@ -27,6 +27,33 @@
 .bwa-h1 { font-size: 1.5rem; font-weight: 700; color: var(--qrx-primary); margin: 0 0 2px; }
 .bwa-report-actions { display: flex; gap: var(--qrx-s-2); flex-shrink: 0; }
 
+/* Period manager (multi-BWA) */
+.bwa-periods { display: flex; align-items: center; gap: var(--qrx-s-3) var(--qrx-s-4); flex-wrap: wrap; margin-bottom: var(--qrx-s-4); }
+.bwa-periods-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--qrx-text-muted); }
+.bwa-periods-label select { padding: 4px 8px; font-size: 0.85rem; }
+.bwa-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.bwa-chip { display: inline-flex; align-items: center; border: 1px solid var(--qrx-border); border-radius: 999px;
+  background: var(--qrx-bg-subtle); overflow: hidden; }
+.bwa-chip.is-active { border-color: var(--qrx-primary); background: color-mix(in srgb, var(--qrx-primary) 12%, var(--qrx-surface)); }
+.bwa-chip-sel { font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: none; background: none;
+  color: var(--qrx-text-muted); padding: 4px 4px 4px 11px; }
+.bwa-chip.is-active .bwa-chip-sel { color: var(--qrx-primary); }
+.bwa-chip-x { font: inherit; font-size: 0.95rem; line-height: 1; cursor: pointer; border: none; background: none;
+  color: var(--qrx-text-subtle); padding: 3px 9px 3px 4px; }
+.bwa-chip-x:hover { color: var(--qrx-danger); }
+.bwa-periods-hint { font-size: 0.8rem; color: var(--qrx-text-subtle); }
+
+/* Trend charts */
+.bwa-trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--qrx-s-4); margin-bottom: var(--qrx-s-4); }
+.bwa-svg { width: 100%; height: auto; display: block; }
+.bwa-axis { font-size: 10px; fill: var(--qrx-text-subtle); }
+.bwa-axisline { stroke: var(--qrx-border-strong); stroke-width: 1; }
+.bwa-c1 { fill: var(--qrx-primary); background: var(--qrx-primary); }
+.bwa-c2 { fill: var(--qrx-success); background: var(--qrx-success); }
+.bwa-c3 { fill: var(--qrx-accent); background: var(--qrx-accent); }
+.bwa-line { fill: none; stroke: var(--qrx-accent); stroke-width: 2; }
+.bwa-c3-dot { fill: var(--qrx-accent); }
+
 .bwa-sec { margin-bottom: var(--qrx-s-6); }
 .bwa-h3 { font-size: 1.15rem; font-weight: 600; color: var(--qrx-text); margin: 0 0 var(--qrx-s-3);
   padding-bottom: var(--qrx-s-2); border-bottom: 1px solid var(--qrx-border); }

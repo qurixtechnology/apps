@@ -6,13 +6,20 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { launch, openApp, ROOT } from '../helpers/browser.mjs';
 
-const FIXTURE = join(ROOT, 'tests', 'fixtures', 'bwa-sample.pdf');
+const FIXTURE = join(ROOT, 'tests', 'fixtures', 'bwa-sample.pdf');       // Muster GmbH, Mar/2025 (Jan–Mar)
+const FIX_JAN = join(ROOT, 'tests', 'fixtures', 'bwa-2025-01.pdf');
+const FIX_FEB = join(ROOT, 'tests', 'fixtures', 'bwa-2025-02.pdf');
 let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
 
+// localStorage is shared across pages of the same browser, so start each test clean.
+async function fresh(page) {
+  await page.waitForFunction(() => window.__bwa && window.__bwa.reset, { timeout: 20000 });
+  await page.evaluate(() => { window.qrx.core.storage.remove('qrx_lang'); window.__bwa.reset(); window.qrx.i18n.setLang('de'); });
+}
 async function importFixture(page) {
-  await page.evaluate(() => { window.qrx.core.storage.remove('qrx_lang'); window.qrx.i18n.setLang('de'); });
+  await fresh(page);
   await page.waitForSelector('#bwa-file', { timeout: 20000 });
   await (await page.$('#bwa-file')).uploadFile(FIXTURE);
   await page.waitForFunction(() => window.__bwa && window.__bwa.parsed, { timeout: 60000 });
@@ -105,6 +112,60 @@ describe('bwa report', () => {
       assert.ok(r.infoIcons >= 8, `glossary tooltips present (${r.infoIcons})`);
       assert.ok(r.tooltip.length > 10, 'the info icon carries an explanatory tooltip');
       page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('imports several monthly BWAs and builds a sorted trend', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      await page.waitForSelector('#bwa-file', { timeout: 20000 });
+      await (await page.$('#bwa-file')).uploadFile(FIX_JAN, FIX_FEB, FIXTURE);   // Jan, Feb, Mar
+      await page.waitForFunction(() => window.__bwa && window.__bwa.parsed
+        && Object.keys(window.__bwa.store['Muster GmbH'] || {}).length === 3, { timeout: 60000 });
+      const r = await page.evaluate(() => {
+        const store = window.__bwa.store, comp = Object.keys(store)[0];
+        const series = window.__bwa.seriesFor(comp);
+        return {
+          companies: Object.keys(store).length, months: Object.keys(store[comp]).length,
+          labels: series.map((s) => s.label), umsatz: series.map((s) => s.umsatz),
+          erg: series.map((s) => s.betriebsergebnis), cash: series.map((s) => s.cash),
+          chips: document.querySelectorAll('#bwa-periods .bwa-chip').length,
+          trendShown: /Entwicklung/.test(document.getElementById('bwa-trend').textContent),
+          svgs: document.querySelectorAll('#bwa-trend svg').length,
+          trendRows: document.querySelectorAll('#bwa-trend .bwa-table tbody tr').length,
+        };
+      });
+      assert.equal(r.companies, 1);
+      assert.equal(r.months, 3, 'three months stored');
+      assert.deepEqual(r.labels, ['Jan/2025', 'Feb/2025', 'Mar/2025'], 'sorted chronologically');
+      assert.deepEqual(r.umsatz, [8000, 9000, 10000], 'monthly revenue from each BWA month column');
+      assert.deepEqual(r.erg, [2000, 2500, 3000]);
+      assert.deepEqual(r.cash, [15000, 18000, 20000], 'cash trend from each month-end trial balance');
+      assert.equal(r.chips, 3, 'a period chip per month');
+      assert.ok(r.trendShown, 'trend section is rendered');
+      assert.ok(r.svgs >= 2, 'revenue/result and cash charts rendered');
+      assert.equal(r.trendRows, 3, 'a trend-table row per month');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('a stored session is restored on reload (persistence)', async () => {
+    let page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      await page.waitForSelector('#bwa-file', { timeout: 20000 });
+      await (await page.$('#bwa-file')).uploadFile(FIX_JAN, FIX_FEB);
+      await page.waitForFunction(() => Object.keys((window.__bwa.store['Muster GmbH'] || {})).length === 2, { timeout: 60000 });
+    } finally { await page.close(); }
+    // a brand-new page (same origin) must restore the two months from localStorage
+    page = await openApp(browser, 'bwa-report.html');
+    try {
+      await page.waitForFunction(() => window.__bwa && Object.keys(window.__bwa.store['Muster GmbH'] || {}).length === 2, { timeout: 20000 });
+      const shown = await page.evaluate(() => !document.getElementById('bwa-report').hidden
+        && document.querySelectorAll('#bwa-periods .bwa-chip').length);
+      assert.equal(shown, 2, 'the report reopens with both stored months');
+      await page.evaluate(() => window.__bwa.reset());   // clean up for later tests
     } finally { await page.close(); }
   });
 

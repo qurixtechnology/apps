@@ -8,8 +8,8 @@
 
     <!-- Import -->
     <div class="bwa-drop" id="bwa-drop" tabindex="0" role="button"
-         data-qrx-i18n-aria-label="app.dropAria" aria-label="BWA-PDF importieren">
-      <input type="file" id="bwa-file" accept=".pdf,application/pdf" hidden>
+         data-qrx-i18n-aria-label="app.dropAria" aria-label="BWA-PDFs importieren">
+      <input type="file" id="bwa-file" accept=".pdf,application/pdf" multiple hidden>
       <div class="bwa-drop-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
              stroke-linecap="round" stroke-linejoin="round">
@@ -17,9 +17,9 @@
           <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
       </div>
-      <p class="bwa-drop-title" data-qrx-i18n="app.dropTitle">BWA-PDF hierher ziehen oder klicken</p>
+      <p class="bwa-drop-title" data-qrx-i18n="app.dropTitle">BWA-PDFs hierher ziehen oder klicken</p>
       <p class="bwa-drop-sub" data-qrx-i18n="app.dropSub">
-        DATEV-BWA (Kurzfristige Erfolgsrechnung + Summen &amp; Salden). Nichts verlässt den Browser.
+        Mehrere Monats-BWAs möglich — für den Verlauf. Nichts verlässt den Browser.
       </p>
     </div>
     <div id="bwa-status" hidden></div>
@@ -32,12 +32,15 @@
           <p id="bwa-period" class="bwa-muted"></p>
         </div>
         <div class="bwa-report-actions">
-          <button type="button" class="qrx-btn qrx-btn-sm" id="bwa-reset" data-qrx-i18n="app.newImport">Neue BWA</button>
+          <button type="button" class="qrx-btn qrx-btn-sm" id="bwa-add" data-qrx-i18n="app.addBwa">BWA hinzufügen</button>
+          <button type="button" class="qrx-btn qrx-btn-sm" id="bwa-reset" data-qrx-i18n="app.newImport">Zurücksetzen</button>
           <button type="button" class="qrx-btn qrx-btn-accent qrx-btn-sm" id="bwa-print" data-qrx-i18n="app.print">Als PDF / Drucken</button>
         </div>
       </header>
 
-      <div id="bwa-body"><!-- KPI cards, charts, assessment, recommendations, details — rendered by app.js --></div>
+      <div id="bwa-periods" class="bwa-periods"><!-- company select + month chips --></div>
+      <div id="bwa-trend"><!-- multi-period trend charts (≥ 2 months) --></div>
+      <div id="bwa-body"><!-- detailed report for the active month --></div>
 
       <p class="bwa-disclaimer" id="bwa-disclaimer"></p>
     </section>

@@ -18,12 +18,17 @@
   qrx.i18n.register('app', {
     de: {
       intro: 'Importiere eine DATEV-BWA als PDF und erhalte einen verständlichen Bericht mit den wichtigsten Kennzahlen — Ergebnis, Kostenstruktur und Liquidität — inklusive Bewertung und Empfehlungen. Alles läuft lokal im Browser, es wird nichts hochgeladen.',
-      dropTitle: 'BWA-PDF hierher ziehen oder klicken', dropAria: 'BWA-PDF importieren',
-      dropSub: 'DATEV-BWA (Kurzfristige Erfolgsrechnung + Summen & Salden). Nichts verlässt den Browser.',
-      newImport: 'Neue BWA', print: 'Als PDF / Drucken',
-      parsing: 'Lese BWA…', notBwa: 'Bitte eine PDF-Datei auswählen.',
+      dropTitle: 'BWA-PDFs hierher ziehen oder klicken', dropAria: 'BWA-PDFs importieren',
+      dropSub: 'Mehrere Monats-BWAs möglich — für den Verlauf. Nichts verlässt den Browser.',
+      newImport: 'Zurücksetzen', addBwa: 'BWA hinzufügen', print: 'Als PDF / Drucken',
+      parsing: 'Lese BWA…', parsingN: 'Lese {n} BWA-Datei(en)…', notBwa: 'Bitte eine PDF-Datei auswählen.',
+      importedWithErrors: '{n} BWA importiert, {e} übersprungen (keine gültige BWA).',
       notBwaMsg: 'In der PDF wurde keine „Kurzfristige Erfolgsrechnung“ gefunden. Ist das eine DATEV-BWA?',
       parseError: 'Fehler beim Lesen: {msg}',
+      secTrend: 'Entwicklung', trUmsatzErgebnis: 'Umsatz & Betriebsergebnis pro Monat',
+      trLiquiditaet: 'Liquide Mittel je Monatsende', thMonat: 'Monat',
+      companyLabel: 'Firma:', removePeriod: 'Monat entfernen', unknownCompany: 'Unbekannt',
+      needMorePeriods: 'Weitere Monats-BWAs importieren, um den Verlauf zu sehen.',
       periodLine: 'Monat {m} · kumuliert {p} · Stand {d}',
       // sections
       secGlance: 'Auf einen Blick', secErtrag: 'Wirtschaftliche Lage', secKosten: 'Kostenstruktur',
@@ -86,12 +91,17 @@
     },
     en: {
       intro: 'Import a DATEV BWA as a PDF and get a report anyone can understand, with the key figures — result, cost structure and liquidity — including a rating and recommendations. Everything runs locally in the browser; nothing is uploaded.',
-      dropTitle: 'Drop a BWA PDF here, or click', dropAria: 'Import a BWA PDF',
-      dropSub: 'DATEV BWA (short-term result statement + trial balance). Nothing leaves the browser.',
-      newImport: 'New BWA', print: 'Save as PDF / print',
-      parsing: 'Reading BWA…', notBwa: 'Please pick a PDF file.',
+      dropTitle: 'Drop BWA PDFs here, or click', dropAria: 'Import BWA PDFs',
+      dropSub: 'Several monthly BWAs are possible — for the trend. Nothing leaves the browser.',
+      newImport: 'Reset', addBwa: 'Add BWA', print: 'Save as PDF / print',
+      parsing: 'Reading BWA…', parsingN: 'Reading {n} BWA file(s)…', notBwa: 'Please pick a PDF file.',
+      importedWithErrors: '{n} BWA imported, {e} skipped (not a valid BWA).',
       notBwaMsg: 'No “Kurzfristige Erfolgsrechnung” was found in the PDF. Is this a DATEV BWA?',
       parseError: 'Read error: {msg}',
+      secTrend: 'Trend', trUmsatzErgebnis: 'Revenue & operating result per month',
+      trLiquiditaet: 'Cash at each month-end', thMonat: 'Month',
+      companyLabel: 'Company:', removePeriod: 'Remove month', unknownCompany: 'Unknown',
+      needMorePeriods: 'Import more monthly BWAs to see the trend.',
       periodLine: 'Month {m} · year-to-date {p} · as of {d}',
       secGlance: 'At a glance', secErtrag: 'Economic situation', secKosten: 'Cost structure',
       secLiqui: 'Liquidity', secBewertung: 'Rating & recommendations', secDetails: 'Details',
@@ -283,7 +293,8 @@
       gesamtkostenMonth: v('gesamtkosten', 'month'), gesamtkostenYtd: v('gesamtkosten', 'ytd'),
       betriebsergebnisMonth: v('betriebsergebnis', 'month'), betriebsergebnisYtd: v('betriebsergebnis', 'ytd'),
       ergebnisMonth: v('vorlaeufigesErgebnis', 'month'), ergebnisYtd: v('vorlaeufigesErgebnis', 'ytd'),
-      personalYtd: v('personalkosten', 'ytd'), sonstigeYtd: v('sonstigeKosten', 'ytd'), months,
+      personalMonth: v('personalkosten', 'month'), personalYtd: v('personalkosten', 'ytd'),
+      sonstigeYtd: v('sonstigeKosten', 'ytd'), months,
     };
     o.umsatzrenditeYtd = o.umsatzYtd ? o.betriebsergebnisYtd / o.umsatzYtd : 0;
     o.personalquoteYtd = o.gesamtleistungYtd ? o.personalYtd / o.gesamtleistungYtd : 0;
@@ -529,51 +540,201 @@
     return pages;
   }
 
-  // ------------------------------------------------------------ flow
-  const state = { parsed: null };
+  // ------------------------------------------------------- trend charts (SVG)
+  const shortMonth = (lab) => { const [mon, yr] = String(lab).split('/'); return yr ? mon + ' ' + yr.slice(2) : lab; };
+  function barsSVG(labels, sets) {
+    const W = 580, H = 180, padT = 12, padB = 26, padL = 6, padR = 6;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const all = sets.flatMap((s) => s.vals);
+    const maxV = Math.max(1, ...all, 0), minV = Math.min(0, ...all), range = (maxV - minV) || 1;
+    const y = (v) => padT + (maxV - v) / range * plotH;
+    const zeroY = y(0), n = labels.length, g = sets.length, groupW = plotW / n, barW = Math.min(26, (groupW * 0.68) / g);
+    let out = `<line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${W - padR}" y2="${zeroY.toFixed(1)}" class="bwa-axisline"/>`;
+    labels.forEach((lab, i) => {
+      const gx = padL + i * groupW + (groupW - barW * g) / 2;
+      sets.forEach((s, j) => {
+        const v = s.vals[i], top = v >= 0 ? y(v) : zeroY, h = Math.max(1, Math.abs(y(v) - zeroY));
+        out += `<rect x="${(gx + j * barW).toFixed(1)}" y="${top.toFixed(1)}" width="${(barW - 2).toFixed(1)}" height="${h.toFixed(1)}" class="${s.cls}"><title>${esc(lab)} · ${esc(s.name)}: ${esc(eur0(v))}</title></rect>`;
+      });
+      out += `<text x="${(gx + barW * g / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle" class="bwa-axis">${esc(shortMonth(lab))}</text>`;
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" class="bwa-svg">${out}</svg>`;
+  }
+  function lineSVG(labels, vals) {
+    const W = 580, H = 180, padT = 12, padB = 26, padL = 30, padR = 30;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const maxV = Math.max(1, ...vals), minV = Math.min(0, ...vals), range = (maxV - minV) || 1;
+    const x = (i) => padL + (labels.length === 1 ? plotW / 2 : i / (labels.length - 1) * plotW);
+    const y = (v) => padT + (maxV - v) / range * plotH;
+    const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const dots = vals.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" class="bwa-c3-dot"><title>${esc(labels[i])}: ${esc(eur0(v))}</title></circle>`).join('');
+    const xlab = labels.map((lab, i) => `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" class="bwa-axis">${esc(shortMonth(lab))}</text>`).join('');
+    const zero = minV < 0 ? `<line x1="${padL}" y1="${y(0).toFixed(1)}" x2="${W - padR}" y2="${y(0).toFixed(1)}" class="bwa-axisline"/>` : '';
+    return `<svg viewBox="0 0 ${W} ${H}" class="bwa-svg">${zero}<polyline points="${pts}" class="bwa-line"/>${dots}${xlab}</svg>`;
+  }
+  const legend = (items) => `<span class="bwa-flow-legend">${items.map((i) => `<span class="bwa-leg"><span class="bwa-leg-dot ${i.cls}"></span>${esc(i.name)}</span>`).join('')}</span>`;
+  function trendTable(series) {
+    const rows = series.map((s) => `<tr>
+      <td>${esc(s.label)}</td><td class="bwa-num">${eur0(s.umsatz)}</td>
+      <td class="bwa-num">${money2(s.betriebsergebnis)}</td><td class="bwa-num bwa-muted">${pct(s.marge, 1)}</td>
+      <td class="bwa-num">${s.cash != null ? eur0(s.cash) : ''}</td></tr>`).join('');
+    return `<table class="bwa-table"><thead><tr>
+      <th>${esc(t('thMonat'))}</th><th class="bwa-num">${esc(t('kUmsatz'))}</th>
+      <th class="bwa-num">${esc(t('kBetriebsergebnis'))}</th><th class="bwa-num">${esc(t('kMarge'))}</th>
+      <th class="bwa-num">${esc(t('kLiquide'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  function renderTrend(series) {
+    const el = $('bwa-trend');
+    if (series.length < 2) { el.innerHTML = ''; return; }
+    const labels = series.map((s) => s.label);
+    const revErg = barsSVG(labels, [
+      { name: t('kUmsatz'), cls: 'bwa-c1', vals: series.map((s) => s.umsatz) },
+      { name: t('kBetriebsergebnis'), cls: 'bwa-c2', vals: series.map((s) => s.betriebsergebnis) },
+    ]);
+    const hasCash = series.some((s) => s.cash != null);
+    const cashChart = hasCash ? lineSVG(labels, series.map((s) => s.cash || 0)) : '';
+    el.innerHTML = section('secTrend',
+      `<div class="bwa-trend-grid">
+        <div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('trUmsatzErgebnis'))} ${legend([{ name: t('kUmsatz'), cls: 'bwa-c1' }, { name: t('kBetriebsergebnis'), cls: 'bwa-c2' }])}</div>${revErg}</div>
+        ${hasCash ? `<div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('trLiquiditaet'))} ${legend([{ name: t('kLiquide'), cls: 'bwa-c3' }])}</div>${cashChart}</div>` : ''}
+      </div>
+      <div class="bwa-table-wrap">${trendTable(series)}</div>`);
+  }
+
+  // ------------------------------------------------------------ store / flow
+  const STORE_KEY = 'bwa_store', ACTIVE_KEY = 'bwa_active';
+  const state = { store: {}, activeCompany: null, activeKey: null };
   const status = qrx.ui.status($('bwa-status'));
 
-  async function handleFile(file) {
-    if (!file) return;
-    if (!/pdf/i.test(file.type || '') && !/\.pdf$/i.test(file.name || '')) { status.set(t('notBwa'), 'error'); return; }
-    status.set(t('parsing'));
-    await new Promise((r) => setTimeout(r, 15));
+  function monthMeta(parsed) {
+    const cm = parsed.meta.currentMonth || '';
+    const [mon, yr] = cm.split('/');
+    const mn = MONTHS[(mon || '').toLowerCase().slice(0, 3)];
+    const key = (yr && mn) ? yr + '-' + String(mn).padStart(2, '0') : 'x-' + Date.now();
+    return { company: parsed.meta.company || t('unknownCompany'), key, label: cm || key };
+  }
+  function saveStore() { try { qrx.core.storage.set(STORE_KEY, JSON.stringify(state.store)); saveActive(); } catch (_) {} }
+  function saveActive() { try { qrx.core.storage.set(ACTIVE_KEY, JSON.stringify({ c: state.activeCompany, k: state.activeKey })); } catch (_) {} }
+  function loadStore() {
     try {
-      const buf = new Uint8Array(await file.arrayBuffer());
-      const pages = await extractPages(buf);
-      const parsed = parseBwa(pages);
-      if (parsed.error === 'no-ker') { status.set(t('notBwaMsg'), 'error'); return; }
-      state.parsed = parsed;
-      renderReport(parsed);
-      $('bwa-intro').hidden = true;
-      $('bwa-drop').hidden = true;
-      $('bwa-report').hidden = false;
-      status.set('');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      if (window.qrxTest) window.qrxTest.tick('report');
-    } catch (err) {
-      console.error(err);
-      status.set(t('parseError', { msg: err && err.message ? err.message : String(err) }), 'error');
+      state.store = JSON.parse(qrx.core.storage.get(STORE_KEY) || 'null') || {};
+      const a = JSON.parse(qrx.core.storage.get(ACTIVE_KEY) || 'null');
+      if (a) { state.activeCompany = a.c; state.activeKey = a.k; }
+    } catch (_) { state.store = {}; }
+  }
+  function seriesFor(comp) {
+    const byMonth = state.store[comp] || {};
+    return Object.keys(byMonth).sort().map((k) => {
+      const p = byMonth[k], K = kpis(p);
+      return { key: k, label: p.meta.currentMonth || k, umsatz: K.umsatzMonth, betriebsergebnis: K.betriebsergebnisMonth,
+        ergebnis: K.ergebnisMonth, marge: K.umsatzMonth ? K.betriebsergebnisMonth / K.umsatzMonth : 0,
+        cash: K.liquidity ? K.liquidity.cash : null };
+    });
+  }
+  function renderPeriods() {
+    const companies = Object.keys(state.store).filter((c) => Object.keys(state.store[c]).length);
+    const comp = state.activeCompany, keys = Object.keys(state.store[comp] || {}).sort();
+    const companySel = companies.length > 1
+      ? `<label class="bwa-periods-label">${esc(t('companyLabel'))}
+          <select class="qrx-select" id="bwa-company-sel">${companies.map((c) => `<option value="${esc(c)}"${c === comp ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>` : '';
+    const chips = keys.map((k) => {
+      const lab = (state.store[comp][k].meta.currentMonth) || k;
+      return `<span class="bwa-chip${k === state.activeKey ? ' is-active' : ''}">
+        <button type="button" class="bwa-chip-sel" data-key="${esc(k)}">${esc(lab)}</button>
+        <button type="button" class="bwa-chip-x" data-key="${esc(k)}" title="${esc(t('removePeriod'))}" aria-label="${esc(t('removePeriod'))}">×</button></span>`;
+    }).join('');
+    $('bwa-periods').innerHTML = `${companySel}<div class="bwa-chips">${chips}</div>`
+      + (keys.length < 2 ? `<span class="bwa-periods-hint">${esc(t('needMorePeriods'))}</span>` : '');
+    const sel = $('bwa-company-sel');
+    if (sel) sel.addEventListener('change', () => { state.activeCompany = sel.value; const ks = Object.keys(state.store[sel.value]).sort(); state.activeKey = ks[ks.length - 1]; saveActive(); renderAll(); });
+    $('bwa-periods').querySelectorAll('.bwa-chip-sel').forEach((b) => b.addEventListener('click', () => { state.activeKey = b.dataset.key; saveActive(); renderAll(); }));
+    $('bwa-periods').querySelectorAll('.bwa-chip-x').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); removeMonth(b.dataset.key); }));
+  }
+  function removeMonth(key) {
+    const comp = state.activeCompany;
+    if (!state.store[comp]) return;
+    delete state.store[comp][key];
+    if (!Object.keys(state.store[comp]).length) delete state.store[comp];
+    saveStore();
+    const companies = Object.keys(state.store);
+    if (!companies.length) { reset(); return; }
+    if (!state.store[comp]) state.activeCompany = companies[companies.length - 1];
+    const ks = Object.keys(state.store[state.activeCompany]).sort();
+    state.activeKey = ks[ks.length - 1];
+    saveActive();
+    renderAll();
+  }
+  function renderAll() {
+    const comp = state.activeCompany, byMonth = state.store[comp] || {};
+    const keys = Object.keys(byMonth).sort();
+    if (!keys.length) { reset(); return; }
+    if (!byMonth[state.activeKey]) state.activeKey = keys[keys.length - 1];
+    renderPeriods();
+    renderTrend(seriesFor(comp));
+    renderReport(byMonth[state.activeKey]);
+  }
+
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList || []).filter((f) => /pdf/i.test(f.type || '') || /\.pdf$/i.test(f.name || ''));
+    if (!files.length) { status.set(t('notBwa'), 'error'); return; }
+    status.set(t('parsingN', { n: files.length }));
+    await new Promise((r) => setTimeout(r, 15));
+    let added = 0, errors = 0;
+    for (const f of files) {
+      try {
+        const parsed = parseBwa(await extractPages(new Uint8Array(await f.arrayBuffer())));
+        if (parsed.error === 'no-ker') { errors++; continue; }
+        const mm = monthMeta(parsed);
+        (state.store[mm.company] = state.store[mm.company] || {})[mm.key] = parsed;
+        state.activeCompany = mm.company; state.activeKey = mm.key; added++;
+      } catch (err) { console.error(err); errors++; }
     }
+    if (!added) { status.set(t('notBwaMsg'), 'error'); return; }
+    saveStore();
+    $('bwa-intro').hidden = true; $('bwa-drop').hidden = true; $('bwa-report').hidden = false;
+    renderAll();
+    status.set(errors ? t('importedWithErrors', { n: added, e: errors }) : '', errors ? 'warn' : undefined);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (window.qrxTest) window.qrxTest.tick('report');
   }
   function reset() {
-    state.parsed = null;
+    state.store = {}; state.activeCompany = null; state.activeKey = null;
+    try { qrx.core.storage.remove(STORE_KEY); qrx.core.storage.remove(ACTIVE_KEY); } catch (_) {}
     $('bwa-report').hidden = true;
-    $('bwa-body').innerHTML = '';
-    $('bwa-intro').hidden = false;
-    $('bwa-drop').hidden = false;
-    $('bwa-file').value = '';
+    $('bwa-periods').innerHTML = ''; $('bwa-trend').innerHTML = ''; $('bwa-body').innerHTML = '';
+    $('bwa-intro').hidden = false; $('bwa-drop').hidden = false; $('bwa-file').value = '';
   }
 
-  // dropzone + file input (shared widget)
+  // dropzone + buttons + whole-window drop (to add more once the report is shown)
   qrx.ui.dropzone($('bwa-drop'), {
-    input: $('bwa-file'), accept: '.pdf,application/pdf',
-    onFiles: (files) => { if (files && files[0]) handleFile(files[0]); },
+    input: $('bwa-file'), accept: '.pdf,application/pdf', multiple: true,
+    onFiles: (files) => handleFiles(files),
   });
+  $('bwa-add').addEventListener('click', () => $('bwa-file').click());
   $('bwa-reset').addEventListener('click', reset);
   $('bwa-print').addEventListener('click', () => window.print());
-  qrx.i18n.onChange(() => { if (state.parsed) renderReport(state.parsed); });
+  qrx.i18n.onChange(() => { if (Object.keys(state.store).length) renderAll(); });
+  window.addEventListener('dragover', (e) => { if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) e.preventDefault(); });
+  window.addEventListener('drop', (e) => {
+    if (!$('bwa-report').hidden && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); handleFiles(e.dataTransfer.files); }
+  });
+
+  // restore a previous session
+  loadStore();
+  if (Object.keys(state.store).length) {
+    if (!state.activeCompany || !state.store[state.activeCompany]) {
+      state.activeCompany = Object.keys(state.store)[0];
+      const ks = Object.keys(state.store[state.activeCompany]).sort();
+      state.activeKey = ks[ks.length - 1];
+    }
+    $('bwa-intro').hidden = true; $('bwa-drop').hidden = true; $('bwa-report').hidden = false;
+    renderAll();
+  }
 
   // test hook
-  window.__bwa = { parseBwa, kpis, assess, handleFile, get parsed() { return state.parsed; } };
+  window.__bwa = {
+    parseBwa, kpis, assess, handleFiles, seriesFor, reset,
+    get store() { return state.store; },
+    get parsed() { return (state.store[state.activeCompany] || {})[state.activeKey] || null; },
+  };
 })();
