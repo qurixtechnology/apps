@@ -58,6 +58,26 @@
       'rec.runway': 'Die Liquiditätsreichweite liegt unter {m} Monaten. Liquiditätsplanung erstellen und ggf. Finanzierung/Reserve aufbauen.',
       'rec.trend': 'Der Monatsumsatz liegt {p} unter dem bisherigen Schnitt. Prüfen, ob saisonal oder ein Trend — Auftragslage beobachten.',
       'rec.preliminary': 'Diese Auswertung ist vorläufig (Stand der Buchführung). Abschluss- und Abgrenzungsbuchungen können die Zahlen noch verändern.',
+      // run-rate & tax check
+      runRateTitle: 'Hochrechnung aufs Jahr:',
+      runRateLine: 'Auf Basis von {months} Monaten linear hochgerechnet ergäbe das rund {u} Umsatz und {e} Ergebnis pro Jahr.',
+      taxCheckTitle: 'Steuer-Rücklage — grobe Orientierung',
+      taxCheckExpected: 'Als Kapitalgesellschaft fallen überschlägig ~{rate} Ertragsteuer auf den Gewinn an. Auf das vorläufige Ergebnis von {base} wären das rund {expected}.',
+      taxCheckReserved: 'Bisher zurückgestellt (Steuerrückstellungen): {reserved}.',
+      taxCheckLoss: 'Es bestehen Verlustvorträge ({loss}) — die tatsächliche Steuerlast kann dadurch geringer ausfallen oder entfallen.',
+      taxCheckCaveat: 'Grobe Orientierung; Gewerbesteuer-Hebesatz, Verlustvorträge und Abgrenzungen verändern den Betrag deutlich. Keine Steuerberatung.',
+      // glossary (tooltips)
+      'def.umsatz': 'Erlöse aus der eigentlichen Geschäftstätigkeit (ohne Umsatzsteuer). „Kumuliert“ = seit Jahresbeginn.',
+      'def.betriebsergebnis': 'Ergebnis aus dem eigentlichen Geschäft: Leistung minus Kosten — vor neutralen Posten (z. B. Zinsen) und Steuern.',
+      'def.ergebnis': 'Vorläufiges Gesamtergebnis der Periode nach neutralen Posten, vor Abschlussbuchungen. Kann sich noch ändern.',
+      'def.liquide': 'Sofort verfügbares Geld: Bankguthaben und Kasse.',
+      'def.nettoLiq': 'Liquide Mittel + offene Forderungen − kurzfristige Verbindlichkeiten. Grober Puffer, der kurzfristig zur Verfügung steht.',
+      'def.forderungen': 'Geld, das Kunden dir noch schulden (offene Rechnungen).',
+      'def.verbindl': 'Kurzfristig fällige Verbindlichkeiten: Lieferanten, Kreditkarte, Löhne/Sozialabgaben.',
+      'def.rueckstellungen': 'Zurückgestellte Beträge für später anfallende Ausgaben (z. B. Steuern, Abschlusskosten).',
+      'def.runway': 'Stresstest: So viele Monate würden die liquiden Mittel die laufenden Kosten decken, falls kein Umsatz mehr käme.',
+      'def.runrate': 'Lineare Hochrechnung der bisherigen Monate auf zwölf Monate. Keine Prognose — ignoriert Saisonalität.',
+      'def.steuercheck': 'Grobe Orientierung, ob genug für die Ertragsteuern zurückgelegt ist. Ersetzt keine Steuerberechnung.',
       // details
       detKer: 'Kurzfristige Erfolgsrechnung (GuV)', detExpense: 'Größte Aufwandskonten (kumuliert)',
       thLabel: 'Bezeichnung', thMonth: 'Monat', thYtd: 'kumuliert', thPct: '% Umsatz', thAccount: 'Konto', thAmount: 'Betrag',
@@ -102,6 +122,24 @@
       'rec.runway': 'The liquidity runway is below {m} months. Create a liquidity plan and build a reserve/financing if needed.',
       'rec.trend': 'Monthly revenue is {p} below the average so far. Check whether seasonal or a trend — watch the order book.',
       'rec.preliminary': 'This evaluation is preliminary (current bookkeeping status). Year-end and accrual entries may still change the figures.',
+      runRateTitle: 'Year projection:',
+      runRateLine: 'Extrapolated linearly from {months} months, that is roughly {u} revenue and {e} result per year.',
+      taxCheckTitle: 'Tax reserve — rough orientation',
+      taxCheckExpected: 'As a corporation, income taxes of roughly ~{rate} apply to the profit. On the preliminary result of {base} that would be about {expected}.',
+      taxCheckReserved: 'Set aside so far (tax provisions): {reserved}.',
+      taxCheckLoss: 'Loss carry-forwards ({loss}) exist — the actual tax burden may be lower or nil.',
+      taxCheckCaveat: 'Rough orientation; the trade-tax multiplier, loss carry-forwards and accruals change the amount considerably. Not tax advice.',
+      'def.umsatz': 'Revenue from the core business (excl. VAT). “YTD” = since the start of the year.',
+      'def.betriebsergebnis': 'Result from the core business: output minus costs — before neutral items (e.g. interest) and taxes.',
+      'def.ergebnis': 'Preliminary overall result after neutral items, before year-end entries. May still change.',
+      'def.liquide': 'Immediately available money: bank balances and cash.',
+      'def.nettoLiq': 'Cash + open receivables − short-term liabilities. A rough buffer available at short notice.',
+      'def.forderungen': 'Money customers still owe you (open invoices).',
+      'def.verbindl': 'Short-term liabilities due soon: suppliers, credit card, wages/social security.',
+      'def.rueckstellungen': 'Amounts reserved for future expenses (e.g. taxes, year-end costs).',
+      'def.runway': 'Stress test: how many months cash would cover the running costs if no more revenue came in.',
+      'def.runrate': 'Linear extrapolation of the months so far to twelve months. Not a forecast — ignores seasonality.',
+      'def.steuercheck': 'A rough orientation whether enough is set aside for income taxes. Not a tax calculation.',
       detKer: 'Short-term result statement (P&L)', detExpense: 'Largest expense accounts (YTD)',
       thLabel: 'Item', thMonth: 'Month', thYtd: 'YTD', thPct: '% revenue', thAccount: 'Account', thAmount: 'Amount',
       noSusa: 'This BWA has no trial-balance sheets — the liquidity analysis needs them. Earnings and costs are still evaluated.',
@@ -254,6 +292,20 @@
     o.umsatzTrend = o.avgMonthlyUmsatz ? (o.umsatzMonth - o.avgMonthlyUmsatz) / o.avgMonthlyUmsatz : 0;
     o.costStructure = COST_KEYS.map((id) => ({ id, label: k[id] && k[id].label, ytd: v(id, 'ytd') }))
       .filter((c) => c.ytd > 0).sort((x, y) => y.ytd - x.ytd);
+    // Linear year projection (run-rate) from the year-to-date figures.
+    o.runRateUmsatz = (o.umsatzYtd / months) * 12;
+    o.runRateErgebnis = (o.ergebnisYtd / months) * 12;
+    o.ergebnisVorSteuernYtd = v('ergebnisVorSteuern', 'ytd') || o.betriebsergebnisYtd;
+    // Rough income-tax orientation for corporations (GmbH/UG/AG). Loss carry-
+    // forwards (868) can reduce/remove it, so it is shown as orientation only.
+    o.taxProvisions = a.length ? bucket(a, 955, 969, false) : 0;
+    const vv = a.find((x) => x.no === 868);
+    o.lossCarry = vv && vv.side === 'S' ? vv.saldoAbs : 0;
+    const isKapGes = /gmbh|mbh|\bag\b|\bug\b|\bse\b/i.test(parsed.meta.company || '');
+    if (isKapGes && o.ergebnisVorSteuernYtd > 0) {
+      o.taxCheck = { rate: 0.30, base: o.ergebnisVorSteuernYtd, expected: o.ergebnisVorSteuernYtd * 0.30,
+        reserved: o.taxProvisions, lossCarry: o.lossCarry, hasSusa: parsed.hasSusa };
+    }
     if (parsed.hasSusa && a.length) {
       const L = {
         cash: bucket(a, 1000, 1099, true) + bucket(a, 1200, 1290, true) + bucket(a, 1360, 1360, true),
@@ -306,9 +358,14 @@
   const dot = (lvl) => `<span class="bwa-dot bwa-${lvl}" title="${esc(t('lv' + lvl[0].toUpperCase() + lvl.slice(1)))}"></span>`;
   const lvlWord = (lvl) => t('lv' + lvl[0].toUpperCase() + lvl.slice(1));
 
-  function card(label, value, sub, lvl) {
+  function info(defKey) {
+    const txt = defKey ? t('def.' + defKey) : '';
+    return txt && txt !== 'def.' + defKey
+      ? `<span class="bwa-info" tabindex="0" role="note" title="${esc(txt)}" aria-label="${esc(txt)}">i</span>` : '';
+  }
+  function card(label, value, sub, lvl, defKey) {
     return `<div class="bwa-card">
-      <div class="bwa-card-label">${lvl ? dot(lvl) : ''}${esc(label)}</div>
+      <div class="bwa-card-label">${lvl ? dot(lvl) : ''}${esc(label)}${info(defKey)}</div>
       <div class="bwa-card-value">${value}</div>
       ${sub ? `<div class="bwa-card-sub">${sub}</div>` : ''}
     </div>`;
@@ -378,35 +435,52 @@
     $('bwa-company').textContent = m.company || 'BWA';
     $('bwa-period').textContent = t('periodLine', { m: m.currentMonth || '–', p: m.periodLabel || '–', d: m.date || '–' });
 
-    const glance = card(t('kUmsatz') + ' · ' + t('suffYtd'), eur0(K.umsatzYtd), t('perMonth') + ' ' + eur0(K.avgMonthlyUmsatz))
-      + card(t('kBetriebsergebnis'), money2(K.betriebsergebnisYtd), t('kMarge') + ' ' + pct(K.umsatzrenditeYtd), A.ertrag)
-      + card(t('kErgebnis'), money2(K.ergebnisYtd), t('suffMonth') + ' ' + eur0(K.ergebnisMonth))
-      + (K.liquidity ? card(t('kLiquide'), eur0(K.liquidity.cash), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui) : '');
+    const glance = card(t('kUmsatz') + ' · ' + t('suffYtd'), eur0(K.umsatzYtd), t('perMonth') + ' ' + eur0(K.avgMonthlyUmsatz), null, 'umsatz')
+      + card(t('kBetriebsergebnis'), money2(K.betriebsergebnisYtd), t('kMarge') + ' ' + pct(K.umsatzrenditeYtd), A.ertrag, 'betriebsergebnis')
+      + card(t('kErgebnis'), money2(K.ergebnisYtd), t('suffMonth') + ' ' + eur0(K.ergebnisMonth), null, 'ergebnis')
+      + (K.liquidity ? card(t('kLiquide'), eur0(K.liquidity.cash), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui, 'liquide') : '');
 
     // Ertrag section
     const ertragText = t('aErtrag' + capitalize(A.ertrag), { erg: eur0(K.betriebsergebnisYtd), marge: pct(K.umsatzrenditeYtd) });
+    const runrate = `<div class="bwa-runrate">
+      <span class="bwa-info" tabindex="0" role="note" title="${esc(t('def.runrate'))}" aria-label="${esc(t('def.runrate'))}">i</span>
+      <strong>${esc(t('runRateTitle'))}</strong>
+      ${esc(t('runRateLine', { months: K.months, u: eur0(K.runRateUmsatz), e: eur0(K.runRateErgebnis) }))}</div>`;
     const ertragBody = `<div class="bwa-cols">
       <div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('flowTitle'))}</div>${euroFlow(K)}</div>
       <div class="bwa-assess bwa-assess-${A.ertrag}">${dot(A.ertrag)}<div>${esc(ertragText)}</div></div>
-    </div>`;
+    </div>${runrate}`;
 
     const kostenBody = `<div class="bwa-chart-title">${esc(t('costTitle'))}</div>${costBars(K)}`;
+
+    // Tax reserve orientation box (shown for corporations with a profit).
+    let taxBox = '';
+    if (K.taxCheck) {
+      const T = K.taxCheck;
+      let txt = t('taxCheckExpected', { rate: pct(T.rate, 0), base: eur0(T.base), expected: eur0(T.expected) });
+      if (T.hasSusa) txt += ' ' + t('taxCheckReserved', { reserved: eur0(T.reserved) });
+      if (T.lossCarry > 0) txt += ' ' + t('taxCheckLoss', { loss: eur0(T.lossCarry) });
+      taxBox = `<div class="bwa-taxbox">
+        <div class="bwa-taxbox-head"><strong>${esc(t('taxCheckTitle'))}</strong>
+          <span class="bwa-info" tabindex="0" role="note" title="${esc(t('def.steuercheck'))}" aria-label="${esc(t('def.steuercheck'))}">i</span></div>
+        <p>${esc(txt)}</p><p class="bwa-note">${esc(t('taxCheckCaveat'))}</p></div>`;
+    }
 
     let liquiBody = '';
     if (K.liquidity) {
       const L = K.liquidity;
-      const cards = card(t('kLiquide'), eur0(L.cash))
-        + card(t('kForderungen'), eur0(L.receivables))
-        + card(t('kVerbindl'), eur0(L.shortTermLiab))
-        + card(t('kRueckstellungen'), eur0(L.provisions))
-        + card(t('kNettoLiq'), money2(L.netLiquidity), null, A.liqui)
-        + (L.runwayMonths != null ? card(t('kRunway'), t('months', { n: L.runwayMonths.toFixed(1) })) : '');
+      const cards = card(t('kLiquide'), eur0(L.cash), null, null, 'liquide')
+        + card(t('kForderungen'), eur0(L.receivables), null, null, 'forderungen')
+        + card(t('kVerbindl'), eur0(L.shortTermLiab), null, null, 'verbindl')
+        + card(t('kRueckstellungen'), eur0(L.provisions), null, null, 'rueckstellungen')
+        + card(t('kNettoLiq'), money2(L.netLiquidity), null, A.liqui, 'nettoLiq')
+        + (L.runwayMonths != null ? card(t('kRunway'), t('months', { n: L.runwayMonths.toFixed(1) }), null, null, 'runway') : '');
       const runwayHint = L.runwayMonths != null ? `<p class="bwa-note">${esc(t('runwayHint', { m: t('months', { n: L.runwayMonths.toFixed(1) }) }))}</p>` : '';
       const liquiText = t('aLiqui' + capitalize(A.liqui), { netto: eur0(L.netLiquidity) });
       liquiBody = `<div class="bwa-cards">${cards}</div>
-        <div class="bwa-assess bwa-assess-${A.liqui}">${dot(A.liqui)}<div>${esc(liquiText)}</div></div>${runwayHint}`;
+        <div class="bwa-assess bwa-assess-${A.liqui}">${dot(A.liqui)}<div>${esc(liquiText)}</div></div>${runwayHint}${taxBox}`;
     } else {
-      liquiBody = `<p class="bwa-note">${esc(t('noSusa'))}</p>`;
+      liquiBody = `<p class="bwa-note">${esc(t('noSusa'))}</p>${taxBox}`;
     }
 
     const recs = `<div class="bwa-overall bwa-assess-${A.overall}">${dot(A.overall)}<strong>${esc(t('overall'))}: ${esc(lvlWord(A.overall))}</strong></div>

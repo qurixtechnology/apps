@@ -39,6 +39,37 @@
 .bwa-card-value { font-size: 1.4rem; font-weight: 700; color: var(--qrx-text); margin-top: 2px; font-variant-numeric: tabular-nums; }
 .bwa-card-sub { font-size: 0.78rem; color: var(--qrx-text-subtle); margin-top: 2px; }
 
+/* Info tooltip icon (glossary) */
+.bwa-info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; margin-left: 5px; border-radius: 50%;
+  font-size: 0.62rem; font-weight: 700; font-style: normal; cursor: help;
+  background: var(--qrx-bg-muted); color: var(--qrx-text-muted); border: 1px solid var(--qrx-border);
+  user-select: none; flex-shrink: 0;
+}
+.bwa-info:hover, .bwa-info:focus { background: var(--qrx-primary); color: var(--qrx-text-on-brand); border-color: var(--qrx-primary); outline: none; }
+
+/* Run-rate strip */
+.bwa-runrate {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin-top: var(--qrx-s-3); padding: var(--qrx-s-3) var(--qrx-s-4);
+  border-radius: var(--qrx-radius); font-size: 0.9rem; line-height: 1.5;
+  background: color-mix(in srgb, var(--qrx-primary) 8%, var(--qrx-surface));
+  border: 1px solid color-mix(in srgb, var(--qrx-primary) 25%, var(--qrx-border));
+}
+.bwa-runrate .bwa-info { margin-left: 0; }
+.bwa-runrate strong { color: var(--qrx-primary); }
+
+/* Tax-check box */
+.bwa-taxbox {
+  margin-top: var(--qrx-s-3); padding: var(--qrx-s-3) var(--qrx-s-4);
+  border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius);
+  background: var(--qrx-bg-subtle); font-size: 0.9rem; line-height: 1.55;
+}
+.bwa-taxbox-head { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+.bwa-taxbox p { margin: 0 0 4px; }
+.bwa-taxbox p:last-child { margin-bottom: 0; }
+
 /* Traffic-light dot */
 .bwa-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; display: inline-block; background: var(--qrx-text-subtle); }
 .bwa-good { background: var(--qrx-success); }

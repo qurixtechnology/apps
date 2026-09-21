@@ -83,6 +83,31 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('adds the year projection and a tax-reserve orientation with tooltips', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await importFixture(page);
+      const r = await page.evaluate(() => {
+        const K = window.__bwa.kpis(window.__bwa.parsed);
+        const body = document.getElementById('bwa-body').textContent;
+        return {
+          runRateUmsatz: Math.round(K.runRateUmsatz), runRateErgebnis: Math.round(K.runRateErgebnis),
+          tax: K.taxCheck && { base: K.taxCheck.base, expected: Math.round(K.taxCheck.expected), reserved: K.taxCheck.reserved, loss: K.taxCheck.lossCarry },
+          runrateShown: /Hochrechnung aufs Jahr/.test(body), taxShown: /Steuer-R/.test(body),
+          infoIcons: document.querySelectorAll('#bwa-body .bwa-info').length,
+          tooltip: document.querySelector('#bwa-body .bwa-info')?.getAttribute('title') || '',
+        };
+      });
+      assert.equal(r.runRateUmsatz, 120000, 'revenue run-rate = YTD × 12/months');
+      assert.equal(r.runRateErgebnis, 36000);
+      assert.deepEqual(r.tax, { base: 9000, expected: 2700, reserved: 0, loss: 0 }, 'tax orientation for the GmbH');
+      assert.ok(r.runrateShown && r.taxShown, 'year projection and tax box are rendered');
+      assert.ok(r.infoIcons >= 8, `glossary tooltips present (${r.infoIcons})`);
+      assert.ok(r.tooltip.length > 10, 'the info icon carries an explanatory tooltip');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('switching language re-renders the report in English', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {
