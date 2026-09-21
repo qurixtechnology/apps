@@ -53,6 +53,24 @@
 .bwa-c3 { fill: var(--qrx-accent); background: var(--qrx-accent); }
 .bwa-line { fill: none; stroke: var(--qrx-accent); stroke-width: 2; }
 .bwa-c3-dot { fill: var(--qrx-accent); }
+.bwa-cf-warn { fill: var(--qrx-warning); background: var(--qrx-warning); }
+.bwa-cf-grey { fill: var(--qrx-border-strong); background: var(--qrx-border-strong); }
+
+/* GuV waterfall */
+.bwa-wf-total { fill: var(--qrx-primary); }
+.bwa-wf-cost { fill: var(--qrx-warning); }
+.bwa-wf-pos { fill: var(--qrx-success); }
+.bwa-wf-neg { fill: var(--qrx-danger); }
+.bwa-wf-conn { stroke: var(--qrx-border-strong); stroke-width: 1; stroke-dasharray: 2 2; }
+.bwa-wf-val { font-size: 10px; fill: var(--qrx-text-muted); }
+
+/* Sparkline on KPI cards */
+.bwa-spark { width: 100%; height: 22px; margin-top: 6px; display: block; }
+.bwa-spark-line { fill: none; stroke: var(--qrx-primary); stroke-width: 1.5; }
+.bwa-spark-dot { fill: var(--qrx-primary); }
+
+.bwa-subtitle { margin-top: var(--qrx-s-4); }
+.bwa-subnote { margin: 0 0 var(--qrx-s-3); }
 
 .bwa-sec { margin-bottom: var(--qrx-s-6); }
 .bwa-h3 { font-size: 1.15rem; font-weight: 600; color: var(--qrx-text); margin: 0 0 var(--qrx-s-3);

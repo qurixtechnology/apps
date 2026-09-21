@@ -44,6 +44,10 @@ describe('bwa report', () => {
           },
           assess: A,
           susaAccounts: p.susa.length,
+          dso: Math.round(K.liquidity.dso),
+          breakEvenUmsatz: Math.round(K.breakEven.umsatz), breakEvenSafety: Math.round(K.breakEven.safety * 1000) / 1000,
+          custTop1: Math.round(K.concentration.customers.top1 * 1000) / 1000, custCount: K.concentration.customers.count,
+          supTop1: Math.round(K.concentration.suppliers.top1 * 1000) / 1000,
         };
       });
       assert.equal(r.company, 'Muster GmbH');
@@ -53,6 +57,12 @@ describe('bwa report', () => {
       assert.equal(r.marge, 0.3);
       assert.equal(r.personalquote, 0.4);
       assert.deepEqual(r.liq, { cash: 20000, receivables: 5000, stLiab: 3500, net: 21500, prov: 2000, runway: 2.86 });
+      assert.equal(r.dso, 15, 'DSO = receivables / revenue × days');
+      assert.equal(r.breakEvenUmsatz, 18750, 'break-even = fixed / contribution ratio');
+      assert.equal(r.breakEvenSafety, 0.375);
+      assert.equal(r.custTop1, 0.6, 'top customer share of receivables');
+      assert.equal(r.custCount, 3);
+      assert.equal(r.supTop1, 0.8, 'top supplier share of payables');
       assert.equal(r.assess.ertrag, 'good');
       assert.equal(r.assess.liqui, 'good');
       assert.equal(r.assess.overall, 'good');
@@ -78,6 +88,10 @@ describe('bwa report', () => {
         hasOverall: /Gesamteinsch/.test(document.getElementById('bwa-body').textContent),
         kerRows: document.querySelectorAll('#bwa-body .bwa-table tbody tr').length,
         hasBetriebsergebnisRow: /Betriebsergebnis/.test(document.querySelector('#bwa-body .bwa-table')?.textContent || ''),
+        hasWaterfall: !!document.querySelector('#bwa-body .bwa-wf-total'),
+        hasRisk: /Kunden- & Lieferant/.test(document.getElementById('bwa-body').textContent),
+        hasExpenseDrill: /Einzel-Aufwandskonten/.test(document.getElementById('bwa-body').textContent),
+        hasDso: /Forderungslaufzeit/.test(document.getElementById('bwa-body').textContent),
       }));
       assert.equal(dom.company, 'Muster GmbH');
       assert.ok(dom.cards >= 8, `KPI cards rendered (${dom.cards})`);
@@ -86,6 +100,10 @@ describe('bwa report', () => {
       assert.ok(dom.hasGlance && dom.hasOverall, 'sections and overall rating present');
       assert.ok(dom.kerRows >= 8, `the KER detail table is filled (${dom.kerRows} rows)`);
       assert.ok(dom.hasBetriebsergebnisRow, 'the P&L detail includes the operating result');
+      assert.ok(dom.hasWaterfall, 'the GuV waterfall is rendered');
+      assert.ok(dom.hasRisk, 'the customer/supplier concentration section is rendered');
+      assert.ok(dom.hasExpenseDrill, 'the expense drill-down is rendered');
+      assert.ok(dom.hasDso, 'DSO card is rendered');
       page.assertNoErrors();
     } finally { await page.close(); }
   });
@@ -134,6 +152,8 @@ describe('bwa report', () => {
           trendShown: /Entwicklung/.test(document.getElementById('bwa-trend').textContent),
           svgs: document.querySelectorAll('#bwa-trend svg').length,
           trendRows: document.querySelectorAll('#bwa-trend .bwa-table tbody tr').length,
+          costMix: /Kostenmix pro Monat/.test(document.getElementById('bwa-trend').textContent),
+          sparklines: document.querySelectorAll('#bwa-body .bwa-spark').length,
         };
       });
       assert.equal(r.companies, 1);
@@ -144,8 +164,10 @@ describe('bwa report', () => {
       assert.deepEqual(r.cash, [15000, 18000, 20000], 'cash trend from each month-end trial balance');
       assert.equal(r.chips, 3, 'a period chip per month');
       assert.ok(r.trendShown, 'trend section is rendered');
-      assert.ok(r.svgs >= 2, 'revenue/result and cash charts rendered');
+      assert.ok(r.svgs >= 3, 'revenue/result, cash and cost-mix charts rendered');
       assert.equal(r.trendRows, 3, 'a trend-table row per month');
+      assert.ok(r.costMix, 'the monthly cost-mix chart is rendered');
+      assert.ok(r.sparklines >= 3, `KPI cards show sparklines with multiple months (${r.sparklines})`);
       page.assertNoErrors();
     } finally { await page.close(); }
   });

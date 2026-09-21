@@ -29,6 +29,21 @@
       trLiquiditaet: 'Liquide Mittel je Monatsende', thMonat: 'Monat',
       companyLabel: 'Firma:', removePeriod: 'Monat entfernen', unknownCompany: 'Unbekannt',
       needMorePeriods: 'Weitere Monats-BWAs importieren, um den Verlauf zu sehen.',
+      trKostenmix: 'Kostenmix pro Monat', days: '{n} Tage', wfLeistung: 'Leistung',
+      secRisk: 'Kunden- & Lieferantenstruktur',
+      riskIntro: 'Verteilung der offenen Forderungen und Verbindlichkeiten — eine hohe Konzentration auf wenige Namen ist ein Risiko.',
+      kDso: 'Forderungslaufzeit (DSO)', kDpo: 'Zahlungsziel Lieferanten (DPO)',
+      breakEvenTitle: 'Break-even (Gewinnschwelle)',
+      breakEvenLine: 'Geschätzte Gewinnschwelle bei rund {be} Umsatz (≈ {beM}/Monat). Aktuell liegst du {safety} darüber (Sicherheitsabstand).',
+      breakEvenCaveat: 'Grobe Schätzung: Fixkosten (u. a. Personal, Raum) vs. variable Kosten; die Trennung ist vereinfachend.',
+      concCustomers: 'Größte Kunden (Forderungen)', concSuppliers: 'Größte Lieferanten (Verbindlichkeiten)',
+      concTop: 'Top-Position {share} · {n} Konten', expenseDrill: 'Größte Einzel-Aufwandskonten',
+      'rec.concentration': 'Klumpenrisiko: {share} der offenen Forderungen entfallen auf „{name}“. Ein Ausfall würde stark treffen — Abhängigkeit streuen, Bonität im Blick behalten.',
+      'rec.breakeven': 'Der Abstand zur Gewinnschwelle (~{be}) ist mit {safety} knapp. Auslastung/Preise sichern und Fixkosten im Blick behalten.',
+      'def.dso': 'Forderungslaufzeit: Wie viele Tage es im Schnitt dauert, bis Kunden zahlen (Forderungen ÷ Umsatz × Tage). Kürzer ist besser.',
+      'def.dpo': 'Zahlungsziel gegenüber Lieferanten in Tagen (offene Verbindlichkeiten ÷ Kosten × Tage).',
+      'def.breakeven': 'Umsatz, ab dem die Kosten gedeckt sind. Der Sicherheitsabstand zeigt, wie weit du darüber liegst. Grobe Schätzung.',
+      'def.expenseDrill': 'Die betragsmäßig größten einzelnen Aufwandskonten aus den Summen & Salden — oft steckt hier der Großteil der „Sonstigen Kosten“.',
       periodLine: 'Monat {m} · kumuliert {p} · Stand {d}',
       // sections
       secGlance: 'Auf einen Blick', secErtrag: 'Wirtschaftliche Lage', secKosten: 'Kostenstruktur',
@@ -102,6 +117,21 @@
       trLiquiditaet: 'Cash at each month-end', thMonat: 'Month',
       companyLabel: 'Company:', removePeriod: 'Remove month', unknownCompany: 'Unknown',
       needMorePeriods: 'Import more monthly BWAs to see the trend.',
+      trKostenmix: 'Cost mix per month', days: '{n} days', wfLeistung: 'Output',
+      secRisk: 'Customer & supplier structure',
+      riskIntro: 'Distribution of open receivables and payables — high concentration on a few names is a risk.',
+      kDso: 'Receivable days (DSO)', kDpo: 'Payable days (DPO)',
+      breakEvenTitle: 'Break-even',
+      breakEvenLine: 'Estimated break-even at about {be} revenue (≈ {beM}/month). You are currently {safety} above it (safety margin).',
+      breakEvenCaveat: 'Rough estimate: fixed costs (e.g. personnel, rent) vs. variable costs; the split is simplified.',
+      concCustomers: 'Largest customers (receivables)', concSuppliers: 'Largest suppliers (payables)',
+      concTop: 'Top item {share} · {n} accounts', expenseDrill: 'Largest single expense accounts',
+      'rec.concentration': 'Concentration risk: {share} of open receivables are on “{name}”. A default would hit hard — spread the dependency and watch creditworthiness.',
+      'rec.breakeven': 'The distance to break-even (~{be}) is tight at {safety}. Secure utilisation/pricing and watch fixed costs.',
+      'def.dso': 'Receivable days: how many days on average until customers pay (receivables ÷ revenue × days). Shorter is better.',
+      'def.dpo': 'Payment terms towards suppliers in days (open payables ÷ costs × days).',
+      'def.breakeven': 'The revenue at which costs are covered. The safety margin shows how far above it you are. Rough estimate.',
+      'def.expenseDrill': 'The largest individual expense accounts from the trial balance — often the bulk of “other costs” sits here.',
       periodLine: 'Month {m} · year-to-date {p} · as of {d}',
       secGlance: 'At a glance', secErtrag: 'Economic situation', secKosten: 'Cost structure',
       secLiqui: 'Liquidity', secBewertung: 'Rating & recommendations', secDetails: 'Details',
@@ -294,7 +324,7 @@
       betriebsergebnisMonth: v('betriebsergebnis', 'month'), betriebsergebnisYtd: v('betriebsergebnis', 'ytd'),
       ergebnisMonth: v('vorlaeufigesErgebnis', 'month'), ergebnisYtd: v('vorlaeufigesErgebnis', 'ytd'),
       personalMonth: v('personalkosten', 'month'), personalYtd: v('personalkosten', 'ytd'),
-      sonstigeYtd: v('sonstigeKosten', 'ytd'), months,
+      sonstigeMonth: v('sonstigeKosten', 'month'), sonstigeYtd: v('sonstigeKosten', 'ytd'), months,
     };
     o.umsatzrenditeYtd = o.umsatzYtd ? o.betriebsergebnisYtd / o.umsatzYtd : 0;
     o.personalquoteYtd = o.gesamtleistungYtd ? o.personalYtd / o.gesamtleistungYtd : 0;
@@ -303,6 +333,13 @@
     o.umsatzTrend = o.avgMonthlyUmsatz ? (o.umsatzMonth - o.avgMonthlyUmsatz) / o.avgMonthlyUmsatz : 0;
     o.costStructure = COST_KEYS.map((id) => ({ id, label: k[id] && k[id].label, ytd: v(id, 'ytd') }))
       .filter((c) => c.ytd > 0).sort((x, y) => y.ytd - x.ytd);
+    // Break-even: rough fixed/variable split of the cost blocks.
+    const FIXED = ['personalkosten', 'raumkosten', 'versicherungen', 'betrSteuern', 'abschreibungen', 'reparatur', 'besondereKosten'];
+    const fixedYtd = FIXED.reduce((s, id) => s + v(id, 'ytd'), 0);
+    const variableYtd = Math.max(0, o.gesamtkostenYtd - fixedYtd);
+    const cmRatio = o.umsatzYtd > 0 ? (o.umsatzYtd - variableYtd) / o.umsatzYtd : 0;
+    o.breakEven = { fixedYtd, variableYtd, cmRatio, umsatz: cmRatio > 0 ? fixedYtd / cmRatio : null };
+    o.breakEven.safety = (o.breakEven.umsatz != null && o.umsatzYtd > 0) ? (o.umsatzYtd - o.breakEven.umsatz) / o.umsatzYtd : null;
     // Linear year projection (run-rate) from the year-to-date figures.
     o.runRateUmsatz = (o.umsatzYtd / months) * 12;
     o.runRateErgebnis = (o.ergebnisYtd / months) * 12;
@@ -327,9 +364,29 @@
       L.shortTermLiab = L.payablesLuL + L.creditCard + L.wageLiab;
       L.netLiquidity = L.cash + L.receivables - L.shortTermLiab;
       L.runwayMonths = o.avgMonthlyKosten > 0 ? L.cash / o.avgMonthlyKosten : null;
+      const days = months * 30;                                     // days sales/payables outstanding
+      L.dso = (L.receivables > 0 && o.umsatzYtd > 0) ? L.receivables / o.umsatzYtd * days : null;
+      L.dpo = (L.payablesLuL > 0 && o.gesamtkostenYtd > 0) ? L.payablesLuL / o.gesamtkostenYtd * days : null;
       o.liquidity = L;
     }
+    o.concentration = concentrationOf(a);
     return o;
+  }
+  // Customer/supplier concentration from the personal (debtor/creditor) accounts.
+  function concentrationOf(a) {
+    if (!a || !a.length) return null;
+    const build = (accs, side) => {
+      const list = accs.filter((x) => x.side === side && x.saldoAbs > 0)
+        .map((x) => ({ no: x.no, label: x.label, amount: x.saldoAbs })).sort((x, y) => y.amount - x.amount);
+      const total = list.reduce((s, x) => s + x.amount, 0);
+      if (!total || list.length < 2) return null;
+      list.forEach((x) => { x.share = x.amount / total; });
+      return { total, count: list.length, top: list.slice(0, 6),
+        top1: list[0].share, top3: list.slice(0, 3).reduce((s, x) => s + x.share, 0) };
+    };
+    const customers = build(a.filter((x) => x.no >= 10000 && x.no <= 69999), 'S');
+    const suppliers = build(a.filter((x) => x.no >= 70000 && x.no <= 99999), 'H');
+    return (customers || suppliers) ? { customers, suppliers } : null;
   }
 
   // ---------------------------------------------------------- assessment
@@ -359,6 +416,10 @@
       if (!ergPos && L.runwayMonths != null && L.runwayMonths < 3) recs.push(t('rec.runway', { m: L.runwayMonths.toFixed(1) }));
     }
     if (K.umsatzTrend < -0.15) recs.push(t('rec.trend', { p: pct(Math.abs(K.umsatzTrend)) }));
+    const cc = K.concentration && K.concentration.customers;
+    if (cc && cc.top1 >= 0.30) recs.push(t('rec.concentration', { share: pct(cc.top1, 0), name: cc.top[0].label || ('Konto ' + cc.top[0].no) }));
+    if (K.breakEven && K.breakEven.safety != null && K.breakEven.safety < 0.10 && K.betriebsergebnisYtd > 0)
+      recs.push(t('rec.breakeven', { be: eur0(K.breakEven.umsatz), safety: pct(K.breakEven.safety, 0) }));
     recs.push(t('rec.preliminary'));
     const levels = [ertrag, liqui].filter(Boolean);
     const overall = levels.includes('bad') ? 'bad' : levels.includes('ok') ? 'ok' : 'good';
@@ -374,14 +435,89 @@
     return txt && txt !== 'def.' + defKey
       ? `<span class="bwa-info" tabindex="0" role="note" title="${esc(txt)}" aria-label="${esc(txt)}">i</span>` : '';
   }
-  function card(label, value, sub, lvl, defKey) {
+  function card(label, value, sub, lvl, defKey, spark) {
     return `<div class="bwa-card">
       <div class="bwa-card-label">${lvl ? dot(lvl) : ''}${esc(label)}${info(defKey)}</div>
       <div class="bwa-card-value">${value}</div>
       ${sub ? `<div class="bwa-card-sub">${sub}</div>` : ''}
+      ${spark || ''}
     </div>`;
   }
   function money2(n) { return `<span class="${n < 0 ? 'bwa-neg' : ''}">${eur0(n)}</span>`; }
+
+  // Mini sparkline for a KPI card (from the multi-period series).
+  function sparkSVG(vals) {
+    const v = (vals || []).filter((x) => x != null);
+    if (v.length < 2) return '';
+    const W = 96, H = 26, p = 3, max = Math.max(...v), min = Math.min(...v, 0), range = (max - min) || 1;
+    const x = (i) => p + i / (v.length - 1) * (W - 2 * p), y = (val) => p + (max - val) / range * (H - 2 * p);
+    const pts = v.map((val, i) => `${x(i).toFixed(1)},${y(val).toFixed(1)}`).join(' ');
+    return `<svg viewBox="0 0 ${W} ${H}" class="bwa-spark" preserveAspectRatio="none"><polyline points="${pts}" class="bwa-spark-line"/><circle cx="${x(v.length - 1).toFixed(1)}" cy="${y(v[v.length - 1]).toFixed(1)}" r="2.3" class="bwa-spark-dot"/></svg>`;
+  }
+
+  // GuV waterfall: income → minus cost blocks → operating result.
+  function waterfallSVG(K) {
+    const uebrige = Math.max(0, K.gesamtkostenYtd - K.personalYtd - K.sonstigeYtd);
+    const items = [
+      { label: t('wfLeistung'), value: K.betrRohertragYtd, type: 'start' },
+      { label: t('segPersonal'), value: -K.personalYtd, type: 'delta' },
+      { label: t('segSonstige'), value: -K.sonstigeYtd, type: 'delta' },
+      { label: t('segUebrige'), value: -uebrige, type: 'delta' },
+      { label: t('segErgebnis'), value: K.betriebsergebnisYtd, type: 'end' },
+    ];
+    const W = 580, H = 200, padT = 12, padB = 42, padL = 6, padR = 6, plotW = W - padL - padR, plotH = H - padT - padB;
+    let run = 0, hi = 0, lo = 0; const bars = [];
+    for (const it of items) {
+      if (it.type === 'delta') { const from = run, to = run + it.value; bars.push({ it, from, to }); run = to; }
+      else { bars.push({ it, from: 0, to: it.value }); if (it.type === 'start') run = it.value; }
+      hi = Math.max(hi, bars[bars.length - 1].from, bars[bars.length - 1].to);
+      lo = Math.min(lo, bars[bars.length - 1].from, bars[bars.length - 1].to);
+    }
+    const range = (hi - lo) || 1, y = (val) => padT + (hi - val) / range * plotH;
+    const slot = plotW / items.length, bw = Math.min(64, slot * 0.62);
+    let out = `<line x1="${padL}" y1="${y(0).toFixed(1)}" x2="${W - padR}" y2="${y(0).toFixed(1)}" class="bwa-axisline"/>`;
+    bars.forEach((b, i) => {
+      const x = padL + i * slot + (slot - bw) / 2;
+      const yTop = Math.min(y(b.from), y(b.to)), h = Math.max(1, Math.abs(y(b.from) - y(b.to)));
+      const cls = b.it.type === 'start' ? 'bwa-wf-total' : b.it.type === 'end' ? (b.it.value >= 0 ? 'bwa-wf-pos' : 'bwa-wf-neg') : 'bwa-wf-cost';
+      out += `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" class="${cls}"><title>${esc(b.it.label)}: ${esc(eur0(b.it.value))}</title></rect>`;
+      if (i < bars.length - 1 && b.it.type !== 'end') out += `<line x1="${(x + bw).toFixed(1)}" y1="${y(b.to).toFixed(1)}" x2="${(padL + (i + 1) * slot + (slot - bw) / 2).toFixed(1)}" y2="${y(b.to).toFixed(1)}" class="bwa-wf-conn"/>`;
+      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 24}" text-anchor="middle" class="bwa-axis">${esc(b.it.label)}</text>`;
+      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 10}" text-anchor="middle" class="bwa-wf-val">${esc(eur0(Math.abs(b.it.value)))}</text>`;
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" class="bwa-svg">${out}</svg>`;
+  }
+
+  // Biggest single expense accounts (drills into "other costs").
+  function expenseBars(parsed) {
+    const top = (parsed.susa || []).filter((a) => a.no >= 4000 && a.no <= 4999 && a.side === 'S' && a.saldoAbs > 0)
+      .sort((a, b) => b.saldoAbs - a.saldoAbs).slice(0, 8);
+    if (top.length < 2) return '';
+    const max = top[0].saldoAbs;
+    const bars = top.map((a) => `<div class="bwa-bar-row">
+      <div class="bwa-bar-label" title="${esc(a.label)}">${esc(a.label)}</div>
+      <div class="bwa-bar-track"><div class="bwa-bar-fill" style="width:${Math.round(a.saldoAbs / max * 100)}%"></div></div>
+      <div class="bwa-bar-val">${eur0(a.saldoAbs)}</div></div>`).join('');
+    return `<div class="bwa-chart-title bwa-subtitle">${esc(t('expenseDrill'))} ${info('expenseDrill')}</div>${bars}`;
+  }
+
+  // Customer / supplier concentration (Klumpenrisiko).
+  function concentrationBlock(conc) {
+    if (!conc) return '';
+    const part = (c, titleKey) => {
+      if (!c) return '';
+      const lvl = c.top1 >= 0.4 ? 'bad' : c.top1 >= 0.25 ? 'ok' : 'good';
+      const max = c.top[0].share;
+      const bars = c.top.map((x) => `<div class="bwa-bar-row">
+        <div class="bwa-bar-label" title="${esc(x.label || ('Konto ' + x.no))}">${esc(x.label || ('Konto ' + x.no))}</div>
+        <div class="bwa-bar-track"><div class="bwa-bar-fill" style="width:${Math.round(x.share / max * 100)}%"></div></div>
+        <div class="bwa-bar-val">${eur0(x.amount)} · ${pct(x.share, 0)}</div></div>`).join('');
+      return `<div class="bwa-chart-box">
+        <div class="bwa-chart-title">${esc(t(titleKey))} ${dot(lvl)} <span class="bwa-muted">${esc(t('concTop', { share: pct(c.top1, 0), n: c.count }))}</span></div>${bars}</div>`;
+    };
+    const inner = part(conc.customers, 'concCustomers') + part(conc.suppliers, 'concSuppliers');
+    return inner ? `<div class="bwa-trend-grid">${inner}</div>` : '';
+  }
 
   function costBars(K) {
     const items = K.costStructure.slice(0, 7);
@@ -397,23 +533,6 @@
       </div>`;
     }).join('');
   }
-  function euroFlow(K) {
-    const erg = K.betriebsergebnisYtd;
-    const uebrige = Math.max(0, K.gesamtkostenYtd - K.personalYtd - K.sonstigeYtd);
-    const loss = Math.max(0, -erg);
-    const segs = [
-      { k: 'segPersonal', v: K.personalYtd, c: 'p' },
-      { k: 'segSonstige', v: K.sonstigeYtd, c: 's' },
-      { k: 'segUebrige', v: uebrige, c: 'u' },
-      { k: 'segErgebnis', v: Math.max(0, erg), c: 'e' },
-      { k: 'segVerlust', v: loss, c: 'l' },
-    ].filter((s) => s.v > 0);
-    const base = segs.reduce((a, b) => a + b.v, 0) || 1;
-    const bar = segs.map((s) => `<div class="bwa-seg bwa-seg-${s.c}" style="width:${(s.v / base) * 100}%" title="${esc(t(s.k))}: ${eur0(s.v)}"></div>`).join('');
-    const legend = segs.map((s) => `<span class="bwa-leg"><span class="bwa-leg-dot bwa-seg-${s.c}"></span>${esc(t(s.k))} · ${pct(s.v / base, 0)}</span>`).join('');
-    return `<div class="bwa-flow"><div class="bwa-flow-bar">${bar}</div><div class="bwa-flow-legend">${legend}</div></div>`;
-  }
-
   function kerTable(K, parsed) {
     const k = parsed.ker;
     const rows = KER_ORDER.filter((id) => k[id]).map((id) => {
@@ -441,28 +560,33 @@
     </tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  function renderReport(parsed) {
+  function renderReport(parsed, series) {
     const K = kpis(parsed), A = assess(K), m = parsed.meta;
+    series = series || [];
+    const sp = (sel) => sparkSVG(series.map(sel));
     $('bwa-company').textContent = m.company || 'BWA';
     $('bwa-period').textContent = t('periodLine', { m: m.currentMonth || '–', p: m.periodLabel || '–', d: m.date || '–' });
 
-    const glance = card(t('kUmsatz') + ' · ' + t('suffYtd'), eur0(K.umsatzYtd), t('perMonth') + ' ' + eur0(K.avgMonthlyUmsatz), null, 'umsatz')
-      + card(t('kBetriebsergebnis'), money2(K.betriebsergebnisYtd), t('kMarge') + ' ' + pct(K.umsatzrenditeYtd), A.ertrag, 'betriebsergebnis')
-      + card(t('kErgebnis'), money2(K.ergebnisYtd), t('suffMonth') + ' ' + eur0(K.ergebnisMonth), null, 'ergebnis')
-      + (K.liquidity ? card(t('kLiquide'), eur0(K.liquidity.cash), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui, 'liquide') : '');
+    const glance = card(t('kUmsatz') + ' · ' + t('suffYtd'), eur0(K.umsatzYtd), t('perMonth') + ' ' + eur0(K.avgMonthlyUmsatz), null, 'umsatz', sp((s) => s.umsatz))
+      + card(t('kBetriebsergebnis'), money2(K.betriebsergebnisYtd), t('kMarge') + ' ' + pct(K.umsatzrenditeYtd), A.ertrag, 'betriebsergebnis', sp((s) => s.betriebsergebnis))
+      + card(t('kErgebnis'), money2(K.ergebnisYtd), t('suffMonth') + ' ' + eur0(K.ergebnisMonth), null, 'ergebnis', sp((s) => s.ergebnis))
+      + (K.liquidity ? card(t('kLiquide'), eur0(K.liquidity.cash), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui, 'liquide', sp((s) => s.cash)) : '');
 
-    // Ertrag section
+    // Ertrag section — GuV waterfall + assessment + break-even + run-rate
     const ertragText = t('aErtrag' + capitalize(A.ertrag), { erg: eur0(K.betriebsergebnisYtd), marge: pct(K.umsatzrenditeYtd) });
-    const runrate = `<div class="bwa-runrate">
-      <span class="bwa-info" tabindex="0" role="note" title="${esc(t('def.runrate'))}" aria-label="${esc(t('def.runrate'))}">i</span>
-      <strong>${esc(t('runRateTitle'))}</strong>
+    const be = K.breakEven;
+    const beBox = (be && be.umsatz != null) ? `<div class="bwa-taxbox">
+      <div class="bwa-taxbox-head"><strong>${esc(t('breakEvenTitle'))}</strong>${info('breakeven')}</div>
+      <p>${esc(t('breakEvenLine', { be: eur0(be.umsatz), beM: eur0(be.umsatz / K.months), safety: pct(be.safety, 0) }))}</p>
+      <p class="bwa-note">${esc(t('breakEvenCaveat'))}</p></div>` : '';
+    const runrate = `<div class="bwa-runrate">${info('runrate')}<strong>${esc(t('runRateTitle'))}</strong>
       ${esc(t('runRateLine', { months: K.months, u: eur0(K.runRateUmsatz), e: eur0(K.runRateErgebnis) }))}</div>`;
     const ertragBody = `<div class="bwa-cols">
-      <div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('flowTitle'))}</div>${euroFlow(K)}</div>
+      <div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('flowTitle'))}</div>${waterfallSVG(K)}</div>
       <div class="bwa-assess bwa-assess-${A.ertrag}">${dot(A.ertrag)}<div>${esc(ertragText)}</div></div>
-    </div>${runrate}`;
+    </div>${beBox}${runrate}`;
 
-    const kostenBody = `<div class="bwa-chart-title">${esc(t('costTitle'))}</div>${costBars(K)}`;
+    const kostenBody = `<div class="bwa-chart-title">${esc(t('costTitle'))}</div>${costBars(K)}${expenseBars(parsed)}`;
 
     // Tax reserve orientation box (shown for corporations with a profit).
     let taxBox = '';
@@ -485,7 +609,9 @@
         + card(t('kVerbindl'), eur0(L.shortTermLiab), null, null, 'verbindl')
         + card(t('kRueckstellungen'), eur0(L.provisions), null, null, 'rueckstellungen')
         + card(t('kNettoLiq'), money2(L.netLiquidity), null, A.liqui, 'nettoLiq')
-        + (L.runwayMonths != null ? card(t('kRunway'), t('months', { n: L.runwayMonths.toFixed(1) }), null, null, 'runway') : '');
+        + (L.runwayMonths != null ? card(t('kRunway'), t('months', { n: L.runwayMonths.toFixed(1) }), null, null, 'runway') : '')
+        + (L.dso != null ? card(t('kDso'), t('days', { n: Math.round(L.dso) }), null, null, 'dso') : '')
+        + (L.dpo != null ? card(t('kDpo'), t('days', { n: Math.round(L.dpo) }), null, null, 'dpo') : '');
       const runwayHint = L.runwayMonths != null ? `<p class="bwa-note">${esc(t('runwayHint', { m: t('months', { n: L.runwayMonths.toFixed(1) }) }))}</p>` : '';
       const liquiText = t('aLiqui' + capitalize(A.liqui), { netto: eur0(L.netLiquidity) });
       liquiBody = `<div class="bwa-cards">${cards}</div>
@@ -507,6 +633,7 @@
       + section('secErtrag', ertragBody)
       + section('secKosten', kostenBody)
       + section('secLiqui', liquiBody)
+      + (K.concentration ? section('secRisk', `<p class="bwa-note bwa-subnote">${esc(t('riskIntro'))}</p>${concentrationBlock(K.concentration)}`) : '')
       + section('secBewertung', recs)
       + section('secDetails', details);
 
@@ -572,6 +699,23 @@
     const zero = minV < 0 ? `<line x1="${padL}" y1="${y(0).toFixed(1)}" x2="${W - padR}" y2="${y(0).toFixed(1)}" class="bwa-axisline"/>` : '';
     return `<svg viewBox="0 0 ${W} ${H}" class="bwa-svg">${zero}<polyline points="${pts}" class="bwa-line"/>${dots}${xlab}</svg>`;
   }
+  function stackedSVG(labels, layers) {
+    const W = 580, H = 180, padT = 12, padB = 26, padL = 6, padR = 6, plotW = W - padL - padR, plotH = H - padT - padB;
+    const totals = labels.map((_, i) => layers.reduce((s, l) => s + (l.vals[i] || 0), 0));
+    const maxV = Math.max(1, ...totals), n = labels.length, slot = plotW / n, bw = Math.min(42, slot * 0.6);
+    let out = '';
+    labels.forEach((lab, i) => {
+      const x = padL + i * slot + (slot - bw) / 2; let acc = 0;
+      layers.forEach((l) => {
+        const v = l.vals[i] || 0; if (v <= 0) return;
+        const yTop = padT + (1 - (acc + v) / maxV) * plotH, h = (v / maxV) * plotH;
+        out += `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0.5, h).toFixed(1)}" class="${l.cls}"><title>${esc(lab)} · ${esc(l.name)}: ${esc(eur0(v))}</title></rect>`;
+        acc += v;
+      });
+      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle" class="bwa-axis">${esc(shortMonth(lab))}</text>`;
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" class="bwa-svg">${out}</svg>`;
+  }
   const legend = (items) => `<span class="bwa-flow-legend">${items.map((i) => `<span class="bwa-leg"><span class="bwa-leg-dot ${i.cls}"></span>${esc(i.name)}</span>`).join('')}</span>`;
   function trendTable(series) {
     const rows = series.map((s) => `<tr>
@@ -593,10 +737,16 @@
     ]);
     const hasCash = series.some((s) => s.cash != null);
     const cashChart = hasCash ? lineSVG(labels, series.map((s) => s.cash || 0)) : '';
+    const costMix = stackedSVG(labels, [
+      { name: t('segPersonal'), cls: 'bwa-c1', vals: series.map((s) => s.personal) },
+      { name: t('segSonstige'), cls: 'bwa-cf-warn', vals: series.map((s) => s.sonstige) },
+      { name: t('segUebrige'), cls: 'bwa-cf-grey', vals: series.map((s) => s.uebrige) },
+    ]);
     el.innerHTML = section('secTrend',
       `<div class="bwa-trend-grid">
         <div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('trUmsatzErgebnis'))} ${legend([{ name: t('kUmsatz'), cls: 'bwa-c1' }, { name: t('kBetriebsergebnis'), cls: 'bwa-c2' }])}</div>${revErg}</div>
         ${hasCash ? `<div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('trLiquiditaet'))} ${legend([{ name: t('kLiquide'), cls: 'bwa-c3' }])}</div>${cashChart}</div>` : ''}
+        <div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('trKostenmix'))} ${legend([{ name: t('segPersonal'), cls: 'bwa-c1' }, { name: t('segSonstige'), cls: 'bwa-cf-warn' }, { name: t('segUebrige'), cls: 'bwa-cf-grey' }])}</div>${costMix}</div>
       </div>
       <div class="bwa-table-wrap">${trendTable(series)}</div>`);
   }
@@ -628,7 +778,9 @@
       const p = byMonth[k], K = kpis(p);
       return { key: k, label: p.meta.currentMonth || k, umsatz: K.umsatzMonth, betriebsergebnis: K.betriebsergebnisMonth,
         ergebnis: K.ergebnisMonth, marge: K.umsatzMonth ? K.betriebsergebnisMonth / K.umsatzMonth : 0,
-        cash: K.liquidity ? K.liquidity.cash : null };
+        cash: K.liquidity ? K.liquidity.cash : null,
+        personal: K.personalMonth, sonstige: K.sonstigeMonth,
+        uebrige: Math.max(0, K.gesamtkostenMonth - K.personalMonth - K.sonstigeMonth) };
     });
   }
   function renderPeriods() {
@@ -669,9 +821,10 @@
     const keys = Object.keys(byMonth).sort();
     if (!keys.length) { reset(); return; }
     if (!byMonth[state.activeKey]) state.activeKey = keys[keys.length - 1];
+    const series = seriesFor(comp);
     renderPeriods();
-    renderTrend(seriesFor(comp));
-    renderReport(byMonth[state.activeKey]);
+    renderTrend(series);
+    renderReport(byMonth[state.activeKey], series);
   }
 
   async function handleFiles(fileList) {
