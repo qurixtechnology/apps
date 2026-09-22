@@ -32,9 +32,9 @@
       trKostenmix: 'Kostenmix pro Monat', days: '{n} Tage', wfLeistung: 'Leistung',
       secRisk: 'Kunden- & Lieferantenstruktur', secCustomers: 'Kundenstruktur', secSuppliers: 'Lieferantenstruktur',
       secCustRevenue: 'Umsatz je Kunde', thKunde: 'Kunde',
-      crFakturiert: 'Fakturiert (kum.)', crVereinnahmt: 'Vereinnahmt (kum.)', crOffen: 'Offen',
+      crAnfang: 'Anfangssaldo (Vorjahr)', crFakturiert: 'Fakturiert (kum.)', crVereinnahmt: 'Vereinnahmt (kum.)', crOffen: 'Offen',
       crIntro: 'Verteilung des fakturierten Umsatzes auf die größten Kunden — zeigt die Abhängigkeit auf der Umsatzseite (ergänzend zum Forderungsrisiko).',
-      crNote: 'Bruttowerte inkl. Umsatzsteuer aus den Debitoren-Bewegungen der Summen & Salden. „Fakturiert“ = in Rechnung gestellt (kumuliert), „Vereinnahmt“ = Zahlungseingänge (auch auf Vorjahresrechnungen). Sammelkonten „DIVERSE“ bündeln mehrere kleine Kunden. Nur verfügbar, wenn die BWA die Bewegungsspalten enthält.',
+      crNote: 'Bruttowerte inkl. Umsatzsteuer aus den Debitoren-Bewegungen der Summen & Salden. „Fakturiert“ = in diesem Jahr in Rechnung gestellt, „Vereinnahmt“ = Zahlungseingänge dieses Jahres (auch auf Vorjahresrechnungen). „Offen“ ist der aktuelle Saldo = Anfangssaldo + Fakturiert − Vereinnahmt (enthält also Vorjahres-Offenposten); deshalb kann Vereinnahmt größer als Fakturiert sein. Sammelkonten „DIVERSE“ bündeln mehrere kleine Kunden. Nur verfügbar, wenn die BWA die Bewegungsspalten enthält.',
       tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität',
       riskIntro: 'Verteilung der offenen Forderungen und Verbindlichkeiten — eine hohe Konzentration auf wenige Namen ist ein Risiko.',
       kDso: 'Forderungslaufzeit (DSO)', kDpo: 'Zahlungsziel Lieferanten (DPO)',
@@ -162,9 +162,9 @@
       trKostenmix: 'Cost mix per month', days: '{n} days', wfLeistung: 'Output',
       secRisk: 'Customer & supplier structure', secCustomers: 'Customer structure', secSuppliers: 'Supplier structure',
       secCustRevenue: 'Revenue per customer', thKunde: 'Customer',
-      crFakturiert: 'Invoiced (YTD)', crVereinnahmt: 'Collected (YTD)', crOffen: 'Open',
+      crAnfang: 'Opening balance (prior year)', crFakturiert: 'Invoiced (YTD)', crVereinnahmt: 'Collected (YTD)', crOffen: 'Open',
       crIntro: 'Distribution of invoiced turnover across the largest customers — shows dependency on the revenue side (complementing the receivables risk).',
-      crNote: 'Gross values incl. VAT from the debtor movements of the trial balance. “Invoiced” = billed (cumulative), “Collected” = payments received (also on prior-year invoices). Collective accounts “DIVERSE” bundle several small customers. Only available when the BWA contains the movement columns.',
+      crNote: 'Gross values incl. VAT from the debtor movements of the trial balance. “Invoiced” = billed this year, “Collected” = payments received this year (also on prior-year invoices). “Open” is the current balance = opening balance + invoiced − collected (so it includes prior-year open items); this is why collected can exceed invoiced. Collective accounts “DIVERSE” bundle several small customers. Only available when the BWA contains the movement columns.',
       tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity',
       riskIntro: 'Distribution of open receivables and payables — high concentration on a few names is a risk.',
       kDso: 'Receivable days (DSO)', kDpo: 'Payable days (DPO)',
@@ -406,17 +406,17 @@
     for (const a of personal) {
       const sC = readCol(a, kumSollCol), hC = readCol(a, kumHabenCol), sal = readCol(a, saldoCol);
       const eb = ebCol !== saldoCol ? readCol(a, ebCol) : null;
-      const soll = sC ? sC.v : 0, haben = hC ? hC.v : 0;
-      const good = Math.abs(signed(eb) + soll - haben - signed(sal)) < 0.02;
-      rows.push({ a, soll, haben, good }); tot++; if (good) ok++;
+      const soll = sC ? sC.v : 0, haben = hC ? hC.v : 0, ebS = signed(eb);
+      const good = Math.abs(ebS + soll - haben - signed(sal)) < 0.02;
+      rows.push({ a, soll, haben, ebS, good }); tot++; if (good) ok++;
     }
     if (!tot || ok / tot < 0.8) return;                   // columns not as assumed → stay safe
-    rows.forEach((r) => { if (r.soll > 0 || r.haben > 0) { r.a.soll = r.soll; r.a.haben = r.haben; } });
+    rows.forEach((r) => { if (r.soll > 0 || r.haben > 0) { r.a.soll = r.soll; r.a.haben = r.haben; r.a.eb = r.ebS; } });
   }
   // Largest customers by invoiced turnover (with collected + open), if available.
   function customerRevenue(parsed) {
     const list = (parsed.susa || []).filter((a) => a.no >= 10000 && a.no <= 69999 && a.soll != null && a.soll > 0)
-      .map((a) => ({ no: a.no, label: a.label, fakturiert: a.soll, vereinnahmt: a.haben || 0,
+      .map((a) => ({ no: a.no, label: a.label, anfang: a.eb || 0, fakturiert: a.soll, vereinnahmt: a.haben || 0,
         offen: a.side === 'S' ? a.saldoAbs : (a.side === 'H' ? -a.saldoAbs : 0) }))
       .sort((x, y) => y.fakturiert - x.fakturiert);
     return list.length ? list : null;
@@ -858,12 +858,13 @@
     const top = list.slice(0, 10);
     const rows = top.map((c) => `<tr>
       <td>${esc(c.label || ('Konto ' + c.no))}</td>
+      <td class="bwa-num bwa-muted">${eur0(c.anfang)}</td>
       <td class="bwa-num">${eur0(c.fakturiert)}</td>
       <td class="bwa-num">${eur0(c.vereinnahmt)}</td>
-      <td class="bwa-num bwa-muted">${eur0(c.offen)}</td></tr>`).join('');
+      <td class="bwa-num">${eur0(c.offen)}</td></tr>`).join('');
     return section('secCustRevenue', `<p class="bwa-note bwa-subnote">${esc(t('crIntro'))}</p>
       <div class="bwa-table-wrap"><table class="bwa-table"><thead><tr>
-        <th>${esc(t('thKunde'))}</th><th class="bwa-num">${esc(t('crFakturiert'))}</th>
+        <th>${esc(t('thKunde'))}</th><th class="bwa-num">${esc(t('crAnfang'))}</th><th class="bwa-num">${esc(t('crFakturiert'))}</th>
         <th class="bwa-num">${esc(t('crVereinnahmt'))}</th><th class="bwa-num">${esc(t('crOffen'))}</th>
       </tr></thead><tbody>${rows}</tbody></table></div>
       <p class="bwa-note">${esc(t('crNote'))}</p>`);

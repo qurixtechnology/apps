@@ -194,7 +194,8 @@ describe('bwa report', () => {
       });
       assert.ok(r.list, 'revenue per customer is available when movement columns exist');
       assert.deepEqual(r.list.map((c) => c.label), ['Krongaard AG', 'DIVERSE B', 'DIVERSE U'], 'customers sorted by invoiced turnover (suppliers excluded)');
-      assert.deepEqual(r.list[0], { no: 11001, label: 'Krongaard AG', fakturiert: 323494.97, vereinnahmt: 370176.29, offen: 13518.40 }, 'invoiced (cum-Soll), collected (cum-Haben) and open (saldo)');
+      assert.deepEqual(r.list[0], { no: 11001, label: 'Krongaard AG', anfang: 60199.72, fakturiert: 323494.97, vereinnahmt: 370176.29, offen: 13518.40 }, 'opening (EB), invoiced (cum-Soll), collected (cum-Haben) and open (saldo)');
+      assert.ok(Math.abs(r.list[0].anfang + r.list[0].fakturiert - r.list[0].vereinnahmt - r.list[0].offen) < 0.01, 'open = opening + invoiced − collected');
       assert.equal(r.list[2].vereinnahmt, 0, 'a newly invoiced customer shows nothing collected yet');
       assert.equal(r.hasSollSaldoOnly, false, 'no turnover is inferred without movement columns');
       assert.equal(r.saldoOnlyRevenue, null, 'revenue-per-customer stays off when only balances are present');
