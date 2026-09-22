@@ -45,10 +45,10 @@
       'def.dpo': 'Zahlungsziel gegenüber Lieferanten in Tagen (offene Verbindlichkeiten ÷ Kosten × Tage).',
       'def.breakeven': 'Umsatz, ab dem die Kosten gedeckt sind. Der Sicherheitsabstand zeigt, wie weit du darüber liegst. Grobe Schätzung.',
       'def.expenseDrill': 'Die betragsmäßig größten einzelnen Aufwandskonten aus den Summen & Salden — oft steckt hier der Großteil der „Sonstigen Kosten“.',
-      secCockpit: 'Cockpit', gaugeSafety: 'Sicherheitsabstand', gaugeCluster: 'Klumpenrisiko (Top-Kunde)', gaugeTaxCov: 'Steuer-Deckung',
+      secCockpit: 'Cockpit', gaugeSafety: 'Sicherheitsabstand', gaugeCluster: 'Klumpenrisiko (Top-Kunde)', gaugeTaxCov: 'Ertragsteuer-Deckung', gaugeNoTaxDue: 'keine fällig',
       'def.marge': 'Umsatzrendite = Betriebsergebnis ÷ Umsatz. Wie viel von jedem Euro Umsatz als Ergebnis übrig bleibt.',
       'def.cluster': 'Anteil des größten Kunden an den offenen Forderungen. Hoch = starke Abhängigkeit von einem Kunden (Risiko).',
-      'def.taxcov': 'Wie weit die Steuerrückstellungen die überschlägig erwartete Ertragsteuer decken (Verlustvorträge berücksichtigt). Grobe Orientierung.',
+      'def.taxcov': 'Nur Ertragsteuer (Körperschaft-/Gewerbesteuer): Wie weit die Steuerrückstellungen die überschlägig erwartete Ertragsteuer decken (Verlustvorträge berücksichtigt). Sagt nichts über Umsatzsteuer-Zahllasten aus — dafür die Netto-Steuerposition. Grobe Orientierung.',
       periodLine: 'Monat {m} · kumuliert {p} · Stand {d}',
       // sections
       secGlance: 'Auf einen Blick', secErtrag: 'Wirtschaftliche Lage', secKosten: 'Kostenstruktur',
@@ -97,6 +97,7 @@
       'def.bound': 'Teil der liquiden Mittel, der bereits verplant ist: Umsatzsteuer (durchlaufendes Fremdgeld), abzuführende Lohnsteuer/Sozialabgaben und gebildete Steuerrückstellungen. Nur der Rest ist frei verfügbar.',
       ntTitle: 'Netto-Steuerposition (nach Verrechnung)',
       ntRefunds: 'Steuer-Erstattungsansprüche', ntNet: 'Netto-Steuerposition',
+      ntCardOwed: 'Zahllast ans Finanzamt', ntCardCredit: 'Guthaben vom Finanzamt',
       ntVerdictOwed: 'Nach Verrechnung der Erstattungsansprüche verbleibt eine Netto-Zahllast von {amount} gegenüber dem Finanzamt.',
       ntVerdictCredit: 'Nach Verrechnung ergibt sich ein Netto-Steuerguthaben von {amount}.',
       'def.nettax': 'Umsatzsteuer-Zahllast plus Steuerrückstellungen minus Steuer-Erstattungsansprüche (z. B. KSt-/GewSt-Rückforderungen). Zeigt, was unterm Strich gegenüber dem Finanzamt offen ist — die Lohnsteuer/Sozialabgaben sind hier nicht enthalten.',
@@ -166,10 +167,10 @@
       'def.dpo': 'Payment terms towards suppliers in days (open payables ÷ costs × days).',
       'def.breakeven': 'The revenue at which costs are covered. The safety margin shows how far above it you are. Rough estimate.',
       'def.expenseDrill': 'The largest individual expense accounts from the trial balance — often the bulk of “other costs” sits here.',
-      secCockpit: 'Cockpit', gaugeSafety: 'Safety margin', gaugeCluster: 'Concentration (top customer)', gaugeTaxCov: 'Tax coverage',
+      secCockpit: 'Cockpit', gaugeSafety: 'Safety margin', gaugeCluster: 'Concentration (top customer)', gaugeTaxCov: 'Income-tax coverage', gaugeNoTaxDue: 'none due',
       'def.marge': 'Operating margin = operating result ÷ revenue. How much of each euro of revenue remains as result.',
       'def.cluster': 'Share of the largest customer in open receivables. High = strong dependence on one customer (risk).',
-      'def.taxcov': 'How far the tax provisions cover the roughly expected income tax (loss carry-forwards considered). Rough orientation.',
+      'def.taxcov': 'Income tax only (corporate/trade tax): how far the tax provisions cover the roughly expected income tax (loss carry-forwards considered). Says nothing about VAT liabilities — see the net tax position for that. Rough orientation.',
       periodLine: 'Month {m} · year-to-date {p} · as of {d}',
       secGlance: 'At a glance', secErtrag: 'Economic situation', secKosten: 'Cost structure',
       secLiqui: 'Liquidity', secBewertung: 'Rating & recommendations', secDetails: 'Details',
@@ -212,6 +213,7 @@
       'def.bound': 'The part of the cash that is already committed: VAT (pass-through money), wage tax/social security to be remitted, and tax provisions. Only the rest is freely usable.',
       ntTitle: 'Net tax position (after offsetting)',
       ntRefunds: 'Tax refund claims', ntNet: 'Net tax position',
+      ntCardOwed: 'owed to the tax office', ntCardCredit: 'credit from the tax office',
       ntVerdictOwed: 'After offsetting the refund claims, a net liability of {amount} remains towards the tax office.',
       ntVerdictCredit: 'After offsetting, a net tax credit of {amount} results.',
       'def.nettax': 'VAT liability plus tax provisions minus tax refund claims (e.g. corporate/trade tax reclaims). Shows what is open towards the tax office on balance — wage tax/social security is not included here.',
@@ -671,10 +673,12 @@
     if (K.concentration && K.concentration.customers)
       gs.push(gauge({ labelKey: 'gaugeCluster', defKey: 'cluster', value: K.concentration.customers.top1, min: 0, max: 1,
         zones: [{ to: 0.25, cls: 'g' }, { to: 0.40, cls: 'a' }, { to: 1, cls: 'r' }], fmt: (v) => pct(v, 0) }));
-    if (K.taxCoverage != null)
+    if (K.taxCoverage != null) {
+      const noTaxDue = K.taxCheck && K.taxCheck.expectedAdj === 0;   // shielded by loss carry-forward
       gs.push(gauge({ labelKey: 'gaugeTaxCov', defKey: 'taxcov', value: K.taxCoverage, min: 0, max: 1.5,
         zones: [{ to: 0.70, cls: 'r' }, { to: 1.0, cls: 'a' }, { to: 1.5, cls: 'g' }],
-        fmt: () => (K.taxCoverage > 1.5 ? '≥ ' : '') + pct(Math.min(K.taxCoverage, 1.5), 0) }));
+        fmt: () => noTaxDue ? t('gaugeNoTaxDue') : (K.taxCoverage > 1.5 ? '≥ ' : '') + pct(Math.min(K.taxCoverage, 1.5), 0) }));
+    }
     if (K.taxSummary && K.taxSummary.freeRatio != null)
       gs.push(gauge({ labelKey: 'gaugeFreeLiq', defKey: 'freeliq', value: K.taxSummary.freeRatio, min: 0, max: 1,
         zones: [{ to: 0.20, cls: 'r' }, { to: 0.50, cls: 'a' }, { to: 1, cls: 'g' }], fmt: (val) => pct(val, 0) }));
@@ -802,10 +806,13 @@
     $('bwa-company').textContent = m.company || 'BWA';
     $('bwa-period').textContent = t('periodLine', { m: m.currentMonth || '–', p: m.periodLabel || '–', d: m.date || '–' });
 
+    const S = K.taxSummary;
+    const showNet = S && (S.refunds > 0 || S.reserves > 0 || S.ustOwed > 0);
     const glance = card(t('kUmsatz') + ' · ' + t('suffYtd'), eur0(K.umsatzYtd), t('perMonth') + ' ' + eur0(K.avgMonthlyUmsatz), null, 'umsatz', sp((s) => s.umsatz))
       + card(t('kBetriebsergebnis'), money2(K.betriebsergebnisYtd), t('kMarge') + ' ' + pct(K.umsatzrenditeYtd), A.ertrag, 'betriebsergebnis', sp((s) => s.betriebsergebnis))
       + card(t('kErgebnis'), money2(K.ergebnisYtd), t('suffMonth') + ' ' + eur0(K.ergebnisMonth), null, 'ergebnis', sp((s) => s.ergebnis))
-      + (K.liquidity ? card(t('kLiquide'), eur0(K.liquidity.cash), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui, 'liquide', sp((s) => s.cash)) : '');
+      + (K.liquidity ? card(t('kLiquide'), eur0(K.liquidity.cash), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui, 'liquide', sp((s) => s.cash)) : '')
+      + (showNet ? card(t('ntNet'), eur0(Math.abs(S.netTax)), t(S.netTax >= 0 ? 'ntCardOwed' : 'ntCardCredit'), S.netTax > 0 ? 'ok' : 'good', 'nettax') : '');
 
     // Ertrag section — GuV waterfall + assessment + break-even + run-rate
     const ertragText = t('aErtrag' + capitalize(A.ertrag), { erg: eur0(K.betriebsergebnisYtd), marge: pct(K.umsatzrenditeYtd) });

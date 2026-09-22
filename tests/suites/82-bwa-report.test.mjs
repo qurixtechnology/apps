@@ -147,6 +147,7 @@ describe('bwa report', () => {
     try {
       await importFixture(page);
       const g = await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-cockpit .bwa-gauge')].map((el) => ({
+        label: el.querySelector('.bwa-gauge-label').textContent.trim(),
         value: el.querySelector('.bwa-gauge-value').textContent,
         cls: [...el.querySelector('.bwa-gauge-verdict').classList].find((c) => c.startsWith('bwa-verd-')),
       })));
@@ -155,6 +156,9 @@ describe('bwa report', () => {
       // top-customer 60% → bad(>40%), tax coverage 0% (no provisions) → bad(<70%)
       assert.deepEqual(g.slice(0, 5).map((x) => x.cls), ['bwa-verd-g', 'bwa-verd-g', 'bwa-verd-r', 'bwa-verd-r', 'bwa-verd-r']);
       assert.ok(['bwa-verd-g', 'bwa-verd-a', 'bwa-verd-r'].includes(g[5].cls), 'free-liquidity gauge has a valid verdict');
+      // The income-tax gauge is renamed and — since the fixture is not loss-shielded — shows a percentage.
+      assert.match(g[4].label, /Ertragsteuer-Deckung/, 'tax gauge renamed to income-tax coverage');
+      assert.match(g[4].value, /%/, 'non-shielded case shows a coverage percentage, not "keine fällig"');
       page.assertNoErrors();
     } finally { await page.close(); }
   });
