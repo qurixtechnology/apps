@@ -196,9 +196,13 @@ describe('bwa report', () => {
         };
       });
       assert.deepEqual(r.ust, { output: 5700, vorsteuer: 3000, prepaid: 2500, net: 200 }, 'VAT composition');
-      assert.deepEqual(r.sum, { cash: 100000, ustOwed: 200, wageTax: 4000, reserves: 1000, refunds: 12000, bound: 5200, free: 94800, freeRatio: r.sum.freeRatio, netTax: -10800 }, 'refunds exclude 1548 (deferred VAT); netTax = USt + provisions − refunds');
+      assert.deepEqual(r.sum, { cash: 100000, ustOwed: 200, wageTax: 4000, reserves: 1000, refunds: 12000, bound: 5200, free: 94800, freeRatio: r.sum.freeRatio,
+        passThrough: 4200, ownTaxNet: -11000, netOutflow: -6800, netTax: -10800 }, 'refunds exclude 1548 (deferred VAT); two buckets + net outflow');
       assert.equal(r.freeRatio, 0.948, 'free liquidity ratio');
-      assert.equal(r.sum.netTax, 200 + 1000 - 12000, 'net tax position = USt net + provisions − refund claims');
+      assert.equal(r.sum.passThrough, 200 + 4000, 'pass-through = USt owed + wage tax/SV');
+      assert.equal(r.sum.ownTaxNet, 1000 - 12000, 'own income tax net = provisions − refund claims');
+      assert.equal(r.sum.netOutflow, 5200 - 12000, 'net outflow = bound − refunds = pass-through + own tax net');
+      assert.equal(r.sum.netTax, 200 + 1000 - 12000, 'Finanzamt reconciliation = USt net + provisions − refunds');
       assert.deepEqual(r.tax, { base: 9000, taxable: 9000, expectedAdj: 2700, reserved: 1000, gap: 1700 }, 'income-tax outlook with coverage gap');
       assert.deepEqual(r.plaus, { salesVat: 5700, vatQuote: 0.19 }, 'VAT plausibility (19 % of revenue)');
       assert.ok(r.recBound, 'the recommendation nets the refund claims and states the net outflow');

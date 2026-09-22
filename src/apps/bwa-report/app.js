@@ -95,12 +95,15 @@
       liqUstBreak: 'USt-Zahllast = vereinnahmte Umsatzsteuer {output} − abziehbare Vorsteuer {vorsteuer} − geleistete Vorauszahlungen {prepaid}.',
       liqRefundNote: 'Zusätzlich bestehen Steuer-Erstattungsansprüche von {amount} (voraussichtlicher Mittelzufluss, hier nicht gegengerechnet).',
       'def.bound': 'Teil der liquiden Mittel, der bereits verplant ist: Umsatzsteuer (durchlaufendes Fremdgeld), abzuführende Lohnsteuer/Sozialabgaben und gebildete Steuerrückstellungen. Nur der Rest ist frei verfügbar.',
-      ntTitle: 'Netto-Steuerposition (nach Verrechnung)',
-      ntRefunds: 'Steuer-Erstattungsansprüche', ntNet: 'Netto-Steuerposition',
-      ntCardOwed: 'Zahllast ans Finanzamt', ntCardCredit: 'Guthaben vom Finanzamt',
-      ntVerdictOwed: 'Nach Verrechnung der Erstattungsansprüche verbleibt eine Netto-Zahllast von {amount} gegenüber dem Finanzamt.',
-      ntVerdictCredit: 'Nach Verrechnung ergibt sich ein Netto-Steuerguthaben von {amount}.',
-      'def.nettax': 'Umsatzsteuer-Zahllast plus Steuerrückstellungen minus Steuer-Erstattungsansprüche (z. B. KSt-/GewSt-Rückforderungen). Zeigt, was unterm Strich gegenüber dem Finanzamt offen ist — die Lohnsteuer/Sozialabgaben sind hier nicht enthalten.',
+      ntRefunds: 'Steuer-Erstattungsansprüche', ntPayrollHint: 'Teil der Personalkosten',
+      ntOutflow: 'Netto-Abfluss (Steuern & Fremdgeld)', ntOutflowSub: 'nach Verrechnung der Erstattungen', ntInflowSub: 'netto Zufluss nach Erstattungen',
+      'def.ntoutflow': 'Was nach Verrechnung der Erstattungsansprüche tatsächlich abfließt: durchlaufende Posten (Umsatzsteuer, Lohnsteuer/Sozialabgaben) plus eigene Ertragsteuer minus Erstattungen. Als Liquiditätspuffer bereithalten.',
+      ptTitle: 'Vorzuhalten nach Art', ptPassThrough: 'Durchlaufende Posten (Fremdgeld)', ptOwnTax: 'Eigene Ertragsteuer (netto)',
+      ptSumPass: 'Summe Fremdgeld', ptOwnNet: 'Eigene Ertragsteuer netto', ptTotal: 'Netto-Abfluss gesamt',
+      ptNote: 'Umsatzsteuer (Geld der Kunden) und Lohnsteuer/Sozialabgaben (aus den Löhnen einbehalten — Teil der Personalkosten) sind durchlaufende Posten: Sie werden nur ans Finanzamt bzw. an die Sozialkassen weitergeleitet.',
+      ptVerdictOwed: 'Nach Verrechnung der Erstattungen fließen netto rund {amount} ab. Diesen Betrag als Liquiditätspuffer bereithalten.',
+      ptVerdictCredit: 'Nach Verrechnung ergibt sich unterm Strich ein Zufluss von rund {amount}.',
+      ptReconcile: 'Abgleich mit dem Steuerberater — nur Finanzamt (Umsatzsteuer + Ertragsteuer, ohne Lohnsteuer/Sozialabgaben): {amount}.',
       'def.ust': 'Aus den USt-Konten der Summen & Salden: vereinnahmte Umsatzsteuer minus abziehbare Vorsteuer minus bereits geleistete Vorauszahlungen ergibt die offene Zahllast. Grobe Orientierung, keine USt-Voranmeldung.',
       'def.freeliq': 'Anteil der liquiden Mittel, der nach Abzug von Steuer- und Fremdgeld (Umsatzsteuer, Lohnsteuer/Sozialabgaben, Steuerrückstellungen) frei verfügbar bleibt.',
       etTitle: 'Ertragsteuer — Prognose & Deckung',
@@ -212,12 +215,15 @@
       liqUstBreak: 'VAT liability = output VAT collected {output} − deductible input VAT {vorsteuer} − advance payments made {prepaid}.',
       liqRefundNote: 'In addition, tax refund claims of {amount} exist (expected cash inflow, not netted here).',
       'def.bound': 'The part of the cash that is already committed: VAT (pass-through money), wage tax/social security to be remitted, and tax provisions. Only the rest is freely usable.',
-      ntTitle: 'Net tax position (after offsetting)',
-      ntRefunds: 'Tax refund claims', ntNet: 'Net tax position',
-      ntCardOwed: 'owed to the tax office', ntCardCredit: 'credit from the tax office',
-      ntVerdictOwed: 'After offsetting the refund claims, a net liability of {amount} remains towards the tax office.',
-      ntVerdictCredit: 'After offsetting, a net tax credit of {amount} results.',
-      'def.nettax': 'VAT liability plus tax provisions minus tax refund claims (e.g. corporate/trade tax reclaims). Shows what is open towards the tax office on balance — wage tax/social security is not included here.',
+      ntRefunds: 'Tax refund claims', ntPayrollHint: 'part of personnel costs',
+      ntOutflow: 'Net outflow (taxes & pass-through)', ntOutflowSub: 'after offsetting refunds', ntInflowSub: 'net inflow after refunds',
+      'def.ntoutflow': 'What actually flows out after offsetting the refund claims: pass-through money (VAT, wage tax/social security) plus the own income tax minus refunds. Keep it as a liquidity buffer.',
+      ptTitle: 'What to keep aside, by type', ptPassThrough: 'Pass-through money', ptOwnTax: 'Own income tax (net)',
+      ptSumPass: 'Total pass-through', ptOwnNet: 'Own income tax, net', ptTotal: 'Total net outflow',
+      ptNote: 'VAT (customers’ money) and wage tax/social security (withheld from wages — part of personnel costs) are pass-through items: they are merely forwarded to the tax office or the social-security funds.',
+      ptVerdictOwed: 'After offsetting the refunds, roughly {amount} flows out net. Keep that amount as a liquidity buffer.',
+      ptVerdictCredit: 'After offsetting, there is a net inflow of about {amount} on balance.',
+      ptReconcile: 'Reconciliation with the tax advisor — tax office only (VAT + income tax, excluding wage tax/social security): {amount}.',
       'def.ust': 'From the VAT accounts of the trial balance: output VAT collected minus deductible input VAT minus advance payments already made gives the open liability. Rough orientation, not a VAT return.',
       'def.freeliq': 'Share of cash that remains freely usable after deducting tax and pass-through money (VAT, wage tax/social security, tax provisions).',
       etTitle: 'Income tax — outlook & coverage',
@@ -469,7 +475,13 @@
       const bound = ustOwed + wageTax + reserves;
       o.taxSummary = { cash, ustOwed, wageTax, reserves, refunds, bound,
         free: cash - bound, freeRatio: cash > 0 ? (cash - bound) / cash : null,
-        netTax: ustNet + reserves - refunds };   // net owed to the tax office after refunds
+        // Two clear buckets: pass-through money (VAT + wage tax/SV, part of payroll)
+        // and the company's own income tax netted with refunds. Their sum is the
+        // real net cash outflow once refunds arrive.
+        passThrough: ustOwed + wageTax,          // durchlaufende Posten (Fremdgeld)
+        ownTaxNet: reserves - refunds,           // eigene Ertragsteuer, netto
+        netOutflow: bound - refunds,             // = passThrough + ownTaxNet
+        netTax: ustNet + reserves - refunds };   // Finanzamt-only (VAT + income tax), advisor reconciliation
       // Verprobung (plausibility): sales VAT vs. 19 % of revenue, input VAT vs. taxable expense.
       const salesVat = a.filter((x) => x.no >= 1770 && x.no <= 1779 && x.side === 'H').reduce((s, x) => s + x.saldoAbs, 0);
       const vstBase = Math.max(0, o.gesamtkostenYtd - v('personalkosten', 'ytd') - v('abschreibungen', 'ytd') - v('betrSteuern', 'ytd'));
@@ -565,22 +577,29 @@
     const inner = bindingBlock(K) + netTaxBlock(K) + ertragTaxBlock(K) + verprobungBlock(K);
     return inner ? section('secTaxes', inner) : '';
   }
-  // Net tax position: VAT liability + tax provisions − tax refund claims. This
-  // reproduces the tax advisor's "delta" view (obligations netted with refunds).
+  // What must be kept aside, split into two plainly-named buckets: pass-through
+  // money (VAT + wage tax/SV, part of payroll) and the company's own income tax
+  // netted with refund claims. Their sum is the real net cash outflow.
+  const taxRow = (rows) => `<table class="bwa-table bwa-taxtable"><tbody>${rows.map((r) =>
+    `<tr class="${r[2] ? 'bwa-tr-bold' : ''}"><td>${esc(r[0])}</td><td class="bwa-num">${esc(r[1])}</td></tr>`).join('')}</tbody></table>`;
   function netTaxBlock(K) {
     const S = K.taxSummary;
-    if (!S || (S.refunds <= 0 && S.reserves <= 0 && S.ustOwed <= 0)) return '';
-    const ustNet = K.ust ? K.ust.net : 0;
-    const rows = [[t('liqUst'), (ustNet < 0 ? '− ' : '') + eur0(Math.abs(ustNet))]];
-    if (S.reserves > 0) rows.push([t('liqRes'), '+ ' + eur0(S.reserves)]);
-    if (S.refunds > 0) rows.push([t('ntRefunds'), '− ' + eur0(S.refunds)]);
-    rows.push([t('ntNet'), (S.netTax < 0 ? '− ' : '') + eur0(Math.abs(S.netTax))]);
-    const owed = S.netTax >= 0;
-    const verdict = owed ? t('ntVerdictOwed', { amount: eur0(S.netTax) }) : t('ntVerdictCredit', { amount: eur0(-S.netTax) });
-    const tbl = `<table class="bwa-table bwa-taxtable"><tbody>${rows.map((r, i) =>
-      `<tr class="${i === rows.length - 1 ? 'bwa-tr-bold' : ''}"><td>${esc(r[0])}</td><td class="bwa-num">${esc(r[1])}</td></tr>`).join('')}</tbody></table>`;
-    return `<div class="bwa-subtitle"><strong>${esc(t('ntTitle'))}</strong>${info('nettax')}</div>
-      ${tbl}<div class="bwa-assess bwa-assess-${owed ? 'ok' : 'good'}">${dot(owed ? 'ok' : 'good')}<div>${esc(verdict)}</div></div>`;
+    if (!S || (S.refunds <= 0 && S.reserves <= 0 && S.ustOwed <= 0 && S.wageTax <= 0)) return '';
+    const passRows = [[t('liqUst'), eur0(S.ustOwed)]];
+    if (S.wageTax > 0) passRows.push([t('liqWage'), eur0(S.wageTax)]);
+    passRows.push([t('ptSumPass'), eur0(S.passThrough), true]);
+    const ownRows = [[t('liqRes'), eur0(S.reserves)]];
+    if (S.refunds > 0) ownRows.push([t('ntRefunds'), '− ' + eur0(S.refunds)]);
+    ownRows.push([t('ptOwnNet'), (S.ownTaxNet < 0 ? '− ' : '') + eur0(Math.abs(S.ownTaxNet)), true]);
+    const owed = S.netOutflow >= 0;
+    const verdict = owed ? t('ptVerdictOwed', { amount: eur0(S.netOutflow) }) : t('ptVerdictCredit', { amount: eur0(-S.netOutflow) });
+    return `<div class="bwa-subtitle"><strong>${esc(t('ptTitle'))}</strong>${info('ntoutflow')}</div>
+      <div class="bwa-h4">${esc(t('ptPassThrough'))}</div>${taxRow(passRows)}
+      <p class="bwa-note">${esc(t('ptNote'))}</p>
+      <div class="bwa-h4">${esc(t('ptOwnTax'))}</div>${taxRow(ownRows)}
+      ${taxRow([[t('ptTotal'), (S.netOutflow < 0 ? '− ' : '') + eur0(Math.abs(S.netOutflow)), true]])}
+      <div class="bwa-assess bwa-assess-${owed ? 'ok' : 'good'}">${dot(owed ? 'ok' : 'good')}<div>${esc(verdict)}</div></div>
+      <p class="bwa-note">${esc(t('ptReconcile', { amount: eur0(S.netTax) }))}</p>`;
   }
   // (A) How much of the cash is pass-through / reserved, and what stays free.
   function bindingBlock(K) {
@@ -599,7 +618,7 @@
     const lvl = S.free <= 0 ? 'bad' : (S.freeRatio != null && S.freeRatio < 0.25 ? 'ok' : 'good');
     const cards = card(t('kLiquide'), eur0(S.cash), null, null, 'liquide')
       + (S.ustOwed > 0 ? card(t('liqUst'), eur0(S.ustOwed), null, null, 'ust') : '')
-      + (S.wageTax > 0 ? card(t('liqWage'), eur0(S.wageTax), null, null) : '')
+      + (S.wageTax > 0 ? card(t('liqWage'), eur0(S.wageTax), t('ntPayrollHint'), null) : '')
       + (S.reserves > 0 ? card(t('liqRes'), eur0(S.reserves), null, null, 'rueckstellungen') : '')
       + card(t('liqBound'), eur0(S.bound), null, null, 'bound')
       + card(t('liqFree'), money2(S.free), S.freeRatio != null ? t('liqFreeSub', { p: pct(S.freeRatio, 0) }) : null, lvl);
@@ -814,12 +833,12 @@
     $('bwa-period').textContent = t('periodLine', { m: m.currentMonth || '–', p: m.periodLabel || '–', d: m.date || '–' });
 
     const S = K.taxSummary;
-    const showNet = S && (S.refunds > 0 || S.reserves > 0 || S.ustOwed > 0);
+    const showNet = S && (S.refunds > 0 || S.reserves > 0 || S.ustOwed > 0 || S.wageTax > 0);
     const glance = card(t('kUmsatz') + ' · ' + t('suffYtd'), eur0(K.umsatzYtd), t('perMonth') + ' ' + eur0(K.avgMonthlyUmsatz), null, 'umsatz', sp((s) => s.umsatz))
       + card(t('kBetriebsergebnis'), money2(K.betriebsergebnisYtd), t('kMarge') + ' ' + pct(K.umsatzrenditeYtd), A.ertrag, 'betriebsergebnis', sp((s) => s.betriebsergebnis))
       + card(t('kErgebnis'), money2(K.ergebnisYtd), t('suffMonth') + ' ' + eur0(K.ergebnisMonth), null, 'ergebnis', sp((s) => s.ergebnis))
       + (K.liquidity ? card(t('kLiquide'), eur0(K.liquidity.cash), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui, 'liquide', sp((s) => s.cash)) : '')
-      + (showNet ? card(t('ntNet'), eur0(Math.abs(S.netTax)), t(S.netTax >= 0 ? 'ntCardOwed' : 'ntCardCredit'), S.netTax > 0 ? 'ok' : 'good', 'nettax') : '');
+      + (showNet ? card(t('ntOutflow'), eur0(Math.abs(S.netOutflow)), t(S.netOutflow >= 0 ? 'ntOutflowSub' : 'ntInflowSub'), S.netOutflow > 0 ? 'ok' : 'good', 'ntoutflow') : '');
 
     // Ertrag section — GuV waterfall + assessment + break-even + run-rate
     const ertragText = t('aErtrag' + capitalize(A.ertrag), { erg: eur0(K.betriebsergebnisYtd), marge: pct(K.umsatzrenditeYtd) });
