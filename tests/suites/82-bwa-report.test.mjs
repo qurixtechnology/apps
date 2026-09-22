@@ -209,6 +209,41 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('customer/supplier tables are sortable by column header', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      // Restore a synthetic session (with turnover already attached) from storage,
+      // so the sortable tables render even though the fixtures have no movement columns.
+      await page.evaluate(() => {
+        const susa = [
+          { no: 11001, label: 'Krongaard AG', saldoAbs: 13518.40, side: 'S', soll: 323494.97, haben: 370176.29, eb: 60199.72 },
+          { no: 12000, label: 'DIVERSE U', saldoAbs: 28560, side: 'S', soll: 28560, haben: 0, eb: 0 },
+          { no: 10200, label: 'DIVERSE B', saldoAbs: 12250, side: 'S', soll: 59450, haben: 59450, eb: 12250 },
+        ];
+        const parsed = { meta: { company: 'Test GmbH', date: '31.07.2025', monthsElapsed: 1, periodLabel: 'Jan/2025 – Jul/2025', currentMonth: 'Jul/2025', currency: 'EUR' }, ker: {}, hasSusa: true, susa };
+        localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2025-07': parsed } }));
+        localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2025-07' }));
+      });
+      await page.reload();
+      await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
+      await page.waitForFunction(() => document.querySelector('#bwa-body .bwa-tab'), { timeout: 20000 });
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'revenue').click());
+      const firstCell = () => page.evaluate(() => document.querySelector('#bwa-body .bwa-sortable tbody tr td').textContent);
+      // default sort = invoiced desc → Krongaard first
+      assert.match(await firstCell(), /Krongaard/, 'default sort by invoiced (descending)');
+      // click "Offen" → open receivables desc → DIVERSE U (28.560) first
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-sortable th')].find((th) => /Offen/.test(th.textContent)).click());
+      assert.match(await firstCell(), /DIVERSE U/, 'sorting by open receivable reorders the table');
+      // click the customer column → alphabetical descending (DIVERSE U first of D/K)
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-sortable th')].find((th) => /Kunde/.test(th.textContent)).click());
+      const alpha = await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-sortable tbody tr td:first-child')].map((td) => td.textContent));
+      assert.deepEqual(alpha, ['Krongaard AG', 'DIVERSE U', 'DIVERSE B'], 'name sort (descending) on first click');
+      await page.evaluate(() => window.__bwa.reset());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('computes taxes & reserves: bound vs. free liquidity, income-tax outlook, plausibility', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {

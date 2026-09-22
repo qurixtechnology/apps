@@ -386,6 +386,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .bwa-table td { padding: 4px 8px; border-bottom: 1px solid var(--qrx-border); }
 .bwa-table .bwa-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bwa-tr-bold td { font-weight: 700; color: var(--qrx-text); }
+/* Sortable table headers */
+.bwa-th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.bwa-th-sort:hover { color: var(--qrx-text); }
+.bwa-th-sort.is-sorted { color: var(--qrx-primary); }
+.bwa-th-sort:focus-visible { outline: 2px solid var(--qrx-primary); outline-offset: -2px; }
+.bwa-sort-arrow { font-size: 0.8em; }
 
 .bwa-cols .bwa-cards { grid-template-columns: 1fr; }
 
@@ -745,14 +751,17 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       Aufwand). Grobe Orientierung, keine Steuerberechnung; die USt-Voranmeldung bleibt außen vor.</li>
   <li><strong>Umsatz je Kunde</strong> — die größten Kunden nach <strong>fakturiertem Umsatz</strong>
       (kumuliert), mit <strong>Anfangssaldo (Vorjahr)</strong>, <strong>vereinnahmten Zahlungen</strong>
-      und offenem Saldo (Offen = Anfangssaldo + Fakturiert − Vereinnahmt). Bruttowerte inkl. USt aus den
-      Debitoren-Bewegungen; nur verfügbar, wenn die BWA die Bewegungsspalten enthält.</li>
+      und offenem Saldo (Offen = Anfangssaldo + Fakturiert − Vereinnahmt). <strong>Spalten sortierbar</strong>
+      (z. B. nach Offen für das Forderungsrisiko). Bruttowerte inkl. USt aus den Debitoren-Bewegungen;
+      nur verfügbar, wenn die BWA die Bewegungsspalten enthält.</li>
   <li><strong>Einkauf je Lieferant</strong> — die größten Lieferanten nach <strong>Einkaufsvolumen</strong>
       (vom Lieferanten berechnet), mit Anfangssaldo (Vorjahr), geleisteten Zahlungen und offener
       Verbindlichkeit (Offen = Anfangssaldo + Berechnet − Bezahlt; negativ = Überzahlung/Guthaben).
-      Bruttowerte inkl. Vorsteuer; nur verfügbar, wenn die BWA die Bewegungsspalten enthält.</li>
+      <strong>Spalten sortierbar</strong>. Bruttowerte inkl. Vorsteuer; nur verfügbar, wenn die BWA die
+      Bewegungsspalten enthält.</li>
   <li><strong>Kunden- &amp; Lieferantenstruktur</strong> — Verteilung der offenen Forderungen und
-      Verbindlichkeiten auf die größten Namen; erkennt <strong>Klumpenrisiken</strong>.</li>
+      Verbindlichkeiten auf die größten Namen (Klumpenrisiko). Wird als <strong>Fallback</strong> gezeigt,
+      wenn die BWA keine Bewegungsspalten enthält — sonst decken die Tabellen oben das mit ab.</li>
   <li><strong>Hochrechnung aufs Jahr</strong> — die bisherigen Monate linear auf zwölf Monate
       hochgerechnet (Umsatz und Ergebnis), als grobe Orientierung.</li>
   <li><strong>Steuer-Rücklage</strong> — bei Kapitalgesellschaften eine überschlägige Ertragsteuer
@@ -833,14 +842,16 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       VAT return sheet stays out of scope.</li>
   <li><strong>Revenue per customer</strong> — the largest customers by <strong>invoiced turnover</strong>
       (cumulative), with <strong>opening balance (prior year)</strong>, <strong>collected payments</strong>
-      and open balance (open = opening + invoiced − collected). Gross values incl. VAT from the debtor
-      movements; only available when the BWA contains the movement columns.</li>
+      and open balance (open = opening + invoiced − collected). <strong>Sortable columns</strong> (e.g. by
+      open, for the receivables risk). Gross values incl. VAT from the debtor movements; only available
+      when the BWA contains the movement columns.</li>
   <li><strong>Purchases per supplier</strong> — the largest suppliers by <strong>purchasing volume</strong>
       (billed by the supplier), with opening balance (prior year), payments made and open payable
-      (open = opening + billed − paid; negative = overpayment/credit). Gross values incl. input VAT;
-      only available when the BWA contains the movement columns.</li>
-  <li><strong>Customer &amp; supplier structure</strong> — distribution of open receivables and
-      payables across the largest names; flags <strong>concentration risk</strong>.</li>
+      (open = opening + billed − paid; negative = overpayment/credit). <strong>Sortable columns</strong>.
+      Gross values incl. input VAT; only available when the BWA contains the movement columns.</li>
+  <li><strong>Customer &amp; supplier structure</strong> — distribution of open receivables and payables
+      across the largest names (concentration risk). Shown as a <strong>fallback</strong> when the BWA has
+      no movement columns — otherwise the tables above cover this.</li>
   <li><strong>Year projection</strong> — the months so far extrapolated linearly to twelve months
       (revenue and result), as a rough orientation.</li>
   <li><strong>Tax reserve</strong> — for corporations, a rough income tax on the profit (~30 %)
@@ -928,7 +939,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260922-170213</span>
+    &middot; v<span data-build-version>260922-171808</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -3527,18 +3538,15 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   function customerRevenueBlock(parsed) {
     const list = customerRevenue(parsed);
     if (!list) return '';
-    const top = list.slice(0, 10);
-    const rows = top.map((c) => `<tr>
-      <td>${esc(c.label || ('Konto ' + c.no))}</td>
-      <td class="bwa-num bwa-muted">${eur0(c.anfang)}</td>
-      <td class="bwa-num">${eur0(c.fakturiert)}</td>
-      <td class="bwa-num">${eur0(c.vereinnahmt)}</td>
-      <td class="bwa-num">${eur0(c.offen)}</td></tr>`).join('');
+    const cols = [
+      { key: 'label', label: t('thKunde'), fmt: (v, r) => esc(v || ('Konto ' + r.no)) },
+      { key: 'anfang', label: t('crAnfang'), num: true, muted: true, fmt: eur0 },
+      { key: 'fakturiert', label: t('crFakturiert'), num: true, fmt: eur0 },
+      { key: 'vereinnahmt', label: t('crVereinnahmt'), num: true, fmt: eur0 },
+      { key: 'offen', label: t('crOffen'), num: true, fmt: eur0 },
+    ];
     return section('secCustRevenue', `<p class="bwa-note bwa-subnote">${esc(t('crIntro'))}</p>
-      <div class="bwa-table-wrap"><table class="bwa-table"><thead><tr>
-        <th>${esc(t('thKunde'))}</th><th class="bwa-num">${esc(t('crAnfang'))}</th><th class="bwa-num">${esc(t('crFakturiert'))}</th>
-        <th class="bwa-num">${esc(t('crVereinnahmt'))}</th><th class="bwa-num">${esc(t('crOffen'))}</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>
+      ${sortTable('custrev', cols, list, 'fakturiert', 12)}
       <p class="bwa-note">${esc(t('crNote'))}</p>`);
   }
   // Purchases per supplier (billed + paid + open), largest first. Only when the
@@ -3546,18 +3554,15 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   function supplierPurchasesBlock(parsed) {
     const list = supplierPurchases(parsed);
     if (!list) return '';
-    const top = list.slice(0, 10);
-    const rows = top.map((c) => `<tr>
-      <td>${esc(c.label || ('Konto ' + c.no))}</td>
-      <td class="bwa-num bwa-muted">${eur0(c.anfang)}</td>
-      <td class="bwa-num">${eur0(c.berechnet)}</td>
-      <td class="bwa-num">${eur0(c.bezahlt)}</td>
-      <td class="bwa-num">${eur0(c.offen)}</td></tr>`).join('');
+    const cols = [
+      { key: 'label', label: t('thLieferant'), fmt: (v, r) => esc(v || ('Konto ' + r.no)) },
+      { key: 'anfang', label: t('crAnfang'), num: true, muted: true, fmt: eur0 },
+      { key: 'berechnet', label: t('spBerechnet'), num: true, fmt: eur0 },
+      { key: 'bezahlt', label: t('spBezahlt'), num: true, fmt: eur0 },
+      { key: 'offen', label: t('crOffen'), num: true, fmt: eur0 },
+    ];
     return section('secSupPurchase', `<p class="bwa-note bwa-subnote">${esc(t('spIntro'))}</p>
-      <div class="bwa-table-wrap"><table class="bwa-table"><thead><tr>
-        <th>${esc(t('thLieferant'))}</th><th class="bwa-num">${esc(t('crAnfang'))}</th><th class="bwa-num">${esc(t('spBerechnet'))}</th>
-        <th class="bwa-num">${esc(t('spBezahlt'))}</th><th class="bwa-num">${esc(t('crOffen'))}</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>
+      ${sortTable('suppurch', cols, list, 'berechnet', 12)}
       <p class="bwa-note">${esc(t('spNote'))}</p>`);
   }
 
@@ -3667,13 +3672,14 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const tabs = [
       { id: 'overview', label: t('tabOverview'),
         html: renderCockpit(K) + section('secGlance', `<div class="bwa-cards">${glance}</div>`) + section('secBewertung', recs) + trendHTML(series) },
-      { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + customerRevenueBlock(parsed) + custBlock + kerBlock },
-      { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + supplierPurchasesBlock(parsed) + supBlock + expBlock },
+      { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + (customerRevenueBlock(parsed) || custBlock) + kerBlock },
+      { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + (supplierPurchasesBlock(parsed) || supBlock) + expBlock },
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
       { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) },
     ];
     $('bwa-body').innerHTML = tabbed(tabs);
     attachTabHandlers();
+    attachSortHandlers();
 
     $('bwa-disclaimer').textContent = t('disclaimer', {
       company: m.company || '–',
@@ -3700,6 +3706,38 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       body.querySelectorAll('.bwa-tab').forEach((b) => { const on = b.dataset.tab === id; b.classList.toggle('is-active', on); b.setAttribute('aria-selected', on); });
       body.querySelectorAll('.bwa-tabpanel').forEach((p) => { p.hidden = p.dataset.tab !== id; });
     }));
+  }
+  // Sortable data table. cols: {key,label,num?,muted?,fmt?}. Sort state is kept
+  // per table id, so a chosen column survives re-renders (month/language switch).
+  function sortTable(id, cols, data, defKey, limit) {
+    const st = state.sort[id] || (state.sort[id] = { key: defKey, dir: 'desc' });
+    const sorted = data.slice().sort((a, b) => {
+      const va = a[st.key], vb = b[st.key];
+      const cmp = (typeof va === 'string' || typeof vb === 'string')
+        ? String(va == null ? '' : va).localeCompare(String(vb == null ? '' : vb), loc())
+        : (va || 0) - (vb || 0);
+      return st.dir === 'asc' ? cmp : -cmp;
+    }).slice(0, limit || data.length);
+    const ths = cols.map((c) => {
+      const on = c.key === st.key, arrow = on ? (st.dir === 'asc' ? ' ▲' : ' ▼') : '';
+      return `<th class="bwa-th-sort${c.num ? ' bwa-num' : ''}${on ? ' is-sorted' : ''}" data-sort="${id}" data-key="${esc(c.key)}"
+        role="button" tabindex="0" aria-sort="${on ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none'}">${esc(c.label)}<span class="bwa-sort-arrow">${arrow}</span></th>`;
+    }).join('');
+    const trs = sorted.map((row) => `<tr>${cols.map((c) =>
+      `<td class="${c.num ? 'bwa-num' : ''}${c.muted ? ' bwa-muted' : ''}">${c.fmt ? c.fmt(row[c.key], row) : esc(String(row[c.key] == null ? '' : row[c.key]))}</td>`).join('')}</tr>`).join('');
+    return `<div class="bwa-table-wrap"><table class="bwa-table bwa-sortable"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+  }
+  function attachSortHandlers() {
+    $('bwa-body').querySelectorAll('.bwa-th-sort').forEach((th) => {
+      const go = () => {
+        const id = th.dataset.sort, key = th.dataset.key, st = state.sort[id] || {};
+        if (st.key === key) st.dir = st.dir === 'asc' ? 'desc' : 'asc';
+        else { st.key = key; st.dir = 'desc'; }
+        state.sort[id] = st; renderAll();
+      };
+      th.addEventListener('click', go);
+      th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    });
   }
 
   // ------------------------------------------------------------ pdf.js
@@ -3807,7 +3845,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
   // ------------------------------------------------------------ store / flow
   const STORE_KEY = 'bwa_store', ACTIVE_KEY = 'bwa_active';
-  const state = { store: {}, activeCompany: null, activeKey: null, activeTab: 'overview' };
+  const state = { store: {}, activeCompany: null, activeKey: null, activeTab: 'overview', sort: {} };
   const status = qrx.ui.status($('bwa-status'));
 
   function monthMeta(parsed) {
@@ -3904,7 +3942,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     if (window.qrxTest) window.qrxTest.tick('report');
   }
   function reset() {
-    state.store = {}; state.activeCompany = null; state.activeKey = null; state.activeTab = 'overview';
+    state.store = {}; state.activeCompany = null; state.activeKey = null; state.activeTab = 'overview'; state.sort = {};
     try { qrx.core.storage.remove(STORE_KEY); qrx.core.storage.remove(ACTIVE_KEY); } catch (_) {}
     $('bwa-report').hidden = true;
     $('bwa-periods').innerHTML = ''; $('bwa-body').innerHTML = '';

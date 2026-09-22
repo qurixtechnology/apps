@@ -209,6 +209,12 @@
 .bwa-table td { padding: 4px 8px; border-bottom: 1px solid var(--qrx-border); }
 .bwa-table .bwa-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bwa-tr-bold td { font-weight: 700; color: var(--qrx-text); }
+/* Sortable table headers */
+.bwa-th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.bwa-th-sort:hover { color: var(--qrx-text); }
+.bwa-th-sort.is-sorted { color: var(--qrx-primary); }
+.bwa-th-sort:focus-visible { outline: 2px solid var(--qrx-primary); outline-offset: -2px; }
+.bwa-sort-arrow { font-size: 0.8em; }
 
 .bwa-cols .bwa-cards { grid-template-columns: 1fr; }
 

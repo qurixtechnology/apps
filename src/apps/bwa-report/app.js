@@ -873,18 +873,15 @@
   function customerRevenueBlock(parsed) {
     const list = customerRevenue(parsed);
     if (!list) return '';
-    const top = list.slice(0, 10);
-    const rows = top.map((c) => `<tr>
-      <td>${esc(c.label || ('Konto ' + c.no))}</td>
-      <td class="bwa-num bwa-muted">${eur0(c.anfang)}</td>
-      <td class="bwa-num">${eur0(c.fakturiert)}</td>
-      <td class="bwa-num">${eur0(c.vereinnahmt)}</td>
-      <td class="bwa-num">${eur0(c.offen)}</td></tr>`).join('');
+    const cols = [
+      { key: 'label', label: t('thKunde'), fmt: (v, r) => esc(v || ('Konto ' + r.no)) },
+      { key: 'anfang', label: t('crAnfang'), num: true, muted: true, fmt: eur0 },
+      { key: 'fakturiert', label: t('crFakturiert'), num: true, fmt: eur0 },
+      { key: 'vereinnahmt', label: t('crVereinnahmt'), num: true, fmt: eur0 },
+      { key: 'offen', label: t('crOffen'), num: true, fmt: eur0 },
+    ];
     return section('secCustRevenue', `<p class="bwa-note bwa-subnote">${esc(t('crIntro'))}</p>
-      <div class="bwa-table-wrap"><table class="bwa-table"><thead><tr>
-        <th>${esc(t('thKunde'))}</th><th class="bwa-num">${esc(t('crAnfang'))}</th><th class="bwa-num">${esc(t('crFakturiert'))}</th>
-        <th class="bwa-num">${esc(t('crVereinnahmt'))}</th><th class="bwa-num">${esc(t('crOffen'))}</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>
+      ${sortTable('custrev', cols, list, 'fakturiert', 12)}
       <p class="bwa-note">${esc(t('crNote'))}</p>`);
   }
   // Purchases per supplier (billed + paid + open), largest first. Only when the
@@ -892,18 +889,15 @@
   function supplierPurchasesBlock(parsed) {
     const list = supplierPurchases(parsed);
     if (!list) return '';
-    const top = list.slice(0, 10);
-    const rows = top.map((c) => `<tr>
-      <td>${esc(c.label || ('Konto ' + c.no))}</td>
-      <td class="bwa-num bwa-muted">${eur0(c.anfang)}</td>
-      <td class="bwa-num">${eur0(c.berechnet)}</td>
-      <td class="bwa-num">${eur0(c.bezahlt)}</td>
-      <td class="bwa-num">${eur0(c.offen)}</td></tr>`).join('');
+    const cols = [
+      { key: 'label', label: t('thLieferant'), fmt: (v, r) => esc(v || ('Konto ' + r.no)) },
+      { key: 'anfang', label: t('crAnfang'), num: true, muted: true, fmt: eur0 },
+      { key: 'berechnet', label: t('spBerechnet'), num: true, fmt: eur0 },
+      { key: 'bezahlt', label: t('spBezahlt'), num: true, fmt: eur0 },
+      { key: 'offen', label: t('crOffen'), num: true, fmt: eur0 },
+    ];
     return section('secSupPurchase', `<p class="bwa-note bwa-subnote">${esc(t('spIntro'))}</p>
-      <div class="bwa-table-wrap"><table class="bwa-table"><thead><tr>
-        <th>${esc(t('thLieferant'))}</th><th class="bwa-num">${esc(t('crAnfang'))}</th><th class="bwa-num">${esc(t('spBerechnet'))}</th>
-        <th class="bwa-num">${esc(t('spBezahlt'))}</th><th class="bwa-num">${esc(t('crOffen'))}</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>
+      ${sortTable('suppurch', cols, list, 'berechnet', 12)}
       <p class="bwa-note">${esc(t('spNote'))}</p>`);
   }
 
@@ -1013,13 +1007,14 @@
     const tabs = [
       { id: 'overview', label: t('tabOverview'),
         html: renderCockpit(K) + section('secGlance', `<div class="bwa-cards">${glance}</div>`) + section('secBewertung', recs) + trendHTML(series) },
-      { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + customerRevenueBlock(parsed) + custBlock + kerBlock },
-      { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + supplierPurchasesBlock(parsed) + supBlock + expBlock },
+      { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + (customerRevenueBlock(parsed) || custBlock) + kerBlock },
+      { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + (supplierPurchasesBlock(parsed) || supBlock) + expBlock },
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
       { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) },
     ];
     $('bwa-body').innerHTML = tabbed(tabs);
     attachTabHandlers();
+    attachSortHandlers();
 
     $('bwa-disclaimer').textContent = t('disclaimer', {
       company: m.company || '–',
@@ -1046,6 +1041,38 @@
       body.querySelectorAll('.bwa-tab').forEach((b) => { const on = b.dataset.tab === id; b.classList.toggle('is-active', on); b.setAttribute('aria-selected', on); });
       body.querySelectorAll('.bwa-tabpanel').forEach((p) => { p.hidden = p.dataset.tab !== id; });
     }));
+  }
+  // Sortable data table. cols: {key,label,num?,muted?,fmt?}. Sort state is kept
+  // per table id, so a chosen column survives re-renders (month/language switch).
+  function sortTable(id, cols, data, defKey, limit) {
+    const st = state.sort[id] || (state.sort[id] = { key: defKey, dir: 'desc' });
+    const sorted = data.slice().sort((a, b) => {
+      const va = a[st.key], vb = b[st.key];
+      const cmp = (typeof va === 'string' || typeof vb === 'string')
+        ? String(va == null ? '' : va).localeCompare(String(vb == null ? '' : vb), loc())
+        : (va || 0) - (vb || 0);
+      return st.dir === 'asc' ? cmp : -cmp;
+    }).slice(0, limit || data.length);
+    const ths = cols.map((c) => {
+      const on = c.key === st.key, arrow = on ? (st.dir === 'asc' ? ' ▲' : ' ▼') : '';
+      return `<th class="bwa-th-sort${c.num ? ' bwa-num' : ''}${on ? ' is-sorted' : ''}" data-sort="${id}" data-key="${esc(c.key)}"
+        role="button" tabindex="0" aria-sort="${on ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none'}">${esc(c.label)}<span class="bwa-sort-arrow">${arrow}</span></th>`;
+    }).join('');
+    const trs = sorted.map((row) => `<tr>${cols.map((c) =>
+      `<td class="${c.num ? 'bwa-num' : ''}${c.muted ? ' bwa-muted' : ''}">${c.fmt ? c.fmt(row[c.key], row) : esc(String(row[c.key] == null ? '' : row[c.key]))}</td>`).join('')}</tr>`).join('');
+    return `<div class="bwa-table-wrap"><table class="bwa-table bwa-sortable"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+  }
+  function attachSortHandlers() {
+    $('bwa-body').querySelectorAll('.bwa-th-sort').forEach((th) => {
+      const go = () => {
+        const id = th.dataset.sort, key = th.dataset.key, st = state.sort[id] || {};
+        if (st.key === key) st.dir = st.dir === 'asc' ? 'desc' : 'asc';
+        else { st.key = key; st.dir = 'desc'; }
+        state.sort[id] = st; renderAll();
+      };
+      th.addEventListener('click', go);
+      th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    });
   }
 
   // ------------------------------------------------------------ pdf.js
@@ -1153,7 +1180,7 @@
 
   // ------------------------------------------------------------ store / flow
   const STORE_KEY = 'bwa_store', ACTIVE_KEY = 'bwa_active';
-  const state = { store: {}, activeCompany: null, activeKey: null, activeTab: 'overview' };
+  const state = { store: {}, activeCompany: null, activeKey: null, activeTab: 'overview', sort: {} };
   const status = qrx.ui.status($('bwa-status'));
 
   function monthMeta(parsed) {
@@ -1250,7 +1277,7 @@
     if (window.qrxTest) window.qrxTest.tick('report');
   }
   function reset() {
-    state.store = {}; state.activeCompany = null; state.activeKey = null; state.activeTab = 'overview';
+    state.store = {}; state.activeCompany = null; state.activeKey = null; state.activeTab = 'overview'; state.sort = {};
     try { qrx.core.storage.remove(STORE_KEY); qrx.core.storage.remove(ACTIVE_KEY); } catch (_) {}
     $('bwa-report').hidden = true;
     $('bwa-periods').innerHTML = ''; $('bwa-body').innerHTML = '';
