@@ -31,6 +31,10 @@
       needMorePeriods: 'Weitere Monats-BWAs importieren, um den Verlauf zu sehen.',
       trKostenmix: 'Kostenmix pro Monat', days: '{n} Tage', wfLeistung: 'Leistung',
       secRisk: 'Kunden- & Lieferantenstruktur', secCustomers: 'Kundenstruktur', secSuppliers: 'Lieferantenstruktur',
+      secCustRevenue: 'Umsatz je Kunde', thKunde: 'Kunde',
+      crFakturiert: 'Fakturiert (kum.)', crVereinnahmt: 'Vereinnahmt (kum.)', crOffen: 'Offen',
+      crIntro: 'Verteilung des fakturierten Umsatzes auf die größten Kunden — zeigt die Abhängigkeit auf der Umsatzseite (ergänzend zum Forderungsrisiko).',
+      crNote: 'Bruttowerte inkl. Umsatzsteuer aus den Debitoren-Bewegungen der Summen & Salden. „Fakturiert“ = in Rechnung gestellt (kumuliert), „Vereinnahmt“ = Zahlungseingänge (auch auf Vorjahresrechnungen). Sammelkonten „DIVERSE“ bündeln mehrere kleine Kunden. Nur verfügbar, wenn die BWA die Bewegungsspalten enthält.',
       tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität',
       riskIntro: 'Verteilung der offenen Forderungen und Verbindlichkeiten — eine hohe Konzentration auf wenige Namen ist ein Risiko.',
       kDso: 'Forderungslaufzeit (DSO)', kDpo: 'Zahlungsziel Lieferanten (DPO)',
@@ -157,6 +161,10 @@
       needMorePeriods: 'Import more monthly BWAs to see the trend.',
       trKostenmix: 'Cost mix per month', days: '{n} days', wfLeistung: 'Output',
       secRisk: 'Customer & supplier structure', secCustomers: 'Customer structure', secSuppliers: 'Supplier structure',
+      secCustRevenue: 'Revenue per customer', thKunde: 'Customer',
+      crFakturiert: 'Invoiced (YTD)', crVereinnahmt: 'Collected (YTD)', crOffen: 'Open',
+      crIntro: 'Distribution of invoiced turnover across the largest customers — shows dependency on the revenue side (complementing the receivables risk).',
+      crNote: 'Gross values incl. VAT from the debtor movements of the trial balance. “Invoiced” = billed (cumulative), “Collected” = payments received (also on prior-year invoices). Collective accounts “DIVERSE” bundle several small customers. Only available when the BWA contains the movement columns.',
       tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity',
       riskIntro: 'Distribution of open receivables and payables — high concentration on a few names is a risk.',
       kDso: 'Receivable days (DSO)', kDpo: 'Payable days (DPO)',
@@ -343,18 +351,75 @@
     for (const p of pages) for (const l of toLines(p.items)) {
       const m = l.items[0].s.match(/^(\d{3,6})\b\s*(.*)$/);
       if (!m) continue;
-      const toks = [];
+      // Ordered value tokens (numbers + S/H side letters) with x-position.
+      const seq = [];
       for (const it of l.items.filter((i) => i.x > 150)) {
         for (const part of it.s.trim().split(/\s+/)) {
-          if (part === 'S' || part === 'H') toks.push({ t: 's', v: part });
-          else if (isNum(part)) toks.push({ t: 'n', v: num(part) });
+          if (part === 'S' || part === 'H') seq.push({ x: it.x, t: 's', v: part });
+          else if (isNum(part)) seq.push({ x: it.x, t: 'n', v: num(part) });
         }
       }
-      const nums = toks.filter((x) => x.t === 'n'), sides = toks.filter((x) => x.t === 's');
-      if (!nums.length) continue;
-      accounts.push({ no: Number(m[1]), label: m[2].trim(), saldoAbs: nums[nums.length - 1].v, side: sides.length ? sides[sides.length - 1].v : null });
+      // One entry per numeric column, with the side letter that immediately follows it.
+      const cols = [];
+      for (let i = 0; i < seq.length; i++) {
+        if (seq[i].t !== 'n') continue;
+        cols.push({ x: seq[i].x, v: seq[i].v, side: (seq[i + 1] && seq[i + 1].t === 's') ? seq[i + 1].v : null });
+      }
+      if (!cols.length) continue;
+      const last = cols[cols.length - 1];
+      accounts.push({ no: Number(m[1]), label: m[2].trim(), saldoAbs: last.v, side: last.side, cols });
     }
     return accounts;
+  }
+  // Per-customer/-supplier turnover from the trial-balance movement columns
+  // (cumulative Soll = invoiced, Haben = collected). Only attached when the
+  // columns exist and the double-entry identity EB + Soll − Haben = Saldo holds
+  // broadly — otherwise left off, so a BWA without movement columns just keeps
+  // the closing balances. Mutates the accounts (adds .soll / .haben).
+  function analyzeTurnover(accounts) {
+    const personal = accounts.filter((a) => a.no >= 10000 && a.no <= 99999 && a.cols && a.cols.length);
+    if (personal.length < 3) return;
+    const xs = [];
+    personal.forEach((a) => a.cols.forEach((c) => xs.push(c.x)));
+    xs.sort((p, q) => p - q);
+    const centers = []; let cur = [xs[0]];
+    for (let i = 1; i < xs.length; i++) { if (xs[i] - xs[i - 1] > 18) { centers.push(avg(cur)); cur = []; } cur.push(xs[i]); }
+    centers.push(avg(cur));
+    if (centers.length < 3) return;                       // need Soll, Haben, Saldo at least
+    const colOf = (x) => { let best = 0, bd = Infinity; centers.forEach((c, i) => { const d = Math.abs(c - x); if (d < bd) { bd = d; best = i; } }); return best; };
+    const withSide = centers.map(() => 0), noSide = centers.map(() => 0);
+    personal.forEach((a) => a.cols.forEach((c) => { const ci = colOf(c.x); if (c.side) withSide[ci]++; else noSide[ci]++; }));
+    // Balance columns (EB, Saldo) carry S/H side letters; movement columns (Soll/
+    // Haben) never do. Zero balances print without a side, so use a fraction, not
+    // a majority, to separate them.
+    const isBalance = centers.map((_, i) => (withSide[i] + noSide[i]) > 0 && withSide[i] / (withSide[i] + noSide[i]) >= 0.15);
+    let ebCol = -1, saldoCol = -1;
+    centers.forEach((_, i) => { if (isBalance[i]) { if (ebCol < 0) ebCol = i; saldoCol = i; } });
+    if (saldoCol < 0) return;
+    const moveCols = [];
+    for (let i = 0; i < saldoCol; i++) if (!isBalance[i]) moveCols.push(i);
+    if (moveCols.length < 2) return;
+    const kumSollCol = moveCols[moveCols.length - 2], kumHabenCol = moveCols[moveCols.length - 1];
+    const readCol = (a, ci) => a.cols.find((c) => colOf(c.x) === ci) || null;
+    const signed = (c) => c ? (c.side === 'H' ? -c.v : c.v) : 0;   // debit-positive
+    let ok = 0, tot = 0; const rows = [];
+    for (const a of personal) {
+      const sC = readCol(a, kumSollCol), hC = readCol(a, kumHabenCol), sal = readCol(a, saldoCol);
+      const eb = ebCol !== saldoCol ? readCol(a, ebCol) : null;
+      const soll = sC ? sC.v : 0, haben = hC ? hC.v : 0;
+      const good = Math.abs(signed(eb) + soll - haben - signed(sal)) < 0.02;
+      rows.push({ a, soll, haben, good }); tot++; if (good) ok++;
+    }
+    if (!tot || ok / tot < 0.8) return;                   // columns not as assumed → stay safe
+    rows.forEach((r) => { if (r.soll > 0 || r.haben > 0) { r.a.soll = r.soll; r.a.haben = r.haben; } });
+  }
+  // Largest customers by invoiced turnover (with collected + open), if available.
+  function customerRevenue(parsed) {
+    const list = (parsed.susa || []).filter((a) => a.no >= 10000 && a.no <= 69999 && a.soll != null && a.soll > 0)
+      .map((a) => ({ no: a.no, label: a.label, fakturiert: a.soll, vereinnahmt: a.haben || 0,
+        offen: a.side === 'S' ? a.saldoAbs : (a.side === 'H' ? -a.saldoAbs : 0) }))
+      .sort((x, y) => y.fakturiert - x.fakturiert);
+    return list.length ? list : null;
   }
   function companyName(pages) {
     const counts = {};
@@ -382,7 +447,9 @@
     const kerPage = pages.find((p) => /Kurzfristige Erfolgsrechnung/i.test(pageText(p)));
     const susaPages = pages.filter((p) => /Summen und Salden/i.test(pageText(p)));
     if (!kerPage) return { error: 'no-ker' };
-    return { meta: meta(pages), ker: parseKer(kerPage), susa: parseSusa(susaPages), hasSusa: susaPages.length > 0 };
+    const susa = parseSusa(susaPages);
+    analyzeTurnover(susa);
+    return { meta: meta(pages), ker: parseKer(kerPage), susa, hasSusa: susaPages.length > 0 };
   }
 
   // ------------------------------------------------------------ KPI engine
@@ -783,6 +850,24 @@
     const html = which === 'cust' ? concentrationPart(conc.customers, 'concCustomers') : concentrationPart(conc.suppliers, 'concSuppliers');
     return html ? `<div class="bwa-trend-grid">${html}</div>` : '';
   }
+  // Revenue per customer (invoiced + collected + open), largest first. Only when
+  // the trial balance carries the movement columns (else returns '').
+  function customerRevenueBlock(parsed) {
+    const list = customerRevenue(parsed);
+    if (!list) return '';
+    const top = list.slice(0, 10);
+    const rows = top.map((c) => `<tr>
+      <td>${esc(c.label || ('Konto ' + c.no))}</td>
+      <td class="bwa-num">${eur0(c.fakturiert)}</td>
+      <td class="bwa-num">${eur0(c.vereinnahmt)}</td>
+      <td class="bwa-num bwa-muted">${eur0(c.offen)}</td></tr>`).join('');
+    return section('secCustRevenue', `<p class="bwa-note bwa-subnote">${esc(t('crIntro'))}</p>
+      <div class="bwa-table-wrap"><table class="bwa-table"><thead><tr>
+        <th>${esc(t('thKunde'))}</th><th class="bwa-num">${esc(t('crFakturiert'))}</th>
+        <th class="bwa-num">${esc(t('crVereinnahmt'))}</th><th class="bwa-num">${esc(t('crOffen'))}</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="bwa-note">${esc(t('crNote'))}</p>`);
+  }
 
   function costBars(K) {
     const items = K.costStructure.slice(0, 7);
@@ -890,7 +975,7 @@
     const tabs = [
       { id: 'overview', label: t('tabOverview'),
         html: renderCockpit(K) + section('secGlance', `<div class="bwa-cards">${glance}</div>`) + section('secBewertung', recs) + trendHTML(series) },
-      { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + custBlock + kerBlock },
+      { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + customerRevenueBlock(parsed) + custBlock + kerBlock },
       { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + supBlock + expBlock },
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
       { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) },
@@ -1162,7 +1247,7 @@
 
   // test hook
   window.__bwa = {
-    parseBwa, kpis, assess, handleFiles, seriesFor, reset,
+    parseBwa, kpis, assess, handleFiles, seriesFor, reset, analyzeTurnover, customerRevenue,
     get store() { return state.store; },
     get parsed() { return (state.store[state.activeCompany] || {})[state.activeKey] || null; },
   };

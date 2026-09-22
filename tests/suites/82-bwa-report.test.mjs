@@ -163,6 +163,45 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('reads revenue per customer from trial-balance movement columns (robustly)', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await importFixture(page);
+      const r = await page.evaluate(() => {
+        // Synthetic trial balance with the DATEV column layout:
+        // [EB, VZ-Soll(month), VZ-Haben(month), cum-Soll, cum-Haben, Saldo].
+        const col = (x, v, side) => ({ x, v, side: side || null });
+        const susa = [
+          { no: 11001, label: 'Krongaard AG', saldoAbs: 13518.40, side: 'S',
+            cols: [col(337, 60199.72, 'S'), col(437, 13518.40), col(523, 28661.75), col(607, 323494.97), col(697, 370176.29), col(787, 13518.40, 'S')] },
+          { no: 12000, label: 'DIVERSE U', saldoAbs: 28560, side: 'S',
+            cols: [col(607, 28560), col(787, 28560, 'S')] },                       // new customer: invoiced, not yet paid
+          { no: 10200, label: 'DIVERSE B', saldoAbs: 12250, side: 'S',
+            cols: [col(337, 12250, 'S'), col(523, 8250), col(607, 59450), col(697, 59450), col(787, 12250, 'S')] },
+          { no: 70001, label: 'Lieferant X', saldoAbs: 1000, side: 'H',
+            cols: [col(337, 800, 'H'), col(607, 5000), col(697, 5200), col(787, 1000, 'H')] },
+        ];
+        window.__bwa.analyzeTurnover(susa);
+        const list = window.__bwa.customerRevenue({ susa });
+        // Robustness: a trial balance with only closing balances (no movement columns) yields nothing.
+        const saldoOnly = [
+          { no: 10001, label: 'A', saldoAbs: 3000, side: 'S', cols: [{ x: 787, v: 3000, side: 'S' }] },
+          { no: 10002, label: 'B', saldoAbs: 1500, side: 'S', cols: [{ x: 787, v: 1500, side: 'S' }] },
+          { no: 10003, label: 'C', saldoAbs: 500, side: 'S', cols: [{ x: 787, v: 500, side: 'S' }] },
+        ];
+        window.__bwa.analyzeTurnover(saldoOnly);
+        return { list, hasSollSaldoOnly: saldoOnly.some((a) => a.soll != null), saldoOnlyRevenue: window.__bwa.customerRevenue({ susa: saldoOnly }) };
+      });
+      assert.ok(r.list, 'revenue per customer is available when movement columns exist');
+      assert.deepEqual(r.list.map((c) => c.label), ['Krongaard AG', 'DIVERSE B', 'DIVERSE U'], 'customers sorted by invoiced turnover (suppliers excluded)');
+      assert.deepEqual(r.list[0], { no: 11001, label: 'Krongaard AG', fakturiert: 323494.97, vereinnahmt: 370176.29, offen: 13518.40 }, 'invoiced (cum-Soll), collected (cum-Haben) and open (saldo)');
+      assert.equal(r.list[2].vereinnahmt, 0, 'a newly invoiced customer shows nothing collected yet');
+      assert.equal(r.hasSollSaldoOnly, false, 'no turnover is inferred without movement columns');
+      assert.equal(r.saldoOnlyRevenue, null, 'revenue-per-customer stays off when only balances are present');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('computes taxes & reserves: bound vs. free liquidity, income-tax outlook, plausibility', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {
