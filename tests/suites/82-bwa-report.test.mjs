@@ -89,8 +89,11 @@ describe('bwa report', () => {
         kerRows: document.querySelectorAll('#bwa-body .bwa-table tbody tr').length,
         hasBetriebsergebnisRow: /Betriebsergebnis/.test(document.querySelector('#bwa-body .bwa-details .bwa-table')?.textContent || ''),
         hasWaterfall: !!document.querySelector('#bwa-body .bwa-wf-total'),
-        hasRisk: /Kunden- & Lieferant/.test(document.getElementById('bwa-body').textContent),
+        hasRisk: /Kundenstruktur/.test(document.getElementById('bwa-body').textContent) && /Lieferantenstruktur/.test(document.getElementById('bwa-body').textContent),
         hasExpenseDrill: /Einzel-Aufwandskonten/.test(document.getElementById('bwa-body').textContent),
+        tabs: document.querySelectorAll('#bwa-body .bwa-tab').length,
+        panels: document.querySelectorAll('#bwa-body .bwa-tabpanel').length,
+        visiblePanels: [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].filter((p) => !p.hidden).length,
         hasDso: /Forderungslaufzeit/.test(document.getElementById('bwa-body').textContent),
       }));
       assert.equal(dom.company, 'Muster GmbH');
@@ -101,9 +104,40 @@ describe('bwa report', () => {
       assert.ok(dom.kerRows >= 8, `the KER detail table is filled (${dom.kerRows} rows)`);
       assert.ok(dom.hasBetriebsergebnisRow, 'the P&L detail includes the operating result');
       assert.ok(dom.hasWaterfall, 'the GuV waterfall is rendered');
-      assert.ok(dom.hasRisk, 'the customer/supplier concentration section is rendered');
+      assert.ok(dom.hasRisk, 'the customer/supplier concentration sections are rendered');
       assert.ok(dom.hasExpenseDrill, 'the expense drill-down is rendered');
       assert.ok(dom.hasDso, 'DSO card is rendered');
+      assert.equal(dom.tabs, 5, 'five topic tabs (overview, revenue, costs, taxes, liquidity)');
+      assert.equal(dom.panels, 5, 'a panel per tab');
+      assert.equal(dom.visiblePanels, 1, 'only the active tab panel is visible');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('organises the report into topic tabs and switches on click', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await importFixture(page);
+      const labels = await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].map((b) => b.textContent));
+      assert.deepEqual(labels, ['Überblick', 'Einnahmen', 'Ausgaben / Kosten', 'Steuern', 'Liquidität']);
+      // Overview is active by default and holds the cockpit.
+      const before = await page.evaluate(() => {
+        const active = document.querySelector('#bwa-body .bwa-tabpanel:not([hidden])');
+        return { tab: active.dataset.tab, hasCockpit: !!active.querySelector('.bwa-cockpit') };
+      });
+      assert.equal(before.tab, 'overview');
+      assert.ok(before.hasCockpit, 'the overview tab holds the cockpit');
+      // Click the "Steuern" tab → its panel becomes the only visible one.
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'taxes').click());
+      const after = await page.evaluate(() => {
+        const vis = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].filter((p) => !p.hidden);
+        return { count: vis.length, tab: vis[0].dataset.tab, hasTax: /Steuern & Rücklagen/.test(vis[0].textContent),
+          activeBtn: document.querySelector('#bwa-body .bwa-tab.is-active').dataset.tab };
+      });
+      assert.equal(after.count, 1, 'exactly one panel visible after switching');
+      assert.equal(after.tab, 'taxes');
+      assert.ok(after.hasTax, 'the taxes panel shows the Steuern & Rücklagen content');
+      assert.equal(after.activeBtn, 'taxes', 'the clicked tab is marked active');
       page.assertNoErrors();
     } finally { await page.close(); }
   });

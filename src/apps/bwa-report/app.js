@@ -30,7 +30,8 @@
       companyLabel: 'Firma:', removePeriod: 'Monat entfernen', unknownCompany: 'Unbekannt',
       needMorePeriods: 'Weitere Monats-BWAs importieren, um den Verlauf zu sehen.',
       trKostenmix: 'Kostenmix pro Monat', days: '{n} Tage', wfLeistung: 'Leistung',
-      secRisk: 'Kunden- & Lieferantenstruktur',
+      secRisk: 'Kunden- & Lieferantenstruktur', secCustomers: 'Kundenstruktur', secSuppliers: 'Lieferantenstruktur',
+      tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität',
       riskIntro: 'Verteilung der offenen Forderungen und Verbindlichkeiten — eine hohe Konzentration auf wenige Namen ist ein Risiko.',
       kDso: 'Forderungslaufzeit (DSO)', kDpo: 'Zahlungsziel Lieferanten (DPO)',
       breakEvenTitle: 'Break-even (Gewinnschwelle)',
@@ -150,7 +151,8 @@
       companyLabel: 'Company:', removePeriod: 'Remove month', unknownCompany: 'Unknown',
       needMorePeriods: 'Import more monthly BWAs to see the trend.',
       trKostenmix: 'Cost mix per month', days: '{n} days', wfLeistung: 'Output',
-      secRisk: 'Customer & supplier structure',
+      secRisk: 'Customer & supplier structure', secCustomers: 'Customer structure', secSuppliers: 'Supplier structure',
+      tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity',
       riskIntro: 'Distribution of open receivables and payables — high concentration on a few names is a risk.',
       kDso: 'Receivable days (DSO)', kDpo: 'Payable days (DPO)',
       breakEvenTitle: 'Break-even',
@@ -735,22 +737,21 @@
     return `<div class="bwa-chart-title bwa-subtitle">${esc(t('expenseDrill'))} ${info('expenseDrill')}</div>${bars}`;
   }
 
-  // Customer / supplier concentration (Klumpenrisiko).
-  function concentrationBlock(conc) {
-    if (!conc) return '';
-    const part = (c, titleKey) => {
-      if (!c) return '';
-      const lvl = c.top1 >= 0.4 ? 'bad' : c.top1 >= 0.25 ? 'ok' : 'good';
-      const max = c.top[0].share;
-      const bars = c.top.map((x) => `<div class="bwa-bar-row">
-        <div class="bwa-bar-label" title="${esc(x.label || ('Konto ' + x.no))}">${esc(x.label || ('Konto ' + x.no))}</div>
-        <div class="bwa-bar-track"><div class="bwa-bar-fill" style="width:${Math.round(x.share / max * 100)}%"></div></div>
-        <div class="bwa-bar-val">${eur0(x.amount)} · ${pct(x.share, 0)}</div></div>`).join('');
-      return `<div class="bwa-chart-box">
-        <div class="bwa-chart-title">${esc(t(titleKey))} ${dot(lvl)} <span class="bwa-muted">${esc(t('concTop', { share: pct(c.top1, 0), n: c.count }))}</span></div>${bars}</div>`;
-    };
-    const inner = part(conc.customers, 'concCustomers') + part(conc.suppliers, 'concSuppliers');
-    return inner ? `<div class="bwa-trend-grid">${inner}</div>` : '';
+  // Customer / supplier concentration (Klumpenrisiko) — one side at a time.
+  function concentrationPart(c, titleKey) {
+    if (!c) return '';
+    const lvl = c.top1 >= 0.4 ? 'bad' : c.top1 >= 0.25 ? 'ok' : 'good';
+    const max = c.top[0].share;
+    const bars = c.top.map((x) => `<div class="bwa-bar-row">
+      <div class="bwa-bar-label" title="${esc(x.label || ('Konto ' + x.no))}">${esc(x.label || ('Konto ' + x.no))}</div>
+      <div class="bwa-bar-track"><div class="bwa-bar-fill" style="width:${Math.round(x.share / max * 100)}%"></div></div>
+      <div class="bwa-bar-val">${eur0(x.amount)} · ${pct(x.share, 0)}</div></div>`).join('');
+    return `<div class="bwa-chart-box">
+      <div class="bwa-chart-title">${esc(t(titleKey))} ${dot(lvl)} <span class="bwa-muted">${esc(t('concTop', { share: pct(c.top1, 0), n: c.count }))}</span></div>${bars}</div>`;
+  }
+  function concentrationSide(conc, which) {
+    const html = which === 'cust' ? concentrationPart(conc.customers, 'concCustomers') : concentrationPart(conc.suppliers, 'concSuppliers');
+    return html ? `<div class="bwa-trend-grid">${html}</div>` : '';
   }
 
   function costBars(K) {
@@ -844,21 +845,25 @@
     const recs = `<div class="bwa-overall bwa-assess-${A.overall}">${dot(A.overall)}<strong>${esc(t('overall'))}: ${esc(lvlWord(A.overall))}</strong></div>
       <ul class="bwa-recs">${A.recs.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`;
 
-    const details = `<details class="bwa-details"><summary>${esc(t('detKer'))}</summary>
-        <div class="bwa-table-wrap">${kerTable(K, parsed)}</div>
-        ${expenseTable(parsed)}
-      </details>`;
+    const kerBlock = `<details class="bwa-details"><summary>${esc(t('detKer'))}</summary>
+      <div class="bwa-table-wrap">${kerTable(K, parsed)}</div></details>`;
+    const expTbl = expenseTable(parsed);
+    const expBlock = expTbl ? `<div class="bwa-table-wrap">${expTbl}</div>` : '';
+    const conc = K.concentration;
+    const custBlock = (conc && conc.customers) ? section('secCustomers', `<p class="bwa-note bwa-subnote">${esc(t('riskIntro'))}</p>${concentrationSide(conc, 'cust')}`) : '';
+    const supBlock = (conc && conc.suppliers) ? section('secSuppliers', concentrationSide(conc, 'sup')) : '';
 
-    $('bwa-body').innerHTML =
-      renderCockpit(K)
-      + section('secGlance', `<div class="bwa-cards">${glance}</div>`)
-      + section('secErtrag', ertragBody)
-      + section('secKosten', kostenBody)
-      + section('secLiqui', liquiBody)
-      + taxSection(K)
-      + (K.concentration ? section('secRisk', `<p class="bwa-note bwa-subnote">${esc(t('riskIntro'))}</p>${concentrationBlock(K.concentration)}`) : '')
-      + section('secBewertung', recs)
-      + section('secDetails', details);
+    // Organise the report into topic tabs for a clearer overview.
+    const tabs = [
+      { id: 'overview', label: t('tabOverview'),
+        html: renderCockpit(K) + section('secGlance', `<div class="bwa-cards">${glance}</div>`) + section('secBewertung', recs) + trendHTML(series) },
+      { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + custBlock + kerBlock },
+      { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + supBlock + expBlock },
+      { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
+      { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) },
+    ];
+    $('bwa-body').innerHTML = tabbed(tabs);
+    attachTabHandlers();
 
     $('bwa-disclaimer').textContent = t('disclaimer', {
       company: m.company || '–',
@@ -868,6 +873,23 @@
   const capitalize = (s) => s[0].toUpperCase() + s.slice(1);
   function section(key, body) {
     return `<section class="bwa-sec"><h3 class="bwa-h3">${esc(t(key))}</h3>${body}</section>`;
+  }
+  // Tab bar + panels. Empty tabs are dropped; the active tab is remembered.
+  function tabbed(tabs) {
+    const avail = tabs.filter((tb) => tb.html && tb.html.trim());
+    if (!avail.some((tb) => tb.id === state.activeTab)) state.activeTab = avail.length ? avail[0].id : null;
+    const bar = avail.map((tb) => `<button type="button" class="bwa-tab${tb.id === state.activeTab ? ' is-active' : ''}" role="tab" aria-selected="${tb.id === state.activeTab}" data-tab="${tb.id}">${esc(tb.label)}</button>`).join('');
+    const panels = avail.map((tb) => `<div class="bwa-tabpanel" role="tabpanel" data-tab="${tb.id}"${tb.id === state.activeTab ? '' : ' hidden'}>${tb.html}</div>`).join('');
+    return `<div class="bwa-tabs" role="tablist">${bar}</div><div class="bwa-tabpanels">${panels}</div>`;
+  }
+  function attachTabHandlers() {
+    const body = $('bwa-body');
+    body.querySelectorAll('.bwa-tab').forEach((btn) => btn.addEventListener('click', () => {
+      const id = btn.dataset.tab;
+      state.activeTab = id;
+      body.querySelectorAll('.bwa-tab').forEach((b) => { const on = b.dataset.tab === id; b.classList.toggle('is-active', on); b.setAttribute('aria-selected', on); });
+      body.querySelectorAll('.bwa-tabpanel').forEach((p) => { p.hidden = p.dataset.tab !== id; });
+    }));
   }
 
   // ------------------------------------------------------------ pdf.js
@@ -950,9 +972,8 @@
       <th class="bwa-num">${esc(t('kBetriebsergebnis'))}</th><th class="bwa-num">${esc(t('kMarge'))}</th>
       <th class="bwa-num">${esc(t('kLiquide'))}</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
-  function renderTrend(series) {
-    const el = $('bwa-trend');
-    if (series.length < 2) { el.innerHTML = ''; return; }
+  function trendHTML(series) {
+    if (series.length < 2) return '';
     const labels = series.map((s) => s.label);
     const revErg = barsSVG(labels, [
       { name: t('kUmsatz'), cls: 'bwa-c1', vals: series.map((s) => s.umsatz) },
@@ -965,18 +986,18 @@
       { name: t('segSonstige'), cls: 'bwa-cf-warn', vals: series.map((s) => s.sonstige) },
       { name: t('segUebrige'), cls: 'bwa-cf-grey', vals: series.map((s) => s.uebrige) },
     ]);
-    el.innerHTML = section('secTrend',
+    return `<div id="bwa-trend">${section('secTrend',
       `<div class="bwa-trend-grid">
         <div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('trUmsatzErgebnis'))} ${legend([{ name: t('kUmsatz'), cls: 'bwa-c1' }, { name: t('kBetriebsergebnis'), cls: 'bwa-c2' }])}</div>${revErg}</div>
         ${hasCash ? `<div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('trLiquiditaet'))} ${legend([{ name: t('kLiquide'), cls: 'bwa-c3' }])}</div>${cashChart}</div>` : ''}
         <div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('trKostenmix'))} ${legend([{ name: t('segPersonal'), cls: 'bwa-c1' }, { name: t('segSonstige'), cls: 'bwa-cf-warn' }, { name: t('segUebrige'), cls: 'bwa-cf-grey' }])}</div>${costMix}</div>
       </div>
-      <div class="bwa-table-wrap">${trendTable(series)}</div>`);
+      <div class="bwa-table-wrap">${trendTable(series)}</div>`)}</div>`;
   }
 
   // ------------------------------------------------------------ store / flow
   const STORE_KEY = 'bwa_store', ACTIVE_KEY = 'bwa_active';
-  const state = { store: {}, activeCompany: null, activeKey: null };
+  const state = { store: {}, activeCompany: null, activeKey: null, activeTab: 'overview' };
   const status = qrx.ui.status($('bwa-status'));
 
   function monthMeta(parsed) {
@@ -1046,7 +1067,6 @@
     if (!byMonth[state.activeKey]) state.activeKey = keys[keys.length - 1];
     const series = seriesFor(comp);
     renderPeriods();
-    renderTrend(series);
     renderReport(byMonth[state.activeKey], series);
   }
 
@@ -1074,10 +1094,10 @@
     if (window.qrxTest) window.qrxTest.tick('report');
   }
   function reset() {
-    state.store = {}; state.activeCompany = null; state.activeKey = null;
+    state.store = {}; state.activeCompany = null; state.activeKey = null; state.activeTab = 'overview';
     try { qrx.core.storage.remove(STORE_KEY); qrx.core.storage.remove(ACTIVE_KEY); } catch (_) {}
     $('bwa-report').hidden = true;
-    $('bwa-periods').innerHTML = ''; $('bwa-trend').innerHTML = ''; $('bwa-body').innerHTML = '';
+    $('bwa-periods').innerHTML = ''; $('bwa-body').innerHTML = '';
     $('bwa-intro').hidden = false; $('bwa-drop').hidden = false; $('bwa-file').value = '';
   }
 

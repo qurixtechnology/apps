@@ -43,6 +43,17 @@
 .bwa-chip-x:hover { color: var(--qrx-danger); }
 .bwa-periods-hint { font-size: 0.8rem; color: var(--qrx-text-subtle); }
 
+/* Topic tabs */
+.bwa-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 2px solid var(--qrx-border);
+  margin-bottom: var(--qrx-s-5); }
+.bwa-tab { font: inherit; font-size: 0.92rem; font-weight: 600; cursor: pointer; border: none; background: none;
+  color: var(--qrx-text-muted); padding: 9px 16px; border-bottom: 2px solid transparent; margin-bottom: -2px;
+  white-space: nowrap; transition: color var(--qrx-transition); }
+.bwa-tab:hover { color: var(--qrx-text); }
+.bwa-tab.is-active { color: var(--qrx-primary); border-bottom-color: var(--qrx-primary); }
+.bwa-tab:focus-visible { outline: 2px solid var(--qrx-primary); outline-offset: 2px; border-radius: 4px; }
+.bwa-tabpanel > .bwa-sec:first-child { margin-top: 0; }
+
 /* Trend charts */
 .bwa-trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--qrx-s-4); margin-bottom: var(--qrx-s-4); }
 .bwa-svg { width: 100%; height: auto; display: block; }
@@ -214,5 +225,9 @@
   .bwa-details { }
   .bwa-sec, .bwa-card, .bwa-assess, .bwa-bar-row, .bwa-table tr { break-inside: avoid; }
   .bwa-table th { position: static; }
+  /* Print every tab, not just the active one */
+  .bwa-tabs { display: none !important; }
+  .bwa-tabpanel[hidden] { display: block !important; }
+  .bwa-tabpanel { break-before: auto; }
   @page { size: A4; margin: 14mm; }
 }
