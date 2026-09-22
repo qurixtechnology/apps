@@ -191,7 +191,7 @@ describe('bwa report', () => {
           ust: K.ust, sum: K.taxSummary, freeRatio: round(K.taxSummary.freeRatio),
           tax: { base: K.taxCheck.base, taxable: K.taxCheck.taxable, expectedAdj: Math.round(K.taxCheck.expectedAdj), reserved: K.taxCheck.reserved, gap: Math.round(K.taxCheck.gap) },
           plaus: { salesVat: K.taxPlaus.salesVat, vatQuote: round(K.taxPlaus.vatQuote) },
-          recBound: A.recs.some((x) => /gebunden/.test(x) && /frei verf/.test(x)),
+          recBound: A.recs.some((x) => /brutto/.test(x) && /Netto-Abfluss/.test(x) && /Erstattungsansprüche/.test(x)),
           recGap: A.recs.some((x) => /Deckungslücke/.test(x)),
         };
       });
@@ -201,7 +201,7 @@ describe('bwa report', () => {
       assert.equal(r.sum.netTax, 200 + 1000 - 12000, 'net tax position = USt net + provisions − refund claims');
       assert.deepEqual(r.tax, { base: 9000, taxable: 9000, expectedAdj: 2700, reserved: 1000, gap: 1700 }, 'income-tax outlook with coverage gap');
       assert.deepEqual(r.plaus, { salesVat: 5700, vatQuote: 0.19 }, 'VAT plausibility (19 % of revenue)');
-      assert.ok(r.recBound, 'a recommendation names the bound vs. free liquidity');
+      assert.ok(r.recBound, 'the recommendation nets the refund claims and states the net outflow');
       assert.ok(r.recGap, 'a recommendation flags the income-tax coverage gap');
       // The fixture itself renders the section (cash > 0) with the free-liquidity card.
       const dom = await page.evaluate(() => ({

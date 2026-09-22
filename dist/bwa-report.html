@@ -909,7 +909,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260922-140653</span>
+    &middot; v<span data-build-version>260922-141442</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2754,6 +2754,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       'def.verprobung': 'Einfache Gegenrechnung: Passt die gebuchte Umsatzsteuer zu 19 % des Umsatzes und die Vorsteuer zum steuerpflichtigen Aufwand? Grobe Orientierung, keine Prüfung.',
       gaugeFreeLiq: 'Freie Liquidität',
       'rec.bound': 'Von den liquiden Mitteln sind rund {bound} als Steuer- und Fremdgeld gebunden (Umsatzsteuer, Lohnsteuer/Sozialabgaben, Steuerrückstellungen) — nur etwa {free} sind frei verfügbar. Diesen Puffer nicht verplanen.',
+      'rec.boundNet': 'Von den liquiden Mitteln sind rund {bound} brutto für Steuern und Fremdgeld reserviert (Umsatzsteuer, Lohnsteuer/Sozialabgaben, Steuerrückstellungen). Dem stehen {refunds} Steuer-Erstattungsansprüche gegenüber, sodass der Netto-Abfluss bei etwa {net} liegt. Diesen Betrag als Puffer bereithalten und nicht verplanen — die Erstattungen kommen zeitversetzt.',
       'rec.taxgap': 'Für die Ertragsteuer zeichnet sich eine Deckungslücke von rund {gap} ab (erwartete Steuer über den Rückstellungen). Rücklage erhöhen.',
       // glossary (tooltips)
       'def.umsatz': 'Erlöse aus der eigentlichen Geschäftstätigkeit (ohne Umsatzsteuer). „Kumuliert“ = seit Jahresbeginn.',
@@ -2870,6 +2871,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       'def.verprobung': 'A simple counter-check: does the booked output VAT match 19 % of revenue, and the input VAT the taxable expense? Rough orientation, not an audit.',
       gaugeFreeLiq: 'Free liquidity',
       'rec.bound': 'About {bound} of the cash is tied up as tax and pass-through money (VAT, wage tax/social security, tax provisions) — only about {free} is freely usable. Do not spend this buffer.',
+      'rec.boundNet': 'About {bound} gross of the cash is reserved for taxes and pass-through money (VAT, wage tax/social security, tax provisions). Against this stand {refunds} in tax refund claims, so the net outflow is roughly {net}. Keep that amount as a buffer and do not spend it — the refunds arrive with a delay.',
       'rec.taxgap': 'A coverage gap of about {gap} is emerging for income tax (expected tax above provisions). Increase the reserve.',
       'def.umsatz': 'Revenue from the core business (excl. VAT). “YTD” = since the start of the year.',
       'def.betriebsergebnis': 'Result from the core business: output minus costs — before neutral items (e.g. interest) and taxes.',
@@ -3153,8 +3155,13 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       if (gl && L.receivables > 0.15 * gl) recs.push(t('rec.receivables', { amount: eur0(L.receivables) }));
       if (!ergPos && L.runwayMonths != null && L.runwayMonths < 3) recs.push(t('rec.runway', { m: L.runwayMonths.toFixed(1) }));
     }
-    if (K.taxSummary && K.taxSummary.bound > 0)
-      recs.push(t('rec.bound', { bound: eur0(K.taxSummary.bound), free: eur0(K.taxSummary.free) }));
+    if (K.taxSummary && K.taxSummary.bound > 0) {
+      const S = K.taxSummary;
+      if (S.refunds > 0)   // refund claims flow back → show the net outflow, not just the gross binding
+        recs.push(t('rec.boundNet', { bound: eur0(S.bound), refunds: eur0(S.refunds), net: eur0(Math.max(0, S.bound - S.refunds)) }));
+      else
+        recs.push(t('rec.bound', { bound: eur0(S.bound), free: eur0(S.free) }));
+    }
     if (K.taxCheck && K.taxCheck.taxable > 0 && K.taxCheck.gap > 0)
       recs.push(t('rec.taxgap', { gap: eur0(K.taxCheck.gap) }));
     if (K.umsatzTrend < -0.15) recs.push(t('rec.trend', { p: pct(Math.abs(K.umsatzTrend)) }));
