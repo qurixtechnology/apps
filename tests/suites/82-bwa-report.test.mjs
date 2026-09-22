@@ -183,6 +183,7 @@ describe('bwa report', () => {
         ];
         window.__bwa.analyzeTurnover(susa);
         const list = window.__bwa.customerRevenue({ susa });
+        const suppliers = window.__bwa.supplierPurchases({ susa });
         // Robustness: a trial balance with only closing balances (no movement columns) yields nothing.
         const saldoOnly = [
           { no: 10001, label: 'A', saldoAbs: 3000, side: 'S', cols: [{ x: 787, v: 3000, side: 'S' }] },
@@ -190,13 +191,18 @@ describe('bwa report', () => {
           { no: 10003, label: 'C', saldoAbs: 500, side: 'S', cols: [{ x: 787, v: 500, side: 'S' }] },
         ];
         window.__bwa.analyzeTurnover(saldoOnly);
-        return { list, hasSollSaldoOnly: saldoOnly.some((a) => a.soll != null), saldoOnlyRevenue: window.__bwa.customerRevenue({ susa: saldoOnly }) };
+        return { list, suppliers, hasSollSaldoOnly: saldoOnly.some((a) => a.soll != null), saldoOnlyRevenue: window.__bwa.customerRevenue({ susa: saldoOnly }) };
       });
       assert.ok(r.list, 'revenue per customer is available when movement columns exist');
       assert.deepEqual(r.list.map((c) => c.label), ['Krongaard AG', 'DIVERSE B', 'DIVERSE U'], 'customers sorted by invoiced turnover (suppliers excluded)');
       assert.deepEqual(r.list[0], { no: 11001, label: 'Krongaard AG', anfang: 60199.72, fakturiert: 323494.97, vereinnahmt: 370176.29, offen: 13518.40 }, 'opening (EB), invoiced (cum-Soll), collected (cum-Haben) and open (saldo)');
       assert.ok(Math.abs(r.list[0].anfang + r.list[0].fakturiert - r.list[0].vereinnahmt - r.list[0].offen) < 0.01, 'open = opening + invoiced − collected');
       assert.equal(r.list[2].vereinnahmt, 0, 'a newly invoiced customer shows nothing collected yet');
+      // Supplier side: mirrored roles (billed = Haben, paid = Soll), customers excluded.
+      assert.ok(r.suppliers, 'purchases per supplier available when movement columns exist');
+      assert.deepEqual(r.suppliers.map((c) => c.no), [70001], 'only creditor accounts; sorted by billed volume');
+      assert.deepEqual(r.suppliers[0], { no: 70001, label: 'Lieferant X', anfang: 800, berechnet: 5200, bezahlt: 5000, offen: 1000 }, 'opening, billed (Haben), paid (Soll) and open payable');
+      assert.ok(Math.abs(r.suppliers[0].anfang + r.suppliers[0].berechnet - r.suppliers[0].bezahlt - r.suppliers[0].offen) < 0.01, 'open = opening + billed − paid');
       assert.equal(r.hasSollSaldoOnly, false, 'no turnover is inferred without movement columns');
       assert.equal(r.saldoOnlyRevenue, null, 'revenue-per-customer stays off when only balances are present');
       page.assertNoErrors();

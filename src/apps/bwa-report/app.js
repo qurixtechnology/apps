@@ -10,7 +10,7 @@
   const t = (k, p) => qrx.i18n.t('app.' + k, p);
   const esc = qrx.core.escapeHtml;
   const loc = () => qrx.i18n.locale();
-  const eur0 = (n) => n == null ? '–' : n.toLocaleString(loc(), { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  const eur0 = (n) => n == null ? '–' : (Math.abs(n) < 0.5 ? 0 : n).toLocaleString(loc(), { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
   const eur2 = (n) => n == null ? '–' : n.toLocaleString(loc(), { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const pct = (n, d) => (n == null ? '–' : (n * 100).toLocaleString(loc(), { minimumFractionDigits: d == null ? 1 : d, maximumFractionDigits: d == null ? 1 : d }) + ' %');
 
@@ -35,6 +35,10 @@
       crAnfang: 'Anfangssaldo (Vorjahr)', crFakturiert: 'Fakturiert (kum.)', crVereinnahmt: 'Vereinnahmt (kum.)', crOffen: 'Offen',
       crIntro: 'Verteilung des fakturierten Umsatzes auf die größten Kunden — zeigt die Abhängigkeit auf der Umsatzseite (ergänzend zum Forderungsrisiko).',
       crNote: 'Bruttowerte inkl. Umsatzsteuer aus den Debitoren-Bewegungen der Summen & Salden. „Fakturiert“ = in diesem Jahr in Rechnung gestellt, „Vereinnahmt“ = Zahlungseingänge dieses Jahres (auch auf Vorjahresrechnungen). „Offen“ ist der aktuelle Saldo = Anfangssaldo + Fakturiert − Vereinnahmt (enthält also Vorjahres-Offenposten); deshalb kann Vereinnahmt größer als Fakturiert sein. Sammelkonten „DIVERSE“ bündeln mehrere kleine Kunden. Nur verfügbar, wenn die BWA die Bewegungsspalten enthält.',
+      secSupPurchase: 'Einkauf je Lieferant', thLieferant: 'Lieferant',
+      spBerechnet: 'Berechnet (kum.)', spBezahlt: 'Bezahlt (kum.)',
+      spIntro: 'Verteilung des Einkaufsvolumens auf die größten Lieferanten — zeigt die Abhängigkeit auf der Beschaffungsseite (ergänzend zum Verbindlichkeitsrisiko).',
+      spNote: 'Bruttowerte inkl. Vorsteuer aus den Kreditoren-Bewegungen der Summen & Salden. „Berechnet“ = vom Lieferanten in Rechnung gestellt (kumuliert), „Bezahlt“ = geleistete Zahlungen dieses Jahres. „Offen“ ist der aktuelle Saldo = Anfangssaldo + Berechnet − Bezahlt; ein negativer Wert ist eine Überzahlung (Guthaben beim Lieferanten). Enthält auch Nicht-Waren-Lieferanten; Sammelkonten „DIVERSE“ bündeln mehrere kleine. Nur verfügbar, wenn die BWA die Bewegungsspalten enthält.',
       tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität',
       riskIntro: 'Verteilung der offenen Forderungen und Verbindlichkeiten — eine hohe Konzentration auf wenige Namen ist ein Risiko.',
       kDso: 'Forderungslaufzeit (DSO)', kDpo: 'Zahlungsziel Lieferanten (DPO)',
@@ -165,6 +169,10 @@
       crAnfang: 'Opening balance (prior year)', crFakturiert: 'Invoiced (YTD)', crVereinnahmt: 'Collected (YTD)', crOffen: 'Open',
       crIntro: 'Distribution of invoiced turnover across the largest customers — shows dependency on the revenue side (complementing the receivables risk).',
       crNote: 'Gross values incl. VAT from the debtor movements of the trial balance. “Invoiced” = billed this year, “Collected” = payments received this year (also on prior-year invoices). “Open” is the current balance = opening balance + invoiced − collected (so it includes prior-year open items); this is why collected can exceed invoiced. Collective accounts “DIVERSE” bundle several small customers. Only available when the BWA contains the movement columns.',
+      secSupPurchase: 'Purchases per supplier', thLieferant: 'Supplier',
+      spBerechnet: 'Billed (YTD)', spBezahlt: 'Paid (YTD)',
+      spIntro: 'Distribution of purchasing volume across the largest suppliers — shows dependency on the procurement side (complementing the payables risk).',
+      spNote: 'Gross values incl. input VAT from the creditor movements of the trial balance. “Billed” = invoiced by the supplier (cumulative), “Paid” = payments made this year. “Open” is the current balance = opening + billed − paid; a negative value is an overpayment (credit with the supplier). Includes non-goods suppliers; collective accounts “DIVERSE” bundle several small ones. Only available when the BWA contains the movement columns.',
       tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity',
       riskIntro: 'Distribution of open receivables and payables — high concentration on a few names is a risk.',
       kDso: 'Receivable days (DSO)', kDpo: 'Payable days (DPO)',
@@ -419,6 +427,16 @@
       .map((a) => ({ no: a.no, label: a.label, anfang: a.eb || 0, fakturiert: a.soll, vereinnahmt: a.haben || 0,
         offen: a.side === 'S' ? a.saldoAbs : (a.side === 'H' ? -a.saldoAbs : 0) }))
       .sort((x, y) => y.fakturiert - x.fakturiert);
+    return list.length ? list : null;
+  }
+  // Largest suppliers by purchasing volume. Creditors mirror debtors: supplier
+  // invoices are the Haben movement, payments the Soll movement, and a liability
+  // is a positive open payable (a debit balance = an overpayment, shown negative).
+  function supplierPurchases(parsed) {
+    const list = (parsed.susa || []).filter((a) => a.no >= 70000 && a.no <= 99999 && a.haben != null && a.haben > 0)
+      .map((a) => ({ no: a.no, label: a.label, anfang: a.eb != null ? -a.eb : 0, berechnet: a.haben, bezahlt: a.soll || 0,
+        offen: a.side === 'H' ? a.saldoAbs : (a.side === 'S' ? -a.saldoAbs : 0) }))
+      .sort((x, y) => y.berechnet - x.berechnet);
     return list.length ? list : null;
   }
   function companyName(pages) {
@@ -869,6 +887,25 @@
       </tr></thead><tbody>${rows}</tbody></table></div>
       <p class="bwa-note">${esc(t('crNote'))}</p>`);
   }
+  // Purchases per supplier (billed + paid + open), largest first. Only when the
+  // trial balance carries the movement columns (else returns '').
+  function supplierPurchasesBlock(parsed) {
+    const list = supplierPurchases(parsed);
+    if (!list) return '';
+    const top = list.slice(0, 10);
+    const rows = top.map((c) => `<tr>
+      <td>${esc(c.label || ('Konto ' + c.no))}</td>
+      <td class="bwa-num bwa-muted">${eur0(c.anfang)}</td>
+      <td class="bwa-num">${eur0(c.berechnet)}</td>
+      <td class="bwa-num">${eur0(c.bezahlt)}</td>
+      <td class="bwa-num">${eur0(c.offen)}</td></tr>`).join('');
+    return section('secSupPurchase', `<p class="bwa-note bwa-subnote">${esc(t('spIntro'))}</p>
+      <div class="bwa-table-wrap"><table class="bwa-table"><thead><tr>
+        <th>${esc(t('thLieferant'))}</th><th class="bwa-num">${esc(t('crAnfang'))}</th><th class="bwa-num">${esc(t('spBerechnet'))}</th>
+        <th class="bwa-num">${esc(t('spBezahlt'))}</th><th class="bwa-num">${esc(t('crOffen'))}</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="bwa-note">${esc(t('spNote'))}</p>`);
+  }
 
   function costBars(K) {
     const items = K.costStructure.slice(0, 7);
@@ -977,7 +1014,7 @@
       { id: 'overview', label: t('tabOverview'),
         html: renderCockpit(K) + section('secGlance', `<div class="bwa-cards">${glance}</div>`) + section('secBewertung', recs) + trendHTML(series) },
       { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + customerRevenueBlock(parsed) + custBlock + kerBlock },
-      { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + supBlock + expBlock },
+      { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + supplierPurchasesBlock(parsed) + supBlock + expBlock },
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
       { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) },
     ];
@@ -1248,7 +1285,7 @@
 
   // test hook
   window.__bwa = {
-    parseBwa, kpis, assess, handleFiles, seriesFor, reset, analyzeTurnover, customerRevenue,
+    parseBwa, kpis, assess, handleFiles, seriesFor, reset, analyzeTurnover, customerRevenue, supplierPurchases,
     get store() { return state.store; },
     get parsed() { return (state.store[state.activeCompany] || {})[state.activeKey] || null; },
   };
