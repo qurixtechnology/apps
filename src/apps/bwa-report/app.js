@@ -94,6 +94,11 @@
       liqUstBreak: 'USt-Zahllast = vereinnahmte Umsatzsteuer {output} − abziehbare Vorsteuer {vorsteuer} − geleistete Vorauszahlungen {prepaid}.',
       liqRefundNote: 'Zusätzlich bestehen Steuer-Erstattungsansprüche von {amount} (voraussichtlicher Mittelzufluss, hier nicht gegengerechnet).',
       'def.bound': 'Teil der liquiden Mittel, der bereits verplant ist: Umsatzsteuer (durchlaufendes Fremdgeld), abzuführende Lohnsteuer/Sozialabgaben und gebildete Steuerrückstellungen. Nur der Rest ist frei verfügbar.',
+      ntTitle: 'Netto-Steuerposition (nach Verrechnung)',
+      ntRefunds: 'Steuer-Erstattungsansprüche', ntNet: 'Netto-Steuerposition',
+      ntVerdictOwed: 'Nach Verrechnung der Erstattungsansprüche verbleibt eine Netto-Zahllast von {amount} gegenüber dem Finanzamt.',
+      ntVerdictCredit: 'Nach Verrechnung ergibt sich ein Netto-Steuerguthaben von {amount}.',
+      'def.nettax': 'Umsatzsteuer-Zahllast plus Steuerrückstellungen minus Steuer-Erstattungsansprüche (z. B. KSt-/GewSt-Rückforderungen). Zeigt, was unterm Strich gegenüber dem Finanzamt offen ist — die Lohnsteuer/Sozialabgaben sind hier nicht enthalten.',
       'def.ust': 'Aus den USt-Konten der Summen & Salden: vereinnahmte Umsatzsteuer minus abziehbare Vorsteuer minus bereits geleistete Vorauszahlungen ergibt die offene Zahllast. Grobe Orientierung, keine USt-Voranmeldung.',
       'def.freeliq': 'Anteil der liquiden Mittel, der nach Abzug von Steuer- und Fremdgeld (Umsatzsteuer, Lohnsteuer/Sozialabgaben, Steuerrückstellungen) frei verfügbar bleibt.',
       etTitle: 'Ertragsteuer — Prognose & Deckung',
@@ -203,6 +208,11 @@
       liqUstBreak: 'VAT liability = output VAT collected {output} − deductible input VAT {vorsteuer} − advance payments made {prepaid}.',
       liqRefundNote: 'In addition, tax refund claims of {amount} exist (expected cash inflow, not netted here).',
       'def.bound': 'The part of the cash that is already committed: VAT (pass-through money), wage tax/social security to be remitted, and tax provisions. Only the rest is freely usable.',
+      ntTitle: 'Net tax position (after offsetting)',
+      ntRefunds: 'Tax refund claims', ntNet: 'Net tax position',
+      ntVerdictOwed: 'After offsetting the refund claims, a net liability of {amount} remains towards the tax office.',
+      ntVerdictCredit: 'After offsetting, a net tax credit of {amount} results.',
+      'def.nettax': 'VAT liability plus tax provisions minus tax refund claims (e.g. corporate/trade tax reclaims). Shows what is open towards the tax office on balance — wage tax/social security is not included here.',
       'def.ust': 'From the VAT accounts of the trial balance: output VAT collected minus deductible input VAT minus advance payments already made gives the open liability. Rough orientation, not a VAT return.',
       'def.freeliq': 'Share of cash that remains freely usable after deducting tax and pass-through money (VAT, wage tax/social security, tax provisions).',
       etTitle: 'Income tax — outlook & coverage',
@@ -446,10 +456,14 @@
       const ustOwed = (o.ust && o.ust.net > 0) ? o.ust.net : 0;
       const wageTax = o.liquidity ? Math.max(0, o.liquidity.wageLiab) : 0;
       const reserves = Math.max(0, o.taxProvisions);
-      const refunds = a.filter((x) => x.no >= 1540 && x.no <= 1549 && x.side === 'S').reduce((s, x) => s + x.saldoAbs, 0);
+      // Tax refund claims (income taxes): GewSt/KSt overpayments 1540–1549, but
+      // NOT 1548 (input VAT deductible in a later period — a VAT, not a tax refund).
+      const refunds = a.filter((x) => x.no >= 1540 && x.no <= 1549 && x.no !== 1548 && x.side === 'S').reduce((s, x) => s + x.saldoAbs, 0);
+      const ustNet = o.ust ? o.ust.net : 0;
       const bound = ustOwed + wageTax + reserves;
       o.taxSummary = { cash, ustOwed, wageTax, reserves, refunds, bound,
-        free: cash - bound, freeRatio: cash > 0 ? (cash - bound) / cash : null };
+        free: cash - bound, freeRatio: cash > 0 ? (cash - bound) / cash : null,
+        netTax: ustNet + reserves - refunds };   // net owed to the tax office after refunds
       // Verprobung (plausibility): sales VAT vs. 19 % of revenue, input VAT vs. taxable expense.
       const salesVat = a.filter((x) => x.no >= 1770 && x.no <= 1779 && x.side === 'H').reduce((s, x) => s + x.saldoAbs, 0);
       const vstBase = Math.max(0, o.gesamtkostenYtd - v('personalkosten', 'ytd') - v('abschreibungen', 'ytd') - v('betrSteuern', 'ytd'));
@@ -537,8 +551,25 @@
   // Taxes & reserves section: (A) bound vs. free liquidity, (B) income-tax
   // outlook incl. loss carry-forwards, (C) plausibility check from the figures.
   function taxSection(K) {
-    const inner = bindingBlock(K) + ertragTaxBlock(K) + verprobungBlock(K);
+    const inner = bindingBlock(K) + netTaxBlock(K) + ertragTaxBlock(K) + verprobungBlock(K);
     return inner ? section('secTaxes', inner) : '';
+  }
+  // Net tax position: VAT liability + tax provisions − tax refund claims. This
+  // reproduces the tax advisor's "delta" view (obligations netted with refunds).
+  function netTaxBlock(K) {
+    const S = K.taxSummary;
+    if (!S || (S.refunds <= 0 && S.reserves <= 0 && S.ustOwed <= 0)) return '';
+    const ustNet = K.ust ? K.ust.net : 0;
+    const rows = [[t('liqUst'), (ustNet < 0 ? '− ' : '') + eur0(Math.abs(ustNet))]];
+    if (S.reserves > 0) rows.push([t('liqRes'), '+ ' + eur0(S.reserves)]);
+    if (S.refunds > 0) rows.push([t('ntRefunds'), '− ' + eur0(S.refunds)]);
+    rows.push([t('ntNet'), (S.netTax < 0 ? '− ' : '') + eur0(Math.abs(S.netTax))]);
+    const owed = S.netTax >= 0;
+    const verdict = owed ? t('ntVerdictOwed', { amount: eur0(S.netTax) }) : t('ntVerdictCredit', { amount: eur0(-S.netTax) });
+    const tbl = `<table class="bwa-table bwa-taxtable"><tbody>${rows.map((r, i) =>
+      `<tr class="${i === rows.length - 1 ? 'bwa-tr-bold' : ''}"><td>${esc(r[0])}</td><td class="bwa-num">${esc(r[1])}</td></tr>`).join('')}</tbody></table>`;
+    return `<div class="bwa-subtitle"><strong>${esc(t('ntTitle'))}</strong>${info('nettax')}</div>
+      ${tbl}<div class="bwa-assess bwa-assess-${owed ? 'ok' : 'good'}">${dot(owed ? 'ok' : 'good')}<div>${esc(verdict)}</div></div>`;
   }
   // (A) How much of the cash is pass-through / reserved, and what stays free.
   function bindingBlock(K) {
