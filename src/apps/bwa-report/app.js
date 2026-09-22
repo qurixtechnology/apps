@@ -85,18 +85,34 @@
       // run-rate & tax check
       runRateTitle: 'Hochrechnung aufs Jahr:',
       runRateLine: 'Auf Basis von {months} Monaten linear hochgerechnet ergäbe das rund {u} Umsatz und {e} Ergebnis pro Jahr.',
-      taxCheckTitle: 'Steuer-Rücklage — grobe Orientierung',
-      taxCheckExpected: 'Als Kapitalgesellschaft fallen überschlägig ~{rate} Ertragsteuer auf den Gewinn an. Auf das vorläufige Ergebnis von {base} wären das rund {expected}.',
-      taxCheckReserved: 'Bisher zurückgestellt (Steuerrückstellungen): {reserved}.',
-      taxCheckLoss: 'Es bestehen Verlustvorträge ({loss}) — die tatsächliche Steuerlast kann dadurch geringer ausfallen oder entfallen.',
       taxCheckCaveat: 'Grobe Orientierung; Gewerbesteuer-Hebesatz, Verlustvorträge und Abgrenzungen verändern den Betrag deutlich. Keine Steuerberatung.',
-      // USt (VAT) status
-      ustTitle: 'Umsatzsteuer — Status (Fremdgeld)',
-      ustOutput: 'Umsatzsteuer (aus Umsätzen)', ustVorsteuer: 'Vorsteuer (abziehbar)',
-      ustPrepaid: 'Geleistete Vorauszahlungen', ustOwed: 'Offene USt-Zahllast', ustCredit: 'USt-Guthaben',
-      ustNote: 'Die Umsatzsteuer ist durchlaufendes Fremdgeld — sie gehört dem Finanzamt, nicht dem Unternehmen. Die offene Zahllast separat bereithalten. Aus den Konten der Summen & Salden; nicht in der Netto-Liquidität oben enthalten. Keine USt-Voranmeldung.',
-      'rec.ust': 'Rund {amount} Umsatzsteuer sind noch ans Finanzamt abzuführen (durchlaufendes Fremdgeld). Diese Liquidität separat bereithalten, nicht verplanen.',
-      'def.ust': 'Aus den USt-Konten der Summen & Salden: vereinnahmte Umsatzsteuer minus abziehbare Vorsteuer minus bereits geleistete Vorauszahlungen ergibt die offene Zahllast (bzw. ein Guthaben). Grobe Orientierung, keine USt-Voranmeldung.',
+      // Taxes & reserves section
+      secTaxes: 'Steuern & Rücklagen',
+      liqBindTitle: 'Vorzuhaltende vs. frei verfügbare Liquidität',
+      liqUst: 'Umsatzsteuer-Zahllast', liqWage: 'Lohnsteuer & Sozialabgaben', liqRes: 'Steuerrückstellungen',
+      liqBound: 'Vorzuhalten (Summe)', liqFree: 'Frei verfügbar', liqFreeSub: '{p} der liquiden Mittel',
+      liqUstBreak: 'USt-Zahllast = vereinnahmte Umsatzsteuer {output} − abziehbare Vorsteuer {vorsteuer} − geleistete Vorauszahlungen {prepaid}.',
+      liqRefundNote: 'Zusätzlich bestehen Steuer-Erstattungsansprüche von {amount} (voraussichtlicher Mittelzufluss, hier nicht gegengerechnet).',
+      'def.bound': 'Teil der liquiden Mittel, der bereits verplant ist: Umsatzsteuer (durchlaufendes Fremdgeld), abzuführende Lohnsteuer/Sozialabgaben und gebildete Steuerrückstellungen. Nur der Rest ist frei verfügbar.',
+      'def.ust': 'Aus den USt-Konten der Summen & Salden: vereinnahmte Umsatzsteuer minus abziehbare Vorsteuer minus bereits geleistete Vorauszahlungen ergibt die offene Zahllast. Grobe Orientierung, keine USt-Voranmeldung.',
+      'def.freeliq': 'Anteil der liquiden Mittel, der nach Abzug von Steuer- und Fremdgeld (Umsatzsteuer, Lohnsteuer/Sozialabgaben, Steuerrückstellungen) frei verfügbar bleibt.',
+      etTitle: 'Ertragsteuer — Prognose & Deckung',
+      etErgebnis: 'Ergebnis vor Steuern', etLoss: 'Verlustvortrag (verrechenbar)',
+      etTaxable: 'Zu versteuern (nach Verlustvortrag)', etExpected: 'Erwartete Ertragsteuer (~{rate})',
+      etReserved: 'Bereits zurückgestellt',
+      etVerdictShield: 'Dank des Verlustvortrags ({loss}) ist aktuell voraussichtlich keine Ertragsteuer-Nachzahlung zu erwarten.',
+      etVerdictGap: 'Mögliche Nachzahlung: Die erwartete Ertragsteuer übersteigt die Rückstellungen um rund {gap}. Rücklage entsprechend erhöhen.',
+      etVerdictCovered: 'Die gebildeten Rückstellungen decken die überschlägig erwartete Ertragsteuer.',
+      etVerdictNoSusa: 'Überschlägig wären rund {expected} Ertragsteuer zurückzustellen (ohne Summen & Salden nicht mit den Rückstellungen abgeglichen).',
+      etRefund: 'Es bestehen Steuer-Erstattungsansprüche von {amount} (z. B. KSt-/GewSt-Überzahlungen) — voraussichtlicher Mittelzufluss.',
+      vpTitle: 'Verprobung (grobe Orientierung)',
+      vpUst: 'Umsatzsteuer aus Verkäufen: {booked} gebucht. Bei 19 % auf den Umsatz wären es rechnerisch {exp} — die Quote von {q} ist plausibel, sofern steuerfreie oder EU-Umsätze enthalten sind.',
+      vpVst: 'Vorsteuer aus Aufwand: {vst} gezogen — rund {q} des vorsteuerfähigen Aufwands ({base}). Ein Wert deutlich über 19 % wäre auffällig.',
+      vpCaveat: 'Grobe Verprobung aus den BWA-Salden — ersetzt keine Umsatzsteuer-Voranmeldung oder Prüfung. Steuersätze, steuerfreie Umsätze und Abgrenzungen verschieben die Werte.',
+      'def.verprobung': 'Einfache Gegenrechnung: Passt die gebuchte Umsatzsteuer zu 19 % des Umsatzes und die Vorsteuer zum steuerpflichtigen Aufwand? Grobe Orientierung, keine Prüfung.',
+      gaugeFreeLiq: 'Freie Liquidität',
+      'rec.bound': 'Von den liquiden Mitteln sind rund {bound} als Steuer- und Fremdgeld gebunden (Umsatzsteuer, Lohnsteuer/Sozialabgaben, Steuerrückstellungen) — nur etwa {free} sind frei verfügbar. Diesen Puffer nicht verplanen.',
+      'rec.taxgap': 'Für die Ertragsteuer zeichnet sich eine Deckungslücke von rund {gap} ab (erwartete Steuer über den Rückstellungen). Rücklage erhöhen.',
       // glossary (tooltips)
       'def.umsatz': 'Erlöse aus der eigentlichen Geschäftstätigkeit (ohne Umsatzsteuer). „Kumuliert“ = seit Jahresbeginn.',
       'def.betriebsergebnis': 'Ergebnis aus dem eigentlichen Geschäft: Leistung minus Kosten — vor neutralen Posten (z. B. Zinsen) und Steuern.',
@@ -179,17 +195,33 @@
       'rec.preliminary': 'This evaluation is preliminary (current bookkeeping status). Year-end and accrual entries may still change the figures.',
       runRateTitle: 'Year projection:',
       runRateLine: 'Extrapolated linearly from {months} months, that is roughly {u} revenue and {e} result per year.',
-      taxCheckTitle: 'Tax reserve — rough orientation',
-      taxCheckExpected: 'As a corporation, income taxes of roughly ~{rate} apply to the profit. On the preliminary result of {base} that would be about {expected}.',
-      taxCheckReserved: 'Set aside so far (tax provisions): {reserved}.',
-      taxCheckLoss: 'Loss carry-forwards ({loss}) exist — the actual tax burden may be lower or nil.',
       taxCheckCaveat: 'Rough orientation; the trade-tax multiplier, loss carry-forwards and accruals change the amount considerably. Not tax advice.',
-      ustTitle: 'VAT — status (pass-through money)',
-      ustOutput: 'Output VAT (on sales)', ustVorsteuer: 'Input VAT (deductible)',
-      ustPrepaid: 'Advance payments made', ustOwed: 'Open VAT liability', ustCredit: 'VAT credit',
-      ustNote: 'VAT is pass-through money — it belongs to the tax office, not the company. Keep the open liability separate. From the trial-balance accounts; not included in the net liquidity above. Not a VAT return.',
-      'rec.ust': 'About {amount} VAT is still to be remitted to the tax office (pass-through money). Keep this cash separate and unspent.',
-      'def.ust': 'From the VAT accounts of the trial balance: output VAT collected minus deductible input VAT minus advance payments already made gives the open liability (or a credit). Rough orientation, not a VAT return.',
+      secTaxes: 'Taxes & reserves',
+      liqBindTitle: 'Reserved vs. freely usable liquidity',
+      liqUst: 'VAT liability', liqWage: 'Wage tax & social security', liqRes: 'Tax provisions',
+      liqBound: 'To keep aside (total)', liqFree: 'Freely usable', liqFreeSub: '{p} of cash',
+      liqUstBreak: 'VAT liability = output VAT collected {output} − deductible input VAT {vorsteuer} − advance payments made {prepaid}.',
+      liqRefundNote: 'In addition, tax refund claims of {amount} exist (expected cash inflow, not netted here).',
+      'def.bound': 'The part of the cash that is already committed: VAT (pass-through money), wage tax/social security to be remitted, and tax provisions. Only the rest is freely usable.',
+      'def.ust': 'From the VAT accounts of the trial balance: output VAT collected minus deductible input VAT minus advance payments already made gives the open liability. Rough orientation, not a VAT return.',
+      'def.freeliq': 'Share of cash that remains freely usable after deducting tax and pass-through money (VAT, wage tax/social security, tax provisions).',
+      etTitle: 'Income tax — outlook & coverage',
+      etErgebnis: 'Result before taxes', etLoss: 'Loss carry-forward (usable)',
+      etTaxable: 'Taxable (after loss carry-forward)', etExpected: 'Expected income tax (~{rate})',
+      etReserved: 'Already provisioned',
+      etVerdictShield: 'Thanks to the loss carry-forward ({loss}), no income-tax back-payment is expected at present.',
+      etVerdictGap: 'Possible back-payment: the expected income tax exceeds the provisions by about {gap}. Increase the reserve accordingly.',
+      etVerdictCovered: 'The provisions made cover the roughly expected income tax.',
+      etVerdictNoSusa: 'Roughly {expected} income tax should be reserved (without the trial balance, not reconciled against provisions).',
+      etRefund: 'Tax refund claims of {amount} exist (e.g. corporate/trade tax overpayments) — expected cash inflow.',
+      vpTitle: 'Plausibility check (rough orientation)',
+      vpUst: 'Output VAT on sales: {booked} booked. At 19 % of revenue that would be about {exp} — the ratio of {q} is plausible if tax-free or EU sales are included.',
+      vpVst: 'Input VAT on expenses: {vst} claimed — about {q} of the VAT-eligible expense ({base}). A value well above 19 % would be notable.',
+      vpCaveat: 'Rough check from the BWA balances — not a VAT return or audit. Tax rates, tax-free sales and accruals shift the figures.',
+      'def.verprobung': 'A simple counter-check: does the booked output VAT match 19 % of revenue, and the input VAT the taxable expense? Rough orientation, not an audit.',
+      gaugeFreeLiq: 'Free liquidity',
+      'rec.bound': 'About {bound} of the cash is tied up as tax and pass-through money (VAT, wage tax/social security, tax provisions) — only about {free} is freely usable. Do not spend this buffer.',
+      'rec.taxgap': 'A coverage gap of about {gap} is emerging for income tax (expected tax above provisions). Increase the reserve.',
       'def.umsatz': 'Revenue from the core business (excl. VAT). “YTD” = since the start of the year.',
       'def.betriebsergebnis': 'Result from the core business: output minus costs — before neutral items (e.g. interest) and taxes.',
       'def.ergebnis': 'Preliminary overall result after neutral items, before year-end entries. May still change.',
@@ -372,13 +404,12 @@
     o.lossCarry = vv && vv.side === 'S' ? vv.saldoAbs : 0;
     const isKapGes = /gmbh|mbh|\bag\b|\bug\b|\bse\b/i.test(parsed.meta.company || '');
     if (isKapGes && o.ergebnisVorSteuernYtd > 0) {
+      // loss carry-forwards (868) shield the current profit → taxable base after offset
+      const taxable = Math.max(0, o.ergebnisVorSteuernYtd - o.lossCarry), expAdj = taxable * 0.30;
       o.taxCheck = { rate: 0.30, base: o.ergebnisVorSteuernYtd, expected: o.ergebnisVorSteuernYtd * 0.30,
-        reserved: o.taxProvisions, lossCarry: o.lossCarry, hasSusa: parsed.hasSusa };
-      if (parsed.hasSusa) {
-        // loss carry-forwards shield the current profit → adjust the expected tax
-        const taxable = Math.max(0, o.ergebnisVorSteuernYtd - o.lossCarry), expAdj = taxable * 0.30;
-        o.taxCoverage = expAdj > 0 ? o.taxProvisions / expAdj : 2;   // 2 = comfortably covered
-      }
+        taxable, expectedAdj: expAdj, reserved: o.taxProvisions, gap: expAdj - o.taxProvisions,
+        lossCarry: o.lossCarry, hasSusa: parsed.hasSusa };
+      if (parsed.hasSusa) o.taxCoverage = expAdj > 0 ? o.taxProvisions / expAdj : 2;   // 2 = comfortably covered
     }
     if (parsed.hasSusa && a.length) {
       const L = {
@@ -407,6 +438,23 @@
         const prepaid = ustAll.filter((x) => x.side === 'S').reduce((s, x) => s + x.saldoAbs, 0);
         o.ust = { output, vorsteuer, prepaid, net: output - vorsteuer - prepaid };
       }
+    }
+    // Tax & reserves — how much of the cash is not freely usable, plus an income-
+    // tax outlook and a rough plausibility check from revenue/expenses.
+    if (parsed.hasSusa && a.length) {
+      const cash = o.liquidity ? o.liquidity.cash : 0;
+      const ustOwed = (o.ust && o.ust.net > 0) ? o.ust.net : 0;
+      const wageTax = o.liquidity ? Math.max(0, o.liquidity.wageLiab) : 0;
+      const reserves = Math.max(0, o.taxProvisions);
+      const refunds = a.filter((x) => x.no >= 1540 && x.no <= 1549 && x.side === 'S').reduce((s, x) => s + x.saldoAbs, 0);
+      const bound = ustOwed + wageTax + reserves;
+      o.taxSummary = { cash, ustOwed, wageTax, reserves, refunds, bound,
+        free: cash - bound, freeRatio: cash > 0 ? (cash - bound) / cash : null };
+      // Verprobung (plausibility): sales VAT vs. 19 % of revenue, input VAT vs. taxable expense.
+      const salesVat = a.filter((x) => x.no >= 1770 && x.no <= 1779 && x.side === 'H').reduce((s, x) => s + x.saldoAbs, 0);
+      const vstBase = Math.max(0, o.gesamtkostenYtd - v('personalkosten', 'ytd') - v('abschreibungen', 'ytd') - v('betrSteuern', 'ytd'));
+      o.taxPlaus = { salesVat, expectedVat: 0.19 * o.umsatzYtd, vatQuote: o.umsatzYtd > 0 ? salesVat / o.umsatzYtd : null,
+        vorsteuer: o.ust ? o.ust.vorsteuer : 0, vstBase, vstQuote: (vstBase > 0 && o.ust) ? o.ust.vorsteuer / vstBase : null };
     }
     o.concentration = concentrationOf(a);
     return o;
@@ -449,12 +497,13 @@
     if (K.personalquoteYtd > 0.70) recs.push(t('rec.personal', { q: pct(K.personalquoteYtd) }));
     if (K.liquidity) {
       const L = K.liquidity;
-      const taxLike = L.provisions + Math.max(0, L.wageLiab);
-      if (taxLike > 0) recs.push(t('rec.tax', { amount: eur0(taxLike) }));
       if (gl && L.receivables > 0.15 * gl) recs.push(t('rec.receivables', { amount: eur0(L.receivables) }));
       if (!ergPos && L.runwayMonths != null && L.runwayMonths < 3) recs.push(t('rec.runway', { m: L.runwayMonths.toFixed(1) }));
     }
-    if (K.ust && K.ust.net > 0) recs.push(t('rec.ust', { amount: eur0(K.ust.net) }));
+    if (K.taxSummary && K.taxSummary.bound > 0)
+      recs.push(t('rec.bound', { bound: eur0(K.taxSummary.bound), free: eur0(K.taxSummary.free) }));
+    if (K.taxCheck && K.taxCheck.taxable > 0 && K.taxCheck.gap > 0)
+      recs.push(t('rec.taxgap', { gap: eur0(K.taxCheck.gap) }));
     if (K.umsatzTrend < -0.15) recs.push(t('rec.trend', { p: pct(Math.abs(K.umsatzTrend)) }));
     const cc = K.concentration && K.concentration.customers;
     if (cc && cc.top1 >= 0.30) recs.push(t('rec.concentration', { share: pct(cc.top1, 0), name: cc.top[0].label || ('Konto ' + cc.top[0].no) }));
@@ -485,19 +534,70 @@
   }
   function money2(n) { return `<span class="${n < 0 ? 'bwa-neg' : ''}">${eur0(n)}</span>`; }
 
-  // VAT status box (pass-through money): output VAT − input VAT − advance payments.
-  function ustBox(K) {
-    const U = K.ust;
-    if (!U) return '';
-    const owed = U.net >= 0;
-    const cards = card(t('ustOutput'), eur0(U.output), null, null)
-      + card(t('ustVorsteuer'), eur0(U.vorsteuer), null, null)
-      + (U.prepaid > 0 ? card(t('ustPrepaid'), eur0(U.prepaid), null, null) : '')
-      + card(owed ? t('ustOwed') : t('ustCredit'), eur0(Math.abs(U.net)), null, owed ? 'ok' : 'good');
-    return `<div class="bwa-taxbox">
-      <div class="bwa-taxbox-head"><strong>${esc(t('ustTitle'))}</strong>${info('ust')}</div>
-      <div class="bwa-cards">${cards}</div>
-      <p class="bwa-note">${esc(t('ustNote'))}</p></div>`;
+  // Taxes & reserves section: (A) bound vs. free liquidity, (B) income-tax
+  // outlook incl. loss carry-forwards, (C) plausibility check from the figures.
+  function taxSection(K) {
+    const inner = bindingBlock(K) + ertragTaxBlock(K) + verprobungBlock(K);
+    return inner ? section('secTaxes', inner) : '';
+  }
+  // (A) How much of the cash is pass-through / reserved, and what stays free.
+  function bindingBlock(K) {
+    const S = K.taxSummary;
+    if (!S || S.cash <= 0) return '';
+    const segs = [
+      { key: 'liqUst', val: S.ustOwed, cls: 'bwa-seg-ust' },
+      { key: 'liqWage', val: S.wageTax, cls: 'bwa-seg-wage' },
+      { key: 'liqRes', val: S.reserves, cls: 'bwa-seg-res' },
+    ].filter((s) => s.val > 0);
+    const w = (val) => (Math.max(0, Math.min(val, S.cash)) / S.cash * 100).toFixed(1) + '%';
+    const bar = `<div class="bwa-flow-bar">
+      ${segs.map((s) => `<div class="bwa-seg ${s.cls}" style="width:${w(s.val)}" title="${esc(t(s.key))}: ${esc(eur0(s.val))}"></div>`).join('')}
+      ${S.free > 0 ? `<div class="bwa-seg bwa-seg-free" style="width:${w(S.free)}" title="${esc(t('liqFree'))}: ${esc(eur0(S.free))}"></div>` : ''}
+    </div>${legend([...segs.map((s) => ({ name: t(s.key), cls: s.cls })), { name: t('liqFree'), cls: 'bwa-seg-free' }])}`;
+    const lvl = S.free <= 0 ? 'bad' : (S.freeRatio != null && S.freeRatio < 0.25 ? 'ok' : 'good');
+    const cards = card(t('kLiquide'), eur0(S.cash), null, null, 'liquide')
+      + (S.ustOwed > 0 ? card(t('liqUst'), eur0(S.ustOwed), null, null, 'ust') : '')
+      + (S.wageTax > 0 ? card(t('liqWage'), eur0(S.wageTax), null, null) : '')
+      + (S.reserves > 0 ? card(t('liqRes'), eur0(S.reserves), null, null, 'rueckstellungen') : '')
+      + card(t('liqBound'), eur0(S.bound), null, null, 'bound')
+      + card(t('liqFree'), money2(S.free), S.freeRatio != null ? t('liqFreeSub', { p: pct(S.freeRatio, 0) }) : null, lvl);
+    const ustBreak = S.ustOwed > 0 && K.ust
+      ? `<p class="bwa-note">${esc(t('liqUstBreak', { output: eur0(K.ust.output), vorsteuer: eur0(K.ust.vorsteuer), prepaid: eur0(K.ust.prepaid) }))}</p>` : '';
+    const refundNote = S.refunds > 0 ? `<p class="bwa-note">${esc(t('liqRefundNote', { amount: eur0(S.refunds) }))}</p>` : '';
+    return `<div class="bwa-taxbox-head"><strong>${esc(t('liqBindTitle'))}</strong>${info('bound')}</div>
+      ${bar}<div class="bwa-cards" style="margin-top:var(--qrx-s-3)">${cards}</div>${ustBreak}${refundNote}`;
+  }
+  // (B) Income-tax outlook: result → loss carry-forward → expected tax → coverage.
+  function ertragTaxBlock(K) {
+    const T = K.taxCheck;
+    if (!T) return '';
+    const rows = [[t('etErgebnis'), eur0(T.base)]];
+    if (T.lossCarry > 0) { rows.push([t('etLoss'), '− ' + eur0(Math.min(T.lossCarry, T.base))]); rows.push([t('etTaxable'), eur0(T.taxable)]); }
+    rows.push([t('etExpected', { rate: pct(T.rate, 0) }), eur0(T.expectedAdj)]);
+    if (T.hasSusa) rows.push([t('etReserved'), eur0(T.reserved)]);
+    const shielded = T.lossCarry > 0 && T.taxable === 0;
+    const vlvl = (shielded || T.gap <= 0) ? 'good' : 'bad';
+    const verdict = shielded ? t('etVerdictShield', { loss: eur0(T.lossCarry) })
+      : (T.hasSusa && T.gap > 0) ? t('etVerdictGap', { gap: eur0(T.gap) })
+        : (T.hasSusa) ? t('etVerdictCovered') : t('etVerdictNoSusa', { expected: eur0(T.expectedAdj) });
+    const refund = (K.taxSummary && K.taxSummary.refunds > 0)
+      ? `<p class="bwa-note">${esc(t('etRefund', { amount: eur0(K.taxSummary.refunds) }))}</p>` : '';
+    const tbl = `<table class="bwa-table bwa-taxtable"><tbody>${rows.map((r, i) =>
+      `<tr class="${i === rows.length - 1 ? 'bwa-tr-bold' : ''}"><td>${esc(r[0])}</td><td class="bwa-num">${esc(r[1])}</td></tr>`).join('')}</tbody></table>`;
+    return `<div class="bwa-subtitle"><strong>${esc(t('etTitle'))}</strong>${info('steuercheck')}</div>
+      ${tbl}<div class="bwa-assess bwa-assess-${vlvl}">${dot(vlvl)}<div>${esc(verdict)}</div></div>${refund}
+      <p class="bwa-note">${esc(t('taxCheckCaveat'))}</p>`;
+  }
+  // (C) Rough plausibility from revenue (output VAT) and expenses (input VAT).
+  function verprobungBlock(K) {
+    const P = K.taxPlaus;
+    if (!P || P.vatQuote == null) return '';
+    const vatOk = P.vatQuote > 0 && P.vatQuote <= 0.19 * 1.06;
+    let out = `<div class="bwa-assess bwa-assess-${vatOk ? 'good' : 'ok'}">${dot(vatOk ? 'good' : 'ok')}<div>${esc(t('vpUst', {
+      booked: eur0(P.salesVat), exp: eur0(P.expectedVat), q: pct(P.vatQuote, 0) }))}</div></div>`;
+    if (P.vstQuote != null) out += `<div class="bwa-note">${esc(t('vpVst', { vst: eur0(P.vorsteuer), q: pct(P.vstQuote, 0), base: eur0(P.vstBase) }))}</div>`;
+    return `<div class="bwa-subtitle"><strong>${esc(t('vpTitle'))}</strong>${info('verprobung')}</div>${out}
+      <p class="bwa-note">${esc(t('vpCaveat'))}</p>`;
   }
 
   // Semicircle gauge ("Tacho") for a bounded ratio KPI with green/amber/red zones.
@@ -542,6 +642,9 @@
       gs.push(gauge({ labelKey: 'gaugeTaxCov', defKey: 'taxcov', value: K.taxCoverage, min: 0, max: 1.5,
         zones: [{ to: 0.70, cls: 'r' }, { to: 1.0, cls: 'a' }, { to: 1.5, cls: 'g' }],
         fmt: () => (K.taxCoverage > 1.5 ? '≥ ' : '') + pct(Math.min(K.taxCoverage, 1.5), 0) }));
+    if (K.taxSummary && K.taxSummary.freeRatio != null)
+      gs.push(gauge({ labelKey: 'gaugeFreeLiq', defKey: 'freeliq', value: K.taxSummary.freeRatio, min: 0, max: 1,
+        zones: [{ to: 0.20, cls: 'r' }, { to: 0.50, cls: 'a' }, { to: 1, cls: 'g' }], fmt: (val) => pct(val, 0) }));
     return gs.length >= 2 ? section('secCockpit', `<div class="bwa-cockpit">${gs.join('')}</div>`) : '';
   }
 
@@ -688,19 +791,6 @@
 
     const kostenBody = `<div class="bwa-chart-title">${esc(t('costTitle'))}</div>${costBars(K)}${expenseBars(parsed)}`;
 
-    // Tax reserve orientation box (shown for corporations with a profit).
-    let taxBox = '';
-    if (K.taxCheck) {
-      const T = K.taxCheck;
-      let txt = t('taxCheckExpected', { rate: pct(T.rate, 0), base: eur0(T.base), expected: eur0(T.expected) });
-      if (T.hasSusa) txt += ' ' + t('taxCheckReserved', { reserved: eur0(T.reserved) });
-      if (T.lossCarry > 0) txt += ' ' + t('taxCheckLoss', { loss: eur0(T.lossCarry) });
-      taxBox = `<div class="bwa-taxbox">
-        <div class="bwa-taxbox-head"><strong>${esc(t('taxCheckTitle'))}</strong>
-          <span class="bwa-info" tabindex="0" role="note" title="${esc(t('def.steuercheck'))}" aria-label="${esc(t('def.steuercheck'))}">i</span></div>
-        <p>${esc(txt)}</p><p class="bwa-note">${esc(t('taxCheckCaveat'))}</p></div>`;
-    }
-
     let liquiBody = '';
     if (K.liquidity) {
       const L = K.liquidity;
@@ -715,9 +805,9 @@
       const runwayHint = L.runwayMonths != null ? `<p class="bwa-note">${esc(t('runwayHint', { m: t('months', { n: L.runwayMonths.toFixed(1) }) }))}</p>` : '';
       const liquiText = t('aLiqui' + capitalize(A.liqui), { netto: eur0(L.netLiquidity) });
       liquiBody = `<div class="bwa-cards">${cards}</div>
-        <div class="bwa-assess bwa-assess-${A.liqui}">${dot(A.liqui)}<div>${esc(liquiText)}</div></div>${runwayHint}${ustBox(K)}${taxBox}`;
+        <div class="bwa-assess bwa-assess-${A.liqui}">${dot(A.liqui)}<div>${esc(liquiText)}</div></div>${runwayHint}`;
     } else {
-      liquiBody = `<p class="bwa-note">${esc(t('noSusa'))}</p>${taxBox}`;
+      liquiBody = `<p class="bwa-note">${esc(t('noSusa'))}</p>`;
     }
 
     const recs = `<div class="bwa-overall bwa-assess-${A.overall}">${dot(A.overall)}<strong>${esc(t('overall'))}: ${esc(lvlWord(A.overall))}</strong></div>
@@ -734,6 +824,7 @@
       + section('secErtrag', ertragBody)
       + section('secKosten', kostenBody)
       + section('secLiqui', liquiBody)
+      + taxSection(K)
       + (K.concentration ? section('secRisk', `<p class="bwa-note bwa-subnote">${esc(t('riskIntro'))}</p>${concentrationBlock(K.concentration)}`) : '')
       + section('secBewertung', recs)
       + section('secDetails', details);

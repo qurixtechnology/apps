@@ -151,6 +151,16 @@
 .bwa-seg-u { background: var(--qrx-border-strong); }
 .bwa-seg-e { background: var(--qrx-success); }
 .bwa-seg-l { background: var(--qrx-danger); }
+/* Reserved-vs-free liquidity bar */
+.bwa-seg-ust { background: var(--qrx-danger); fill: var(--qrx-danger); }
+.bwa-seg-wage { background: var(--qrx-warning); fill: var(--qrx-warning); }
+.bwa-seg-res { background: var(--qrx-accent); fill: var(--qrx-accent); }
+.bwa-seg-free { background: var(--qrx-success); fill: var(--qrx-success); }
+/* Income-tax step table (compact, 2 columns) */
+.bwa-taxtable { max-width: 460px; }
+.bwa-taxtable td { border-bottom: 1px solid var(--qrx-border); }
+.bwa-taxtable tr:last-child td { border-top: 1px solid var(--qrx-border-strong); border-bottom: none; }
+.bwa-taxtable + .bwa-assess { margin-top: var(--qrx-s-3); }
 .bwa-flow-legend { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2) var(--qrx-s-4); margin-top: var(--qrx-s-3); }
 .bwa-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--qrx-text-muted); }
 .bwa-leg-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }

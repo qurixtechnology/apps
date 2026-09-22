@@ -87,7 +87,7 @@ describe('bwa report', () => {
         hasGlance: /Auf einen Blick/.test(document.getElementById('bwa-body').textContent),
         hasOverall: /Gesamteinsch/.test(document.getElementById('bwa-body').textContent),
         kerRows: document.querySelectorAll('#bwa-body .bwa-table tbody tr').length,
-        hasBetriebsergebnisRow: /Betriebsergebnis/.test(document.querySelector('#bwa-body .bwa-table')?.textContent || ''),
+        hasBetriebsergebnisRow: /Betriebsergebnis/.test(document.querySelector('#bwa-body .bwa-details .bwa-table')?.textContent || ''),
         hasWaterfall: !!document.querySelector('#bwa-body .bwa-wf-total'),
         hasRisk: /Kunden- & Lieferant/.test(document.getElementById('bwa-body').textContent),
         hasExpenseDrill: /Einzel-Aufwandskonten/.test(document.getElementById('bwa-body').textContent),
@@ -116,45 +116,64 @@ describe('bwa report', () => {
         value: el.querySelector('.bwa-gauge-value').textContent,
         cls: [...el.querySelector('.bwa-gauge-verdict').classList].find((c) => c.startsWith('bwa-verd-')),
       })));
-      assert.equal(g.length, 5, 'five gauges (margin, safety, runway, concentration, tax coverage)');
+      assert.equal(g.length, 6, 'six gauges (margin, safety, runway, concentration, tax coverage, free liquidity)');
       // margin 30% → good, safety 37.5% → good, runway 2.86mo → bad(<3),
       // top-customer 60% → bad(>40%), tax coverage 0% (no provisions) → bad(<70%)
-      assert.deepEqual(g.map((x) => x.cls), ['bwa-verd-g', 'bwa-verd-g', 'bwa-verd-r', 'bwa-verd-r', 'bwa-verd-r']);
+      assert.deepEqual(g.slice(0, 5).map((x) => x.cls), ['bwa-verd-g', 'bwa-verd-g', 'bwa-verd-r', 'bwa-verd-r', 'bwa-verd-r']);
+      assert.ok(['bwa-verd-g', 'bwa-verd-a', 'bwa-verd-r'].includes(g[5].cls), 'free-liquidity gauge has a valid verdict');
       page.assertNoErrors();
     } finally { await page.close(); }
   });
 
-  test('computes the VAT status (output − input − advance payments) and renders it', async () => {
+  test('computes taxes & reserves: bound vs. free liquidity, income-tax outlook, plausibility', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {
       await importFixture(page);
-      // The VAT (USt) status is derived purely from the trial-balance VAT accounts.
-      // Feed a synthetic trial balance to the exposed pure kpi engine.
+      // The tax model is derived purely from the trial-balance accounts; feed a
+      // synthetic one (bank, VAT, wage tax, provision, refund) to the pure engine.
       const r = await page.evaluate(() => {
         const p = window.__bwa.parsed;
         const synth = {
           meta: p.meta, ker: p.ker, hasSusa: true,
           susa: [
+            { no: 1200, label: 'Bank', saldoAbs: 100000, side: 'S' },
             { no: 1576, label: 'Abziehbare Vorsteuer 19%', saldoAbs: 3000, side: 'S' },
-            { no: 1571, label: 'Abziehbare Vorsteuer 7%', saldoAbs: 200, side: 'S' },
-            { no: 1776, label: 'Umsatzsteuer 19%', saldoAbs: 9000, side: 'H' },
+            { no: 1776, label: 'Umsatzsteuer 19%', saldoAbs: 5700, side: 'H' },
             { no: 1780, label: 'Umsatzsteuer-Vorauszahlungen', saldoAbs: 2500, side: 'S' },
+            { no: 1741, label: 'Verbindl. Lohn- und Kirchensteuer', saldoAbs: 4000, side: 'H' },
+            { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 1000, side: 'H' },
+            { no: 1549, label: 'Körperschaftsteuerrückforderung', saldoAbs: 12000, side: 'S' },
           ],
         };
         const K = window.__bwa.kpis(synth);
         const A = window.__bwa.assess(K);
-        return { ust: K.ust, recUst: A.recs.some((x) => /Umsatzsteuer/.test(x) && /abzuf/.test(x)) };
+        const round = (n) => Math.round(n * 1000) / 1000;
+        return {
+          ust: K.ust, sum: K.taxSummary, freeRatio: round(K.taxSummary.freeRatio),
+          tax: { base: K.taxCheck.base, taxable: K.taxCheck.taxable, expectedAdj: Math.round(K.taxCheck.expectedAdj), reserved: K.taxCheck.reserved, gap: Math.round(K.taxCheck.gap) },
+          plaus: { salesVat: K.taxPlaus.salesVat, vatQuote: round(K.taxPlaus.vatQuote) },
+          recBound: A.recs.some((x) => /gebunden/.test(x) && /frei verf/.test(x)),
+          recGap: A.recs.some((x) => /Deckungslücke/.test(x)),
+        };
       });
-      assert.ok(r.ust, 'VAT status computed from the trial-balance VAT accounts');
-      assert.equal(r.ust.output, 9000, 'output VAT = sum of Haben-side 1770–1799');
-      assert.equal(r.ust.vorsteuer, 3200, 'input VAT = sum of Soll-side 1570–1589');
-      assert.equal(r.ust.prepaid, 2500, 'advance payments = Soll-side within 1770–1799');
-      assert.equal(r.ust.net, 3300, 'open liability = output − input − prepaid');
-      assert.ok(r.recUst, 'a recommendation flags the VAT still to be remitted');
-      // The bwa-sample fixture has no VAT accounts, so the box must not appear there.
-      const boxShown = await page.evaluate(() =>
-        /Umsatzsteuer — Status/.test(document.getElementById('bwa-body').textContent));
-      assert.equal(boxShown, false, 'no VAT box when the trial balance carries no VAT accounts');
+      assert.deepEqual(r.ust, { output: 5700, vorsteuer: 3000, prepaid: 2500, net: 200 }, 'VAT composition');
+      assert.deepEqual(r.sum, { cash: 100000, ustOwed: 200, wageTax: 4000, reserves: 1000, refunds: 12000, bound: 5200, free: 94800, freeRatio: r.sum.freeRatio }, 'bound = USt + wage tax + provisions; free = cash − bound');
+      assert.equal(r.freeRatio, 0.948, 'free liquidity ratio');
+      assert.deepEqual(r.tax, { base: 9000, taxable: 9000, expectedAdj: 2700, reserved: 1000, gap: 1700 }, 'income-tax outlook with coverage gap');
+      assert.deepEqual(r.plaus, { salesVat: 5700, vatQuote: 0.19 }, 'VAT plausibility (19 % of revenue)');
+      assert.ok(r.recBound, 'a recommendation names the bound vs. free liquidity');
+      assert.ok(r.recGap, 'a recommendation flags the income-tax coverage gap');
+      // The fixture itself renders the section (cash > 0) with the free-liquidity card.
+      const dom = await page.evaluate(() => ({
+        section: /Steuern & Rücklagen/.test(document.getElementById('bwa-body').textContent),
+        bar: !!document.querySelector('#bwa-body .bwa-seg-free, #bwa-body .bwa-seg-ust, #bwa-body .bwa-seg-wage, #bwa-body .bwa-seg-res'),
+        free: /Frei verfügbar/.test(document.getElementById('bwa-body').textContent),
+        ertrag: /Ertragsteuer/.test(document.getElementById('bwa-body').textContent),
+        verprobung: /Verprobung/.test(document.getElementById('bwa-body').textContent),
+      }));
+      assert.ok(dom.section, 'the Taxes & reserves section is rendered');
+      assert.ok(dom.bar, 'the reserved-vs-free liquidity bar is rendered');
+      assert.ok(dom.free && dom.ertrag && dom.verprobung, 'free-liquidity, income-tax and plausibility blocks present');
       page.assertNoErrors();
     } finally { await page.close(); }
   });
@@ -169,7 +188,7 @@ describe('bwa report', () => {
         return {
           runRateUmsatz: Math.round(K.runRateUmsatz), runRateErgebnis: Math.round(K.runRateErgebnis),
           tax: K.taxCheck && { base: K.taxCheck.base, expected: Math.round(K.taxCheck.expected), reserved: K.taxCheck.reserved, loss: K.taxCheck.lossCarry },
-          runrateShown: /Hochrechnung aufs Jahr/.test(body), taxShown: /Steuer-R/.test(body),
+          runrateShown: /Hochrechnung aufs Jahr/.test(body), taxShown: /Ertragsteuer/.test(body),
           infoIcons: document.querySelectorAll('#bwa-body .bwa-info').length,
           tooltip: document.querySelector('#bwa-body .bwa-info')?.getAttribute('title') || '',
         };
