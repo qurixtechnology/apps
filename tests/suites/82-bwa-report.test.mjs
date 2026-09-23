@@ -329,7 +329,7 @@ describe('bwa report', () => {
       assert.equal(r.total, 37120, 'total provision = closing balance');
       assert.equal(r.current, 10752, 'this year’s addition = Haben movement');
       assert.equal(r.prior, 37120 - 10752, 'prior-year remainder = total − addition');
-      assert.deepEqual(r.detail, [{ no: 963, label: 'Körperschaftsteuerrückstellung', kind: 'kst', total: 37120, current: 10752, prior: 26368 }], 'per-tax-type detail (kind, prior, current, total)');
+      assert.deepEqual(r.detail, [{ no: 963, label: 'Körperschaftsteuerrückstellung', kind: 'kst', anfang: 37120, berechnet: 10752, bezahlt: 10752, offen: 37120 }], 'per-tax-type flow (opening + booked − paid = open)');
       assert.deepEqual(r.tax, { expected: 12000, reservedCurrent: 10752, gap: 1248, hasSplit: true }, 'coverage judged against the yearly addition, not the whole reserve');
       assert.equal(r.coverage, 0.9, 'tax coverage uses the yearly addition (10.752 / 12.000)');
       page.assertNoErrors();
@@ -349,7 +349,7 @@ describe('bwa report', () => {
           { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 37120, side: 'H', soll: 10752, haben: 10752, eb: -37120 },
         ];
         const parsed = { meta: { company: 'Test GmbH', date: '31.12.2024', monthsElapsed: 12, periodLabel: 'Jan/2024 – Dez/2024', currentMonth: 'Dez/2024', currency: 'EUR' },
-          ker: { ergebnisVorSteuern: { ytd: 74078.30, month: 0, label: 'Ergebnis vor Steuern' } }, hasSusa: true, hasTurnover: true, susa };
+          ker: { ergebnisVorSteuern: { ytd: 74078.30, month: 0, label: 'Ergebnis vor Steuern' }, umsatz: { ytd: 100000, month: 0, label: 'Umsatzerlöse' } }, hasSusa: true, hasTurnover: true, susa };
         localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2024-12': parsed } }));
         localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2024-12' }));
       });
@@ -365,21 +365,25 @@ describe('bwa report', () => {
           headers: table ? [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim()) : [],
           groups: table ? [...table.querySelectorAll('tbody tr.bwa-tr-group td')].map((td) => td.textContent.trim()) : [],
           ust: cells(/Umsatzsteuer-Zahllast/), wage: cells(/Lohnsteuer & Sozial/), fremd: cells(/Summe Fremdgeld/),
-          etSum: cells(/Summe Ertragsteuer/), hold: cells(/Vorzuhalten \(netto\)/),
+          gewst: cells(/Gewerbesteuer/), etSum: cells(/Summe Ertragsteuer/), hold: cells(/Vorzuhalten \(netto\)/),
           holdNote: /Vorzuhalten \(Liquidität\): 115\.781/.test(txt),
-          plausAmber: /2\.588\s*€\s*unter/.test(txt) && !!panel.querySelector('.bwa-assess-ok'),
+          etAmber: /2\.588\s*€\s*unter/.test(txt), ustWarn: /Umsatzsteuer-Plausibilität/.test(txt),
         };
       });
-      assert.deepEqual(r.headers, ['Steuer / Posten', 'Vorjahre (offen)', 'Zuführung dieses Jahr', 'Vorzuhalten', 'Eigene Berechnung', 'Δ (Zuf. − eigene)']);
+      assert.deepEqual(r.headers, ['Steuer / Posten', 'Anfang (Vorjahr)', 'Berechnet dieses Jahr', 'Bezahlt/abziehbar', 'Offen (vorzuhalten)', 'Eigene Berechnung', 'Δ (Ber. − eigene)']);
       assert.deepEqual(r.groups, ['Durchlaufende Posten (Fremdgeld)', 'Eigene Ertragsteuer (netto)'], 'grouped pass-through vs. own income tax');
-      assert.equal(r.ust[3], '24.231 €', 'VAT liability in the pass-through group');
-      assert.equal(r.wage[3], '15.853 €', 'wage tax/SV amount in the pass-through group');
+      // VAT flow: opening 0 (–) + booked 24.231 − paid 0 (–) = 24.231 open
+      assert.deepEqual(r.ust.slice(1, 5), ['–', '24.231 €', '–', '24.231 €'], 'VAT flow opening/booked/paid/open (0 shown as –)');
+      assert.equal(r.wage[4], '15.853 €', 'wage tax/SV shown as open only');
       assert.match(r.wage[0], /Lohnsteuer & Sozialabgaben.*Teil der Personalkosten/, 'wage tax/SV flagged as personnel cost');
-      assert.equal(r.fremd[3], '40.084 €', 'pass-through subtotal');
-      assert.deepEqual(r.etSum, ['Summe Ertragsteuer', '56.061 €', '19.636 €', '75.697 €', '22.223 €', '-2.588 €'], 'income-tax subtotal reconciles (prior+this=total; add−own=Δ)');
-      assert.equal(r.hold[3], '115.781 €', 'net amount to keep aside = pass-through + income tax − refunds');
+      assert.equal(r.fremd[4], '40.084 €', 'pass-through subtotal (open column)');
+      // GewSt: opening 38.577 + booked 8.884 − paid 8.884 = 38.577; own 10.501, Δ −1.617
+      assert.deepEqual(r.gewst.slice(1, 7), ['38.577 €', '8.884 €', '8.884 €', '38.577 €', '10.501 €', '-1.617 €'], 'income-tax flow + own calc + Δ');
+      assert.deepEqual(r.etSum.slice(1, 7), ['75.697 €', '19.636 €', '19.636 €', '75.697 €', '22.223 €', '-2.588 €'], 'income-tax subtotal reconciles');
+      assert.equal(r.hold[4], '115.781 €', 'net amount to keep aside = pass-through + income tax − refunds');
       assert.ok(r.holdNote, 'states the liquidity to keep aside');
-      assert.ok(r.plausAmber, 'plausibility deviation flagged (amber) to raise with the advisor');
+      assert.ok(r.etAmber, 'income-tax deviation flagged for the advisor');
+      assert.ok(r.ustWarn, 'VAT plausibility from revenue flags the large deviation (booked 24.231 vs 19.000 expected)');
       await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();
     } finally { await page.close(); }
