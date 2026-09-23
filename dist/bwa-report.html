@@ -349,6 +349,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .bwa-taxtable td { border-bottom: 1px solid var(--qrx-border); }
 .bwa-taxtable tr:last-child td { border-top: 1px solid var(--qrx-border-strong); border-bottom: none; }
 .bwa-taxtable + .bwa-assess { margin-top: var(--qrx-s-3); }
+/* Tax overview table: grouped rows + sub-/grand-totals */
+.bwa-taxoverview .bwa-tr-group td { font-weight: 600; color: var(--qrx-text-muted); padding-top: 12px;
+  border-bottom: 1px solid var(--qrx-border); }
+.bwa-taxoverview .bwa-tr-sub td { border-top: 1px solid var(--qrx-border); font-weight: 600; }
+.bwa-taxoverview .bwa-tr-total td { border-top: 2px solid var(--qrx-border-strong); font-weight: 700; }
 .bwa-flow-legend { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2) var(--qrx-s-4); margin-top: var(--qrx-s-3); }
 .bwa-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--qrx-text-muted); }
 .bwa-leg-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
@@ -745,9 +750,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       Dazu <strong>„Vorzuhalten nach Art"</strong> in zwei klaren Töpfen — <strong>durchlaufende Posten</strong>
       (Umsatzsteuer + Lohnsteuer/Sozialabgaben, letztere Teil der Personalkosten) und <strong>eigene
       Ertragsteuer</strong> (Rückstellungen − Erstattungsansprüche) — mit dem resultierenden
-      <strong>Netto-Abfluss</strong>, eine <strong>Ertragsteuer-Prognose</strong>
-      (Ergebnis − Verlustvortrag → erwartete Steuer, abgeglichen mit den Rückstellungen; Erstattungsansprüche
-      werden erkannt) und eine <strong>Verprobung</strong> (gebuchte USt vs. 19 % vom Umsatz, Vorsteuer vs.
+      <strong>Netto-Abfluss</strong>, eine <strong>Steuer-Übersichtstabelle</strong> mit allen Posten in einem Bild —
+      <strong>durchlaufende Posten</strong> (Umsatzsteuer, Lohnsteuer/Sozialabgaben) und <strong>eigene
+      Ertragsteuer</strong> je Steuerart mit <strong>Vorjahren (offen)</strong>, <strong>Zuführung dieses Jahr</strong>,
+      vorzuhaltendem Betrag und einer <strong>eigenen überschlägigen Berechnung</strong> zur Plausibilisierung
+      (Δ zeigt, was ggf. beim Steuerberater zu klären ist); Zwischensummen machen die Verrechnungen sichtbar,
+      die Schlusszeile den vorzuhaltenden Liquiditätsbetrag. Dazu eine <strong>Verprobung</strong> (gebuchte USt vs. 19 % vom Umsatz, Vorsteuer vs.
       Aufwand). Grobe Orientierung, keine Steuerberechnung; die USt-Voranmeldung bleibt außen vor.</li>
   <li><strong>Umsatz je Kunde</strong> — die größten Kunden nach <strong>fakturiertem Umsatz</strong>
       (kumuliert), mit <strong>Anfangssaldo (Vorjahr)</strong>, <strong>vereinnahmten Zahlungen</strong>
@@ -836,8 +844,12 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       tax provisions) and <strong>freely usable</strong>. Plus <strong>“what to keep aside, by type”</strong>
       in two clear buckets — <strong>pass-through money</strong> (VAT + wage tax/social security, the
       latter part of personnel costs) and <strong>own income tax</strong> (provisions − refund claims) —
-      with the resulting <strong>net outflow</strong>, an <strong>income-tax outlook</strong> (result −
-      loss carry-forward → expected tax, reconciled with provisions; refund claims are detected) and a
+      with the resulting <strong>net outflow</strong>, a single <strong>tax overview table</strong> covering
+      everything — <strong>pass-through items</strong> (VAT, wage tax/social security) and <strong>own income
+      tax</strong> per type with <strong>prior years (open)</strong>, <strong>this year’s addition</strong>,
+      the amount to keep aside and an <strong>own rough calculation</strong> for a plausibility cross-check
+      (Δ shows what may need raising with the tax advisor); subtotals make the offsetting visible and the
+      final row the liquidity to keep aside. Plus a
       <strong>plausibility check</strong> (booked VAT vs. 19 % of revenue, input VAT vs. expense). Rough orientation, not a tax calculation; the
       VAT return sheet stays out of scope.</li>
   <li><strong>Revenue per customer</strong> — the largest customers by <strong>invoiced turnover</strong>
@@ -939,7 +951,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260922-171808</span>
+    &middot; v<span data-build-version>260923-091641</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2721,7 +2733,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       secCockpit: 'Cockpit', gaugeSafety: 'Sicherheitsabstand', gaugeCluster: 'Klumpenrisiko (Top-Kunde)', gaugeTaxCov: 'Ertragsteuer-Deckung', gaugeNoTaxDue: 'keine fällig',
       'def.marge': 'Umsatzrendite = Betriebsergebnis ÷ Umsatz. Wie viel von jedem Euro Umsatz als Ergebnis übrig bleibt.',
       'def.cluster': 'Anteil des größten Kunden an den offenen Forderungen. Hoch = starke Abhängigkeit von einem Kunden (Risiko).',
-      'def.taxcov': 'Nur Ertragsteuer (Körperschaft-/Gewerbesteuer): Wie weit die Steuerrückstellungen die überschlägig erwartete Ertragsteuer decken (Verlustvorträge berücksichtigt). Sagt nichts über Umsatzsteuer-Zahllasten aus — dafür die Netto-Steuerposition. Grobe Orientierung.',
+      'def.taxcov': 'Nur Ertragsteuer (Körperschaft-/Gewerbesteuer): Wie weit die diesjährige Zuführung zur Steuerrückstellung die überschlägig erwartete Ertragsteuer des Jahres deckt (Verlustvorträge berücksichtigt; kumulierte Vorjahresrückstellungen bleiben außen vor). Sagt nichts über Umsatzsteuer aus. Grobe Orientierung.',
       periodLine: 'Monat {m} · kumuliert {p} · Stand {d}',
       // sections
       secGlance: 'Auf einen Blick', secErtrag: 'Wirtschaftliche Lage', secKosten: 'Kostenstruktur',
@@ -2782,7 +2794,15 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       etTitle: 'Ertragsteuer — Prognose & Deckung',
       etErgebnis: 'Ergebnis vor Steuern', etLoss: 'Verlustvortrag (verrechenbar)',
       etTaxable: 'Zu versteuern (nach Verlustvortrag)', etExpected: 'Erwartete Ertragsteuer (~{rate})',
-      etReserved: 'Bereits zurückgestellt',
+      etReserved: 'Bereits zurückgestellt', etReservedCurrent: 'Zurückgestellt (Zuführung lfd. Jahr)',
+      etProvSplit: 'Steuerrückstellung gesamt: {total} — davon {current} Zuführung dieses Jahr, {prior} aus Vorjahren (noch nicht veranlagt/bezahlt). Der Gesamtbestand ist kein Maßstab für die Jahressteuer.',
+      txOverviewTitle: 'Steuern & Fremdgeld — Übersicht',
+      txArt: 'Steuer / Posten', txPrior: 'Vorjahre (offen)', txCurrent: 'Zuführung dieses Jahr', txHoldCol: 'Vorzuhalten',
+      txOwn: 'Eigene Berechnung', txDelta: 'Δ (Zuf. − eigene)', txSum: 'Summe', etSubtotal: 'Summe Ertragsteuer', txHoldRow: 'Vorzuhalten (netto)',
+      txKst: 'Körperschaftsteuer (+ SolZ)', txGewst: 'Gewerbesteuer', txUnder: 'unter', txOver: 'über',
+      txHold: 'Vorzuhalten (Liquidität): {amount} — Steuern & Fremdgeld nach Verrechnung der Erstattungen. Diesen Betrag als Puffer bereithalten, nicht verplanen.',
+      txPlaus: 'Plausibilität: Die Zuführung dieses Jahr ({current}) liegt {delta} {dir} der eigenen überschlägigen Berechnung ({own}). Bei größerer Abweichung beim Steuerberater nachfragen.',
+      txCaveat: 'Eigene Berechnung überschlägig: Körperschaftsteuer + SolZ rund 15,8 %, Gewerbesteuer als Rest zur 30-%-Faustregel (Hebesatz-abhängig). Tatsächliche Sätze, Hebesatz, Verlustvorträge und Abgrenzungen weichen ab — keine Steuerberatung.',
       etVerdictShield: 'Dank des Verlustvortrags ({loss}) ist aktuell voraussichtlich keine Ertragsteuer-Nachzahlung zu erwarten.',
       etVerdictGap: 'Mögliche Nachzahlung: Die erwartete Ertragsteuer übersteigt die Rückstellungen um rund {gap}. Rücklage entsprechend erhöhen.',
       etVerdictCovered: 'Die gebildeten Rückstellungen decken die überschlägig erwartete Ertragsteuer.',
@@ -2855,7 +2875,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       secCockpit: 'Cockpit', gaugeSafety: 'Safety margin', gaugeCluster: 'Concentration (top customer)', gaugeTaxCov: 'Income-tax coverage', gaugeNoTaxDue: 'none due',
       'def.marge': 'Operating margin = operating result ÷ revenue. How much of each euro of revenue remains as result.',
       'def.cluster': 'Share of the largest customer in open receivables. High = strong dependence on one customer (risk).',
-      'def.taxcov': 'Income tax only (corporate/trade tax): how far the tax provisions cover the roughly expected income tax (loss carry-forwards considered). Says nothing about VAT liabilities — see the net tax position for that. Rough orientation.',
+      'def.taxcov': 'Income tax only (corporate/trade tax): how far this year’s addition to the tax provision covers the roughly expected income tax for the year (loss carry-forwards considered; cumulative prior-year provisions excluded). Says nothing about VAT. Rough orientation.',
       periodLine: 'Month {m} · year-to-date {p} · as of {d}',
       secGlance: 'At a glance', secErtrag: 'Economic situation', secKosten: 'Cost structure',
       secLiqui: 'Liquidity', secBewertung: 'Rating & recommendations', secDetails: 'Details',
@@ -2910,7 +2930,15 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
       etTitle: 'Income tax — outlook & coverage',
       etErgebnis: 'Result before taxes', etLoss: 'Loss carry-forward (usable)',
       etTaxable: 'Taxable (after loss carry-forward)', etExpected: 'Expected income tax (~{rate})',
-      etReserved: 'Already provisioned',
+      etReserved: 'Already provisioned', etReservedCurrent: 'Provisioned (this year’s addition)',
+      etProvSplit: 'Total tax provision: {total} — of which {current} added this year and {prior} carried from prior years (not yet assessed/paid). The total balance is not a yardstick for this year’s tax.',
+      txOverviewTitle: 'Taxes & pass-through — overview',
+      txArt: 'Tax / item', txPrior: 'Prior years (open)', txCurrent: 'Addition this year', txHoldCol: 'To keep aside',
+      txOwn: 'Own calculation', txDelta: 'Δ (add. − own)', txSum: 'Total', etSubtotal: 'Subtotal income tax', txHoldRow: 'To keep aside (net)',
+      txKst: 'Corporate tax (+ solidarity)', txGewst: 'Trade tax', txUnder: 'below', txOver: 'above',
+      txHold: 'To keep aside (liquidity): {amount} — taxes & pass-through money after offsetting refunds. Keep this buffer, do not spend it.',
+      txPlaus: 'Plausibility: this year’s addition ({current}) is {delta} {dir} the own rough calculation ({own}). Raise larger deviations with the tax advisor.',
+      txCaveat: 'Own calculation is rough: corporate tax + solidarity about 15.8 %, trade tax as the remainder of the 30 % rule of thumb (multiplier-dependent). Actual rates, multiplier, loss carry-forwards and accruals differ — not tax advice.',
       etVerdictShield: 'Thanks to the loss carry-forward ({loss}), no income-tax back-payment is expected at present.',
       etVerdictGap: 'Possible back-payment: the expected income tax exceeds the provisions by about {gap}. Increase the reserve accordingly.',
       etVerdictCovered: 'The provisions made cover the roughly expected income tax.',
@@ -3044,47 +3072,50 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     }
     return accounts;
   }
-  // Per-customer/-supplier turnover from the trial-balance movement columns
-  // (cumulative Soll = invoiced, Haben = collected). Only attached when the
-  // columns exist and the double-entry identity EB + Soll − Haben = Saldo holds
-  // broadly — otherwise left off, so a BWA without movement columns just keeps
-  // the closing balances. Mutates the accounts (adds .soll / .haben).
+  // Cumulative Soll/Haben movements per account from the trial-balance columns.
+  // Runs over ALL accounts (personal accounts for customer/supplier turnover, tax
+  // provisions for the yearly addition, …). Only attached when the columns exist
+  // and the double-entry identity EB + Soll − Haben = Saldo holds broadly —
+  // otherwise left off, so a BWA without movement columns just keeps the closing
+  // balances. Mutates the accounts (adds .soll / .haben / .eb) and returns whether
+  // the movement columns were found.
   function analyzeTurnover(accounts) {
-    const personal = accounts.filter((a) => a.no >= 10000 && a.no <= 99999 && a.cols && a.cols.length);
-    if (personal.length < 3) return;
+    const pool = accounts.filter((a) => a.cols && a.cols.length);
+    if (pool.length < 3) return false;
     const xs = [];
-    personal.forEach((a) => a.cols.forEach((c) => xs.push(c.x)));
+    pool.forEach((a) => a.cols.forEach((c) => xs.push(c.x)));
     xs.sort((p, q) => p - q);
     const centers = []; let cur = [xs[0]];
     for (let i = 1; i < xs.length; i++) { if (xs[i] - xs[i - 1] > 18) { centers.push(avg(cur)); cur = []; } cur.push(xs[i]); }
     centers.push(avg(cur));
-    if (centers.length < 3) return;                       // need Soll, Haben, Saldo at least
+    if (centers.length < 3) return false;                 // need Soll, Haben, Saldo at least
     const colOf = (x) => { let best = 0, bd = Infinity; centers.forEach((c, i) => { const d = Math.abs(c - x); if (d < bd) { bd = d; best = i; } }); return best; };
     const withSide = centers.map(() => 0), noSide = centers.map(() => 0);
-    personal.forEach((a) => a.cols.forEach((c) => { const ci = colOf(c.x); if (c.side) withSide[ci]++; else noSide[ci]++; }));
+    pool.forEach((a) => a.cols.forEach((c) => { const ci = colOf(c.x); if (c.side) withSide[ci]++; else noSide[ci]++; }));
     // Balance columns (EB, Saldo) carry S/H side letters; movement columns (Soll/
     // Haben) never do. Zero balances print without a side, so use a fraction, not
     // a majority, to separate them.
     const isBalance = centers.map((_, i) => (withSide[i] + noSide[i]) > 0 && withSide[i] / (withSide[i] + noSide[i]) >= 0.15);
     let ebCol = -1, saldoCol = -1;
     centers.forEach((_, i) => { if (isBalance[i]) { if (ebCol < 0) ebCol = i; saldoCol = i; } });
-    if (saldoCol < 0) return;
+    if (saldoCol < 0) return false;
     const moveCols = [];
     for (let i = 0; i < saldoCol; i++) if (!isBalance[i]) moveCols.push(i);
-    if (moveCols.length < 2) return;
+    if (moveCols.length < 2) return false;
     const kumSollCol = moveCols[moveCols.length - 2], kumHabenCol = moveCols[moveCols.length - 1];
     const readCol = (a, ci) => a.cols.find((c) => colOf(c.x) === ci) || null;
     const signed = (c) => c ? (c.side === 'H' ? -c.v : c.v) : 0;   // debit-positive
     let ok = 0, tot = 0; const rows = [];
-    for (const a of personal) {
+    for (const a of pool) {
       const sC = readCol(a, kumSollCol), hC = readCol(a, kumHabenCol), sal = readCol(a, saldoCol);
       const eb = ebCol !== saldoCol ? readCol(a, ebCol) : null;
       const soll = sC ? sC.v : 0, haben = hC ? hC.v : 0, ebS = signed(eb);
       const good = Math.abs(ebS + soll - haben - signed(sal)) < 0.02;
       rows.push({ a, soll, haben, ebS, good }); tot++; if (good) ok++;
     }
-    if (!tot || ok / tot < 0.8) return;                   // columns not as assumed → stay safe
-    rows.forEach((r) => { if (r.soll > 0 || r.haben > 0) { r.a.soll = r.soll; r.a.haben = r.haben; r.a.eb = r.ebS; } });
+    if (!tot || ok / tot < 0.8) return false;             // columns not as assumed → stay safe
+    rows.forEach((r) => { if (r.good) { r.a.soll = r.soll; r.a.haben = r.haben; r.a.eb = r.ebS; } });
+    return true;
   }
   // Largest customers by invoiced turnover (with collected + open), if available.
   function customerRevenue(parsed) {
@@ -3131,8 +3162,8 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     const susaPages = pages.filter((p) => /Summen und Salden/i.test(pageText(p)));
     if (!kerPage) return { error: 'no-ker' };
     const susa = parseSusa(susaPages);
-    analyzeTurnover(susa);
-    return { meta: meta(pages), ker: parseKer(kerPage), susa, hasSusa: susaPages.length > 0 };
+    const hasTurnover = analyzeTurnover(susa);
+    return { meta: meta(pages), ker: parseKer(kerPage), susa, hasSusa: susaPages.length > 0, hasTurnover };
   }
 
   // ------------------------------------------------------------ KPI engine
@@ -3172,16 +3203,34 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     // Rough income-tax orientation for corporations (GmbH/UG/AG). Loss carry-
     // forwards (868) can reduce/remove it, so it is shown as orientation only.
     o.taxProvisions = a.length ? bucket(a, 955, 969, false) : 0;
+    // The balance-sheet tax reserve is cumulative across not-yet-assessed years.
+    // When the movement columns are available, split it into this year's addition
+    // (Haben movement) and the prior-year remainder, so the yearly tax can be
+    // judged against the yearly provision — not against the whole stock.
+    if (parsed.hasTurnover && a.length) {
+      const prov = a.filter((x) => x.no >= 955 && x.no <= 969);
+      o.taxProvCurrent = prov.reduce((s, x) => s + (x.haben || 0), 0);
+      o.taxProvPrior = Math.max(0, o.taxProvisions - o.taxProvCurrent);
+      // Per tax-type detail: prior-year remainder, this year's addition, total.
+      o.taxDetail = prov.map((x) => {
+        const total = x.side === 'H' ? x.saldoAbs : (x.side === 'S' ? -x.saldoAbs : 0);
+        const current = x.haben || 0;
+        const kind = /gewerbe/i.test(x.label) ? 'gewst' : /k[oö]rperschaft/i.test(x.label) ? 'kst' : 'other';
+        return { no: x.no, label: x.label, kind, total, current, prior: total - current };
+      }).filter((d) => d.total !== 0 || d.current !== 0);
+    }
     const vv = a.find((x) => x.no === 868);
     o.lossCarry = vv && vv.side === 'S' ? vv.saldoAbs : 0;
     const isKapGes = /gmbh|mbh|\bag\b|\bug\b|\bse\b/i.test(parsed.meta.company || '');
     if (isKapGes && o.ergebnisVorSteuernYtd > 0) {
       // loss carry-forwards (868) shield the current profit → taxable base after offset
       const taxable = Math.max(0, o.ergebnisVorSteuernYtd - o.lossCarry), expAdj = taxable * 0.30;
+      const reservedYear = o.taxProvCurrent != null ? o.taxProvCurrent : o.taxProvisions;
       o.taxCheck = { rate: 0.30, base: o.ergebnisVorSteuernYtd, expected: o.ergebnisVorSteuernYtd * 0.30,
-        taxable, expectedAdj: expAdj, reserved: o.taxProvisions, gap: expAdj - o.taxProvisions,
+        taxable, expectedAdj: expAdj, reserved: o.taxProvisions, gap: expAdj - reservedYear,
+        reservedCurrent: o.taxProvCurrent, reservedPrior: o.taxProvPrior, hasSplit: o.taxProvCurrent != null,
         lossCarry: o.lossCarry, hasSusa: parsed.hasSusa };
-      if (parsed.hasSusa) o.taxCoverage = expAdj > 0 ? o.taxProvisions / expAdj : 2;   // 2 = comfortably covered
+      if (parsed.hasSusa) o.taxCoverage = expAdj > 0 ? reservedYear / expAdj : 2;   // 2 = comfortably covered
     }
     if (parsed.hasSusa && a.length) {
       const L = {
@@ -3324,7 +3373,9 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
   // Taxes & reserves section: (A) bound vs. free liquidity, (B) income-tax
   // outlook incl. loss carry-forwards, (C) plausibility check from the figures.
   function taxSection(K) {
-    const inner = bindingBlock(K) + netTaxBlock(K) + ertragTaxBlock(K) + verprobungBlock(K);
+    const over = K.taxDetail != null ? taxOverviewBlock(K) : '';   // one table when movement columns exist
+    const fallback = over ? '' : (netTaxBlock(K) + ertragTaxBlock(K));
+    const inner = bindingBlock(K) + over + fallback + verprobungBlock(K);
     return inner ? section('secTaxes', inner) : '';
   }
   // What must be kept aside, split into two plainly-named buckets: pass-through
@@ -3367,37 +3418,95 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
     </div>${legend([...segs.map((s) => ({ name: t(s.key), cls: s.cls })), { name: t('liqFree'), cls: 'bwa-seg-free' }])}`;
     const lvl = S.free <= 0 ? 'bad' : (S.freeRatio != null && S.freeRatio < 0.25 ? 'ok' : 'good');
     const cards = card(t('kLiquide'), eur0(S.cash), null, null, 'liquide')
-      + (S.ustOwed > 0 ? card(t('liqUst'), eur0(S.ustOwed), null, null, 'ust') : '')
-      + (S.wageTax > 0 ? card(t('liqWage'), eur0(S.wageTax), t('ntPayrollHint'), null) : '')
-      + (S.reserves > 0 ? card(t('liqRes'), eur0(S.reserves), null, null, 'rueckstellungen') : '')
       + card(t('liqBound'), eur0(S.bound), null, null, 'bound')
       + card(t('liqFree'), money2(S.free), S.freeRatio != null ? t('liqFreeSub', { p: pct(S.freeRatio, 0) }) : null, lvl);
-    const ustBreak = S.ustOwed > 0 && K.ust
-      ? `<p class="bwa-note">${esc(t('liqUstBreak', { output: eur0(K.ust.output), vorsteuer: eur0(K.ust.vorsteuer), prepaid: eur0(K.ust.prepaid) }))}</p>` : '';
-    const refundNote = S.refunds > 0 ? `<p class="bwa-note">${esc(t('liqRefundNote', { amount: eur0(S.refunds) }))}</p>` : '';
     return `<div class="bwa-taxbox-head"><strong>${esc(t('liqBindTitle'))}</strong>${info('bound')}</div>
-      ${bar}<div class="bwa-cards" style="margin-top:var(--qrx-s-3)">${cards}</div>${ustBreak}${refundNote}`;
+      ${bar}<div class="bwa-cards" style="margin-top:var(--qrx-s-3)">${cards}</div>`;
   }
-  // (B) Income-tax outlook: result → loss carry-forward → expected tax → coverage.
+  // (B) Income-tax outlook. With movement columns: a per-tax-type table showing
+  // prior-year remainder, this year's addition, total reserve and an own rough
+  // calculation for a plausibility cross-check. Otherwise a simple step table.
+  const RATE_KST = 0.15825;                 // corporate tax 15% + solidarity surcharge
   function ertragTaxBlock(K) {
     const T = K.taxCheck;
     if (!T) return '';
+    const shielded = T.lossCarry > 0 && T.taxable === 0;
     const rows = [[t('etErgebnis'), eur0(T.base)]];
     if (T.lossCarry > 0) { rows.push([t('etLoss'), '− ' + eur0(Math.min(T.lossCarry, T.base))]); rows.push([t('etTaxable'), eur0(T.taxable)]); }
     rows.push([t('etExpected', { rate: pct(T.rate, 0) }), eur0(T.expectedAdj)]);
-    if (T.hasSusa) rows.push([t('etReserved'), eur0(T.reserved)]);
-    const shielded = T.lossCarry > 0 && T.taxable === 0;
+    if (T.hasSusa) rows.push([T.hasSplit ? t('etReservedCurrent') : t('etReserved'), eur0(T.hasSplit ? T.reservedCurrent : T.reserved)]);
     const vlvl = (shielded || T.gap <= 0) ? 'good' : 'bad';
     const verdict = shielded ? t('etVerdictShield', { loss: eur0(T.lossCarry) })
       : (T.hasSusa && T.gap > 0) ? t('etVerdictGap', { gap: eur0(T.gap) })
         : (T.hasSusa) ? t('etVerdictCovered') : t('etVerdictNoSusa', { expected: eur0(T.expectedAdj) });
     const refund = (K.taxSummary && K.taxSummary.refunds > 0)
       ? `<p class="bwa-note">${esc(t('etRefund', { amount: eur0(K.taxSummary.refunds) }))}</p>` : '';
+    const split = (T.hasSusa && T.hasSplit && (T.reservedPrior > 0 || T.reservedCurrent > 0))
+      ? `<p class="bwa-note">${esc(t('etProvSplit', { total: eur0(T.reserved), current: eur0(T.reservedCurrent), prior: eur0(T.reservedPrior) }))}</p>` : '';
     const tbl = `<table class="bwa-table bwa-taxtable"><tbody>${rows.map((r, i) =>
       `<tr class="${i === rows.length - 1 ? 'bwa-tr-bold' : ''}"><td>${esc(r[0])}</td><td class="bwa-num">${esc(r[1])}</td></tr>`).join('')}</tbody></table>`;
     return `<div class="bwa-subtitle"><strong>${esc(t('etTitle'))}</strong>${info('steuercheck')}</div>
-      ${tbl}<div class="bwa-assess bwa-assess-${vlvl}">${dot(vlvl)}<div>${esc(verdict)}</div></div>${refund}
+      ${tbl}<div class="bwa-assess bwa-assess-${vlvl}">${dot(vlvl)}<div>${esc(verdict)}</div></div>${split}${refund}
       <p class="bwa-note">${esc(t('taxCheckCaveat'))}</p>`;
+  }
+  // One overview table for all taxes: pass-through money (VAT, wage tax/SV),
+  // own income tax per type (prior-year / this-year / total + an own rough
+  // calculation for a plausibility cross-check), refund claims, and the net
+  // liquidity to keep aside. Verrechnungen show as sub-totals.
+  const taxKindLabel = (d) => d.kind === 'kst' ? t('txKst') : d.kind === 'gewst' ? t('txGewst') : (d.label || ('Konto ' + d.no));
+  function taxOverviewBlock(K) {
+    const S = K.taxSummary, T = K.taxCheck;
+    if (!S || (S.ustOwed <= 0 && S.wageTax <= 0 && S.reserves <= 0 && S.refunds <= 0)) return '';
+    const shielded = T && T.lossCarry > 0 && T.taxable === 0;
+    const taxable = T ? T.taxable : 0, rateGewst = T ? Math.max(0, T.rate - RATE_KST) : 0;
+    const ownOf = (kind) => !T ? null : kind === 'kst' ? taxable * RATE_KST : kind === 'gewst' ? taxable * rateGewst : null;
+    const R = [];
+    R.push({ g: t('ptPassThrough') });
+    if (S.ustOwed > 0) R.push({ label: t('liqUst'), betrag: S.ustOwed });
+    if (S.wageTax > 0) R.push({ label: t('liqWage'), betrag: S.wageTax, hint: t('ntPayrollHint') });
+    R.push({ sub: 1, label: t('ptSumPass'), betrag: S.passThrough });
+    let ep = 0, ec = 0, et = 0, eo = 0, ed = 0, hasEt = false;
+    R.push({ g: t('ptOwnTax') });
+    (K.taxDetail || []).forEach((d) => {
+      const own = ownOf(d.kind), delta = own != null ? d.current - own : null;
+      R.push({ label: taxKindLabel(d), prior: d.prior, current: d.current, betrag: d.total, own, delta });
+      ep += d.prior; ec += d.current; et += d.total; eo += own || 0; if (delta != null) ed += delta; hasEt = true;
+    });
+    if (!hasEt && S.reserves > 0) { R.push({ label: t('liqRes'), betrag: S.reserves }); et = S.reserves; }
+    if (hasEt) R.push({ sub: 1, label: t('etSubtotal'), prior: ep, current: ec, betrag: et, own: eo, delta: ed });
+    if (S.refunds > 0) R.push({ label: t('ntRefunds'), betrag: -S.refunds });
+    R.push({ total: 1, label: t('txHoldRow'), betrag: S.netOutflow });
+    const num = (v) => v == null ? '–' : eur0(v);
+    const body = R.map((r) => {
+      if (r.g) return `<tr class="bwa-tr-group"><td colspan="6">${esc(r.g)}</td></tr>`;
+      const cls = r.total ? 'bwa-tr-bold bwa-tr-total' : r.sub ? 'bwa-tr-sub' : '';
+      const label = esc(r.label) + (r.hint ? ` <span class="bwa-muted">· ${esc(r.hint)}</span>` : '');
+      return `<tr class="${cls}"><td>${label}</td>
+        <td class="bwa-num bwa-muted">${num(r.prior)}</td><td class="bwa-num">${num(r.current)}</td>
+        <td class="bwa-num">${num(r.betrag)}</td><td class="bwa-num">${num(r.own)}</td><td class="bwa-num">${num(r.delta)}</td></tr>`;
+    }).join('');
+    const table = `<div class="bwa-table-wrap"><table class="bwa-table bwa-taxoverview"><thead><tr>
+      <th>${esc(t('txArt'))}</th><th class="bwa-num">${esc(t('txPrior'))}</th><th class="bwa-num">${esc(t('txCurrent'))}</th>
+      <th class="bwa-num">${esc(t('txHoldCol'))}</th><th class="bwa-num">${esc(t('txOwn'))}</th><th class="bwa-num">${esc(t('txDelta'))}</th>
+    </tr></thead><tbody>${body}</tbody></table></div>`;
+    let bem = '';
+    if (T && T.hasSusa) {
+      const bp = [t('etErgebnis') + ': ' + eur0(T.base)];
+      if (T.lossCarry > 0) bp.push(t('etLoss') + ': − ' + eur0(Math.min(T.lossCarry, T.base)));
+      bp.push(t('etTaxable') + ': ' + eur0(T.taxable));
+      bem = `<p class="bwa-note bwa-subnote">${esc(bp.join(' · '))}</p>`;
+    }
+    const material = Math.abs(ed) > 0.05 * (eo || 1);
+    const plausLvl = shielded ? 'good' : (material ? 'ok' : 'good');
+    const plausText = shielded ? t('etVerdictShield', { loss: eur0(T.lossCarry) })
+      : (hasEt && T) ? t('txPlaus', { current: eur0(ec), own: eur0(eo), delta: eur0(Math.abs(ed)), dir: ed < 0 ? t('txUnder') : t('txOver') }) : '';
+    const plaus = plausText ? `<div class="bwa-assess bwa-assess-${plausLvl}">${dot(plausLvl)}<div>${esc(plausText)}</div></div>` : '';
+    return `<div class="bwa-subtitle"><strong>${esc(t('txOverviewTitle'))}</strong>${info('steuercheck')}</div>
+      ${bem}${table}
+      <p class="bwa-note"><strong>${esc(t('txHold', { amount: eur0(S.netOutflow) }))}</strong></p>
+      ${plaus}
+      <p class="bwa-note">${esc(t('ptNote'))}</p>
+      <p class="bwa-note">${esc(t('txCaveat'))}</p>`;
   }
   // (C) Rough plausibility from revenue (output VAT) and expenses (input VAT).
   function verprobungBlock(K) {

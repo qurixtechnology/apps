@@ -303,6 +303,88 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('splits the tax provision into this year’s addition and prior-year remainder', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await importFixture(page);
+      const r = await page.evaluate(() => {
+        const col = (x, v, side) => ({ x, v, side: side || null });
+        // A cumulative tax reserve (closing 37.120) with a 10.752 addition this year;
+        // two debtors give the movement-column layout enough rows to detect.
+        const susa = [
+          { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 37120, side: 'H',
+            cols: [col(337, 37120, 'H'), col(607, 10752), col(697, 10752), col(787, 37120, 'H')] },
+          { no: 11001, label: 'Krongaard AG', saldoAbs: 13518.40, side: 'S',
+            cols: [col(337, 60199.72, 'S'), col(437, 13518.40), col(523, 28661.75), col(607, 323494.97), col(697, 370176.29), col(787, 13518.40, 'S')] },
+          { no: 12000, label: 'DIVERSE U', saldoAbs: 28560, side: 'S', cols: [col(607, 28560), col(787, 28560, 'S')] },
+        ];
+        const hasTurnover = window.__bwa.analyzeTurnover(susa);
+        const parsed = { meta: { company: 'Test GmbH', monthsElapsed: 12 }, ker: { ergebnisVorSteuern: { ytd: 40000, month: 0, label: 'Ergebnis vor Steuern' } }, hasSusa: true, hasTurnover, susa };
+        const K = window.__bwa.kpis(parsed);
+        const round = (n) => Math.round(n * 100) / 100;
+        return { hasTurnover, total: K.taxProvisions, current: K.taxProvCurrent, prior: K.taxProvPrior, detail: K.taxDetail,
+          tax: { expected: round(K.taxCheck.expectedAdj), reservedCurrent: K.taxCheck.reservedCurrent, gap: round(K.taxCheck.gap), hasSplit: K.taxCheck.hasSplit }, coverage: round(K.taxCoverage) };
+      });
+      assert.equal(r.hasTurnover, true, 'movement columns detected');
+      assert.equal(r.total, 37120, 'total provision = closing balance');
+      assert.equal(r.current, 10752, 'this year’s addition = Haben movement');
+      assert.equal(r.prior, 37120 - 10752, 'prior-year remainder = total − addition');
+      assert.deepEqual(r.detail, [{ no: 963, label: 'Körperschaftsteuerrückstellung', kind: 'kst', total: 37120, current: 10752, prior: 26368 }], 'per-tax-type detail (kind, prior, current, total)');
+      assert.deepEqual(r.tax, { expected: 12000, reservedCurrent: 10752, gap: 1248, hasSplit: true }, 'coverage judged against the yearly addition, not the whole reserve');
+      assert.equal(r.coverage, 0.9, 'tax coverage uses the yearly addition (10.752 / 12.000)');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('renders one tax overview table (pass-through + income tax + own calc + Δ)', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      await page.evaluate(() => {
+        const susa = [
+          { no: 1200, label: 'Bank', saldoAbs: 250000, side: 'S' },
+          { no: 1776, label: 'Umsatzsteuer 19%', saldoAbs: 24231, side: 'H' },
+          { no: 1741, label: 'Verbindl. Lohn- und Kirchensteuer', saldoAbs: 15853, side: 'H' },
+          { no: 956, label: 'Gewerbesteuerrückstellung § 4 (5b) EStG', saldoAbs: 38577, side: 'H', soll: 8883.90, haben: 8883.90, eb: -38577 },
+          { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 37120, side: 'H', soll: 10752, haben: 10752, eb: -37120 },
+        ];
+        const parsed = { meta: { company: 'Test GmbH', date: '31.12.2024', monthsElapsed: 12, periodLabel: 'Jan/2024 – Dez/2024', currentMonth: 'Dez/2024', currency: 'EUR' },
+          ker: { ergebnisVorSteuern: { ytd: 74078.30, month: 0, label: 'Ergebnis vor Steuern' } }, hasSusa: true, hasTurnover: true, susa };
+        localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2024-12': parsed } }));
+        localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2024-12' }));
+      });
+      await page.reload();
+      await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'taxes').click());
+      const r = await page.evaluate(() => {
+        const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'taxes');
+        const txt = panel.textContent;
+        const table = panel.querySelector('table.bwa-taxoverview');
+        const cells = (re) => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => re.test(t.textContent)); return tr ? [...tr.querySelectorAll('td')].map((td) => td.textContent.replace(/[  ]/g, ' ').replace(/−/g, '-').trim()) : []; };
+        return {
+          headers: table ? [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim()) : [],
+          groups: table ? [...table.querySelectorAll('tbody tr.bwa-tr-group td')].map((td) => td.textContent.trim()) : [],
+          ust: cells(/Umsatzsteuer-Zahllast/), wage: cells(/Lohnsteuer & Sozial/), fremd: cells(/Summe Fremdgeld/),
+          etSum: cells(/Summe Ertragsteuer/), hold: cells(/Vorzuhalten \(netto\)/),
+          holdNote: /Vorzuhalten \(Liquidität\): 115\.781/.test(txt),
+          plausAmber: /2\.588\s*€\s*unter/.test(txt) && !!panel.querySelector('.bwa-assess-ok'),
+        };
+      });
+      assert.deepEqual(r.headers, ['Steuer / Posten', 'Vorjahre (offen)', 'Zuführung dieses Jahr', 'Vorzuhalten', 'Eigene Berechnung', 'Δ (Zuf. − eigene)']);
+      assert.deepEqual(r.groups, ['Durchlaufende Posten (Fremdgeld)', 'Eigene Ertragsteuer (netto)'], 'grouped pass-through vs. own income tax');
+      assert.equal(r.ust[3], '24.231 €', 'VAT liability in the pass-through group');
+      assert.equal(r.wage[3], '15.853 €', 'wage tax/SV amount in the pass-through group');
+      assert.match(r.wage[0], /Lohnsteuer & Sozialabgaben.*Teil der Personalkosten/, 'wage tax/SV flagged as personnel cost');
+      assert.equal(r.fremd[3], '40.084 €', 'pass-through subtotal');
+      assert.deepEqual(r.etSum, ['Summe Ertragsteuer', '56.061 €', '19.636 €', '75.697 €', '22.223 €', '-2.588 €'], 'income-tax subtotal reconciles (prior+this=total; add−own=Δ)');
+      assert.equal(r.hold[3], '115.781 €', 'net amount to keep aside = pass-through + income tax − refunds');
+      assert.ok(r.holdNote, 'states the liquidity to keep aside');
+      assert.ok(r.plausAmber, 'plausibility deviation flagged (amber) to raise with the advisor');
+      await page.evaluate(() => window.__bwa.reset());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('adds the year projection and a tax-reserve orientation with tooltips', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {
