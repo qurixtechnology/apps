@@ -397,6 +397,50 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('folds income-tax advance payments (P&L accounts) into the Ertragsteuer flow', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      await page.evaluate(() => {
+        // A 2023-style case: the reserve accounts carry an opening balance with no
+        // movement this year, while the regular advance payments (Pauschale) sit on
+        // the P&L tax accounts — KSt 2200 + SolZ 2216, GewSt 4320.
+        const susa = [
+          { no: 1200, label: 'Bank', saldoAbs: 200000, side: 'S' },
+          { no: 956, label: 'Gewerbesteuerrückstellung § 4 (5b) EStG', saldoAbs: 8884, side: 'H', soll: 0, haben: 0, eb: -8884 },
+          { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 11343, side: 'H', soll: 0, haben: 0, eb: -11343 },
+          { no: 2200, label: 'Körperschaftsteuer', saldoAbs: 9590, side: 'S', soll: 9590, haben: 0 },
+          { no: 2216, label: 'Solidaritätszuschlag', saldoAbs: 344, side: 'S', soll: 344, haben: 0 },
+          { no: 4320, label: 'Gewerbesteuer', saldoAbs: 10656, side: 'S', soll: 10656, haben: 0 },
+        ];
+        const parsed = { meta: { company: 'Test GmbH', date: '31.12.2023', monthsElapsed: 12, periodLabel: 'Jan/2023 – Dez/2023', currentMonth: 'Dez/2023', currency: 'EUR' },
+          ker: { ergebnisVorSteuern: { ytd: 90000, month: 0, label: 'Ergebnis vor Steuern' }, umsatz: { ytd: 300000, month: 0, label: 'Umsatzerlöse' } }, hasSusa: true, hasTurnover: true, susa };
+        localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2023-12': parsed } }));
+        localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2023-12' }));
+      });
+      await page.reload();
+      await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'taxes').click());
+      const r = await page.evaluate(() => {
+        const K = window.__bwa.kpis(window.__bwa.parsed);
+        const kst = K.taxDetail.find((d) => d.kind === 'kst');
+        const gewst = K.taxDetail.find((d) => d.kind === 'gewst');
+        const table = document.querySelector('#bwa-body table.bwa-taxoverview');
+        const cells = (re) => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => re.test(t.textContent)); return tr ? [...tr.querySelectorAll('td')].map((td) => td.textContent.replace(/[  ]/g, ' ').replace(/−/g, '-').trim()) : []; };
+        const bezTip = (() => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => /Gewerbesteuer/.test(t.textContent)); const td = tr && [...tr.querySelectorAll('td[title]')].find((c) => /10\.656/.test(c.textContent)); return td ? td.getAttribute('title') : ''; })();
+        return { kstVz: kst && kst.vorausz, gewstVz: gewst && gewst.vorausz, gewstCells: cells(/Gewerbesteuer/), kstCells: cells(/Körperschaftsteuer/), bezTip };
+      });
+      assert.equal(Math.round(r.kstVz), 9934, 'KSt advance payments = 2200 + 2216');
+      assert.equal(Math.round(r.gewstVz), 10656, 'GewSt advance payments = 4320');
+      // GewSt: opening 8.884 + booked 10.656 − paid 10.656 = 8.884 open (payments wash through)
+      assert.deepEqual(r.gewstCells.slice(1, 5), ['8.884 €', '10.656 €', '10.656 €', '8.884 €'], 'advance payments fill booked & paid, open unchanged');
+      assert.deepEqual(r.kstCells.slice(1, 5), ['11.343 €', '9.934 €', '9.934 €', '11.343 €'], 'KSt advance payments (2200 + 2216) in booked & paid');
+      assert.match(r.bezTip || '', /4320 Gewerbesteuer/, 'paid cell tooltip names the P&L tax account');
+      await page.evaluate(() => window.__bwa.reset());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('adds the year projection and a tax-reserve orientation with tooltips', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {

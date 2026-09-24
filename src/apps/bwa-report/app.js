@@ -129,11 +129,12 @@
       tipEB: 'Anfangsbestand (EB)', tipHaben: 'Zuführung dieses Jahr (Haben-Bewegung)', tipSoll: 'Zahlung dieses Jahr (Soll-Bewegung)',
       tipSaldoFormel: 'Saldo = Anfang + Zuführung − Zahlung', tipVorsteuer: 'Vorsteuer', tipVorausz: 'USt-Vorauszahlungen',
       tipUstEigene: 'Erwartete USt aus Umsatz', tipNoOpening: 'kein Vorjahresbestand',
+      tipEtVorausz: 'Vorauszahlungen ans Finanzamt (GuV-Steuerkonten)',
       tipRefundHead: 'Steuer-Erstattungsansprüche (Forderung, mindert die Zahllast)', tipNetOutflow: 'Fremdgeld + eigene Ertragsteuer − Erstattungen',
       txKst: 'Körperschaftsteuer (+ SolZ)', txGewst: 'Gewerbesteuer', txUnder: 'unter', txOver: 'über',
       txHold: 'Vorzuhalten (Liquidität): {amount} — Steuern & Fremdgeld nach Verrechnung der Erstattungen. Diesen Betrag als Puffer bereithalten, nicht verplanen.',
       txPlaus: 'Plausibilität: Die Zuführung dieses Jahr ({current}) liegt {delta} {dir} der eigenen überschlägigen Berechnung ({own}). Bei größerer Abweichung beim Steuerberater nachfragen.',
-      txCaveat: '„Berechnet dieses Jahr“ = die für dieses Jahr gebuchte Steuer (Umsatzsteuer aus Umsätzen bzw. Rückstellungszuführung), nicht das Bezahlte. „Bezahlt/abziehbar“ = Zahlungen ans Finanzamt bzw. bei der USt zusätzlich die abziehbare Vorsteuer. Eigene Berechnung überschlägig: Ertragsteuer ~30 % (KSt+SolZ ~15,8 %, GewSt als Rest, Hebesatz-abhängig), Umsatzsteuer 19 % vom Umsatz (steuerfreie/EU-/7-%-Umsätze weichen ab). Keine Steuerberatung.',
+      txCaveat: '„Berechnet dieses Jahr“ = die für dieses Jahr gebuchte Steuer (Umsatzsteuer aus Umsätzen bzw. Rückstellungszuführung), nicht das Bezahlte. „Bezahlt/abziehbar“ = Zahlungen ans Finanzamt bzw. bei der USt zusätzlich die abziehbare Vorsteuer. Eigene Berechnung überschlägig: Ertragsteuer ~30 % (KSt+SolZ ~15,8 %, GewSt als Rest, Hebesatz-abhängig), Umsatzsteuer 19 % vom Umsatz (steuerfreie/EU-/7-%-Umsätze weichen ab). Bei der Ertragsteuer sind die unterjährigen Vorauszahlungen (Körperschaft-/Gewerbesteuer, Kapitalertragsteuer/Solidaritätszuschlag von den GuV-Steuerkonten) in „Berechnet" und „Bezahlt" enthalten; die Spalte „Offen" bleibt davon unberührt. Keine Steuerberatung.',
       etVerdictShield: 'Dank des Verlustvortrags ({loss}) ist aktuell voraussichtlich keine Ertragsteuer-Nachzahlung zu erwarten.',
       etVerdictGap: 'Mögliche Nachzahlung: Die erwartete Ertragsteuer übersteigt die Rückstellungen um rund {gap}. Rücklage entsprechend erhöhen.',
       etVerdictCovered: 'Die gebildeten Rückstellungen decken die überschlägig erwartete Ertragsteuer.',
@@ -273,11 +274,12 @@
       tipEB: 'Opening balance (EB)', tipHaben: 'Addition this year (credit movement)', tipSoll: 'Payment this year (debit movement)',
       tipSaldoFormel: 'Balance = opening + addition − payment', tipVorsteuer: 'Input VAT', tipVorausz: 'VAT advance payments',
       tipUstEigene: 'Expected VAT from revenue', tipNoOpening: 'no prior-year balance',
+      tipEtVorausz: 'Advance payments to the tax office (P&L tax accounts)',
       tipRefundHead: 'Tax refund claims (receivable, reduces the liability)', tipNetOutflow: 'Pass-through + own income tax − refunds',
       txKst: 'Corporate tax (+ solidarity)', txGewst: 'Trade tax', txUnder: 'below', txOver: 'above',
       txHold: 'To keep aside (liquidity): {amount} — taxes & pass-through money after offsetting refunds. Keep this buffer, do not spend it.',
       txPlaus: 'Plausibility: this year’s addition ({current}) is {delta} {dir} the own rough calculation ({own}). Raise larger deviations with the tax advisor.',
-      txCaveat: '“Booked this year” = the tax booked for this year (VAT on sales, or the provision addition), not what was paid. “Paid/deductible” = payments to the tax office, and for VAT also the deductible input VAT. Own calculation is rough: income tax ~30 % (corporate + solidarity ~15.8 %, trade tax as the remainder, multiplier-dependent), VAT 19 % of revenue (tax-free/EU/7 % sales differ). Not tax advice.',
+      txCaveat: '“Booked this year” = the tax booked for this year (VAT on sales, or the provision addition), not what was paid. “Paid/deductible” = payments to the tax office, and for VAT also the deductible input VAT. Own calculation is rough: income tax ~30 % (corporate + solidarity ~15.8 %, trade tax as the remainder, multiplier-dependent), VAT 19 % of revenue (tax-free/EU/7 % sales differ). For income tax, the in-year advance payments (corporate/trade tax, capital-gains tax/solidarity surcharge from the P&L tax accounts) are included in “booked” and “paid”; the “open” column is unaffected. Not tax advice.',
       etVerdictShield: 'Thanks to the loss carry-forward ({loss}), no income-tax back-payment is expected at present.',
       etVerdictGap: 'Possible back-payment: the expected income tax exceeds the provisions by about {gap}. Increase the reserve accordingly.',
       etVerdictCovered: 'The provisions made cover the roughly expected income tax.',
@@ -560,6 +562,28 @@
         const kind = /gewerbe/i.test(x.label) ? 'gewst' : /k[oö]rperschaft/i.test(x.label) ? 'kst' : 'other';
         return { no: x.no, label: x.label, kind, anfang, berechnet, bezahlt, offen };
       }).filter((d) => d.offen !== 0 || d.berechnet !== 0 || d.bezahlt !== 0);
+      // Income-tax advance payments booked on the P&L tax accounts this year (SKR03:
+      // corporate-tax family 2200–2219 incl. capital-gains tax + solidarity surcharge,
+      // trade tax 4320–4329). These are the regular "Pauschale"/Vorauszahlungen that
+      // flow to the tax office during the year — separate from the reserve stock
+      // (955–969). Net debit (Soll − Haben) = paid this year; they wash through both
+      // "booked" and "paid", so the still-open reserve is unaffected.
+      const etPayOf = (lo, hi) => {
+        const accs = a.filter((x) => x.no >= lo && x.no <= hi)
+          .map((x) => ({ no: x.no, label: x.label, v: (x.soll || 0) - (x.haben || 0) }))
+          .filter((x) => x.v > 0.005);
+        return { paid: accs.reduce((s, x) => s + x.v, 0), accs };
+      };
+      const etPay = { kst: etPayOf(2200, 2219), gewst: etPayOf(4320, 4329) };
+      ['kst', 'gewst'].forEach((kind) => {
+        const p = etPay[kind];
+        if (!p || p.paid <= 0.005) return;
+        const row = o.taxDetail.find((d) => d.kind === kind);
+        if (row) { row.vorausz = p.paid; row.vorauszSrc = p.accs; }
+        else o.taxDetail.push({ no: kind === 'gewst' ? 4320 : 2200,
+          label: kind === 'gewst' ? 'Gewerbesteuer' : 'Körperschaftsteuer', kind,
+          anfang: 0, berechnet: 0, bezahlt: 0, offen: 0, vorausz: p.paid, vorauszSrc: p.accs });
+      });
     }
     const vv = a.find((x) => x.no === 868);
     o.lossCarry = vv && vv.side === 'S' ? vv.saldoAbs : 0;
@@ -849,26 +873,32 @@
     }
     if (S.wageTax > 0) R.push({ label: t('liqWage'), offen: S.wageTax, hint: t('ntPayrollHint'), tips: { offen: acctTip(SRC.wage) } });
     R.push({ sub: 1, label: t('ptSumPass'), offen: S.passThrough, tips: { offen: `${t('liqUst')} + ${t('liqWage')} = ${eur0(S.passThrough)}` } });
-    let ea = 0, eb = 0, ez = 0, et = 0, eo = 0, ed = 0, hasEt = false;
+    let ea = 0, eb = 0, ez = 0, et = 0, eo = 0, ed = 0, ep = 0, hasEt = false;
     R.push({ g: t('ptOwnTax') });
     (K.taxDetail || []).forEach((d) => {
-      // Only plausibilise when a provision was actually booked this year (Haben
-      // movement); otherwise the flat 30 % estimate on the full profit would
-      // create a false huge deviation (e.g. year-end BWAs that carry the reserve
-      // as an opening balance, or loss-carry-forward years).
+      // The in-year advance payments (P&L tax accounts) are both tax booked and
+      // paid this year, so they add to "booked" and "paid" alike and leave the
+      // still-open reserve untouched.
+      const vz = d.vorausz || 0;
+      const berTot = d.berechnet + vz, bezTot = d.bezahlt + vz;
+      // Only plausibilise the provision addition (Haben movement) against the flat
+      // 30 % estimate — the advance payments are cash already gone, not a fresh
+      // estimate. Otherwise a year-end BWA that carries the reserve as an opening
+      // balance (no addition) or a loss-carry-forward year would show a false gap.
       const own = d.berechnet > 0.005 ? ownOf(d.kind) : null;
       const delta = own != null ? d.berechnet - own : null;
       const head = `${d.no} ${d.label}`;
-      R.push({ label: taxKindLabel(d), anfang: d.anfang, berechnet: d.berechnet, bezahlt: d.bezahlt, offen: d.offen, own, delta,
+      const vzTip = vz > 0.005 ? `\n${acctTip(d.vorauszSrc, t('tipEtVorausz'))}` : '';
+      R.push({ label: taxKindLabel(d), anfang: d.anfang, berechnet: berTot, bezahlt: bezTot, offen: d.offen, own, delta,
         tips: {
           anfang: `${head}\n${t('tipEB')}: ${eur0(d.anfang)}`,
-          berechnet: `${head}\n${t('tipHaben')}: ${eur0(d.berechnet)}`,
-          bezahlt: `${head}\n${t('tipSoll')}: ${eur0(d.bezahlt)}`,
+          berechnet: `${head}\n${t('tipHaben')}: ${eur0(d.berechnet)}${vzTip}${vz > 0.005 ? `\n= ${eur0(berTot)}` : ''}`,
+          bezahlt: `${head}\n${t('tipSoll')}: ${eur0(d.bezahlt)}${vzTip}${vz > 0.005 ? `\n= ${eur0(bezTot)}` : ''}`,
           offen: `${head}\n${t('tipSaldoFormel')} = ${eur0(d.offen)}`,
           own: own != null ? `${pct(d.kind === 'kst' ? RATE_KST : rateGewst, 1)} × ${t('etTaxable')} ${eur0(taxable)} = ${eur0(own)}` : '',
           delta: delta != null ? `${t('txBerechnet')} ${eur0(d.berechnet)} − ${t('txOwn')} ${eur0(own)}` : '',
         } });
-      ea += d.anfang; eb += d.berechnet; ez += d.bezahlt; et += d.offen; eo += own || 0; if (delta != null) ed += delta; hasEt = true;
+      ea += d.anfang; eb += berTot; ez += bezTot; et += d.offen; eo += own || 0; if (delta != null) ed += delta; if (own != null) ep += d.berechnet; hasEt = true;
     });
     if (!hasEt && S.reserves > 0) { R.push({ label: t('liqRes'), offen: S.reserves }); et = S.reserves; }
     if (hasEt) R.push({ sub: 1, label: t('etSubtotal'), anfang: ea, berechnet: eb, bezahlt: ez, offen: et, own: eo, delta: ed });
@@ -907,10 +937,10 @@
     }
     const plausParts = [];
     if (shielded) plausParts.push({ lvl: 'good', text: t('etVerdictShield', { loss: eur0(T.lossCarry) }) });
-    else if (hasEt && T && eb > 0.005 && eo > 0) {   // only when a provision was booked this year
+    else if (hasEt && T && ep > 0.005 && eo > 0) {   // only when a provision was booked this year
       const material = Math.abs(ed) > 0.05 * eo;
       plausParts.push({ lvl: material ? 'ok' : 'good',
-        text: t('txPlaus', { current: eur0(eb), own: eur0(eo), delta: eur0(Math.abs(ed)), dir: ed < 0 ? t('txUnder') : t('txOver') }) });
+        text: t('txPlaus', { current: eur0(ep), own: eur0(eo), delta: eur0(Math.abs(ed)), dir: ed < 0 ? t('txUnder') : t('txOver') }) });
     }
     // VAT plausibility from revenue — a warning only on a large deviation.
     const F = K.ustFlow;
