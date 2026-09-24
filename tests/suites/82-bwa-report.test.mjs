@@ -375,7 +375,7 @@ describe('bwa report', () => {
           berTip: (() => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => /Umsatzsteuer-Zahllast/.test(t.textContent)); const td = tr && [...tr.querySelectorAll('td[title]')].find((c) => /24\.231/.test(c.textContent)); return td ? td.getAttribute('title') : ''; })(),
         };
       });
-      assert.deepEqual(r.headers, ['Steuer / Posten', 'Anfang (Vorjahr)', 'Berechnet dieses Jahr', 'Bezahlt/abziehbar', 'Offen (vorzuhalten)', 'Eigene Berechnung', 'Δ (Ber. − eigene)']);
+      assert.deepEqual(r.headers, ['Steuer / Posten', 'Anfang (Vorjahr)', 'Berechnet dieses Jahr', 'Bezahlt/abziehbar', 'Offen (vorzuhalten)', 'Eigene Berechnung', 'Δ (gebucht − eigene)']);
       assert.deepEqual(r.groups, ['Durchlaufende Posten (Fremdgeld)', 'Eigene Ertragsteuer (netto)'], 'grouped pass-through vs. own income tax');
       // VAT flow: opening 0 (–) + booked 24.231 − paid 0 (–) = 24.231 open
       assert.deepEqual(r.ust.slice(1, 5), ['–', '24.231 €', '–', '24.231 €'], 'VAT flow opening/booked/paid/open (0 shown as –)');
@@ -397,24 +397,27 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
-  test('folds income-tax advance payments (P&L accounts) into the Ertragsteuer flow', async () => {
+  test('falls back to the own estimate for the income-tax hold when the BWA booked no provision', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {
       await fresh(page);
       await page.evaluate(() => {
-        // A 2023-style case: the reserve accounts carry an opening balance with no
-        // movement this year, while the regular advance payments (Pauschale) sit on
-        // the P&L tax accounts — KSt 2200 + SolZ 2216, GewSt 4320.
+        // A 2023-style case: the reserve accounts carry a stale opening balance with
+        // no movement, while only advance payments (Pauschale) sit on the P&L tax
+        // accounts — well below the ~30 % that the profit implies. The tool should
+        // fall back to the estimate so "still open" reflects a realistic hold.
         const susa = [
           { no: 1200, label: 'Bank', saldoAbs: 200000, side: 'S' },
           { no: 956, label: 'Gewerbesteuerrückstellung § 4 (5b) EStG', saldoAbs: 8884, side: 'H', soll: 0, haben: 0, eb: -8884 },
-          { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 11343, side: 'H', soll: 0, haben: 0, eb: -11343 },
-          { no: 2200, label: 'Körperschaftsteuer', saldoAbs: 9590, side: 'S', soll: 9590, haben: 0 },
-          { no: 2216, label: 'Solidaritätszuschlag', saldoAbs: 344, side: 'S', soll: 344, haben: 0 },
+          { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 11343.23, side: 'H', soll: 0, haben: 0, eb: -11343.23 },
+          { no: 2200, label: 'Körperschaftsteuer', saldoAbs: 9590.30, side: 'S', soll: 9590.30, haben: 0 },
+          { no: 2208, label: 'Solidaritätszuschlag', saldoAbs: 668.50, side: 'S', soll: 668.50, haben: 0 },
+          { no: 2213, label: 'Kapitalertragsteuer 25 %', saldoAbs: 6250, side: 'S', soll: 6250, haben: 0 },
+          { no: 2216, label: 'SolZ auf Kapitalertragsteuer', saldoAbs: 343.75, side: 'S', soll: 343.75, haben: 0 },
           { no: 4320, label: 'Gewerbesteuer', saldoAbs: 10656, side: 'S', soll: 10656, haben: 0 },
         ];
         const parsed = { meta: { company: 'Test GmbH', date: '31.12.2023', monthsElapsed: 12, periodLabel: 'Jan/2023 – Dez/2023', currentMonth: 'Dez/2023', currency: 'EUR' },
-          ker: { ergebnisVorSteuern: { ytd: 90000, month: 0, label: 'Ergebnis vor Steuern' }, umsatz: { ytd: 300000, month: 0, label: 'Umsatzerlöse' } }, hasSusa: true, hasTurnover: true, susa };
+          ker: { ergebnisVorSteuern: { ytd: 261542, month: 0, label: 'Ergebnis vor Steuern' }, umsatz: { ytd: 1004015, month: 0, label: 'Umsatzerlöse' } }, hasSusa: true, hasTurnover: true, susa };
         localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2023-12': parsed } }));
         localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2023-12' }));
       });
@@ -423,19 +426,25 @@ describe('bwa report', () => {
       await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'taxes').click());
       const r = await page.evaluate(() => {
         const K = window.__bwa.kpis(window.__bwa.parsed);
-        const kst = K.taxDetail.find((d) => d.kind === 'kst');
-        const gewst = K.taxDetail.find((d) => d.kind === 'gewst');
         const table = document.querySelector('#bwa-body table.bwa-taxoverview');
+        const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'taxes');
         const cells = (re) => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => re.test(t.textContent)); return tr ? [...tr.querySelectorAll('td')].map((td) => td.textContent.replace(/[  ]/g, ' ').replace(/−/g, '-').trim()) : []; };
-        const bezTip = (() => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => /Gewerbesteuer/.test(t.textContent)); const td = tr && [...tr.querySelectorAll('td[title]')].find((c) => /10\.656/.test(c.textContent)); return td ? td.getAttribute('title') : ''; })();
-        return { kstVz: kst && kst.vorausz, gewstVz: gewst && gewst.vorausz, gewstCells: cells(/Gewerbesteuer/), kstCells: cells(/Körperschaftsteuer/), bezTip };
+        const berTip = (() => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => /Körperschaftsteuer/.test(t.textContent)); const td = tr && [...tr.querySelectorAll('td.bwa-td-est')][0]; return td ? td.getAttribute('title') : ''; })();
+        return {
+          hold: Math.round(K.incomeTaxHold), reserves: Math.round(K.taxSummary.reserves),
+          gewst: cells(/Gewerbesteuer/), kst: cells(/Körperschaftsteuer/), etSum: cells(/Summe Ertragsteuer/),
+          holdRow: cells(/Vorzuhalten \(netto\)/), warn: panel.textContent.replace(/[  ]/g, ' '), berTip,
+        };
       });
-      assert.equal(Math.round(r.kstVz), 9934, 'KSt advance payments = 2200 + 2216');
-      assert.equal(Math.round(r.gewstVz), 10656, 'GewSt advance payments = 4320');
-      // GewSt: opening 8.884 + booked 10.656 − paid 10.656 = 8.884 open (payments wash through)
-      assert.deepEqual(r.gewstCells.slice(1, 5), ['8.884 €', '10.656 €', '10.656 €', '8.884 €'], 'advance payments fill booked & paid, open unchanged');
-      assert.deepEqual(r.kstCells.slice(1, 5), ['11.343 €', '9.934 €', '9.934 €', '11.343 €'], 'KSt advance payments (2200 + 2216) in booked & paid');
-      assert.match(r.bezTip || '', /4320 Gewerbesteuer/, 'paid cell tooltip names the P&L tax account');
+      assert.equal(r.hold, 71181, 'income-tax hold uses the estimate (old reserve + estimate − advance payments)');
+      assert.equal(r.reserves, r.hold, 'the summary reserve matches the estimate-based hold (bar and table agree)');
+      // GewSt: booked "≈ 37.074" (estimate), open = 8.884 + 37.074 − 10.656 = 35.302, Δ = 10.656 − 37.074
+      assert.deepEqual(r.gewst.slice(1, 7), ['8.884 €', '≈ 37.074 €', '10.656 €', '35.302 €', '37.074 €', '-26.418 €'], 'GewSt falls back to the estimate; open is realistic');
+      assert.deepEqual(r.kst.slice(1, 7), ['11.343 €', '≈ 41.389 €', '16.853 €', '35.880 €', '41.389 €', '-24.536 €'], 'KSt falls back to the estimate; open is realistic');
+      assert.deepEqual(r.etSum.slice(1, 7), ['20.227 €', '≈ 78.463 €', '27.509 €', '71.181 €', '78.463 €', '-50.954 €'], 'income-tax subtotal is estimate-based');
+      assert.equal(r.holdRow[4], '71.181 €', 'the net amount to keep aside reflects the estimate');
+      assert.match(r.warn, /verbuchte Ertragsteuer.*27\.509.*50\.954.*unter.*78\.463/s, 'flags that only 27.509 was booked vs. ~78.463 expected');
+      assert.match(r.berTip || '', /Geschätzt/, 'the estimated booked cell explains it is a 30 % estimate');
       await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();
     } finally { await page.close(); }
