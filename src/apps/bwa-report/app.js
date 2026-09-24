@@ -39,7 +39,11 @@
       spBerechnet: 'Berechnet (kum.)', spBezahlt: 'Bezahlt (kum.)',
       spIntro: 'Verteilung des Einkaufsvolumens auf die größten Lieferanten — zeigt die Abhängigkeit auf der Beschaffungsseite (ergänzend zum Verbindlichkeitsrisiko).',
       spNote: 'Bruttowerte inkl. Vorsteuer aus den Kreditoren-Bewegungen der Summen & Salden. „Berechnet“ = vom Lieferanten in Rechnung gestellt (kumuliert), „Bezahlt“ = geleistete Zahlungen dieses Jahres. „Offen“ ist der aktuelle Saldo = Anfangssaldo + Berechnet − Bezahlt; ein negativer Wert ist eine Überzahlung (Guthaben beim Lieferanten). Enthält auch Nicht-Waren-Lieferanten; Sammelkonten „DIVERSE“ bündeln mehrere kleine. Nur verfügbar, wenn die BWA die Bewegungsspalten enthält.',
-      tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität',
+      tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität', tabSource: 'BWA (Quelle)',
+      secSource: 'BWA-Rohdaten (Quelle)',
+      srcIntro: 'Die aus deiner BWA ausgelesenen Rohwerte. Ein Klick auf einen markierten Wert im Bericht springt hierher und hebt die zugrunde liegenden Konten bzw. GuV-Zeilen hervor.',
+      srcKerTitle: 'Kurzfristige Erfolgsrechnung (GuV)', srcSusaTitle: 'Summen & Salden (Konten)',
+      srcClick: 'Quelle in der BWA anzeigen', srcEB: 'Anfang (EB)', srcSoll: 'Soll', srcHaben: 'Haben', srcSaldo: 'Saldo', srcNoSusa: 'Diese BWA enthält keine Summen & Salden.',
       riskIntro: 'Verteilung der offenen Forderungen und Verbindlichkeiten — eine hohe Konzentration auf wenige Namen ist ein Risiko.',
       kDso: 'Forderungslaufzeit (DSO)', kDpo: 'Zahlungsziel Lieferanten (DPO)',
       breakEvenTitle: 'Break-even (Gewinnschwelle)',
@@ -192,7 +196,11 @@
       spBerechnet: 'Billed (YTD)', spBezahlt: 'Paid (YTD)',
       spIntro: 'Distribution of purchasing volume across the largest suppliers — shows dependency on the procurement side (complementing the payables risk).',
       spNote: 'Gross values incl. input VAT from the creditor movements of the trial balance. “Billed” = invoiced by the supplier (cumulative), “Paid” = payments made this year. “Open” is the current balance = opening + billed − paid; a negative value is an overpayment (credit with the supplier). Includes non-goods suppliers; collective accounts “DIVERSE” bundle several small ones. Only available when the BWA contains the movement columns.',
-      tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity',
+      tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity', tabSource: 'BWA (source)',
+      secSource: 'BWA raw data (source)',
+      srcIntro: 'The raw values read from your BWA. Clicking a highlighted figure in the report jumps here and highlights the underlying accounts or P&L lines.',
+      srcKerTitle: 'Short-term result statement (P&L)', srcSusaTitle: 'Trial balance (accounts)',
+      srcClick: 'Show the source in the BWA', srcEB: 'Opening (EB)', srcSoll: 'Debit', srcHaben: 'Credit', srcSaldo: 'Balance', srcNoSusa: 'This BWA has no trial balance.',
       riskIntro: 'Distribution of open receivables and payables — high concentration on a few names is a risk.',
       kDso: 'Receivable days (DSO)', kDpo: 'Payable days (DPO)',
       breakEvenTitle: 'Break-even',
@@ -778,6 +786,26 @@
   }
   function money2(n) { return `<span class="${n < 0 ? 'bwa-neg' : ''}">${eur0(n)}</span>`; }
 
+  // ---- Source linking (Stage A): make a value point to its origin in the BWA ----
+  // Each linkable value carries the source account numbers (data-src) and/or KER
+  // line ids (data-src-ker); clicking it jumps to the "Quelle" tab and highlights
+  // those rows. Helpers build the data attributes and resolve account ranges.
+  const uniq = (arr) => arr.filter((n, i, s) => s.indexOf(n) === i);
+  function srcData(accts, kerIds) {
+    const parts = [];
+    if (accts && accts.length) parts.push(`data-src="${uniq(accts).join(',')}"`);
+    if (kerIds && kerIds.length) parts.push(`data-src-ker="${uniq(kerIds).join(',')}"`);
+    return parts.join(' ');
+  }
+  function clk(html, accts, kerIds) {
+    const d = srcData(accts, kerIds);
+    return d ? `<span class="bwa-clickable" role="button" tabindex="0" title="${esc(t('srcClick'))}" ${d}>${html}</span>` : html;
+  }
+  // Account numbers present in the trial balance within the given [lo,hi] ranges.
+  const inRanges = (parsed, ranges) => (parsed.susa || [])
+    .filter((a) => ranges.some((r) => a.no >= r[0] && a.no <= (r[1] == null ? r[0] : r[1])))
+    .map((a) => a.no);
+
   // Taxes & reserves section: (A) bound vs. free liquidity, (B) income-tax
   // outlook incl. loss carry-forwards, (C) plausibility check from the figures.
   function taxSection(K) {
@@ -875,12 +903,16 @@
     const shielded = T && T.lossCarry > 0 && T.taxable === 0;
     const taxable = T ? T.taxable : 0, rateGewst = T ? Math.max(0, T.rate - RATE_KST) : 0;
     const ownOf = (kind) => (!T || taxable <= 0) ? null : kind === 'kst' ? taxable * RATE_KST : kind === 'gewst' ? taxable * rateGewst : null;
+    const nos = (list) => (list || []).map((x) => x.no);         // contributing account numbers, for source links
+    const etNos = [];
     const R = [];
     R.push({ g: t('ptPassThrough') });
     if (S.ustOwed > 0) {
       const F = K.ustFlow || { anfang: null, berechnet: null, bezahlt: null, offen: S.ustOwed, eigene: null };
       const own = F.eigene, delta = (own != null && F.berechnet != null) ? F.berechnet - own : null;
+      const ustAllNos = [].concat(nos(SRC.ustOutput), nos(SRC.ustVorjahr), nos(SRC.vorsteuer), nos(SRC.vorauszahlung));
       R.push({ label: t('liqUst'), anfang: F.anfang, berechnet: F.berechnet, bezahlt: F.bezahlt, offen: F.offen, own, delta,
+        srcd: { anfang: srcData(nos(SRC.ustVorjahr)), berechnet: srcData(nos(SRC.ustOutput)), bezahlt: srcData([].concat(nos(SRC.vorsteuer), nos(SRC.vorauszahlung))), offen: srcData(ustAllNos), own: srcData(null, ['umsatz']) },
         tips: {
           anfang: SRC.ustVorjahr && SRC.ustVorjahr.length ? acctTip(SRC.ustVorjahr) : t('tipNoOpening'),
           berechnet: acctTip(SRC.ustOutput, t('txBerechnet')),
@@ -889,9 +921,9 @@
           own: own != null ? `${t('tipUstEigene')} (19 % × ${eur0(K.umsatzYtd)}) = ${eur0(own)}` : '',
           delta: delta != null ? `${t('txBerechnet')} ${eur0(F.berechnet)} − ${t('txOwn')} ${eur0(own)}` : '',
         } });
-      if (F.nichtFaellig > 0) R.push({ memo: 1, label: t('ustNichtFaellig'), offen: F.nichtFaellig, tips: { offen: acctTip(SRC.nichtFaellig) } });
+      if (F.nichtFaellig > 0) R.push({ memo: 1, label: t('ustNichtFaellig'), offen: F.nichtFaellig, srcd: { offen: srcData(nos(SRC.nichtFaellig)) }, tips: { offen: acctTip(SRC.nichtFaellig) } });
     }
-    if (S.wageTax > 0) R.push({ label: t('liqWage'), offen: S.wageTax, hint: t('ntPayrollHint'), tips: { offen: acctTip(SRC.wage) } });
+    if (S.wageTax > 0) R.push({ label: t('liqWage'), offen: S.wageTax, hint: t('ntPayrollHint'), srcd: { offen: srcData(nos(SRC.wage)) }, tips: { offen: acctTip(SRC.wage) } });
     R.push({ sub: 1, label: t('ptSumPass'), offen: S.passThrough, tips: { offen: `${t('liqUst')} + ${t('liqWage')} = ${eur0(S.passThrough)}` } });
     let ea = 0, eb = 0, ez = 0, et = 0, eo = 0, ed = 0, ebk = 0, anyEst = false, hasEt = false;
     R.push({ g: t('ptOwnTax') });
@@ -909,7 +941,9 @@
       const delta = own != null ? booked - own : null;   // Δ always compares what was actually booked
       const head = `${d.no} ${d.label}`;
       const vzTip = vz > 0.005 ? `\n${acctTip(d.vorauszSrc, t('tipEtVorausz'))}` : '';
+      const etAll = [].concat([d.no], nos(d.vorauszSrc)); etNos.push(...etAll);
       R.push({ label: taxKindLabel(d), anfang: d.anfang, berechnet: berShown, bezahlt: paid, offen, own, delta, est: estimated,
+        srcd: { anfang: srcData([d.no]), berechnet: srcData(etAll), bezahlt: srcData(etAll), offen: srcData([d.no]), own: srcData(null, ['ergebnisVorSteuern']) },
         tips: {
           anfang: `${head}\n${t('tipEB')}: ${eur0(d.anfang)}`,
           berechnet: estimated
@@ -923,28 +957,29 @@
       ea += d.anfang; eb += berShown; ez += paid; et += offen; eo += own || 0; if (delta != null) ed += delta; ebk += booked; if (estimated) anyEst = true; hasEt = true;
     });
     if (!hasEt && S.reserves > 0) { R.push({ label: t('liqRes'), offen: S.reserves }); et = S.reserves; }
-    if (hasEt) R.push({ sub: 1, label: t('etSubtotal'), anfang: ea, berechnet: eb, bezahlt: ez, offen: et, own: eo, delta: ed, est: anyEst });
-    if (S.refunds > 0) R.push({ label: t('ntRefunds'), offen: -S.refunds, tips: { offen: acctTip(SRC.refunds, t('tipRefundHead')) } });
+    if (hasEt) R.push({ sub: 1, label: t('etSubtotal'), anfang: ea, berechnet: eb, bezahlt: ez, offen: et, own: eo, delta: ed, est: anyEst, srcd: { offen: srcData(etNos, ['ergebnisVorSteuern']), own: srcData(null, ['ergebnisVorSteuern']) } });
+    if (S.refunds > 0) R.push({ label: t('ntRefunds'), offen: -S.refunds, srcd: { offen: srcData(nos(SRC.refunds)) }, tips: { offen: acctTip(SRC.refunds, t('tipRefundHead')) } });
     R.push({ total: 1, label: t('txHoldRow'), offen: S.netOutflow, tips: { offen: t('tipNetOutflow') } });
     const num = (v) => v == null ? '–' : eur0(v);
     // Flow columns: show "–" for no value / no movement (mid-year statements and
     // loss-shielded years have no addition this year), so 0 € doesn't read as a gap.
     const flow = (v) => (v == null || Math.abs(v) < 0.005) ? '–' : eur0(v);
-    const cell = (val, tip, fmt, extraCls) => {
+    const cell = (val, tip, fmt, extraCls, sd) => {
       const txt = fmt(val);
       const title = (tip && txt !== '–') ? ` title="${esc(tip)}"` : '';
-      return `<td class="bwa-num${extraCls || ''}${title ? ' bwa-td-tip' : ''}"${title}>${txt}</td>`;
+      const link = (sd && txt !== '–') ? ` ${sd} role="button" tabindex="0"` : '';
+      return `<td class="bwa-num${extraCls || ''}${title ? ' bwa-td-tip' : ''}${link ? ' bwa-td-src' : ''}"${title}${link}>${txt}</td>`;
     };
     const body = R.map((r) => {
       if (r.g) return `<tr class="bwa-tr-group"><td colspan="7">${esc(r.g)}</td></tr>`;
       const cls = r.total ? 'bwa-tr-bold bwa-tr-total' : r.sub ? 'bwa-tr-sub' : r.memo ? 'bwa-tr-memo' : '';
-      const tp = r.tips || {};
+      const tp = r.tips || {}, sd = r.srcd || {};
       const label = (r.memo ? '↳ ' : '') + esc(r.label) + (r.hint ? ` <span class="bwa-muted">· ${esc(r.hint)}</span>` : '');
-      if (r.memo) return `<tr class="${cls}"><td>${label}</td><td class="bwa-num" colspan="3"></td>${cell(r.offen, tp.offen, (v) => '(' + eur0(v) + ')')}<td class="bwa-num" colspan="2"></td></tr>`;
+      if (r.memo) return `<tr class="${cls}"><td>${label}</td><td class="bwa-num" colspan="3"></td>${cell(r.offen, tp.offen, (v) => '(' + eur0(v) + ')', '', sd.offen)}<td class="bwa-num" colspan="2"></td></tr>`;
       const berFmt = r.est ? (v) => (v == null || Math.abs(v) < 0.005) ? '–' : '≈ ' + eur0(v) : flow;
       return `<tr class="${cls}"><td>${label}</td>
-        ${cell(r.anfang, tp.anfang, flow, ' bwa-muted')}${cell(r.berechnet, tp.berechnet, berFmt, r.est ? ' bwa-td-est' : '')}${cell(r.bezahlt, tp.bezahlt, flow)}
-        ${cell(r.offen, tp.offen, num)}${cell(r.own, tp.own, flow)}${cell(r.delta, tp.delta, flow)}</tr>`;
+        ${cell(r.anfang, tp.anfang, flow, ' bwa-muted', sd.anfang)}${cell(r.berechnet, tp.berechnet, berFmt, r.est ? ' bwa-td-est' : '', sd.berechnet)}${cell(r.bezahlt, tp.bezahlt, flow, '', sd.bezahlt)}
+        ${cell(r.offen, tp.offen, num, '', sd.offen)}${cell(r.own, tp.own, flow, '', sd.own)}${cell(r.delta, tp.delta, flow)}</tr>`;
     }).join('');
     const table = `<div class="bwa-table-wrap"><table class="bwa-table bwa-taxoverview"><thead><tr>
       <th>${esc(t('txArt'))}</th><th class="bwa-num">${esc(t('txAnfang'))}</th><th class="bwa-num">${esc(t('txBerechnet'))}</th>
@@ -1094,9 +1129,9 @@
     if (top.length < 2) return '';
     const max = top[0].saldoAbs;
     const bars = top.map((a) => `<div class="bwa-bar-row">
-      <div class="bwa-bar-label" title="${esc(a.label)}">${esc(a.label)}</div>
+      <div class="bwa-bar-label" title="${esc(a.label)}">${clk(esc(a.label), [a.no])}</div>
       <div class="bwa-bar-track"><div class="bwa-bar-fill" style="width:${Math.round(a.saldoAbs / max * 100)}%"></div></div>
-      <div class="bwa-bar-val">${eur0(a.saldoAbs)}</div></div>`).join('');
+      <div class="bwa-bar-val">${clk(eur0(a.saldoAbs), [a.no])}</div></div>`).join('');
     return `<div class="bwa-chart-title bwa-subtitle">${esc(t('expenseDrill'))} ${info('expenseDrill')}</div>${bars}`;
   }
 
@@ -1106,9 +1141,9 @@
     const lvl = c.top1 >= 0.4 ? 'bad' : c.top1 >= 0.25 ? 'ok' : 'good';
     const max = c.top[0].share;
     const bars = c.top.map((x) => `<div class="bwa-bar-row">
-      <div class="bwa-bar-label" title="${esc(x.label || ('Konto ' + x.no))}">${esc(x.label || ('Konto ' + x.no))}</div>
+      <div class="bwa-bar-label" title="${esc(x.label || ('Konto ' + x.no))}">${clk(esc(x.label || ('Konto ' + x.no)), [x.no])}</div>
       <div class="bwa-bar-track"><div class="bwa-bar-fill" style="width:${Math.round(x.share / max * 100)}%"></div></div>
-      <div class="bwa-bar-val">${eur0(x.amount)} · ${pct(x.share, 0)}</div></div>`).join('');
+      <div class="bwa-bar-val">${clk(eur0(x.amount), [x.no])} · ${pct(x.share, 0)}</div></div>`).join('');
     return `<div class="bwa-chart-box">
       <div class="bwa-chart-title">${esc(t(titleKey))} ${dot(lvl)} <span class="bwa-muted">${esc(t('concTop', { share: pct(c.top1, 0), n: c.count }))}</span></div>${bars}</div>`;
   }
@@ -1122,7 +1157,7 @@
     const list = customerRevenue(parsed);
     if (!list) return '';
     const cols = [
-      { key: 'label', label: t('thKunde'), fmt: (v, r) => esc(v || ('Konto ' + r.no)) },
+      { key: 'label', label: t('thKunde'), fmt: (v, r) => clk(esc(v || ('Konto ' + r.no)), [r.no]) },
       { key: 'anfang', label: t('crAnfang'), num: true, muted: true, fmt: eur0 },
       { key: 'fakturiert', label: t('crFakturiert'), num: true, fmt: eur0 },
       { key: 'vereinnahmt', label: t('crVereinnahmt'), num: true, fmt: eur0 },
@@ -1138,7 +1173,7 @@
     const list = supplierPurchases(parsed);
     if (!list) return '';
     const cols = [
-      { key: 'label', label: t('thLieferant'), fmt: (v, r) => esc(v || ('Konto ' + r.no)) },
+      { key: 'label', label: t('thLieferant'), fmt: (v, r) => clk(esc(v || ('Konto ' + r.no)), [r.no]) },
       { key: 'anfang', label: t('crAnfang'), num: true, muted: true, fmt: eur0 },
       { key: 'berechnet', label: t('spBerechnet'), num: true, fmt: eur0 },
       { key: 'bezahlt', label: t('spBezahlt'), num: true, fmt: eur0 },
@@ -1157,9 +1192,9 @@
       const share = K.gesamtleistungYtd ? c.ytd / K.gesamtleistungYtd : 0;
       const hot = c.id === 'personalkosten' || c.id === 'sonstigeKosten';
       return `<div class="bwa-bar-row">
-        <div class="bwa-bar-label" title="${esc(c.label || '')}">${esc(c.label || '')}</div>
+        <div class="bwa-bar-label" title="${esc(c.label || '')}">${clk(esc(c.label || ''), null, [c.id])}</div>
         <div class="bwa-bar-track"><div class="bwa-bar-fill${hot ? ' bwa-bar-hot' : ''}" style="width:${w}%"></div></div>
-        <div class="bwa-bar-val">${eur0(c.ytd)} · ${pct(share, 0)}</div>
+        <div class="bwa-bar-val">${clk(eur0(c.ytd), null, [c.id])} · ${pct(share, 0)}</div>
       </div>`;
     }).join('');
   }
@@ -1184,10 +1219,48 @@
     const top = (parsed.susa || []).filter((a) => a.no >= 4000 && a.no <= 4999 && a.side === 'S' && a.saldoAbs > 0)
       .sort((a, b) => b.saldoAbs - a.saldoAbs).slice(0, 10);
     if (!top.length) return '';
-    const rows = top.map((a) => `<tr><td class="bwa-muted">${a.no}</td><td>${esc(a.label)}</td><td class="bwa-num">${eur2(a.saldoAbs)}</td></tr>`).join('');
+    const rows = top.map((a) => `<tr><td class="bwa-muted">${clk(String(a.no), [a.no])}</td><td>${esc(a.label)}</td><td class="bwa-num">${eur2(a.saldoAbs)}</td></tr>`).join('');
     return `<h4 class="bwa-h4">${esc(t('detExpense'))}</h4><table class="bwa-table"><thead><tr>
       <th>${esc(t('thAccount'))}</th><th>${esc(t('thLabel'))}</th><th class="bwa-num">${esc(t('thAmount'))}</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // Source tab: the parsed KER + full trial balance, each row addressable by id so
+  // a clicked report value can highlight exactly where it came from.
+  function sourceKerTable(parsed) {
+    const k = parsed.ker;
+    const rows = KER_ORDER.filter((id) => k[id]).map((id) => {
+      const r = k[id];
+      return `<tr id="bwa-src-ker-${id}" class="${KER_BOLD.has(id) ? 'bwa-tr-bold' : ''}">
+        <td>${esc(r.label)}</td><td class="bwa-num">${r.month != null ? eur2(r.month) : ''}</td><td class="bwa-num">${r.ytd != null ? eur2(r.ytd) : ''}</td></tr>`;
+    }).join('');
+    return `<table class="bwa-table"><thead><tr>
+      <th>${esc(t('thLabel'))}</th><th class="bwa-num">${esc(t('thMonth'))}</th><th class="bwa-num">${esc(t('thYtd'))}</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  function sourceSusaTable(parsed) {
+    const list = (parsed.susa || []).slice().sort((a, b) => a.no - b.no);
+    if (!list.length) return '';
+    const mov = list.some((a) => a.eb != null || a.soll != null || a.haben != null);
+    const sideAbs = (v) => v == null ? '' : eur2(Math.abs(v)) + (v < 0 ? ' H' : v > 0 ? ' S' : '');
+    const rows = list.map((a) => {
+      const saldo = a.saldoAbs != null ? eur2(a.saldoAbs) + (a.side ? ' ' + a.side : '') : '';
+      return `<tr id="bwa-src-${a.no}"><td class="bwa-muted">${a.no}</td><td>${esc(a.label)}</td>`
+        + (mov ? `<td class="bwa-num bwa-muted">${sideAbs(a.eb)}</td><td class="bwa-num">${a.soll != null ? eur2(a.soll) : ''}</td><td class="bwa-num">${a.haben != null ? eur2(a.haben) : ''}</td>` : '')
+        + `<td class="bwa-num">${saldo}</td></tr>`;
+    }).join('');
+    const head = `<th>${esc(t('thAccount'))}</th><th>${esc(t('thLabel'))}</th>`
+      + (mov ? `<th class="bwa-num">${esc(t('srcEB'))}</th><th class="bwa-num">${esc(t('srcSoll'))}</th><th class="bwa-num">${esc(t('srcHaben'))}</th>` : '')
+      + `<th class="bwa-num">${esc(t('srcSaldo'))}</th>`;
+    return `<table class="bwa-table bwa-srctable"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  function sourceTab(parsed) {
+    const susa = sourceSusaTable(parsed);
+    const inner = `<p class="bwa-note bwa-subnote">${esc(t('srcIntro'))}</p>
+      <div class="bwa-subtitle"><strong>${esc(t('srcKerTitle'))}</strong></div><div class="bwa-table-wrap">${sourceKerTable(parsed)}</div>`
+      + (susa ? `<div class="bwa-subtitle"><strong>${esc(t('srcSusaTitle'))}</strong></div><div class="bwa-table-wrap">${susa}</div>`
+        : `<p class="bwa-note">${esc(t('srcNoSusa'))}</p>`);
+    return section('secSource', inner);
   }
 
   function renderReport(parsed, series) {
@@ -1197,13 +1270,21 @@
     $('bwa-company').textContent = m.company || 'BWA';
     $('bwa-period').textContent = t('periodLine', { m: m.currentMonth || '–', p: m.periodLabel || '–', d: m.date || '–' });
 
+    // Account ranges behind each figure, for the source-linking (Stage A).
+    const RG = {
+      cash: [[1000, 1099], [1200, 1290], [1360, 1360]], recv: [[1400, 1449]],
+      liab: [[1600, 1609], [1730, 1739], [1740, 1749]], payLuL: [[1600, 1609]], prov: [[950, 999]],
+      tax: [[1540, 1549], [1570, 1589], [1741, 1749], [1760, 1799], [955, 969], [2200, 2219], [4320, 4329]],
+    };
+    const rg = (...keys) => inRanges(parsed, [].concat(...keys.map((k) => RG[k])));
+
     const S = K.taxSummary;
     const showNet = S && (S.refunds > 0 || S.reserves > 0 || S.ustOwed > 0 || S.wageTax > 0);
-    const glance = card(t('kUmsatz') + ' · ' + t('suffYtd'), eur0(K.umsatzYtd), t('perMonth') + ' ' + eur0(K.avgMonthlyUmsatz), null, 'umsatz', sp((s) => s.umsatz))
-      + card(t('kBetriebsergebnis'), money2(K.betriebsergebnisYtd), t('kMarge') + ' ' + pct(K.umsatzrenditeYtd), A.ertrag, 'betriebsergebnis', sp((s) => s.betriebsergebnis))
-      + card(t('kErgebnis'), money2(K.ergebnisYtd), t('suffMonth') + ' ' + eur0(K.ergebnisMonth), null, 'ergebnis', sp((s) => s.ergebnis))
-      + (K.liquidity ? card(t('kLiquide'), eur0(K.liquidity.cash), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui, 'liquide', sp((s) => s.cash)) : '')
-      + (showNet ? card(t('ntOutflow'), eur0(Math.abs(S.netOutflow)), t(S.netOutflow >= 0 ? 'ntOutflowSub' : 'ntInflowSub'), S.netOutflow > 0 ? 'ok' : 'good', 'ntoutflow') : '');
+    const glance = card(t('kUmsatz') + ' · ' + t('suffYtd'), clk(eur0(K.umsatzYtd), null, ['umsatz']), t('perMonth') + ' ' + eur0(K.avgMonthlyUmsatz), null, 'umsatz', sp((s) => s.umsatz))
+      + card(t('kBetriebsergebnis'), clk(money2(K.betriebsergebnisYtd), null, ['betriebsergebnis']), t('kMarge') + ' ' + pct(K.umsatzrenditeYtd), A.ertrag, 'betriebsergebnis', sp((s) => s.betriebsergebnis))
+      + card(t('kErgebnis'), clk(money2(K.ergebnisYtd), null, ['vorlaeufigesErgebnis']), t('suffMonth') + ' ' + eur0(K.ergebnisMonth), null, 'ergebnis', sp((s) => s.ergebnis))
+      + (K.liquidity ? card(t('kLiquide'), clk(eur0(K.liquidity.cash), rg('cash')), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui, 'liquide', sp((s) => s.cash)) : '')
+      + (showNet ? card(t('ntOutflow'), clk(eur0(Math.abs(S.netOutflow)), rg('tax')), t(S.netOutflow >= 0 ? 'ntOutflowSub' : 'ntInflowSub'), S.netOutflow > 0 ? 'ok' : 'good', 'ntoutflow') : '');
 
     // Ertrag section — GuV waterfall + assessment + break-even + run-rate
     const ertragText = t('aErtrag' + capitalize(A.ertrag), { erg: eur0(K.betriebsergebnisYtd), marge: pct(K.umsatzrenditeYtd) });
@@ -1224,14 +1305,14 @@
     let liquiBody = '';
     if (K.liquidity) {
       const L = K.liquidity;
-      const cards = card(t('kLiquide'), eur0(L.cash), null, null, 'liquide')
-        + card(t('kForderungen'), eur0(L.receivables), null, null, 'forderungen')
-        + card(t('kVerbindl'), eur0(L.shortTermLiab), null, null, 'verbindl')
-        + card(t('kRueckstellungen'), eur0(L.provisions), null, null, 'rueckstellungen')
-        + card(t('kNettoLiq'), money2(L.netLiquidity), null, A.liqui, 'nettoLiq')
-        + (L.runwayMonths != null ? card(t('kRunway'), t('months', { n: L.runwayMonths.toFixed(1) }), null, null, 'runway') : '')
-        + (L.dso != null ? card(t('kDso'), t('days', { n: Math.round(L.dso) }), null, null, 'dso') : '')
-        + (L.dpo != null ? card(t('kDpo'), t('days', { n: Math.round(L.dpo) }), null, null, 'dpo') : '');
+      const cards = card(t('kLiquide'), clk(eur0(L.cash), rg('cash')), null, null, 'liquide')
+        + card(t('kForderungen'), clk(eur0(L.receivables), rg('recv')), null, null, 'forderungen')
+        + card(t('kVerbindl'), clk(eur0(L.shortTermLiab), rg('liab')), null, null, 'verbindl')
+        + card(t('kRueckstellungen'), clk(eur0(L.provisions), rg('prov')), null, null, 'rueckstellungen')
+        + card(t('kNettoLiq'), clk(money2(L.netLiquidity), rg('cash', 'recv', 'liab')), null, A.liqui, 'nettoLiq')
+        + (L.runwayMonths != null ? card(t('kRunway'), clk(t('months', { n: L.runwayMonths.toFixed(1) }), rg('cash')), null, null, 'runway') : '')
+        + (L.dso != null ? card(t('kDso'), clk(t('days', { n: Math.round(L.dso) }), rg('recv')), null, null, 'dso') : '')
+        + (L.dpo != null ? card(t('kDpo'), clk(t('days', { n: Math.round(L.dpo) }), rg('payLuL')), null, null, 'dpo') : '');
       const runwayHint = L.runwayMonths != null ? `<p class="bwa-note">${esc(t('runwayHint', { m: t('months', { n: L.runwayMonths.toFixed(1) }) }))}</p>` : '';
       const liquiText = t('aLiqui' + capitalize(A.liqui), { netto: eur0(L.netLiquidity) });
       liquiBody = `<div class="bwa-cards">${cards}</div>
@@ -1259,10 +1340,12 @@
       { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + (supplierPurchasesBlock(parsed) || supBlock) + expBlock },
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
       { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) },
+      { id: 'source', label: t('tabSource'), html: sourceTab(parsed) },
     ];
     $('bwa-body').innerHTML = tabbed(tabs);
     attachTabHandlers();
     attachSortHandlers();
+    attachSourceHandlers();
 
     $('bwa-disclaimer').textContent = t('disclaimer', {
       company: m.company || '–',
@@ -1289,6 +1372,31 @@
       body.querySelectorAll('.bwa-tab').forEach((b) => { const on = b.dataset.tab === id; b.classList.toggle('is-active', on); b.setAttribute('aria-selected', on); });
       body.querySelectorAll('.bwa-tabpanel').forEach((p) => { p.hidden = p.dataset.tab !== id; });
     }));
+  }
+  // Click a source-linked value → open the "Quelle" tab and highlight its origin.
+  function attachSourceHandlers() {
+    const body = $('bwa-body');
+    const showTab = (id) => {
+      state.activeTab = id;
+      body.querySelectorAll('.bwa-tab').forEach((b) => { const on = b.dataset.tab === id; b.classList.toggle('is-active', on); b.setAttribute('aria-selected', on); });
+      body.querySelectorAll('.bwa-tabpanel').forEach((p) => { p.hidden = p.dataset.tab !== id; });
+    };
+    const activate = (el) => {
+      const src = (el.getAttribute('data-src') || '').split(',').filter(Boolean);
+      const ker = (el.getAttribute('data-src-ker') || '').split(',').filter(Boolean);
+      if (!src.length && !ker.length) return;
+      showTab('source');
+      body.querySelectorAll('.bwa-src-hit').forEach((r) => r.classList.remove('bwa-src-hit'));
+      let first = null;
+      const mark = (id) => { const r = body.querySelector('#' + CSS.escape(id)); if (r) { r.classList.add('bwa-src-hit'); if (!first) first = r; } };
+      src.forEach((no) => mark('bwa-src-' + no));
+      ker.forEach((id) => mark('bwa-src-ker-' + id));
+      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    body.querySelectorAll('.bwa-clickable[data-src], .bwa-clickable[data-src-ker], .bwa-td-src').forEach((el) => {
+      el.addEventListener('click', () => activate(el));
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(el); } });
+    });
   }
   // Sortable data table. cols: {key,label,num?,muted?,fmt?}. Sort state is kept
   // per table id, so a chosen column survives re-renders (month/language switch).

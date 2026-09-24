@@ -107,8 +107,8 @@ describe('bwa report', () => {
       assert.ok(dom.hasRisk, 'the customer/supplier concentration sections are rendered');
       assert.ok(dom.hasExpenseDrill, 'the expense drill-down is rendered');
       assert.ok(dom.hasDso, 'DSO card is rendered');
-      assert.equal(dom.tabs, 5, 'five topic tabs (overview, revenue, costs, taxes, liquidity)');
-      assert.equal(dom.panels, 5, 'a panel per tab');
+      assert.equal(dom.tabs, 6, 'six topic tabs (overview, revenue, costs, taxes, liquidity, source)');
+      assert.equal(dom.panels, 6, 'a panel per tab');
       assert.equal(dom.visiblePanels, 1, 'only the active tab panel is visible');
       page.assertNoErrors();
     } finally { await page.close(); }
@@ -119,7 +119,7 @@ describe('bwa report', () => {
     try {
       await importFixture(page);
       const labels = await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].map((b) => b.textContent));
-      assert.deepEqual(labels, ['Überblick', 'Einnahmen', 'Ausgaben / Kosten', 'Steuern', 'Liquidität']);
+      assert.deepEqual(labels, ['Überblick', 'Einnahmen', 'Ausgaben / Kosten', 'Steuern', 'Liquidität', 'BWA (Quelle)']);
       // Overview is active by default and holds the cockpit.
       const before = await page.evaluate(() => {
         const active = document.querySelector('#bwa-body .bwa-tabpanel:not([hidden])');
@@ -530,6 +530,43 @@ describe('bwa report', () => {
         && document.querySelectorAll('#bwa-periods .bwa-chip').length);
       assert.equal(shown, 2, 'the report reopens with both stored months');
       await page.evaluate(() => window.__bwa.reset());   // clean up for later tests
+    } finally { await page.close(); }
+  });
+
+  test('source tab reconstructs the BWA and highlights the origin of a clicked value', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await importFixture(page);
+      const r = await page.evaluate(() => {
+        const body = document.getElementById('bwa-body');
+        const srcPanel = [...body.querySelectorAll('.bwa-tabpanel')].find((p) => p.dataset.tab === 'source');
+        const hasKer = !!srcPanel.querySelector('#bwa-src-ker-umsatz');
+        const susaRows = srcPanel.querySelectorAll('.bwa-srctable tbody tr').length;
+        const rev = body.querySelector('.bwa-clickable[data-src-ker*="umsatz"]');
+        if (rev) rev.click();
+        return {
+          hasKer, susaRows, revExists: !!rev,
+          active: document.querySelector('#bwa-body .bwa-tab.is-active').dataset.tab,
+          visSource: !srcPanel.hidden,
+          hitKer: !!document.querySelector('#bwa-src-ker-umsatz.bwa-src-hit'),
+        };
+      });
+      assert.ok(r.hasKer, 'the source tab reconstructs the KER with addressable rows');
+      assert.ok(r.susaRows >= 3, `the source tab lists the trial-balance accounts (${r.susaRows})`);
+      assert.ok(r.revExists, 'the revenue figure is a clickable, source-linked value');
+      assert.equal(r.active, 'source', 'clicking a value opens the source tab');
+      assert.ok(r.visSource, 'the source panel becomes visible');
+      assert.ok(r.hitKer, 'the underlying KER row is highlighted');
+      const r2 = await page.evaluate(() => {
+        const body = document.getElementById('bwa-body');
+        const el = body.querySelector('.bwa-clickable[data-src]');
+        const nos = el ? el.getAttribute('data-src').split(',') : [];
+        if (el) el.click();
+        return { hasSrc: !!el, hit: nos.some((n) => !!document.querySelector('#bwa-src-' + n + '.bwa-src-hit')) };
+      });
+      assert.ok(r2.hasSrc, 'account-based values carry data-src');
+      assert.ok(r2.hit, 'clicking an account value highlights its trial-balance row');
+      page.assertNoErrors();
     } finally { await page.close(); }
   });
 

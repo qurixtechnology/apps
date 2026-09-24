@@ -181,6 +181,15 @@
 .bwa-taxoverview td.bwa-td-tip { cursor: help; }
 .bwa-taxoverview td.bwa-td-tip:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 .bwa-taxoverview td.bwa-td-est { color: var(--qrx-text-subtle); font-style: italic; }
+/* Source linking (Stage A): a value that points to its origin in the "Quelle" tab. */
+.bwa-clickable { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; text-decoration-color: var(--qrx-border); }
+.bwa-clickable:hover { text-decoration-color: currentColor; }
+.bwa-clickable:focus-visible { outline: 2px solid var(--qrx-accent, #2563eb); outline-offset: 2px; border-radius: 2px; }
+.bwa-taxoverview td.bwa-td-src { cursor: pointer; }
+.bwa-taxoverview td.bwa-td-src:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+.bwa-srctable { font-size: 0.92em; }
+tr.bwa-src-hit > td { background: rgba(250, 204, 21, 0.30); transition: background 0.4s ease; }
+tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.9); }
 .bwa-flow-legend { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2) var(--qrx-s-4); margin-top: var(--qrx-s-3); }
 .bwa-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--qrx-text-muted); }
 .bwa-leg-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
