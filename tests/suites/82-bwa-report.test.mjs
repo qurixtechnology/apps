@@ -343,8 +343,10 @@ describe('bwa report', () => {
       await page.evaluate(() => {
         const susa = [
           { no: 1200, label: 'Bank', saldoAbs: 250000, side: 'S' },
-          { no: 1776, label: 'Umsatzsteuer 19%', saldoAbs: 24231, side: 'H' },
+          { no: 1740, label: 'Verbindlichkeiten aus Lohn und Gehalt', saldoAbs: 3000, side: 'S' },   // net wages — must NOT count as wage tax
           { no: 1741, label: 'Verbindl. Lohn- und Kirchensteuer', saldoAbs: 15853, side: 'H' },
+          { no: 1766, label: 'Umsatzsteuer nicht fällig 19%', saldoAbs: 5000, side: 'H' },            // deferred VAT → memo row
+          { no: 1776, label: 'Umsatzsteuer 19%', saldoAbs: 24231, side: 'H' },
           { no: 956, label: 'Gewerbesteuerrückstellung § 4 (5b) EStG', saldoAbs: 38577, side: 'H', soll: 8883.90, haben: 8883.90, eb: -38577 },
           { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 37120, side: 'H', soll: 10752, haben: 10752, eb: -37120 },
         ];
@@ -368,6 +370,9 @@ describe('bwa report', () => {
           gewst: cells(/Gewerbesteuer/), etSum: cells(/Summe Ertragsteuer/), hold: cells(/Vorzuhalten \(netto\)/),
           holdNote: /Vorzuhalten \(Liquidität\): 115\.781/.test(txt),
           etAmber: /2\.588\s*€\s*unter/.test(txt), ustWarn: /Umsatzsteuer-Plausibilität/.test(txt),
+          memoRow: (() => { const tr = table && [...table.querySelectorAll('tbody tr.bwa-tr-memo')][0]; return tr ? tr.textContent.replace(/\s+/g, ' ').trim() : ''; })(),
+          nfNote: /noch nicht fällige Umsatzsteuer/.test(txt),
+          berTip: (() => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => /Umsatzsteuer-Zahllast/.test(t.textContent)); const td = tr && [...tr.querySelectorAll('td[title]')].find((c) => /24\.231/.test(c.textContent)); return td ? td.getAttribute('title') : ''; })(),
         };
       });
       assert.deepEqual(r.headers, ['Steuer / Posten', 'Anfang (Vorjahr)', 'Berechnet dieses Jahr', 'Bezahlt/abziehbar', 'Offen (vorzuhalten)', 'Eigene Berechnung', 'Δ (Ber. − eigene)']);
@@ -384,6 +389,9 @@ describe('bwa report', () => {
       assert.ok(r.holdNote, 'states the liquidity to keep aside');
       assert.ok(r.etAmber, 'income-tax deviation flagged for the advisor');
       assert.ok(r.ustWarn, 'VAT plausibility from revenue flags the large deviation (booked 24.231 vs 19.000 expected)');
+      assert.match(r.memoRow, /noch nicht fällig.*1766.*5\.000/, 'deferred VAT (1766) shown as a memo sub-row');
+      assert.ok(r.nfNote, 'a note explains the not-yet-due VAT has no current liquidity impact');
+      assert.match(r.berTip || '', /1776 Umsatzsteuer/, 'cells carry a tooltip deriving the value from account numbers');
       await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();
     } finally { await page.close(); }

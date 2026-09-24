@@ -123,6 +123,13 @@
       txArt: 'Steuer / Posten', txAnfang: 'Anfang (Vorjahr)', txBerechnet: 'Berechnet dieses Jahr', txBezahlt: 'Bezahlt/abziehbar', txHoldCol: 'Offen (vorzuhalten)',
       txOwn: 'Eigene Berechnung', txDelta: 'Δ (Ber. − eigene)', txSum: 'Summe', etSubtotal: 'Summe Ertragsteuer', txHoldRow: 'Vorzuhalten (netto)',
       txUstWarn: 'Umsatzsteuer-Plausibilität: gebucht {booked}, erwartet aus 19 % vom Umsatz {own} ({q}). Große Abweichung — mit dem Steuerberater klären.',
+      ustNichtFaellig: 'noch nicht fällig (Kto 1766)',
+      ustNichtFaelligNote: 'Die noch nicht fällige Umsatzsteuer (auf offene Rechnungen) wird erst fällig, wenn die Kunden zahlen — dann fließt zugleich die Einnahme zu. Netto neutral für die Liquidität; hier nur nachrichtlich, nicht im vorzuhaltenden Betrag.',
+      tipHintRow: 'Tipp: Mit der Maus über eine Zahl fahren zeigt die Herleitung (Kontonummern und -bezeichnungen).',
+      tipEB: 'Anfangsbestand (EB)', tipHaben: 'Zuführung dieses Jahr (Haben-Bewegung)', tipSoll: 'Zahlung dieses Jahr (Soll-Bewegung)',
+      tipSaldoFormel: 'Saldo = Anfang + Zuführung − Zahlung', tipVorsteuer: 'Vorsteuer', tipVorausz: 'USt-Vorauszahlungen',
+      tipUstEigene: 'Erwartete USt aus Umsatz', tipNoOpening: 'kein Vorjahresbestand',
+      tipRefundHead: 'Steuer-Erstattungsansprüche (Forderung, mindert die Zahllast)', tipNetOutflow: 'Fremdgeld + eigene Ertragsteuer − Erstattungen',
       txKst: 'Körperschaftsteuer (+ SolZ)', txGewst: 'Gewerbesteuer', txUnder: 'unter', txOver: 'über',
       txHold: 'Vorzuhalten (Liquidität): {amount} — Steuern & Fremdgeld nach Verrechnung der Erstattungen. Diesen Betrag als Puffer bereithalten, nicht verplanen.',
       txPlaus: 'Plausibilität: Die Zuführung dieses Jahr ({current}) liegt {delta} {dir} der eigenen überschlägigen Berechnung ({own}). Bei größerer Abweichung beim Steuerberater nachfragen.',
@@ -260,6 +267,13 @@
       txArt: 'Tax / item', txAnfang: 'Opening (prior year)', txBerechnet: 'Booked this year', txBezahlt: 'Paid/deductible', txHoldCol: 'Open (keep aside)',
       txOwn: 'Own calculation', txDelta: 'Δ (booked − own)', txSum: 'Total', etSubtotal: 'Subtotal income tax', txHoldRow: 'To keep aside (net)',
       txUstWarn: 'VAT plausibility: booked {booked}, expected from 19 % of revenue {own} ({q}). Large deviation — clarify with the tax advisor.',
+      ustNichtFaellig: 'not yet due (acct 1766)',
+      ustNichtFaelligNote: 'The not-yet-due VAT (on open invoices) only becomes payable once customers pay — the income then flows in too. Net-neutral for liquidity; shown here for information only, not part of the amount to keep aside.',
+      tipHintRow: 'Tip: hover over a figure to see how it is derived (account numbers and names).',
+      tipEB: 'Opening balance (EB)', tipHaben: 'Addition this year (credit movement)', tipSoll: 'Payment this year (debit movement)',
+      tipSaldoFormel: 'Balance = opening + addition − payment', tipVorsteuer: 'Input VAT', tipVorausz: 'VAT advance payments',
+      tipUstEigene: 'Expected VAT from revenue', tipNoOpening: 'no prior-year balance',
+      tipRefundHead: 'Tax refund claims (receivable, reduces the liability)', tipNetOutflow: 'Pass-through + own income tax − refunds',
       txKst: 'Corporate tax (+ solidarity)', txGewst: 'Trade tax', txUnder: 'below', txOver: 'above',
       txHold: 'To keep aside (liquidity): {amount} — taxes & pass-through money after offsetting refunds. Keep this buffer, do not spend it.',
       txPlaus: 'Plausibility: this year’s addition ({current}) is {delta} {dir} the own rough calculation ({own}). Raise larger deviations with the tax advisor.',
@@ -589,8 +603,11 @@
         // VAT flow: prior-year liability (account 1790) + this year's output VAT
         // − (input VAT + advance payments) = still open. Own check: 19 % of revenue.
         const vorjahr = a.filter((x) => x.no === 1790 && x.side === 'H').reduce((s, x) => s + x.saldoAbs, 0);
+        // "not yet due" VAT (1760–1769, cash-basis): owed only once customers pay,
+        // so it is a future obligation with no current liquidity impact.
+        const nichtFaellig = a.filter((x) => x.no >= 1760 && x.no <= 1769 && x.side === 'H').reduce((s, x) => s + x.saldoAbs, 0);
         o.ustFlow = { anfang: vorjahr, berechnet: output - vorjahr, bezahlt: vorsteuer + prepaid,
-          offen: output - vorsteuer - prepaid, eigene: o.umsatzYtd > 0 ? 0.19 * o.umsatzYtd : null };
+          offen: output - vorsteuer - prepaid, eigene: o.umsatzYtd > 0 ? 0.19 * o.umsatzYtd : null, nichtFaellig };
       }
     }
     // Tax & reserves — how much of the cash is not freely usable, plus an income-
@@ -598,7 +615,10 @@
     if (parsed.hasSusa && a.length) {
       const cash = o.liquidity ? o.liquidity.cash : 0;
       const ustOwed = (o.ust && o.ust.net > 0) ? o.ust.net : 0;
-      const wageTax = o.liquidity ? Math.max(0, o.liquidity.wageLiab) : 0;
+      // Pass-through to authorities: wage tax/church tax/social security (1741–
+      // 1749) only — NOT 1740 (net wages owed to employees, a payroll liability
+      // captured in short-term liabilities, not tax/pass-through money).
+      const wageTax = a.length ? Math.max(0, bucket(a, 1741, 1749, false)) : 0;
       const reserves = Math.max(0, o.taxProvisions);
       // Tax refund claims (income taxes): GewSt/KSt overpayments 1540–1549, but
       // NOT 1548 (input VAT deductible in a later period — a VAT, not a tax refund).
@@ -619,6 +639,17 @@
       const vstBase = Math.max(0, o.gesamtkostenYtd - v('personalkosten', 'ytd') - v('abschreibungen', 'ytd') - v('betrSteuern', 'ytd'));
       o.taxPlaus = { salesVat, expectedVat: 0.19 * o.umsatzYtd, vatQuote: o.umsatzYtd > 0 ? salesVat / o.umsatzYtd : null,
         vorsteuer: o.ust ? o.ust.vorsteuer : 0, vstBase, vstQuote: (vstBase > 0 && o.ust) ? o.ust.vorsteuer / vstBase : null };
+      // Contributing accounts per cell, for the tooltips (no, label, amount).
+      const pick = (f) => a.filter(f).filter((x) => x.saldoAbs > 0).map((x) => ({ no: x.no, label: x.label, v: x.saldoAbs }));
+      o.taxSrc = {
+        ustOutput: pick((x) => x.no >= 1770 && x.no <= 1799 && x.side === 'H' && x.no !== 1790),
+        ustVorjahr: pick((x) => x.no === 1790 && x.side === 'H'),
+        vorsteuer: pick((x) => x.no >= 1570 && x.no <= 1589 && x.side === 'S'),
+        vorauszahlung: pick((x) => x.no >= 1770 && x.no <= 1799 && x.side === 'S'),
+        nichtFaellig: pick((x) => x.no >= 1760 && x.no <= 1769 && x.side === 'H'),
+        wage: a.filter((x) => x.no >= 1741 && x.no <= 1749 && x.saldoAbs > 0).map((x) => ({ no: x.no, label: x.label, v: x.side === 'H' ? x.saldoAbs : -x.saldoAbs })),
+        refunds: pick((x) => x.no >= 1540 && x.no <= 1549 && x.no !== 1548 && x.side === 'S'),
+      };
     }
     o.concentration = concentrationOf(a);
     return o;
@@ -787,8 +818,15 @@
   // calculation for a plausibility cross-check), refund claims, and the net
   // liquidity to keep aside. Verrechnungen show as sub-totals.
   const taxKindLabel = (d) => d.kind === 'kst' ? t('txKst') : d.kind === 'gewst' ? t('txGewst') : (d.label || ('Konto ' + d.no));
+  // Tooltip helper: a list of contributing accounts, one per line, with the sum.
+  const acctTip = (list, head) => {
+    if (!list || !list.length) return head || '';
+    const lines = list.map((x) => `${x.no} ${x.label}: ${eur0(x.v)}`);
+    const sum = list.reduce((s, x) => s + x.v, 0);
+    return (head ? head + '\n' : '') + lines.join('\n') + (list.length > 1 ? `\n= ${eur0(sum)}` : '');
+  };
   function taxOverviewBlock(K) {
-    const S = K.taxSummary, T = K.taxCheck;
+    const S = K.taxSummary, T = K.taxCheck, SRC = K.taxSrc || {};
     if (!S || (S.ustOwed <= 0 && S.wageTax <= 0 && S.reserves <= 0 && S.refunds <= 0)) return '';
     const shielded = T && T.lossCarry > 0 && T.taxable === 0;
     const taxable = T ? T.taxable : 0, rateGewst = T ? Math.max(0, T.rate - RATE_KST) : 0;
@@ -797,33 +835,63 @@
     R.push({ g: t('ptPassThrough') });
     if (S.ustOwed > 0) {
       const F = K.ustFlow || { anfang: null, berechnet: null, bezahlt: null, offen: S.ustOwed, eigene: null };
-      R.push({ label: t('liqUst'), anfang: F.anfang, berechnet: F.berechnet, bezahlt: F.bezahlt, offen: F.offen,
-        own: F.eigene, delta: (F.eigene != null && F.berechnet != null) ? F.berechnet - F.eigene : null });
+      const own = F.eigene, delta = (own != null && F.berechnet != null) ? F.berechnet - own : null;
+      R.push({ label: t('liqUst'), anfang: F.anfang, berechnet: F.berechnet, bezahlt: F.bezahlt, offen: F.offen, own, delta,
+        tips: {
+          anfang: SRC.ustVorjahr && SRC.ustVorjahr.length ? acctTip(SRC.ustVorjahr) : t('tipNoOpening'),
+          berechnet: acctTip(SRC.ustOutput, t('txBerechnet')),
+          bezahlt: acctTip(SRC.vorsteuer, t('tipVorsteuer')) + (SRC.vorauszahlung && SRC.vorauszahlung.length ? '\n' + acctTip(SRC.vorauszahlung, t('tipVorausz')) : ''),
+          offen: `${t('txBerechnet')} ${eur0(F.berechnet)} − ${t('txBezahlt')} ${eur0(F.bezahlt)} = ${eur0(F.offen)}`,
+          own: own != null ? `${t('tipUstEigene')} (19 % × ${eur0(K.umsatzYtd)}) = ${eur0(own)}` : '',
+          delta: delta != null ? `${t('txBerechnet')} ${eur0(F.berechnet)} − ${t('txOwn')} ${eur0(own)}` : '',
+        } });
+      if (F.nichtFaellig > 0) R.push({ memo: 1, label: t('ustNichtFaellig'), offen: F.nichtFaellig, tips: { offen: acctTip(SRC.nichtFaellig) } });
     }
-    if (S.wageTax > 0) R.push({ label: t('liqWage'), offen: S.wageTax, hint: t('ntPayrollHint') });
-    R.push({ sub: 1, label: t('ptSumPass'), offen: S.passThrough });
+    if (S.wageTax > 0) R.push({ label: t('liqWage'), offen: S.wageTax, hint: t('ntPayrollHint'), tips: { offen: acctTip(SRC.wage) } });
+    R.push({ sub: 1, label: t('ptSumPass'), offen: S.passThrough, tips: { offen: `${t('liqUst')} + ${t('liqWage')} = ${eur0(S.passThrough)}` } });
     let ea = 0, eb = 0, ez = 0, et = 0, eo = 0, ed = 0, hasEt = false;
     R.push({ g: t('ptOwnTax') });
     (K.taxDetail || []).forEach((d) => {
-      const own = ownOf(d.kind), delta = own != null ? d.berechnet - own : null;
-      R.push({ label: taxKindLabel(d), anfang: d.anfang, berechnet: d.berechnet, bezahlt: d.bezahlt, offen: d.offen, own, delta });
+      // Only plausibilise when a provision was actually booked this year (Haben
+      // movement); otherwise the flat 30 % estimate on the full profit would
+      // create a false huge deviation (e.g. year-end BWAs that carry the reserve
+      // as an opening balance, or loss-carry-forward years).
+      const own = d.berechnet > 0.005 ? ownOf(d.kind) : null;
+      const delta = own != null ? d.berechnet - own : null;
+      const head = `${d.no} ${d.label}`;
+      R.push({ label: taxKindLabel(d), anfang: d.anfang, berechnet: d.berechnet, bezahlt: d.bezahlt, offen: d.offen, own, delta,
+        tips: {
+          anfang: `${head}\n${t('tipEB')}: ${eur0(d.anfang)}`,
+          berechnet: `${head}\n${t('tipHaben')}: ${eur0(d.berechnet)}`,
+          bezahlt: `${head}\n${t('tipSoll')}: ${eur0(d.bezahlt)}`,
+          offen: `${head}\n${t('tipSaldoFormel')} = ${eur0(d.offen)}`,
+          own: own != null ? `${pct(d.kind === 'kst' ? RATE_KST : rateGewst, 1)} × ${t('etTaxable')} ${eur0(taxable)} = ${eur0(own)}` : '',
+          delta: delta != null ? `${t('txBerechnet')} ${eur0(d.berechnet)} − ${t('txOwn')} ${eur0(own)}` : '',
+        } });
       ea += d.anfang; eb += d.berechnet; ez += d.bezahlt; et += d.offen; eo += own || 0; if (delta != null) ed += delta; hasEt = true;
     });
     if (!hasEt && S.reserves > 0) { R.push({ label: t('liqRes'), offen: S.reserves }); et = S.reserves; }
     if (hasEt) R.push({ sub: 1, label: t('etSubtotal'), anfang: ea, berechnet: eb, bezahlt: ez, offen: et, own: eo, delta: ed });
-    if (S.refunds > 0) R.push({ label: t('ntRefunds'), offen: -S.refunds });
-    R.push({ total: 1, label: t('txHoldRow'), offen: S.netOutflow });
+    if (S.refunds > 0) R.push({ label: t('ntRefunds'), offen: -S.refunds, tips: { offen: acctTip(SRC.refunds, t('tipRefundHead')) } });
+    R.push({ total: 1, label: t('txHoldRow'), offen: S.netOutflow, tips: { offen: t('tipNetOutflow') } });
     const num = (v) => v == null ? '–' : eur0(v);
     // Flow columns: show "–" for no value / no movement (mid-year statements and
     // loss-shielded years have no addition this year), so 0 € doesn't read as a gap.
     const flow = (v) => (v == null || Math.abs(v) < 0.005) ? '–' : eur0(v);
+    const cell = (val, tip, fmt, extraCls) => {
+      const txt = fmt(val);
+      const title = (tip && txt !== '–') ? ` title="${esc(tip)}"` : '';
+      return `<td class="bwa-num${extraCls || ''}${title ? ' bwa-td-tip' : ''}"${title}>${txt}</td>`;
+    };
     const body = R.map((r) => {
       if (r.g) return `<tr class="bwa-tr-group"><td colspan="7">${esc(r.g)}</td></tr>`;
-      const cls = r.total ? 'bwa-tr-bold bwa-tr-total' : r.sub ? 'bwa-tr-sub' : '';
-      const label = esc(r.label) + (r.hint ? ` <span class="bwa-muted">· ${esc(r.hint)}</span>` : '');
+      const cls = r.total ? 'bwa-tr-bold bwa-tr-total' : r.sub ? 'bwa-tr-sub' : r.memo ? 'bwa-tr-memo' : '';
+      const tp = r.tips || {};
+      const label = (r.memo ? '↳ ' : '') + esc(r.label) + (r.hint ? ` <span class="bwa-muted">· ${esc(r.hint)}</span>` : '');
+      if (r.memo) return `<tr class="${cls}"><td>${label}</td><td class="bwa-num" colspan="3"></td>${cell(r.offen, tp.offen, (v) => '(' + eur0(v) + ')')}<td class="bwa-num" colspan="2"></td></tr>`;
       return `<tr class="${cls}"><td>${label}</td>
-        <td class="bwa-num bwa-muted">${flow(r.anfang)}</td><td class="bwa-num">${flow(r.berechnet)}</td><td class="bwa-num">${flow(r.bezahlt)}</td>
-        <td class="bwa-num">${num(r.offen)}</td><td class="bwa-num">${flow(r.own)}</td><td class="bwa-num">${flow(r.delta)}</td></tr>`;
+        ${cell(r.anfang, tp.anfang, flow, ' bwa-muted')}${cell(r.berechnet, tp.berechnet, flow)}${cell(r.bezahlt, tp.bezahlt, flow)}
+        ${cell(r.offen, tp.offen, num)}${cell(r.own, tp.own, flow)}${cell(r.delta, tp.delta, flow)}</tr>`;
     }).join('');
     const table = `<div class="bwa-table-wrap"><table class="bwa-table bwa-taxoverview"><thead><tr>
       <th>${esc(t('txArt'))}</th><th class="bwa-num">${esc(t('txAnfang'))}</th><th class="bwa-num">${esc(t('txBerechnet'))}</th>
@@ -838,11 +906,11 @@
       bem = `<p class="bwa-note bwa-subnote">${esc(bp.join(' · '))}</p>`;
     }
     const plausParts = [];
-    if (hasEt && T) {
-      const material = Math.abs(ed) > 0.05 * (eo || 1);
-      plausParts.push({ lvl: shielded ? 'good' : (material ? 'ok' : 'good'),
-        text: shielded ? t('etVerdictShield', { loss: eur0(T.lossCarry) })
-          : t('txPlaus', { current: eur0(eb), own: eur0(eo), delta: eur0(Math.abs(ed)), dir: ed < 0 ? t('txUnder') : t('txOver') }) });
+    if (shielded) plausParts.push({ lvl: 'good', text: t('etVerdictShield', { loss: eur0(T.lossCarry) }) });
+    else if (hasEt && T && eb > 0.005 && eo > 0) {   // only when a provision was booked this year
+      const material = Math.abs(ed) > 0.05 * eo;
+      plausParts.push({ lvl: material ? 'ok' : 'good',
+        text: t('txPlaus', { current: eur0(eb), own: eur0(eo), delta: eur0(Math.abs(ed)), dir: ed < 0 ? t('txUnder') : t('txOver') }) });
     }
     // VAT plausibility from revenue — a warning only on a large deviation.
     const F = K.ustFlow;
@@ -851,10 +919,13 @@
       if (ratio < 0.6 || ratio > 1.1) plausParts.push({ lvl: 'ok', text: t('txUstWarn', { booked: eur0(F.berechnet), own: eur0(F.eigene), q: pct(ratio, 0) }) });
     }
     const plaus = plausParts.map((p) => `<div class="bwa-assess bwa-assess-${p.lvl}">${dot(p.lvl)}<div>${esc(p.text)}</div></div>`).join('');
+    const nfNote = (K.ustFlow && K.ustFlow.nichtFaellig > 0)
+      ? `<p class="bwa-note">${esc(t('ustNichtFaelligNote'))}</p>` : '';
     return `<div class="bwa-subtitle"><strong>${esc(t('txOverviewTitle'))}</strong>${info('steuercheck')}</div>
       ${bem}${table}
+      <p class="bwa-note bwa-subnote">${esc(t('tipHintRow'))}</p>
       <p class="bwa-note"><strong>${esc(t('txHold', { amount: eur0(S.netOutflow) }))}</strong></p>
-      ${plaus}
+      ${nfNote}${plaus}
       <p class="bwa-note">${esc(t('ptNote'))}</p>
       <p class="bwa-note">${esc(t('txCaveat'))}</p>`;
   }

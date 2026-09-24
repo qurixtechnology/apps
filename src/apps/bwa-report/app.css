@@ -177,6 +177,9 @@
   border-bottom: 1px solid var(--qrx-border); }
 .bwa-taxoverview .bwa-tr-sub td { border-top: 1px solid var(--qrx-border); font-weight: 600; }
 .bwa-taxoverview .bwa-tr-total td { border-top: 2px solid var(--qrx-border-strong); font-weight: 700; }
+.bwa-taxoverview .bwa-tr-memo td { color: var(--qrx-text-subtle); font-style: italic; border-bottom: 1px solid var(--qrx-border); }
+.bwa-taxoverview td.bwa-td-tip { cursor: help; }
+.bwa-taxoverview td.bwa-td-tip:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 .bwa-flow-legend { display: flex; flex-wrap: wrap; gap: var(--qrx-s-2) var(--qrx-s-4); margin-top: var(--qrx-s-3); }
 .bwa-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--qrx-text-muted); }
 .bwa-leg-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
