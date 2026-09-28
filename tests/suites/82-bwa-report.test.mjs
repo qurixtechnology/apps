@@ -131,7 +131,7 @@ describe('bwa report', () => {
       await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'taxes').click());
       const after = await page.evaluate(() => {
         const vis = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].filter((p) => !p.hidden);
-        return { count: vis.length, tab: vis[0].dataset.tab, hasTax: /Steuern & Rücklagen/.test(vis[0].textContent),
+        return { count: vis.length, tab: vis[0].dataset.tab, hasTax: /Steuern \(laut BWA\)/.test(vis[0].textContent),
           activeBtn: document.querySelector('#bwa-body .bwa-tab.is-active').dataset.tab };
       });
       assert.equal(after.count, 1, 'exactly one panel visible after switching');
@@ -277,7 +277,7 @@ describe('bwa report', () => {
         };
       });
       assert.deepEqual(r.ust, { output: 5700, vorsteuer: 3000, prepaid: 2500, net: 200 }, 'VAT composition');
-      assert.deepEqual(r.sum, { cash: 100000, ustOwed: 200, wageTax: 4000, reserves: 1000, refunds: 12000, bound: 5200, free: 94800, freeRatio: r.sum.freeRatio,
+      assert.deepEqual(r.sum, { cash: 100000, ustOwed: 200, wageTax: 4000, reserves: 1000, hold: 1000, refunds: 12000, bound: 5200, free: 94800, freeRatio: r.sum.freeRatio,
         passThrough: 4200, ownTaxNet: -11000, netOutflow: -6800, netTax: -10800 }, 'refunds exclude 1548 (deferred VAT); two buckets + net outflow');
       assert.equal(r.freeRatio, 0.948, 'free liquidity ratio');
       assert.equal(r.sum.passThrough, 200 + 4000, 'pass-through = USt owed + wage tax/SV');
@@ -290,7 +290,7 @@ describe('bwa report', () => {
       assert.ok(r.recGap, 'a recommendation flags the income-tax coverage gap');
       // The fixture itself renders the section (cash > 0) with the free-liquidity card.
       const dom = await page.evaluate(() => ({
-        section: /Steuern & Rücklagen/.test(document.getElementById('bwa-body').textContent),
+        section: /Steuern \(laut BWA\)/.test(document.getElementById('bwa-body').textContent),
         bar: !!document.querySelector('#bwa-body .bwa-seg-free, #bwa-body .bwa-seg-ust, #bwa-body .bwa-seg-wage, #bwa-body .bwa-seg-res'),
         free: /Frei verfügbar/.test(document.getElementById('bwa-body').textContent),
         ertrag: /Ertragsteuer/.test(document.getElementById('bwa-body').textContent),
@@ -336,7 +336,7 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
-  test('renders one tax overview table (pass-through + income tax + own calc + Δ)', async () => {
+  test('tax tab shows BWA facts (4 flow columns, no estimates); liquidity tab holds the forecast', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {
       await fresh(page);
@@ -367,59 +367,64 @@ describe('bwa report', () => {
           headers: table ? [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim()) : [],
           groups: table ? [...table.querySelectorAll('tbody tr.bwa-tr-group td')].map((td) => td.textContent.trim()) : [],
           ust: cells(/Umsatzsteuer-Zahllast/), wage: cells(/Lohnsteuer & Sozial/), fremd: cells(/Summe Fremdgeld/),
-          gewst: cells(/Gewerbesteuer/), etSum: cells(/Summe Ertragsteuer/), hold: cells(/Vorzuhalten \(netto\)/),
-          holdNote: /Vorzuhalten \(Liquidität\): 115\.781/.test(txt),
-          etAmber: /2\.588\s*€\s*unter/.test(txt), ustWarn: /Umsatzsteuer-Plausibilität/.test(txt),
+          gewst: cells(/Gewerbesteuer/), etSum: cells(/Summe Ertragsteuer/), fa: cells(/Finanzamt-Saldo Vorjahre/),
+          noEstimate: !/Eigene Berechnung/.test(txt) && !/Δ \(/.test(txt),
           memoRow: (() => { const tr = table && [...table.querySelectorAll('tbody tr.bwa-tr-memo')][0]; return tr ? tr.textContent.replace(/\s+/g, ' ').trim() : ''; })(),
           nfNote: /noch nicht fällige Umsatzsteuer/.test(txt),
           berTip: (() => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => /Umsatzsteuer-Zahllast/.test(t.textContent)); const td = tr && [...tr.querySelectorAll('td[title]')].find((c) => /24\.231/.test(c.textContent)); return td ? td.getAttribute('title') : ''; })(),
         };
       });
-      assert.deepEqual(r.headers, ['Steuer / Posten', 'Anfang (Vorjahr)', 'Berechnet dieses Jahr', 'Bezahlt/abziehbar', 'Offen (vorzuhalten)', 'Eigene Berechnung', 'Δ (gebucht − eigene)']);
-      assert.deepEqual(r.groups, ['Durchlaufende Posten (Fremdgeld)', 'Eigene Ertragsteuer (netto)'], 'grouped pass-through vs. own income tax');
-      // VAT flow: opening 0 (–) + booked 24.231 − paid 0 (–) = 24.231 open
-      assert.deepEqual(r.ust.slice(1, 5), ['–', '24.231 €', '–', '24.231 €'], 'VAT flow opening/booked/paid/open (0 shown as –)');
+      assert.deepEqual(r.headers, ['Steuer / Posten', 'Anfang (Vorjahr)', 'Berechnet dieses Jahr', 'Bezahlt/abziehbar', 'Offen (Saldo)'], 'four flow columns, no estimate columns');
+      assert.deepEqual(r.groups, ['Durchlaufende Posten (Fremdgeld)', 'Eigene Ertragsteuer (netto)']);
+      assert.deepEqual(r.ust.slice(1, 5), ['–', '24.231 €', '–', '24.231 €'], 'VAT flow opening/booked/paid/open');
       assert.equal(r.wage[4], '15.853 €', 'wage tax/SV shown as open only');
-      assert.match(r.wage[0], /Lohnsteuer & Sozialabgaben.*Teil der Personalkosten/, 'wage tax/SV flagged as personnel cost');
-      assert.equal(r.fremd[4], '40.084 €', 'pass-through subtotal (open column)');
-      // GewSt: opening 38.577 + booked 8.884 − paid 8.884 = 38.577; own 10.501, Δ −1.617
-      assert.deepEqual(r.gewst.slice(1, 7), ['38.577 €', '8.884 €', '8.884 €', '38.577 €', '10.501 €', '-1.617 €'], 'income-tax flow + own calc + Δ');
-      assert.deepEqual(r.etSum.slice(1, 7), ['75.697 €', '19.636 €', '19.636 €', '75.697 €', '22.223 €', '-2.588 €'], 'income-tax subtotal reconciles');
-      assert.equal(r.hold[4], '115.781 €', 'net amount to keep aside = pass-through + income tax − refunds');
-      assert.ok(r.holdNote, 'states the liquidity to keep aside');
-      assert.ok(r.etAmber, 'income-tax deviation flagged for the advisor');
-      assert.ok(r.ustWarn, 'VAT plausibility from revenue flags the large deviation (booked 24.231 vs 19.000 expected)');
-      assert.match(r.memoRow, /noch nicht fällig.*1766.*5\.000/, 'deferred VAT (1766) shown as a memo sub-row');
-      assert.ok(r.nfNote, 'a note explains the not-yet-due VAT has no current liquidity impact');
-      assert.match(r.berTip || '', /1776 Umsatzsteuer/, 'cells carry a tooltip deriving the value from account numbers');
+      assert.equal(r.fremd[4], '40.084 €', 'pass-through subtotal');
+      assert.deepEqual(r.gewst.slice(1, 5), ['38.577 €', '8.884 €', '8.884 €', '38.577 €'], 'income-tax flow is factual (opening/booked/paid/closing)');
+      assert.deepEqual(r.etSum.slice(1, 5), ['75.697 €', '19.636 €', '19.636 €', '75.697 €'], 'income-tax subtotal reconciles');
+      assert.equal(r.fa[4], '75.697 €', 'prior-year tax-office balance (no VAT opening / refunds here)');
+      assert.ok(r.noEstimate, 'the tax tab has no estimate/Δ columns');
+      assert.match(r.memoRow, /noch nicht fällig.*1766.*5\.000/, 'deferred VAT (1766) memo row stays');
+      assert.ok(r.nfNote, 'the not-yet-due VAT note stays');
+      assert.match(r.berTip || '', /1776 Umsatzsteuer/, 'cells still carry the account-derivation tooltip');
+      // The forecast (estimate + buffer) now lives in the liquidity tab.
+      const l = await page.evaluate(() => {
+        const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'liquidity');
+        const txt = panel.textContent;
+        return { reserveSection: /Steuer-Rücklage \(Prognose\)/.test(txt), hasBar: !!panel.querySelector('.bwa-seg-res'), bound: /115\.781/.test(txt), gap: /2\.588/.test(txt) };
+      });
+      assert.ok(l.reserveSection, 'the liquidity tab has the forecast section');
+      assert.ok(l.hasBar, 'the reserved-vs-free bar moved to the liquidity tab');
+      assert.ok(l.bound, 'the amount to keep aside (115.781) is in the liquidity tab');
+      assert.ok(l.gap, 'the income-tax coverage gap (~2.588) is flagged in the liquidity tab');
       await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();
     } finally { await page.close(); }
   });
 
-  test('falls back to the own estimate for the income-tax hold when the BWA booked no provision', async () => {
+  test('reconciles the prior-year tax-office balance (advisor delta) and keeps the forecast in the liquidity tab', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {
       await fresh(page);
       await page.evaluate(() => {
-        // A 2023-style case: the reserve accounts carry a stale opening balance with
-        // no movement, while only advance payments (Pauschale) sit on the P&L tax
-        // accounts — well below the ~30 % that the profit implies. The tool should
-        // fall back to the estimate so "still open" reflects a realistic hold.
+        // The real 2026 (mid-year) case: prior-year VAT (1790), prior-year income-tax
+        // reserves (956/963), large refund claims (Verlustrücktrag) and a net
+        // Gewinnvortrag. The tax tab must reconcile the advisor's 21.236 € delta.
         const susa = [
-          { no: 1200, label: 'Bank', saldoAbs: 200000, side: 'S' },
-          { no: 956, label: 'Gewerbesteuerrückstellung § 4 (5b) EStG', saldoAbs: 8884, side: 'H', soll: 0, haben: 0, eb: -8884 },
-          { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 11343.23, side: 'H', soll: 0, haben: 0, eb: -11343.23 },
-          { no: 2200, label: 'Körperschaftsteuer', saldoAbs: 9590.30, side: 'S', soll: 9590.30, haben: 0 },
-          { no: 2208, label: 'Solidaritätszuschlag', saldoAbs: 668.50, side: 'S', soll: 668.50, haben: 0 },
-          { no: 2213, label: 'Kapitalertragsteuer 25 %', saldoAbs: 6250, side: 'S', soll: 6250, haben: 0 },
-          { no: 2216, label: 'SolZ auf Kapitalertragsteuer', saldoAbs: 343.75, side: 'S', soll: 343.75, haben: 0 },
-          { no: 4320, label: 'Gewerbesteuer', saldoAbs: 10656, side: 'S', soll: 10656, haben: 0 },
+          { no: 1200, label: 'Bank', saldoAbs: 117048, side: 'S' },
+          { no: 1540, label: 'Forderung aus Gewerbesteuerüberzahlung', saldoAbs: 1645, side: 'S' },
+          { no: 1549, label: 'Körperschaftsteuerrückforderung', saldoAbs: 42971.50, side: 'S' },
+          { no: 1741, label: 'Verbindl. Lohn- und Kirchensteuer', saldoAbs: 7740, side: 'H' },
+          { no: 1776, label: 'Umsatzsteuer 19%', saldoAbs: 509, side: 'H' },
+          { no: 1790, label: 'Umsatzsteuerverbindlichkeiten Vorjahr', saldoAbs: 58354.15, side: 'H' },
+          { no: 860, label: 'Gewinnvortrag vor Verwendung', saldoAbs: 258067.14, side: 'H' },
+          { no: 868, label: 'Verlustvortrag vor Verwendung', saldoAbs: 220443.53, side: 'S' },
+          { no: 956, label: 'Gewerbesteuerrückstellung § 4 (5b) EStG', saldoAbs: 3816, side: 'H', soll: 0, haben: 0, eb: -3816 },
+          { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 3682.80, side: 'H', soll: 0, haben: 0, eb: -3682.80 },
         ];
-        const parsed = { meta: { company: 'Test GmbH', date: '31.12.2023', monthsElapsed: 12, periodLabel: 'Jan/2023 – Dez/2023', currentMonth: 'Dez/2023', currency: 'EUR' },
-          ker: { ergebnisVorSteuern: { ytd: 261542, month: 0, label: 'Ergebnis vor Steuern' }, umsatz: { ytd: 1004015, month: 0, label: 'Umsatzerlöse' } }, hasSusa: true, hasTurnover: true, susa };
-        localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2023-12': parsed } }));
-        localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2023-12' }));
+        const parsed = { meta: { company: 'Test GmbH', date: '31.07.2026', monthsElapsed: 7, periodLabel: 'Jan/2026 – Jul/2026', currentMonth: 'Jul/2026', currency: 'EUR' },
+          ker: { ergebnisVorSteuern: { ytd: 46884, month: 0, label: 'Ergebnis vor Steuern' }, umsatz: { ytd: 397018, month: 0, label: 'Umsatzerlöse' } }, hasSusa: true, hasTurnover: true, susa };
+        localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2026-07': parsed } }));
+        localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2026-07' }));
       });
       await page.reload();
       await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
@@ -429,22 +434,32 @@ describe('bwa report', () => {
         const table = document.querySelector('#bwa-body table.bwa-taxoverview');
         const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'taxes');
         const cells = (re) => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => re.test(t.textContent)); return tr ? [...tr.querySelectorAll('td')].map((td) => td.textContent.replace(/[  ]/g, ' ').replace(/−/g, '-').trim()) : []; };
-        const berTip = (() => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => /Körperschaftsteuer/.test(t.textContent)); const td = tr && [...tr.querySelectorAll('td.bwa-td-est')][0]; return td ? td.getAttribute('title') : ''; })();
         return {
-          hold: Math.round(K.incomeTaxHold), reserves: Math.round(K.taxSummary.reserves),
-          gewst: cells(/Gewerbesteuer/), kst: cells(/Körperschaftsteuer/), etSum: cells(/Summe Ertragsteuer/),
-          holdRow: cells(/Vorzuhalten \(netto\)/), warn: panel.textContent.replace(/[  ]/g, ' '), berTip,
+          hold: K.incomeTaxHold, reserves: K.taxSummary.reserves, sumHold: K.taxSummary.hold, lossCarry: Math.round(K.lossCarry),
+          ust: cells(/Umsatzsteuer-Zahllast/), gewst: cells(/Gewerbesteuer/), kst: cells(/Körperschaftsteuer/),
+          etSum: cells(/Summe Ertragsteuer/), refunds: cells(/Erstattungsansprüche/), fa: cells(/Finanzamt-Saldo Vorjahre/),
+          faNote: /Finanzamt-Saldo Vorjahre: 21\.236/.test(panel.textContent),
+          noEstimate: !/≈/.test(table.textContent) && !/Eigene Berechnung/.test(panel.textContent),
         };
       });
-      assert.equal(r.hold, 71181, 'income-tax hold uses the estimate (old reserve + estimate − advance payments)');
-      assert.equal(r.reserves, r.hold, 'the summary reserve matches the estimate-based hold (bar and table agree)');
-      // GewSt: booked "≈ 37.074" (estimate), open = 8.884 + 37.074 − 10.656 = 35.302, Δ = 10.656 − 37.074
-      assert.deepEqual(r.gewst.slice(1, 7), ['8.884 €', '≈ 37.074 €', '10.656 €', '35.302 €', '37.074 €', '-26.418 €'], 'GewSt falls back to the estimate; open is realistic');
-      assert.deepEqual(r.kst.slice(1, 7), ['11.343 €', '≈ 41.389 €', '16.853 €', '35.880 €', '41.389 €', '-24.536 €'], 'KSt falls back to the estimate; open is realistic');
-      assert.deepEqual(r.etSum.slice(1, 7), ['20.227 €', '≈ 78.463 €', '27.509 €', '71.181 €', '78.463 €', '-50.954 €'], 'income-tax subtotal is estimate-based');
-      assert.equal(r.holdRow[4], '71.181 €', 'the net amount to keep aside reflects the estimate');
-      assert.match(r.warn, /verbuchte Ertragsteuer.*27\.509.*50\.954.*unter.*78\.463/s, 'flags that only 27.509 was booked vs. ~78.463 expected');
-      assert.match(r.berTip || '', /Geschätzt/, 'the estimated booked cell explains it is a 30 % estimate');
+      assert.equal(r.lossCarry, 0, 'the net Gewinnvortrag leaves no usable loss carry-forward');
+      assert.deepEqual(r.ust.slice(1, 5), ['58.354 €', '509 €', '–', '58.863 €'], 'VAT flow with prior-year opening');
+      assert.deepEqual(r.gewst.slice(1, 5), ['3.816 €', '–', '–', '3.816 €'], 'GewSt reserve at its actual balance (no estimate)');
+      assert.deepEqual(r.kst.slice(1, 5), ['3.683 €', '–', '–', '3.683 €'], 'KSt reserve at its actual balance');
+      assert.deepEqual(r.etSum.slice(1, 5), ['7.499 €', '–', '–', '7.499 €'], 'income-tax subtotal is factual');
+      assert.equal(r.refunds[4], '-44.617 €', 'refund claims (1540 + 1549)');
+      assert.equal(r.fa[4], '21.236 €', 'prior-year tax-office balance matches the advisor delta');
+      assert.ok(r.faNote, 'a note states the prior-year tax-office balance');
+      assert.ok(r.noEstimate, 'the tax tab carries no estimate');
+      assert.ok(Math.abs(r.reserves - 7498.80) < 1, `factual reserve stock (${r.reserves})`);
+      assert.ok(Math.abs(r.hold - 21564.5) < 2 && Math.abs(r.sumHold - r.hold) < 0.01, `estimate-based hold (${r.hold})`);
+      const l = await page.evaluate(() => {
+        const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'liquidity');
+        const txt = panel.textContent;
+        return { reserveSection: /Steuer-Rücklage \(Prognose\)/.test(txt), hasBar: !!panel.querySelector('.bwa-seg-res'), expected: /14\.06\d/.test(txt) };
+      });
+      assert.ok(l.reserveSection && l.hasBar, 'the forecast section + bar are in the liquidity tab');
+      assert.ok(l.expected, 'the expected current-year income tax (~14.065) is shown as a forecast');
       await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();
     } finally { await page.close(); }

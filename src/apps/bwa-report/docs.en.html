@@ -33,28 +33,24 @@
   <li><strong>Cost structure</strong> — the largest cost blocks as bars, plus a
       <strong>drill-down into the largest single expense accounts</strong> (often the bulk of “other costs”).</li>
   <li><strong>Liquidity</strong> — cash, receivables, short-term liabilities, provisions, net
-      liquidity, runway (stress test) and <strong>DSO/DPO</strong> (receivable and payable days).</li>
-  <li><strong>Taxes &amp; reserves</strong> — the key “<em>you can't work with this</em>” view: a bar
-      splits the cash into <strong>to keep aside</strong> (VAT liability, wage tax/social security,
-      tax provisions) and <strong>freely usable</strong>. Plus <strong>“what to keep aside, by type”</strong>
-      in two clear buckets — <strong>pass-through money</strong> (VAT + wage tax/social security, the
-      latter part of personnel costs) and <strong>own income tax</strong> (provisions − refund claims) —
-      with the resulting <strong>net outflow</strong>, a single <strong>tax overview table</strong> covering
-      everything. Per tax/item — VAT, wage tax/social security, corporate and trade tax — it shows the flow:
-      <strong>opening (prior year)</strong> + <strong>booked this year</strong> − <strong>paid/deductible</strong>
-      = <strong>still open (keep aside)</strong>. “Booked” is the tax booked for this year (not what was paid).
-      For income tax, the in-year <strong>advance payments</strong> (corporate/trade tax, capital-gains
-      tax/solidarity surcharge from the P&amp;L tax accounts) are included in “booked” and “paid”. When the
-      BWA lacks a tax calculation despite a taxable profit, “booked” is filled with the own 30 % estimate
-      (marked “≈”) so “open (keep aside)” shows a realistic reserve orientation.
-      Plus an <strong>own rough calculation</strong> (income tax ~30 %, VAT 19 % of revenue) with Δ as a
-      <strong>plausibility warning</strong> on large deviations — a hint of what to raise with the tax advisor.
-      Subtotals and the final row (liquidity to keep aside) make the offsetting visible. <strong>Every figure has a
-      tooltip</strong> deriving it from account numbers and names; the <strong>not-yet-due VAT</strong> (account 1766,
-      on open invoices) is shown for information only — no liquidity impact, since it only becomes payable when the
-      customer pays. Plus a
-      <strong>plausibility check</strong> (booked VAT vs. 19 % of revenue, input VAT vs. expense). Rough orientation, not a tax calculation; the
-      VAT return sheet stays out of scope.</li>
+      liquidity, runway (stress test) and <strong>DSO/DPO</strong> (receivable and payable days). Plus the
+      <strong>tax reserve (forecast)</strong>: a bar splits the cash into <strong>to keep aside</strong> and
+      <strong>freely usable</strong>, the <strong>expected current-year income tax</strong> (~30 % of taxable
+      profit, loss carry-forward considered) with a coverage hint, and the <strong>net outflow</strong>
+      (pass-through money + own income tax − refunds) as a liquidity buffer. Rough orientation.</li>
+  <li><strong>Taxes (per BWA)</strong> — the <strong>plain actuals</strong> from the accounts, no estimates.
+      A <strong>tax overview table</strong> shows, per tax/item — VAT, wage tax/social security, corporate and
+      trade tax — the flow: <strong>opening (prior year)</strong> + <strong>booked this year</strong> (booked)
+      − <strong>paid/deductible</strong> = <strong>open (balance)</strong>. For income tax, the in-year
+      <strong>advance payments</strong> (corporate/trade tax, capital-gains tax/solidarity surcharge from the
+      P&amp;L tax accounts) are included in “booked” and “paid”. The final row is the <strong>prior-year
+      tax-office balance</strong> = opening VAT + opening income-tax provision − refund claims (the old balance
+      still open with the tax office). <strong>Every figure has a tooltip</strong> deriving it from account
+      numbers, and is traceable to its source account by clicking; the <strong>not-yet-due VAT</strong> (account
+      1766) is shown for information only. Plus a <strong>plausibility check</strong> (booked VAT vs. 19 % of
+      revenue, input VAT vs. expense). The <strong>likely current-year tax burden</strong> and the
+      <strong>liquidity buffer to keep aside</strong> live separately in the <strong>Liquidity</strong> tab
+      (above). Rough orientation, not a tax calculation.</li>
   <li><strong>Revenue per customer</strong> — the largest customers by <strong>invoiced turnover</strong>
       (cumulative), with <strong>opening balance (prior year)</strong>, <strong>collected payments</strong>
       and open balance (open = opening + invoiced − collected). <strong>Sortable columns</strong> (e.g. by

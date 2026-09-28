@@ -100,7 +100,11 @@
       runRateLine: 'Auf Basis von {months} Monaten linear hochgerechnet ergäbe das rund {u} Umsatz und {e} Ergebnis pro Jahr.',
       taxCheckCaveat: 'Grobe Orientierung; Gewerbesteuer-Hebesatz, Verlustvorträge und Abgrenzungen verändern den Betrag deutlich. Keine Steuerberatung.',
       // Taxes & reserves section
-      secTaxes: 'Steuern & Rücklagen',
+      secTaxes: 'Steuern (laut BWA)', secTaxReserve: 'Steuer-Rücklage (Prognose)',
+      liqResFwd: 'Ertragsteuer (voraussichtlich)',
+      txSaldoCol: 'Offen (Saldo)', txFinanzamtVorjahr: 'Finanzamt-Saldo Vorjahre',
+      txFinanzamtNote: 'Finanzamt-Saldo Vorjahre: {amount} — noch offene Steuern der Vorjahre nach Verrechnung der Erstattungsansprüche (Umsatzsteuer-Vorjahr + Ertragsteuer-Rückstellung − Erstattungen; ohne Lohnsteuer/Sozialabgaben und ohne das laufende Jahr).',
+      txCaveatFacts: 'Alle Werte sind Ist-Zahlen aus den Konten der BWA (gebucht, gezahlt, Saldo). Die voraussichtliche Steuerlast des laufenden Jahres und der vorzuhaltende Liquiditätspuffer stehen im Reiter „Liquidität".',
       liqBindTitle: 'Vorzuhaltende vs. frei verfügbare Liquidität',
       liqUst: 'Umsatzsteuer-Zahllast', liqWage: 'Lohnsteuer & Sozialabgaben', liqRes: 'Steuerrückstellungen',
       liqBound: 'Vorzuhalten (Summe)', liqFree: 'Frei verfügbar', liqFreeSub: '{p} der liquiden Mittel',
@@ -251,7 +255,11 @@
       runRateTitle: 'Year projection:',
       runRateLine: 'Extrapolated linearly from {months} months, that is roughly {u} revenue and {e} result per year.',
       taxCheckCaveat: 'Rough orientation; the trade-tax multiplier, loss carry-forwards and accruals change the amount considerably. Not tax advice.',
-      secTaxes: 'Taxes & reserves',
+      secTaxes: 'Taxes (per BWA)', secTaxReserve: 'Tax reserve (forecast)',
+      liqResFwd: 'Income tax (expected)',
+      txSaldoCol: 'Open (balance)', txFinanzamtVorjahr: 'Prior-year tax-office balance',
+      txFinanzamtNote: 'Prior-year tax-office balance: {amount} — taxes of prior years still open after offsetting the refund claims (prior-year VAT + income-tax provision − refunds; excluding wage tax/social security and the current year).',
+      txCaveatFacts: 'All figures are actuals from the BWA accounts (booked, paid, balance). The likely current-year tax burden and the liquidity buffer to keep aside are in the "Liquidity" tab.',
       liqBindTitle: 'Reserved vs. freely usable liquidity',
       liqUst: 'VAT liability', liqWage: 'Wage tax & social security', liqRes: 'Tax provisions',
       liqBound: 'To keep aside (total)', liqFree: 'Freely usable', liqFreeSub: '{p} of cash',
@@ -677,21 +685,24 @@
         }, 0);
       }
       o.incomeTaxHold = incomeTaxHold;
-      const reserves = incomeTaxHold;
+      // Split fact vs. forecast: the tax tab shows the actual booked reserve stock,
+      // the liquidity tab holds the forecast (reserve + estimate of the current year).
+      const reserves = Math.max(0, o.taxProvisions);   // Ist — booked reserve (tax tab)
+      const hold = incomeTaxHold;                       // Prognose — reserve + estimate (liquidity tab)
       // Tax refund claims (income taxes): GewSt/KSt overpayments 1540–1549, but
       // NOT 1548 (input VAT deductible in a later period — a VAT, not a tax refund).
       const refunds = a.filter((x) => x.no >= 1540 && x.no <= 1549 && x.no !== 1548 && x.side === 'S').reduce((s, x) => s + x.saldoAbs, 0);
       const ustNet = o.ust ? o.ust.net : 0;
-      const bound = ustOwed + wageTax + reserves;
-      o.taxSummary = { cash, ustOwed, wageTax, reserves, refunds, bound,
+      const bound = ustOwed + wageTax + hold;   // forward-looking liquidity buffer
+      o.taxSummary = { cash, ustOwed, wageTax, reserves, hold, refunds, bound,
         free: cash - bound, freeRatio: cash > 0 ? (cash - bound) / cash : null,
         // Two clear buckets: pass-through money (VAT + wage tax/SV, part of payroll)
-        // and the company's own income tax netted with refunds. Their sum is the
-        // real net cash outflow once refunds arrive.
+        // and the company's own income tax (forecast) netted with refunds. Their sum
+        // is the real net cash outflow once refunds arrive.
         passThrough: ustOwed + wageTax,          // durchlaufende Posten (Fremdgeld)
-        ownTaxNet: reserves - refunds,           // eigene Ertragsteuer, netto
+        ownTaxNet: hold - refunds,               // eigene Ertragsteuer (Prognose), netto
         netOutflow: bound - refunds,             // = passThrough + ownTaxNet
-        netTax: ustNet + reserves - refunds };   // Finanzamt-only (VAT + income tax), advisor reconciliation
+        netTax: ustNet + hold - refunds };       // Finanzamt-only (VAT + income tax), advisor reconciliation
       // Verprobung (plausibility): sales VAT vs. 19 % of revenue, input VAT vs. taxable expense.
       const salesVat = a.filter((x) => x.no >= 1770 && x.no <= 1779 && x.side === 'H').reduce((s, x) => s + x.saldoAbs, 0);
       const vstBase = Math.max(0, o.gesamtkostenYtd - v('personalkosten', 'ytd') - v('abschreibungen', 'ytd') - v('betrSteuern', 'ytd'));
@@ -815,10 +826,13 @@
   // Taxes & reserves section: (A) bound vs. free liquidity, (B) income-tax
   // outlook incl. loss carry-forwards, (C) plausibility check from the figures.
   function taxSection(K) {
-    const over = K.taxDetail != null ? taxOverviewBlock(K) : '';   // one table when movement columns exist
-    const fallback = over ? '' : (netTaxBlock(K) + ertragTaxBlock(K));
-    const inner = bindingBlock(K) + over + fallback + verprobungBlock(K);
-    return inner ? section('secTaxes', inner) : '';
+    const inner = taxOverviewBlock(K) + verprobungBlock(K);   // facts from the BWA only
+    return inner.trim() ? section('secTaxes', inner) : '';
+  }
+  // Liquidity tab — the forecast: likely current-year tax + the buffer to keep aside.
+  function taxReserveBlock(K) {
+    const inner = bindingBlock(K) + ertragTaxBlock(K) + netTaxBlock(K);
+    return inner.trim() ? section('secTaxReserve', inner) : '';
   }
   // What must be kept aside, split into two plainly-named buckets: pass-through
   // money (VAT + wage tax/SV, part of payroll) and the company's own income tax
@@ -831,7 +845,7 @@
     const passRows = [[t('liqUst'), eur0(S.ustOwed)]];
     if (S.wageTax > 0) passRows.push([t('liqWage'), eur0(S.wageTax)]);
     passRows.push([t('ptSumPass'), eur0(S.passThrough), true]);
-    const ownRows = [[t('liqRes'), eur0(S.reserves)]];
+    const ownRows = [[t('liqResFwd'), eur0(S.hold)]];
     if (S.refunds > 0) ownRows.push([t('ntRefunds'), '− ' + eur0(S.refunds)]);
     ownRows.push([t('ptOwnNet'), (S.ownTaxNet < 0 ? '− ' : '') + eur0(Math.abs(S.ownTaxNet)), true]);
     const owed = S.netOutflow >= 0;
@@ -851,7 +865,7 @@
     const segs = [
       { key: 'liqUst', val: S.ustOwed, cls: 'bwa-seg-ust' },
       { key: 'liqWage', val: S.wageTax, cls: 'bwa-seg-wage' },
-      { key: 'liqRes', val: S.reserves, cls: 'bwa-seg-res' },
+      { key: 'liqResFwd', val: S.hold, cls: 'bwa-seg-res' },
     ].filter((s) => s.val > 0);
     const w = (val) => (Math.max(0, Math.min(val, S.cash)) / S.cash * 100).toFixed(1) + '%';
     const bar = `<div class="bwa-flow-bar">
@@ -903,72 +917,61 @@
     const sum = list.reduce((s, x) => s + x.v, 0);
     return (head ? head + '\n' : '') + lines.join('\n') + (list.length > 1 ? `\n= ${eur0(sum)}` : '');
   };
+  // Tax tab — FACTS only: the tax figures booked in the BWA (opening, booked this
+  // year, paid, closing balance) plus the prior-year tax-office balance. No
+  // estimates here; the forecast (likely current-year tax + buffer) lives in the
+  // liquidity tab.
   function taxOverviewBlock(K) {
-    const S = K.taxSummary, T = K.taxCheck, SRC = K.taxSrc || {};
+    const S = K.taxSummary, SRC = K.taxSrc || {};
     if (!S || (S.ustOwed <= 0 && S.wageTax <= 0 && S.reserves <= 0 && S.refunds <= 0)) return '';
-    const shielded = T && T.lossCarry > 0 && T.taxable === 0;
-    const taxable = T ? T.taxable : 0, rateGewst = T ? Math.max(0, T.rate - RATE_KST) : 0;
-    const ownOf = (kind) => (!T || taxable <= 0) ? null : kind === 'kst' ? taxable * RATE_KST : kind === 'gewst' ? taxable * rateGewst : null;
     const nos = (list) => (list || []).map((x) => x.no);         // contributing account numbers, for source links
-    const etNos = [];
     const R = [];
+    let ustAnfang = 0, etAnfang = 0;
     R.push({ g: t('ptPassThrough') });
     if (S.ustOwed > 0) {
-      const F = K.ustFlow || { anfang: null, berechnet: null, bezahlt: null, offen: S.ustOwed, eigene: null };
-      const own = F.eigene, delta = (own != null && F.berechnet != null) ? F.berechnet - own : null;
+      const F = K.ustFlow || { anfang: null, berechnet: null, bezahlt: null, offen: S.ustOwed };
+      ustAnfang = F.anfang || 0;
       const ustAllNos = [].concat(nos(SRC.ustOutput), nos(SRC.ustVorjahr), nos(SRC.vorsteuer), nos(SRC.vorauszahlung));
-      R.push({ label: t('liqUst'), anfang: F.anfang, berechnet: F.berechnet, bezahlt: F.bezahlt, offen: F.offen, own, delta,
-        srcd: { anfang: srcData(nos(SRC.ustVorjahr)), berechnet: srcData(nos(SRC.ustOutput)), bezahlt: srcData([].concat(nos(SRC.vorsteuer), nos(SRC.vorauszahlung))), offen: srcData(ustAllNos), own: srcData(null, ['umsatz']) },
+      R.push({ label: t('liqUst'), anfang: F.anfang, berechnet: F.berechnet, bezahlt: F.bezahlt, offen: F.offen,
+        srcd: { anfang: srcData(nos(SRC.ustVorjahr)), berechnet: srcData(nos(SRC.ustOutput)), bezahlt: srcData([].concat(nos(SRC.vorsteuer), nos(SRC.vorauszahlung))), offen: srcData(ustAllNos) },
         tips: {
           anfang: SRC.ustVorjahr && SRC.ustVorjahr.length ? acctTip(SRC.ustVorjahr) : t('tipNoOpening'),
           berechnet: acctTip(SRC.ustOutput, t('txBerechnet')),
           bezahlt: acctTip(SRC.vorsteuer, t('tipVorsteuer')) + (SRC.vorauszahlung && SRC.vorauszahlung.length ? '\n' + acctTip(SRC.vorauszahlung, t('tipVorausz')) : ''),
           offen: `${t('txBerechnet')} ${eur0(F.berechnet)} − ${t('txBezahlt')} ${eur0(F.bezahlt)} = ${eur0(F.offen)}`,
-          own: own != null ? `${t('tipUstEigene')} (19 % × ${eur0(K.umsatzYtd)}) = ${eur0(own)}` : '',
-          delta: delta != null ? `${t('txBerechnet')} ${eur0(F.berechnet)} − ${t('txOwn')} ${eur0(own)}` : '',
         } });
       if (F.nichtFaellig > 0) R.push({ memo: 1, label: t('ustNichtFaellig'), offen: F.nichtFaellig, srcd: { offen: srcData(nos(SRC.nichtFaellig)) }, tips: { offen: acctTip(SRC.nichtFaellig) } });
     }
     if (S.wageTax > 0) R.push({ label: t('liqWage'), offen: S.wageTax, hint: t('ntPayrollHint'), srcd: { offen: srcData(nos(SRC.wage)) }, tips: { offen: acctTip(SRC.wage) } });
     R.push({ sub: 1, label: t('ptSumPass'), offen: S.passThrough, tips: { offen: `${t('liqUst')} + ${t('liqWage')} = ${eur0(S.passThrough)}` } });
-    let ea = 0, eb = 0, ez = 0, et = 0, eo = 0, ed = 0, ebk = 0, anyEst = false, hasEt = false;
+    let ea = 0, eb = 0, ez = 0, et = 0, hasEt = false;
     R.push({ g: t('ptOwnTax') });
     (K.taxDetail || []).forEach((d) => {
       const vz = d.vorausz || 0;
-      const booked = d.berechnet + vz;       // tax actually booked this year (provision + advance payments)
-      const paid = d.bezahlt + vz;
-      const own = ownOf(d.kind);             // ~30 % estimate for this year (null when no taxable profit)
-      // When the BWA booked no provision this year for a taxable profit, the reserve
-      // stock understates the real liability. Fall back to the estimate for "booked
-      // this year" so "still open" is a realistic hold; mark the value as estimated.
-      const estimated = own != null && d.berechnet <= 0.005 && own > booked;
-      const berShown = estimated ? own : booked;
-      const offen = d.anfang + berShown - paid;
-      const delta = own != null ? booked - own : null;   // Δ always compares what was actually booked
+      const booked = d.berechnet + vz, paid = d.bezahlt + vz;   // actually booked / paid this year
       const head = `${d.no} ${d.label}`;
       const vzTip = vz > 0.005 ? `\n${acctTip(d.vorauszSrc, t('tipEtVorausz'))}` : '';
-      const etAll = [].concat([d.no], nos(d.vorauszSrc)); etNos.push(...etAll);
-      R.push({ label: taxKindLabel(d), anfang: d.anfang, berechnet: berShown, bezahlt: paid, offen, own, delta, est: estimated,
-        srcd: { anfang: srcData([d.no]), berechnet: srcData(etAll), bezahlt: srcData(etAll), offen: srcData([d.no]), own: srcData(null, ['ergebnisVorSteuern']) },
+      const etAll = [].concat([d.no], nos(d.vorauszSrc));
+      R.push({ label: taxKindLabel(d), anfang: d.anfang, berechnet: booked, bezahlt: paid, offen: d.offen,
+        srcd: { anfang: srcData([d.no]), berechnet: srcData(etAll), bezahlt: srcData(etAll), offen: srcData([d.no]) },
         tips: {
           anfang: `${head}\n${t('tipEB')}: ${eur0(d.anfang)}`,
-          berechnet: estimated
-            ? `${t('tipEtEstimated')}\n${pct(d.kind === 'kst' ? RATE_KST : rateGewst, 1)} × ${t('etTaxable')} ${eur0(taxable)} = ${eur0(berShown)}\n(${t('tipEtBooked')}: ${eur0(booked)})`
-            : `${head}\n${t('tipHaben')}: ${eur0(d.berechnet)}${vzTip}${vz > 0.005 ? `\n= ${eur0(booked)}` : ''}`,
+          berechnet: `${head}\n${t('tipHaben')}: ${eur0(d.berechnet)}${vzTip}${vz > 0.005 ? `\n= ${eur0(booked)}` : ''}`,
           bezahlt: `${head}\n${t('tipSoll')}: ${eur0(d.bezahlt)}${vzTip}${vz > 0.005 ? `\n= ${eur0(paid)}` : ''}`,
-          offen: `${t('txAnfang')} ${eur0(d.anfang)} + ${t('txBerechnet')} ${eur0(berShown)} − ${t('txBezahlt')} ${eur0(paid)} = ${eur0(offen)}`,
-          own: own != null ? `${pct(d.kind === 'kst' ? RATE_KST : rateGewst, 1)} × ${t('etTaxable')} ${eur0(taxable)} = ${eur0(own)}` : '',
-          delta: delta != null ? `${t('tipEtBooked')} ${eur0(booked)} − ${t('txOwn')} ${eur0(own)}` : '',
+          offen: `${head}\n${t('tipSaldoFormel')} = ${eur0(d.offen)}`,
         } });
-      ea += d.anfang; eb += berShown; ez += paid; et += offen; eo += own || 0; if (delta != null) ed += delta; ebk += booked; if (estimated) anyEst = true; hasEt = true;
+      ea += d.anfang; eb += booked; ez += paid; et += d.offen; etAnfang += d.anfang; hasEt = true;
     });
-    if (!hasEt && S.reserves > 0) { R.push({ label: t('liqRes'), offen: S.reserves }); et = S.reserves; }
-    if (hasEt) R.push({ sub: 1, label: t('etSubtotal'), anfang: ea, berechnet: eb, bezahlt: ez, offen: et, own: eo, delta: ed, est: anyEst, srcd: { offen: srcData(etNos, ['ergebnisVorSteuern']), own: srcData(null, ['ergebnisVorSteuern']) } });
+    if (!hasEt && S.reserves > 0) { R.push({ label: t('liqRes'), offen: S.reserves }); et = S.reserves; etAnfang += S.reserves; }
+    if (hasEt) R.push({ sub: 1, label: t('etSubtotal'), anfang: ea, berechnet: eb, bezahlt: ez, offen: et });
     if (S.refunds > 0) R.push({ label: t('ntRefunds'), offen: -S.refunds, srcd: { offen: srcData(nos(SRC.refunds)) }, tips: { offen: acctTip(SRC.refunds, t('tipRefundHead')) } });
-    R.push({ total: 1, label: t('txHoldRow'), offen: S.netOutflow, tips: { offen: t('tipNetOutflow') } });
+    // Prior-year tax-office balance: opening VAT + opening income-tax reserve − refund
+    // claims (matches the advisor's delta). Uses the opening (prior-year) figures, not
+    // the current open amounts, and excludes wage tax/SV.
+    const fa = ustAnfang + etAnfang - S.refunds;
+    const faTip = `${t('txAnfang')} ${t('liqUst')} ${eur0(ustAnfang)} + ${t('txAnfang')} ${t('etSubtotal')} ${eur0(etAnfang)} − ${t('ntRefunds')} ${eur0(S.refunds)} = ${eur0(fa)}`;
+    R.push({ total: 1, label: t('txFinanzamtVorjahr'), offen: fa, tips: { offen: faTip } });
     const num = (v) => v == null ? '–' : eur0(v);
-    // Flow columns: show "–" for no value / no movement (mid-year statements and
-    // loss-shielded years have no addition this year), so 0 € doesn't read as a gap.
     const flow = (v) => (v == null || Math.abs(v) < 0.005) ? '–' : eur0(v);
     const cell = (val, tip, fmt, extraCls, sd) => {
       const txt = fmt(val);
@@ -977,51 +980,28 @@
       return `<td class="bwa-num${extraCls || ''}${title ? ' bwa-td-tip' : ''}${link ? ' bwa-td-src' : ''}"${title}${link}>${txt}</td>`;
     };
     const body = R.map((r) => {
-      if (r.g) return `<tr class="bwa-tr-group"><td colspan="7">${esc(r.g)}</td></tr>`;
+      if (r.g) return `<tr class="bwa-tr-group"><td colspan="5">${esc(r.g)}</td></tr>`;
       const cls = r.total ? 'bwa-tr-bold bwa-tr-total' : r.sub ? 'bwa-tr-sub' : r.memo ? 'bwa-tr-memo' : '';
       const tp = r.tips || {}, sd = r.srcd || {};
       const label = (r.memo ? '↳ ' : '') + esc(r.label) + (r.hint ? ` <span class="bwa-muted">· ${esc(r.hint)}</span>` : '');
-      if (r.memo) return `<tr class="${cls}"><td>${label}</td><td class="bwa-num" colspan="3"></td>${cell(r.offen, tp.offen, (v) => '(' + eur0(v) + ')', '', sd.offen)}<td class="bwa-num" colspan="2"></td></tr>`;
-      const berFmt = r.est ? (v) => (v == null || Math.abs(v) < 0.005) ? '–' : '≈ ' + eur0(v) : flow;
+      if (r.memo) return `<tr class="${cls}"><td>${label}</td><td class="bwa-num" colspan="3"></td>${cell(r.offen, tp.offen, (v) => '(' + eur0(v) + ')', '', sd.offen)}</tr>`;
       return `<tr class="${cls}"><td>${label}</td>
-        ${cell(r.anfang, tp.anfang, flow, ' bwa-muted', sd.anfang)}${cell(r.berechnet, tp.berechnet, berFmt, r.est ? ' bwa-td-est' : '', sd.berechnet)}${cell(r.bezahlt, tp.bezahlt, flow, '', sd.bezahlt)}
-        ${cell(r.offen, tp.offen, num, '', sd.offen)}${cell(r.own, tp.own, flow, '', sd.own)}${cell(r.delta, tp.delta, flow)}</tr>`;
+        ${cell(r.anfang, tp.anfang, flow, ' bwa-muted', sd.anfang)}${cell(r.berechnet, tp.berechnet, flow, '', sd.berechnet)}${cell(r.bezahlt, tp.bezahlt, flow, '', sd.bezahlt)}
+        ${cell(r.offen, tp.offen, num, '', sd.offen)}</tr>`;
     }).join('');
     const table = `<div class="bwa-table-wrap"><table class="bwa-table bwa-taxoverview"><thead><tr>
       <th>${esc(t('txArt'))}</th><th class="bwa-num">${esc(t('txAnfang'))}</th><th class="bwa-num">${esc(t('txBerechnet'))}</th>
-      <th class="bwa-num">${esc(t('txBezahlt'))}</th><th class="bwa-num">${esc(t('txHoldCol'))}</th>
-      <th class="bwa-num">${esc(t('txOwn'))}</th><th class="bwa-num">${esc(t('txDelta'))}</th>
+      <th class="bwa-num">${esc(t('txBezahlt'))}</th><th class="bwa-num">${esc(t('txSaldoCol'))}</th>
     </tr></thead><tbody>${body}</tbody></table></div>`;
-    let bem = '';
-    if (T && T.hasSusa) {
-      const bp = [t('etErgebnis') + ': ' + eur0(T.base)];
-      if (T.lossCarry > 0) bp.push(t('etLoss') + ': − ' + eur0(Math.min(T.lossCarry, T.base)));
-      bp.push(t('etTaxable') + ': ' + eur0(T.taxable));
-      bem = `<p class="bwa-note bwa-subnote">${esc(bp.join(' · '))}</p>`;
-    }
-    const plausParts = [];
-    if (shielded) plausParts.push({ lvl: 'good', text: t('etVerdictShield', { loss: eur0(T.lossCarry) }) });
-    else if (hasEt && T && T.taxable > 0 && eo > 0) {   // compare what was actually booked vs. the estimate
-      const gap = ebk - eo, material = Math.abs(gap) > 0.05 * eo;
-      plausParts.push({ lvl: material ? 'ok' : 'good',
-        text: t('txPlaus', { current: eur0(ebk), own: eur0(eo), delta: eur0(Math.abs(gap)), dir: gap < 0 ? t('txUnder') : t('txOver') }) });
-    }
-    // VAT plausibility from revenue — a warning only on a large deviation.
-    const F = K.ustFlow;
-    if (F && F.eigene != null && F.berechnet != null) {
-      const ratio = F.eigene > 0 ? F.berechnet / F.eigene : 1;
-      if (ratio < 0.6 || ratio > 1.1) plausParts.push({ lvl: 'ok', text: t('txUstWarn', { booked: eur0(F.berechnet), own: eur0(F.eigene), q: pct(ratio, 0) }) });
-    }
-    const plaus = plausParts.map((p) => `<div class="bwa-assess bwa-assess-${p.lvl}">${dot(p.lvl)}<div>${esc(p.text)}</div></div>`).join('');
     const nfNote = (K.ustFlow && K.ustFlow.nichtFaellig > 0)
       ? `<p class="bwa-note">${esc(t('ustNichtFaelligNote'))}</p>` : '';
     return `<div class="bwa-subtitle"><strong>${esc(t('txOverviewTitle'))}</strong>${info('steuercheck')}</div>
-      ${bem}${table}
+      ${table}
       <p class="bwa-note bwa-subnote">${esc(t('tipHintRow'))}</p>
-      <p class="bwa-note"><strong>${esc(t('txHold', { amount: eur0(S.netOutflow) }))}</strong></p>
-      ${nfNote}${plaus}
+      <p class="bwa-note"><strong>${esc(t('txFinanzamtNote', { amount: eur0(fa) }))}</strong></p>
+      ${nfNote}
       <p class="bwa-note">${esc(t('ptNote'))}</p>
-      <p class="bwa-note">${esc(t('txCaveat'))}</p>`;
+      <p class="bwa-note">${esc(t('txCaveatFacts'))}</p>`;
   }
   // (C) Rough plausibility from revenue (output VAT) and expenses (input VAT).
   function verprobungBlock(K) {
@@ -1345,7 +1325,7 @@
       { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + (customerRevenueBlock(parsed) || custBlock) + kerBlock },
       { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + (supplierPurchasesBlock(parsed) || supBlock) + expBlock },
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
-      { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) },
+      { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) + taxReserveBlock(K) },
       { id: 'source', label: t('tabSource'), html: sourceTab(parsed) },
     ];
     $('bwa-body').innerHTML = tabbed(tabs);
