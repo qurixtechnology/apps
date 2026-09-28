@@ -450,6 +450,32 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('nets the book Gewinnvortrag (860) against the Verlustvortrag (868) for the loss shield', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await importFixture(page);
+      const r = await page.evaluate(() => {
+        // A 2026-style case: a debit Verlustvortrag (868) but an even larger credit
+        // Gewinnvortrag (860) — the net is retained profit, so nothing shields.
+        const susa = [
+          { no: 860, label: 'Gewinnvortrag vor Verwendung', saldoAbs: 258067.14, side: 'H' },
+          { no: 868, label: 'Verlustvortrag vor Verwendung', saldoAbs: 220443.53, side: 'S' },
+          { no: 956, label: 'Gewerbesteuerrückstellung § 4 (5b) EStG', saldoAbs: 3816, side: 'H', soll: 0, haben: 0, eb: -3816 },
+          { no: 963, label: 'Körperschaftsteuerrückstellung', saldoAbs: 3682.80, side: 'H', soll: 0, haben: 0, eb: -3682.80 },
+          { no: 1200, label: 'Bank', saldoAbs: 117048, side: 'S' },
+        ];
+        const base = { meta: { company: 'Test GmbH', monthsElapsed: 7 }, ker: { ergebnisVorSteuern: { ytd: 46884, month: 0, label: 'Ergebnis vor Steuern' } }, hasSusa: true, hasTurnover: true };
+        const net = window.__bwa.kpis({ ...base, susa });
+        const lossOnly = window.__bwa.kpis({ ...base, susa: susa.filter((a) => a.no !== 860) });
+        return { netLoss: Math.round(net.lossCarry), netTaxable: Math.round(net.taxCheck.taxable), lossOnly: Math.round(lossOnly.lossCarry) };
+      });
+      assert.equal(r.netLoss, 0, 'a net Gewinnvortrag leaves no usable loss carry-forward');
+      assert.equal(r.netTaxable, 46884, 'the profit is taxable again, so the estimate can fill');
+      assert.equal(r.lossOnly, 220444, 'without an offsetting Gewinnvortrag the full 868 balance shields');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('adds the year projection and a tax-reserve orientation with tooltips', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {

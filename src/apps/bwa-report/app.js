@@ -597,8 +597,14 @@
           anfang: 0, berechnet: 0, bezahlt: 0, offen: 0, vorausz: p.paid, vorauszSrc: p.accs });
       });
     }
-    const vv = a.find((x) => x.no === 868);
-    o.lossCarry = vv && vv.side === 'S' ? vv.saldoAbs : 0;
+    // Loss carry-forward proxy from the book carry-forward accounts (SKR03): a debit
+    // Verlustvortrag (868) offsets the current profit, but only NET of a credit
+    // Gewinnvortrag (860) — a company carrying a net retained profit forward has no
+    // usable loss. (The tax loss carry-forward per §10d/§10a can still differ; this
+    // is only a rough shield derived from the balance sheet.)
+    const vlust = a.find((x) => x.no === 868 && x.side === 'S');
+    const gewinnV = a.find((x) => x.no === 860 && x.side === 'H');
+    o.lossCarry = Math.max(0, (vlust ? vlust.saldoAbs : 0) - (gewinnV ? gewinnV.saldoAbs : 0));
     const isKapGes = /gmbh|mbh|\bag\b|\bug\b|\bse\b/i.test(parsed.meta.company || '');
     if (isKapGes && o.ergebnisVorSteuernYtd > 0) {
       // loss carry-forwards (868) shield the current profit → taxable base after offset
