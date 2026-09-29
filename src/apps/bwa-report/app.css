@@ -167,10 +167,19 @@
 .bwa-seg-wage { background: var(--qrx-warning); fill: var(--qrx-warning); }
 .bwa-seg-res { background: var(--qrx-accent); fill: var(--qrx-accent); }
 .bwa-seg-free { background: var(--qrx-success); fill: var(--qrx-success); }
+/* Forecast bar zones: net (truly flows out) · refund-covered (returns → hatched green) · free */
+.bwa-seg-net { background: var(--qrx-danger); fill: var(--qrx-danger); }
+.bwa-seg-refund { background-color: var(--qrx-success);
+  background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0 5px, rgba(255,255,255,0) 5px 11px); }
 /* Income-tax step table (compact, 2 columns) */
 .bwa-taxtable { max-width: 460px; }
 .bwa-taxtable td { border-bottom: 1px solid var(--qrx-border); }
 .bwa-taxtable tr:last-child td { border-top: 1px solid var(--qrx-border-strong); border-bottom: none; }
+.bwa-taxtable .bwa-tr-group td { border-bottom: none; padding-top: var(--qrx-s-3); font-weight: 700; color: var(--qrx-text-subtle); }
+.bwa-taxtable .bwa-tr-sub td { border-top: 1px solid var(--qrx-border); font-weight: 600; }
+.bwa-taxtable .bwa-tr-bold td { font-weight: 700; }
+.bwa-taxtable .bwa-tr-total td { border-top: 2px solid var(--qrx-border-strong); font-weight: 700; }
+.bwa-taxtable .bwa-tr-sep td { height: 10px; border: 0; padding: 0; }
 .bwa-taxtable + .bwa-assess { margin-top: var(--qrx-s-3); }
 /* Tax overview table: grouped rows + sub-/grand-totals */
 .bwa-taxoverview .bwa-tr-group td { font-weight: 600; color: var(--qrx-text-muted); padding-top: 12px;

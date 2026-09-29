@@ -390,7 +390,7 @@ describe('bwa report', () => {
       const l = await page.evaluate(() => {
         const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'liquidity');
         const txt = panel.textContent;
-        return { reserveSection: /Steuer-Rücklage \(Prognose\)/.test(txt), hasBar: !!panel.querySelector('.bwa-seg-res'), bound: /115\.781/.test(txt), gap: /2\.588/.test(txt) };
+        return { reserveSection: /Steuer-Rücklage \(Prognose\)/.test(txt), hasBar: !!panel.querySelector('.bwa-seg-net'), bound: /115\.781/.test(txt), gap: /2\.588/.test(txt) };
       });
       assert.ok(l.reserveSection, 'the liquidity tab has the forecast section');
       assert.ok(l.hasBar, 'the reserved-vs-free bar moved to the liquidity tab');
@@ -456,9 +456,12 @@ describe('bwa report', () => {
       const l = await page.evaluate(() => {
         const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'liquidity');
         const txt = panel.textContent;
-        return { reserveSection: /Steuer-Rücklage \(Prognose\)/.test(txt), hasBar: !!panel.querySelector('.bwa-seg-res'), expected: /14\.06\d/.test(txt) };
+        return { reserveSection: /Steuer-Rücklage \(Prognose\)/.test(txt), hasBar: !!panel.querySelector('.bwa-seg-net'),
+          refundZone: !!panel.querySelector('.bwa-seg-refund'), caption: /nach Eingang der Erstattung effektiv frei/.test(txt), expected: /14\.06\d/.test(txt) };
       });
       assert.ok(l.reserveSection && l.hasBar, 'the forecast section + bar are in the liquidity tab');
+      assert.ok(l.refundZone, 'the bar has a distinct refund-covered zone');
+      assert.ok(l.caption, 'a caption bridges free-today and free-after-refund');
       assert.ok(l.expected, 'the expected current-year income tax (~14.065) is shown as a forecast');
       await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();

@@ -101,7 +101,10 @@
       taxCheckCaveat: 'Grobe Orientierung; Gewerbesteuer-Hebesatz, Verlustvorträge und Abgrenzungen verändern den Betrag deutlich. Keine Steuerberatung.',
       // Taxes & reserves section
       secTaxes: 'Steuern (laut BWA)', secTaxReserve: 'Steuer-Rücklage (Prognose)',
-      liqResFwd: 'Ertragsteuer (voraussichtlich)',
+      liqResFwd: 'Ertragsteuer (voraussichtlich)', liqResEstimate: 'davon voraussichtl. lfd. Jahr (~30 %)',
+      liqBoundGross: 'Vorzuhalten (brutto)', liqFreeToday: 'Frei verfügbar (heute)',
+      liqRefundLater: 'Sobald die Erstattungsansprüche ({amount}) eingehen, steigt der frei verfügbare Betrag auf rund {free}.',
+      liqRefundZone: 'Durch Erstattung gedeckt', liqFreeCaption: 'Heute frei: {today} · nach Eingang der Erstattung effektiv frei: {after}.',
       txSaldoCol: 'Offen (Saldo)', txFinanzamtVorjahr: 'Finanzamt-Saldo Vorjahre',
       txFinanzamtNote: 'Finanzamt-Saldo Vorjahre: {amount} — noch offene Steuern der Vorjahre nach Verrechnung der Erstattungsansprüche (Umsatzsteuer-Vorjahr + Ertragsteuer-Rückstellung − Erstattungen; ohne Lohnsteuer/Sozialabgaben und ohne das laufende Jahr).',
       txCaveatFacts: 'Alle Werte sind Ist-Zahlen aus den Konten der BWA (gebucht, gezahlt, Saldo). Die voraussichtliche Steuerlast des laufenden Jahres und der vorzuhaltende Liquiditätspuffer stehen im Reiter „Liquidität".',
@@ -256,7 +259,10 @@
       runRateLine: 'Extrapolated linearly from {months} months, that is roughly {u} revenue and {e} result per year.',
       taxCheckCaveat: 'Rough orientation; the trade-tax multiplier, loss carry-forwards and accruals change the amount considerably. Not tax advice.',
       secTaxes: 'Taxes (per BWA)', secTaxReserve: 'Tax reserve (forecast)',
-      liqResFwd: 'Income tax (expected)',
+      liqResFwd: 'Income tax (expected)', liqResEstimate: 'incl. expected current year (~30 %)',
+      liqBoundGross: 'To keep aside (gross)', liqFreeToday: 'Freely usable (today)',
+      liqRefundLater: 'Once the refund claims ({amount}) arrive, the freely usable amount rises to about {free}.',
+      liqRefundZone: 'Covered by refunds', liqFreeCaption: 'Free today: {today} · after the refund effectively free: {after}.',
       txSaldoCol: 'Open (balance)', txFinanzamtVorjahr: 'Prior-year tax-office balance',
       txFinanzamtNote: 'Prior-year tax-office balance: {amount} — taxes of prior years still open after offsetting the refund claims (prior-year VAT + income-tax provision − refunds; excluding wage tax/social security and the current year).',
       txCaveatFacts: 'All figures are actuals from the BWA accounts (booked, paid, balance). The likely current-year tax burden and the liquidity buffer to keep aside are in the "Liquidity" tab.',
@@ -830,80 +836,80 @@
     return inner.trim() ? section('secTaxes', inner) : '';
   }
   // Liquidity tab — the forecast: likely current-year tax + the buffer to keep aside.
+  const RATE_KST = 0.15825;                 // corporate tax 15% + solidarity surcharge
+  // Liquidity tab — the forecast, as ONE table: pass-through money (VAT + wage
+  // tax/SV) and the own income tax (booked reserve + estimate of the current year),
+  // the gross amount to keep aside, the refund claims and the net buffer — plus a
+  // bar that splits the cash consistently (its committed segments sum to the gross).
   function taxReserveBlock(K) {
-    const inner = bindingBlock(K) + ertragTaxBlock(K) + netTaxBlock(K);
-    return inner.trim() ? section('secTaxReserve', inner) : '';
-  }
-  // What must be kept aside, split into two plainly-named buckets: pass-through
-  // money (VAT + wage tax/SV, part of payroll) and the company's own income tax
-  // netted with refund claims. Their sum is the real net cash outflow.
-  const taxRow = (rows) => `<table class="bwa-table bwa-taxtable"><tbody>${rows.map((r) =>
-    `<tr class="${r[2] ? 'bwa-tr-bold' : ''}"><td>${esc(r[0])}</td><td class="bwa-num">${esc(r[1])}</td></tr>`).join('')}</tbody></table>`;
-  function netTaxBlock(K) {
-    const S = K.taxSummary;
-    if (!S || (S.refunds <= 0 && S.reserves <= 0 && S.ustOwed <= 0 && S.wageTax <= 0)) return '';
-    const passRows = [[t('liqUst'), eur0(S.ustOwed)]];
-    if (S.wageTax > 0) passRows.push([t('liqWage'), eur0(S.wageTax)]);
-    passRows.push([t('ptSumPass'), eur0(S.passThrough), true]);
-    const ownRows = [[t('liqResFwd'), eur0(S.hold)]];
-    if (S.refunds > 0) ownRows.push([t('ntRefunds'), '− ' + eur0(S.refunds)]);
-    ownRows.push([t('ptOwnNet'), (S.ownTaxNet < 0 ? '− ' : '') + eur0(Math.abs(S.ownTaxNet)), true]);
-    const owed = S.netOutflow >= 0;
-    const verdict = owed ? t('ptVerdictOwed', { amount: eur0(S.netOutflow) }) : t('ptVerdictCredit', { amount: eur0(-S.netOutflow) });
-    return `<div class="bwa-subtitle"><strong>${esc(t('ptTitle'))}</strong>${info('ntoutflow')}</div>
-      <div class="bwa-h4">${esc(t('ptPassThrough'))}</div>${taxRow(passRows)}
-      <p class="bwa-note">${esc(t('ptNote'))}</p>
-      <div class="bwa-h4">${esc(t('ptOwnTax'))}</div>${taxRow(ownRows)}
-      ${taxRow([[t('ptTotal'), (S.netOutflow < 0 ? '− ' : '') + eur0(Math.abs(S.netOutflow)), true]])}
-      <div class="bwa-assess bwa-assess-${owed ? 'ok' : 'good'}">${dot(owed ? 'ok' : 'good')}<div>${esc(verdict)}</div></div>
-      <p class="bwa-note">${esc(t('ptReconcile', { amount: eur0(S.netTax) }))}</p>`;
-  }
-  // (A) How much of the cash is pass-through / reserved, and what stays free.
-  function bindingBlock(K) {
-    const S = K.taxSummary;
+    const S = K.taxSummary, T = K.taxCheck;
     if (!S || S.cash <= 0) return '';
-    const segs = [
-      { key: 'liqUst', val: S.ustOwed, cls: 'bwa-seg-ust' },
-      { key: 'liqWage', val: S.wageTax, cls: 'bwa-seg-wage' },
-      { key: 'liqResFwd', val: S.hold, cls: 'bwa-seg-res' },
-    ].filter((s) => s.val > 0);
+    const hasBuffer = S.ustOwed > 0 || S.wageTax > 0 || S.hold > 0 || S.refunds > 0;
+    if (!hasBuffer && !(T && T.taxable > 0)) return '';
+    const reserve = S.reserves;                       // booked income-tax reserve (Ist)
+    const estimate = Math.max(0, S.hold - reserve);   // estimate added on top for the current year
+    const R = [];
+    R.push(['g', t('ptPassThrough')]);
+    R.push([t('liqUst'), S.ustOwed]);
+    if (S.wageTax > 0) R.push([t('liqWage'), S.wageTax, { hint: t('ntPayrollHint') }]);
+    R.push([t('ptSumPass'), S.passThrough, { sub: 1 }]);
+    R.push(['g', t('ptOwnTax')]);
+    R.push([t('liqRes'), reserve]);
+    if (estimate > 0.5) R.push([t('liqResEstimate'), estimate]);
+    R.push([t('liqResFwd'), S.hold, { sub: 1 }]);
+    R.push([t('liqBoundGross'), S.bound, { bold: 1 }]);
+    if (S.refunds > 0) R.push([t('ntRefunds'), -S.refunds]);
+    R.push([t('txHoldRow'), S.netOutflow, { total: 1 }]);
+    R.push(['sep']);
+    R.push([t('kLiquide'), S.cash]);
+    R.push([t('liqFreeToday'), S.free, { bold: 1 }]);
+    const money = (v) => `<span class="${v < 0 ? 'bwa-neg' : ''}">${(v < 0 ? '− ' : '') + eur0(Math.abs(v))}</span>`;
+    const body = R.map((r) => {
+      if (r[0] === 'g') return `<tr class="bwa-tr-group"><td colspan="2">${esc(r[1])}</td></tr>`;
+      if (r[0] === 'sep') return `<tr class="bwa-tr-sep"><td colspan="2"></td></tr>`;
+      const o = r[2] || {};
+      const cls = o.total ? 'bwa-tr-bold bwa-tr-total' : o.bold ? 'bwa-tr-bold' : o.sub ? 'bwa-tr-sub' : '';
+      const label = esc(r[0]) + (o.hint ? ` <span class="bwa-muted">· ${esc(o.hint)}</span>` : '');
+      return `<tr class="${cls}"><td>${label}</td><td class="bwa-num">${money(r[1])}</td></tr>`;
+    }).join('');
+    const table = `<div class="bwa-table-wrap"><table class="bwa-table bwa-taxtable"><tbody>${body}</tbody></table></div>`;
+    // Bar: cash split into three zones so the refund is visible — the net amount
+    // that truly flows out, the part that is committed now but comes back as a
+    // refund (hatched), and what stays free today. The three sum to the cash.
+    const covered = Math.max(0, Math.min(S.refunds, S.bound));   // committed but refunded → returns to "free"
+    const netZone = Math.max(0, S.bound - covered);              // = max(0, net outflow): truly kept aside
+    const zones = [
+      { name: t('txHoldRow'), val: netZone, cls: 'bwa-seg-net' },
+      { name: t('liqRefundZone'), val: covered, cls: 'bwa-seg-refund' },
+      { name: t('liqFreeToday'), val: Math.max(0, S.free), cls: 'bwa-seg-free' },
+    ].filter((z) => z.val > 0.005);
     const w = (val) => (Math.max(0, Math.min(val, S.cash)) / S.cash * 100).toFixed(1) + '%';
     const bar = `<div class="bwa-flow-bar">
-      ${segs.map((s) => `<div class="bwa-seg ${s.cls}" style="width:${w(s.val)}" title="${esc(t(s.key))}: ${esc(eur0(s.val))}"></div>`).join('')}
-      ${S.free > 0 ? `<div class="bwa-seg bwa-seg-free" style="width:${w(S.free)}" title="${esc(t('liqFree'))}: ${esc(eur0(S.free))}"></div>` : ''}
-    </div>${legend([...segs.map((s) => ({ name: t(s.key), cls: s.cls })), { name: t('liqFree'), cls: 'bwa-seg-free' }])}`;
-    const lvl = S.free <= 0 ? 'bad' : (S.freeRatio != null && S.freeRatio < 0.25 ? 'ok' : 'good');
-    const cards = card(t('kLiquide'), eur0(S.cash), null, null, 'liquide')
-      + card(t('liqBound'), eur0(S.bound), null, null, 'bound')
-      + card(t('liqFree'), money2(S.free), S.freeRatio != null ? t('liqFreeSub', { p: pct(S.freeRatio, 0) }) : null, lvl);
-    return `<div class="bwa-taxbox-head"><strong>${esc(t('liqBindTitle'))}</strong>${info('bound')}</div>
-      ${bar}<div class="bwa-cards" style="margin-top:var(--qrx-s-3)">${cards}</div>`;
-  }
-  // (B) Income-tax outlook. With movement columns: a per-tax-type table showing
-  // prior-year remainder, this year's addition, total reserve and an own rough
-  // calculation for a plausibility cross-check. Otherwise a simple step table.
-  const RATE_KST = 0.15825;                 // corporate tax 15% + solidarity surcharge
-  function ertragTaxBlock(K) {
-    const T = K.taxCheck;
-    if (!T) return '';
-    const shielded = T.lossCarry > 0 && T.taxable === 0;
-    const rows = [[t('etErgebnis'), eur0(T.base)]];
-    if (T.lossCarry > 0) { rows.push([t('etLoss'), '− ' + eur0(Math.min(T.lossCarry, T.base))]); rows.push([t('etTaxable'), eur0(T.taxable)]); }
-    rows.push([t('etExpected', { rate: pct(T.rate, 0) }), eur0(T.expectedAdj)]);
-    if (T.hasSusa) rows.push([T.hasSplit ? t('etReservedCurrent') : t('etReserved'), eur0(T.hasSplit ? T.reservedCurrent : T.reserved)]);
-    const vlvl = (shielded || T.gap <= 0) ? 'good' : 'bad';
-    const verdict = shielded ? t('etVerdictShield', { loss: eur0(T.lossCarry) })
-      : (T.hasSusa && T.gap > 0) ? t('etVerdictGap', { gap: eur0(T.gap) })
-        : (T.hasSusa) ? t('etVerdictCovered') : t('etVerdictNoSusa', { expected: eur0(T.expectedAdj) });
-    const refund = (K.taxSummary && K.taxSummary.refunds > 0)
-      ? `<p class="bwa-note">${esc(t('etRefund', { amount: eur0(K.taxSummary.refunds) }))}</p>` : '';
-    const split = (T.hasSusa && T.hasSplit && (T.reservedPrior > 0 || T.reservedCurrent > 0))
-      ? `<p class="bwa-note">${esc(t('etProvSplit', { total: eur0(T.reserved), current: eur0(T.reservedCurrent), prior: eur0(T.reservedPrior) }))}</p>` : '';
-    const tbl = `<table class="bwa-table bwa-taxtable"><tbody>${rows.map((r, i) =>
-      `<tr class="${i === rows.length - 1 ? 'bwa-tr-bold' : ''}"><td>${esc(r[0])}</td><td class="bwa-num">${esc(r[1])}</td></tr>`).join('')}</tbody></table>`;
-    return `<div class="bwa-subtitle"><strong>${esc(t('etTitle'))}</strong>${info('steuercheck')}</div>
-      ${tbl}<div class="bwa-assess bwa-assess-${vlvl}">${dot(vlvl)}<div>${esc(verdict)}</div></div>${split}${refund}
+      ${zones.map((z) => `<div class="bwa-seg ${z.cls}" style="width:${w(z.val)}" title="${esc(z.name)}: ${esc(eur0(z.val))}"></div>`).join('')}
+    </div>${legend(zones.map((z) => ({ name: z.name, cls: z.cls })))}
+      ${S.refunds > 0 ? `<p class="bwa-note bwa-subnote">${esc(t('liqFreeCaption', { today: eur0(S.free), after: eur0(S.free + S.refunds) }))}</p>` : ''}`;
+    // Income-tax outlook: taxable base + expected ~30 % + a coverage verdict.
+    let outlook = '';
+    if (T) {
+      const shielded = T.lossCarry > 0 && T.taxable === 0;
+      const vlvl = (shielded || T.gap <= 0) ? 'good' : 'bad';
+      const verdict = shielded ? t('etVerdictShield', { loss: eur0(T.lossCarry) })
+        : (T.hasSusa && T.gap > 0) ? t('etVerdictGap', { gap: eur0(T.gap) })
+          : (T.hasSusa) ? t('etVerdictCovered') : t('etVerdictNoSusa', { expected: eur0(T.expectedAdj) });
+      const base = [t('etErgebnis') + ': ' + eur0(T.base)];
+      if (T.lossCarry > 0) base.push(t('etLoss') + ': − ' + eur0(Math.min(T.lossCarry, T.base)));
+      base.push(t('etTaxable') + ': ' + eur0(T.taxable));
+      base.push(t('etExpected', { rate: pct(T.rate, 0) }) + ': ' + eur0(T.expectedAdj));
+      outlook = `<p class="bwa-note bwa-subnote">${esc(base.join(' · '))}</p>
+        <div class="bwa-assess bwa-assess-${vlvl}">${dot(vlvl)}<div>${esc(verdict)}</div></div>`;
+    }
+    const bufferPart = hasBuffer ? `${bar}${table}
+      <p class="bwa-note">${esc(t('ptNote'))}</p>
+      <p class="bwa-note">${esc(t('ptReconcile', { amount: eur0(S.netTax) }))}</p>` : '';
+    const head = hasBuffer ? `<div class="bwa-taxbox-head"><strong>${esc(t('liqBindTitle'))}</strong>${info('bound')}</div>` : '';
+    const inner = `${head}${bufferPart}${outlook}
       <p class="bwa-note">${esc(t('taxCheckCaveat'))}</p>`;
+    return section('secTaxReserve', inner);
   }
   // One overview table for all taxes: pass-through money (VAT, wage tax/SV),
   // own income tax per type (prior-year / this-year / total + an own rough
