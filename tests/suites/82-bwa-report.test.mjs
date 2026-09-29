@@ -456,13 +456,21 @@ describe('bwa report', () => {
       const l = await page.evaluate(() => {
         const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'liquidity');
         const txt = panel.textContent;
+        const table = panel.querySelector('table.bwa-taxtable-2');
+        const cells = (re) => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => re.test(t.textContent)); return tr ? [...tr.querySelectorAll('td')].map((td) => td.textContent.replace(/[  ]/g, ' ').replace(/−/g, '-').trim()) : []; };
         return { reserveSection: /Steuer-Rücklage \(Prognose\)/.test(txt), hasBar: !!panel.querySelector('.bwa-seg-net'),
-          refundZone: !!panel.querySelector('.bwa-seg-refund'), caption: /nach Eingang der Erstattung effektiv frei/.test(txt), expected: /14\.06\d/.test(txt) };
+          refundZone: !!panel.querySelector('.bwa-seg-refund'), caption: /nach Eingang der Erstattung effektiv frei/.test(txt), expected: /14\.06\d/.test(txt),
+          headers: table ? [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim()) : [],
+          vorz: cells(/Vorzuhalten/), frei: cells(/Frei verfügbar/), refund: cells(/Erstattungsansprüche/) };
       });
       assert.ok(l.reserveSection && l.hasBar, 'the forecast section + bar are in the liquidity tab');
       assert.ok(l.refundZone, 'the bar has a distinct refund-covered zone');
       assert.ok(l.caption, 'a caption bridges free-today and free-after-refund');
       assert.ok(l.expected, 'the expected current-year income tax (~14.065) is shown as a forecast');
+      assert.deepEqual(l.headers, ['Steuer / Posten', 'Brutto', 'Netto (nach Erstattung)'], 'gross vs. net columns');
+      assert.match(l.vorz[1], /88\.16[78]/, 'gross amount to keep aside'); assert.match(l.vorz[2], /43\.55[01]/, 'net amount to keep aside');
+      assert.match(l.frei[1], /28\.88[01]/, 'free today'); assert.match(l.frei[2], /73\.49[678]/, 'free after the refund');
+      assert.equal(l.refund[1], '–', 'no refund in the gross column'); assert.match(l.refund[2], /-\s?44\.617/, 'refund reduces only the net column');
       await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();
     } finally { await page.close(); }

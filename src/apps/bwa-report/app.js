@@ -103,6 +103,7 @@
       secTaxes: 'Steuern (laut BWA)', secTaxReserve: 'Steuer-Rücklage (Prognose)',
       liqResFwd: 'Ertragsteuer (voraussichtlich)', liqResEstimate: 'davon voraussichtl. lfd. Jahr (~30 %)',
       liqBoundGross: 'Vorzuhalten (brutto)', liqFreeToday: 'Frei verfügbar (heute)',
+      txHoldTotal: 'Vorzuhalten', colBrutto: 'Brutto', colNetto: 'Netto (nach Erstattung)',
       liqRefundLater: 'Sobald die Erstattungsansprüche ({amount}) eingehen, steigt der frei verfügbare Betrag auf rund {free}.',
       liqRefundZone: 'Durch Erstattung gedeckt', liqFreeCaption: 'Heute frei: {today} · nach Eingang der Erstattung effektiv frei: {after}.',
       txSaldoCol: 'Offen (Saldo)', txFinanzamtVorjahr: 'Finanzamt-Saldo Vorjahre',
@@ -261,6 +262,7 @@
       secTaxes: 'Taxes (per BWA)', secTaxReserve: 'Tax reserve (forecast)',
       liqResFwd: 'Income tax (expected)', liqResEstimate: 'incl. expected current year (~30 %)',
       liqBoundGross: 'To keep aside (gross)', liqFreeToday: 'Freely usable (today)',
+      txHoldTotal: 'To keep aside', colBrutto: 'Gross', colNetto: 'Net (after refunds)',
       liqRefundLater: 'Once the refund claims ({amount}) arrive, the freely usable amount rises to about {free}.',
       liqRefundZone: 'Covered by refunds', liqFreeCaption: 'Free today: {today} · after the refund effectively free: {after}.',
       txSaldoCol: 'Open (balance)', txFinanzamtVorjahr: 'Prior-year tax-office balance',
@@ -848,31 +850,40 @@
     if (!hasBuffer && !(T && T.taxable > 0)) return '';
     const reserve = S.reserves;                       // booked income-tax reserve (Ist)
     const estimate = Math.max(0, S.hold - reserve);   // estimate added on top for the current year
+    // Two columns (gross vs. net after refunds) only when there are refund claims;
+    // otherwise the two would be identical, so a single amount column is clearer.
+    const twoCol = S.refunds > 0.005;
     const R = [];
-    R.push(['g', t('ptPassThrough')]);
-    R.push([t('liqUst'), S.ustOwed]);
-    if (S.wageTax > 0) R.push([t('liqWage'), S.wageTax, { hint: t('ntPayrollHint') }]);
-    R.push([t('ptSumPass'), S.passThrough, { sub: 1 }]);
-    R.push(['g', t('ptOwnTax')]);
-    R.push([t('liqRes'), reserve]);
-    if (estimate > 0.5) R.push([t('liqResEstimate'), estimate]);
-    R.push([t('liqResFwd'), S.hold, { sub: 1 }]);
-    R.push([t('liqBoundGross'), S.bound, { bold: 1 }]);
-    if (S.refunds > 0) R.push([t('ntRefunds'), -S.refunds]);
-    R.push([t('txHoldRow'), S.netOutflow, { total: 1 }]);
-    R.push(['sep']);
-    R.push([t('kLiquide'), S.cash]);
-    R.push([t('liqFreeToday'), S.free, { bold: 1 }]);
-    const money = (v) => `<span class="${v < 0 ? 'bwa-neg' : ''}">${(v < 0 ? '− ' : '') + eur0(Math.abs(v))}</span>`;
+    const row = (label, brutto, netto, o) => R.push({ label, brutto, netto, ...(o || {}) });
+    R.push({ g: t('ptPassThrough') });
+    row(t('liqUst'), S.ustOwed, S.ustOwed);
+    if (S.wageTax > 0) row(t('liqWage'), S.wageTax, S.wageTax, { hint: t('ntPayrollHint') });
+    row(t('ptSumPass'), S.passThrough, S.passThrough, { sub: 1 });
+    R.push({ g: t('ptOwnTax') });
+    row(t('liqRes'), reserve, reserve);
+    if (estimate > 0.5) row(t('liqResEstimate'), estimate, estimate);
+    row(t('liqResFwd'), S.hold, S.hold, { sub: 1 });
+    if (twoCol) row(t('ntRefunds'), null, -S.refunds);
+    row(t('txHoldTotal'), S.bound, S.netOutflow, { total: 1 });
+    R.push({ sep: 1 });
+    row(t('kLiquide'), S.cash, S.cash);
+    row(t('liqFree'), S.free, S.free + S.refunds, { bold: 1 });
+    const nCols = twoCol ? 3 : 2;
+    const money = (v) => v == null ? '–' : `<span class="${v < 0 ? 'bwa-neg' : ''}">${(v < 0 ? '− ' : '') + eur0(Math.abs(v))}</span>`;
     const body = R.map((r) => {
-      if (r[0] === 'g') return `<tr class="bwa-tr-group"><td colspan="2">${esc(r[1])}</td></tr>`;
-      if (r[0] === 'sep') return `<tr class="bwa-tr-sep"><td colspan="2"></td></tr>`;
-      const o = r[2] || {};
-      const cls = o.total ? 'bwa-tr-bold bwa-tr-total' : o.bold ? 'bwa-tr-bold' : o.sub ? 'bwa-tr-sub' : '';
-      const label = esc(r[0]) + (o.hint ? ` <span class="bwa-muted">· ${esc(o.hint)}</span>` : '');
-      return `<tr class="${cls}"><td>${label}</td><td class="bwa-num">${money(r[1])}</td></tr>`;
+      if (r.g) return `<tr class="bwa-tr-group"><td colspan="${nCols}">${esc(r.g)}</td></tr>`;
+      if (r.sep) return `<tr class="bwa-tr-sep"><td colspan="${nCols}"></td></tr>`;
+      const cls = r.total ? 'bwa-tr-bold bwa-tr-total' : r.bold ? 'bwa-tr-bold' : r.sub ? 'bwa-tr-sub' : '';
+      const label = esc(r.label) + (r.hint ? ` <span class="bwa-muted">· ${esc(r.hint)}</span>` : '');
+      const cells = twoCol
+        ? `<td class="bwa-num">${money(r.brutto)}</td><td class="bwa-num">${money(r.netto)}</td>`
+        : `<td class="bwa-num">${money(r.brutto)}</td>`;
+      return `<tr class="${cls}"><td>${label}</td>${cells}</tr>`;
     }).join('');
-    const table = `<div class="bwa-table-wrap"><table class="bwa-table bwa-taxtable"><tbody>${body}</tbody></table></div>`;
+    const thead = twoCol
+      ? `<thead><tr><th>${esc(t('txArt'))}</th><th class="bwa-num">${esc(t('colBrutto'))}</th><th class="bwa-num">${esc(t('colNetto'))}</th></tr></thead>`
+      : '';
+    const table = `<div class="bwa-table-wrap"><table class="bwa-table bwa-taxtable${twoCol ? ' bwa-taxtable-2' : ''}">${thead}<tbody>${body}</tbody></table></div>`;
     // Bar: cash split into three zones so the refund is visible — the net amount
     // that truly flows out, the part that is committed now but comes back as a
     // refund (hatched), and what stays free today. The three sum to the cash.

@@ -173,6 +173,7 @@
   background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0 5px, rgba(255,255,255,0) 5px 11px); }
 /* Income-tax step table (compact, 2 columns) */
 .bwa-taxtable { max-width: 460px; }
+.bwa-taxtable-2 { max-width: 560px; }
 .bwa-taxtable td { border-bottom: 1px solid var(--qrx-border); }
 .bwa-taxtable tr:last-child td { border-top: 1px solid var(--qrx-border-strong); border-bottom: none; }
 .bwa-taxtable .bwa-tr-group td { border-bottom: none; padding-top: var(--qrx-s-3); font-weight: 700; color: var(--qrx-text-subtle); }
