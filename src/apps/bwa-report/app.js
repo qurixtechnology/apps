@@ -44,6 +44,35 @@
       srcIntro: 'Die aus deiner BWA ausgelesenen Rohwerte. Ein Klick auf einen markierten Wert im Bericht springt hierher und hebt die zugrunde liegenden Konten bzw. GuV-Zeilen hervor.',
       srcKerTitle: 'Kurzfristige Erfolgsrechnung (GuV)', srcSusaTitle: 'Summen & Salden (Konten)',
       srcClick: 'Quelle in der BWA anzeigen', srcEB: 'Anfang (EB)', srcSoll: 'Soll', srcHaben: 'Haben', srcSaldo: 'Saldo', srcNoSusa: 'Diese BWA enthält keine Summen & Salden.',
+      srcHelpHint: 'Tipp: Mit der Maus über eine Kontobezeichnung fahren erklärt das Konto.',
+      ahDebitor: 'Debitor (Kundenkonto) — Forderungen und Zahlungen dieses Kunden.',
+      ahKreditor: 'Kreditor (Lieferantenkonto) — Verbindlichkeiten und Zahlungen an diesen Lieferanten.',
+      ahAnlage: 'Sachanlagen — Betriebs- und Geschäftsausstattung (Anlagevermögen).',
+      ahEigen: 'Eigenkapital — gezeichnetes Kapital, Rücklagen, Gewinn-/Verlustvortrag.',
+      ahRueck: 'Rückstellung — Betrag für später anfallende Ausgaben zurückgestellt.',
+      ahKasse: 'Kasse — Bargeldbestand.',
+      ahBank: 'Bank — Guthaben bei Kreditinstituten (liquide Mittel).',
+      ahTransit: 'Geldtransit — Zwischenkonto für unterwegs befindliche Zahlungen.',
+      ahForderung: 'Forderungen — offene Kundenrechnungen bzw. sonstige Forderungen.',
+      ahSonstVermoegen: 'Sonstige Vermögensgegenstände.',
+      ahVorsteuer: 'Vorsteuer — abziehbare Umsatzsteuer aus Eingangsrechnungen.',
+      ahVerbindlLL: 'Verbindlichkeiten aus Lieferungen und Leistungen — offene Lieferantenrechnungen.',
+      ahSonstVerbindl: 'Sonstige Verbindlichkeiten (u. a. Kreditkartenabrechnung).',
+      ahLohn: 'Personal-/Finanzamt-Verbindlichkeiten — Netto-Löhne, Lohnsteuer und Sozialabgaben.',
+      ahUstNichtFaellig: 'Umsatzsteuer nicht fällig — USt auf noch offene Rechnungen; erst mit Zahlungseingang fällig (Ist-Versteuerung).',
+      ahUmsatzsteuer: 'Umsatzsteuer — vereinnahmte USt bzw. Zahllast gegenüber dem Finanzamt.',
+      ahErtragsteuer: 'Ertragsteuer — Körperschaftsteuer, Kapitalertragsteuer oder Solidaritätszuschlag.',
+      ahNeutral: 'Neutraler oder außerordentlicher Aufwand/Ertrag.',
+      ahAufwand: 'Betriebliche Aufwendungen (Kosten).',
+      ahErloese: 'Erlöse — Umsatzerlöse aus der Geschäftstätigkeit.',
+      ah860: 'Gewinnvortrag — aufgelaufener Gewinn aus Vorjahren (Teil des Eigenkapitals).',
+      ah868: 'Verlustvortrag — aufgelaufener Verlust aus Vorjahren; wird mit dem Gewinnvortrag (Konto 860) saldiert.',
+      ah1540: 'Forderung aus Gewerbesteuerüberzahlung — Erstattungsanspruch für zu viel gezahlte Gewerbesteuer.',
+      ah1548: 'Vorsteuer, erst im Folgejahr abziehbar.',
+      ah1549: 'Körperschaftsteuerrückforderung — Erstattungsanspruch (z. B. aus einem Verlustrücktrag).',
+      ahUstVz: 'Umsatzsteuer-Vorauszahlungen — bereits ans Finanzamt geleistete USt-Vorauszahlungen.',
+      ah1790: 'Umsatzsteuer Vorjahr — offene USt-Zahllast aus dem Vorjahr.',
+      ah4320: 'Gewerbesteuer — Gewerbesteueraufwand bzw. -vorauszahlung.',
       riskIntro: 'Verteilung der offenen Forderungen und Verbindlichkeiten — eine hohe Konzentration auf wenige Namen ist ein Risiko.',
       kDso: 'Forderungslaufzeit (DSO)', kDpo: 'Zahlungsziel Lieferanten (DPO)',
       breakEvenTitle: 'Break-even (Gewinnschwelle)',
@@ -209,6 +238,35 @@
       srcIntro: 'The raw values read from your BWA. Clicking a highlighted figure in the report jumps here and highlights the underlying accounts or P&L lines.',
       srcKerTitle: 'Short-term result statement (P&L)', srcSusaTitle: 'Trial balance (accounts)',
       srcClick: 'Show the source in the BWA', srcEB: 'Opening (EB)', srcSoll: 'Debit', srcHaben: 'Credit', srcSaldo: 'Balance', srcNoSusa: 'This BWA has no trial balance.',
+      srcHelpHint: 'Tip: hover over an account name to see what the account means.',
+      ahDebitor: 'Debtor (customer account) — this customer’s receivables and payments.',
+      ahKreditor: 'Creditor (supplier account) — payables to and payments to this supplier.',
+      ahAnlage: 'Tangible assets — operating and office equipment (fixed assets).',
+      ahEigen: 'Equity — subscribed capital, reserves, profit/loss carried forward.',
+      ahRueck: 'Provision — an amount set aside for expenses arising later.',
+      ahKasse: 'Cash — cash on hand.',
+      ahBank: 'Bank — balances at credit institutions (liquid funds).',
+      ahTransit: 'Cash in transit — clearing account for payments underway.',
+      ahForderung: 'Receivables — open customer invoices or other receivables.',
+      ahSonstVermoegen: 'Other assets.',
+      ahVorsteuer: 'Input VAT — deductible VAT from incoming invoices.',
+      ahVerbindlLL: 'Trade payables — open supplier invoices.',
+      ahSonstVerbindl: 'Other liabilities (incl. credit-card settlement).',
+      ahLohn: 'Payroll/tax-office liabilities — net wages, wage tax and social security.',
+      ahUstNichtFaellig: 'VAT not yet due — VAT on still-open invoices; payable only once the customer pays (cash-basis).',
+      ahUmsatzsteuer: 'Output VAT — VAT collected / the liability towards the tax office.',
+      ahErtragsteuer: 'Income tax — corporate tax, capital-gains tax or solidarity surcharge.',
+      ahNeutral: 'Neutral or extraordinary expense/income.',
+      ahAufwand: 'Operating expenses (costs).',
+      ahErloese: 'Revenue — sales from the business activity.',
+      ah860: 'Profit carried forward — accumulated profit from prior years (part of equity).',
+      ah868: 'Loss carried forward — accumulated loss from prior years; netted against the profit carried forward (account 860).',
+      ah1540: 'Trade-tax overpayment receivable — refund claim for excess trade tax paid.',
+      ah1548: 'Input VAT deductible only in the following period.',
+      ah1549: 'Corporate-tax refund claim (e.g. from a loss carry-back).',
+      ahUstVz: 'VAT advance payments — VAT advance payments already made to the tax office.',
+      ah1790: 'Prior-year VAT — open VAT liability from the previous year.',
+      ah4320: 'Trade tax — trade-tax expense or advance payment.',
       riskIntro: 'Distribution of open receivables and payables — high concentration on a few names is a risk.',
       kDso: 'Receivable days (DSO)', kDpo: 'Payable days (DPO)',
       breakEvenTitle: 'Break-even',
@@ -1230,6 +1288,36 @@
 
   // Source tab: the parsed KER + full trial balance, each row addressable by id so
   // a clicked report value can highlight exactly where it came from.
+  // Plain-language explanation of a trial-balance account (SKR03). Specific accounts
+  // win; otherwise the SKR03 number range gives the category. Returns an i18n key.
+  const ACCT_HELP_SPECIFIC = {
+    860: 'ah860', 868: 'ah868', 1540: 'ah1540', 1548: 'ah1548', 1549: 'ah1549',
+    1766: 'ahUstNichtFaellig', 1780: 'ahUstVz', 1781: 'ahUstVz', 1790: 'ah1790', 4320: 'ah4320',
+  };
+  function accountHelpKey(no) {
+    if (ACCT_HELP_SPECIFIC[no]) return ACCT_HELP_SPECIFIC[no];
+    if (no >= 10000 && no <= 69999) return 'ahDebitor';
+    if (no >= 70000 && no <= 99999) return 'ahKreditor';
+    if (no >= 400 && no <= 499) return 'ahAnlage';
+    if (no >= 800 && no <= 899) return 'ahEigen';
+    if (no >= 950 && no <= 999) return 'ahRueck';
+    if (no >= 1000 && no <= 1099) return 'ahKasse';
+    if (no >= 1200 && no <= 1299) return 'ahBank';
+    if (no >= 1300 && no <= 1399) return 'ahTransit';
+    if (no >= 1400 && no <= 1499) return 'ahForderung';
+    if (no >= 1500 && no <= 1569) return 'ahSonstVermoegen';
+    if (no >= 1570 && no <= 1589) return 'ahVorsteuer';
+    if (no >= 1600 && no <= 1699) return 'ahVerbindlLL';
+    if (no >= 1700 && no <= 1739) return 'ahSonstVerbindl';
+    if (no >= 1740 && no <= 1759) return 'ahLohn';
+    if (no >= 1760 && no <= 1769) return 'ahUstNichtFaellig';
+    if (no >= 1770 && no <= 1799) return 'ahUmsatzsteuer';
+    if (no >= 2200 && no <= 2219) return 'ahErtragsteuer';
+    if (no >= 2000 && no <= 2199) return 'ahNeutral';
+    if (no >= 4000 && no <= 4999) return 'ahAufwand';
+    if (no >= 8000 && no <= 8999) return 'ahErloese';
+    return '';
+  }
   function sourceKerTable(parsed) {
     const k = parsed.ker;
     const rows = KER_ORDER.filter((id) => k[id]).map((id) => {
@@ -1248,7 +1336,9 @@
     const sideAbs = (v) => v == null ? '' : eur2(Math.abs(v)) + (v < 0 ? ' H' : v > 0 ? ' S' : '');
     const rows = list.map((a) => {
       const saldo = a.saldoAbs != null ? eur2(a.saldoAbs) + (a.side ? ' ' + a.side : '') : '';
-      return `<tr id="bwa-src-${a.no}"><td class="bwa-muted">${a.no}</td><td>${esc(a.label)}</td>`
+      const hk = accountHelpKey(a.no), help = hk ? t(hk) : '';
+      const nameCell = help ? `<td class="bwa-src-help" title="${esc(help)}">${esc(a.label)}</td>` : `<td>${esc(a.label)}</td>`;
+      return `<tr id="bwa-src-${a.no}"><td class="bwa-muted">${a.no}</td>${nameCell}`
         + (mov ? `<td class="bwa-num bwa-muted">${sideAbs(a.eb)}</td><td class="bwa-num">${a.soll != null ? eur2(a.soll) : ''}</td><td class="bwa-num">${a.haben != null ? eur2(a.haben) : ''}</td>` : '')
         + `<td class="bwa-num">${saldo}</td></tr>`;
     }).join('');
@@ -1261,7 +1351,8 @@
     const susa = sourceSusaTable(parsed);
     const inner = `<p class="bwa-note bwa-subnote">${esc(t('srcIntro'))}</p>
       <div class="bwa-subtitle"><strong>${esc(t('srcKerTitle'))}</strong></div><div class="bwa-table-wrap">${sourceKerTable(parsed)}</div>`
-      + (susa ? `<div class="bwa-subtitle"><strong>${esc(t('srcSusaTitle'))}</strong></div><div class="bwa-table-wrap">${susa}</div>`
+      + (susa ? `<div class="bwa-subtitle"><strong>${esc(t('srcSusaTitle'))}</strong></div>
+        <p class="bwa-note bwa-subnote">${esc(t('srcHelpHint'))}</p><div class="bwa-table-wrap">${susa}</div>`
         : `<p class="bwa-note">${esc(t('srcNoSusa'))}</p>`);
     return section('secSource', inner);
   }

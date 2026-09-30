@@ -594,10 +594,12 @@ describe('bwa report', () => {
         const srcPanel = [...body.querySelectorAll('.bwa-tabpanel')].find((p) => p.dataset.tab === 'source');
         const hasKer = !!srcPanel.querySelector('#bwa-src-ker-umsatz');
         const susaRows = srcPanel.querySelectorAll('.bwa-srctable tbody tr').length;
+        const helpCells = srcPanel.querySelectorAll('.bwa-srctable td.bwa-src-help[title]').length;
+        const helpTitle = (srcPanel.querySelector('.bwa-srctable td.bwa-src-help[title]') || {}).title || '';
         const rev = body.querySelector('.bwa-clickable[data-src-ker*="umsatz"]');
         if (rev) rev.click();
         return {
-          hasKer, susaRows, revExists: !!rev,
+          hasKer, susaRows, helpCells, helpTitle, revExists: !!rev,
           active: document.querySelector('#bwa-body .bwa-tab.is-active').dataset.tab,
           visSource: !srcPanel.hidden,
           hitKer: !!document.querySelector('#bwa-src-ker-umsatz.bwa-src-hit'),
@@ -605,6 +607,8 @@ describe('bwa report', () => {
       });
       assert.ok(r.hasKer, 'the source tab reconstructs the KER with addressable rows');
       assert.ok(r.susaRows >= 3, `the source tab lists the trial-balance accounts (${r.susaRows})`);
+      assert.ok(r.helpCells >= 1, `account names carry an explanatory tooltip (${r.helpCells})`);
+      assert.ok(r.helpTitle.length > 10, 'the account tooltip explains what the account means');
       assert.ok(r.revExists, 'the revenue figure is a clickable, source-linked value');
       assert.equal(r.active, 'source', 'clicking a value opens the source tab');
       assert.ok(r.visSource, 'the source panel becomes visible');
