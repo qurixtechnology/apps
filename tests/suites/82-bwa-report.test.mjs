@@ -637,4 +637,55 @@ describe('bwa report', () => {
       page.assertNoErrors();
     } finally { await page.close(); }
   });
+
+  test('P&L tab switches between cumulative and monthly and compares both', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      await page.evaluate(() => {
+        const line = (label, month, ytd) => ({ label, month, ytd });
+        const ker = {
+          umsatz: line('Umsatzerlöse', 10000, 100000), gesamtleistung: line('Gesamtleistung', 10000, 100000),
+          betrRohertrag: line('Betrieblicher Rohertrag', 10000, 100000), personalkosten: line('Personalkosten', 4000, 40000),
+          sonstigeKosten: line('Sonstige Kosten', 2000, 20000), gesamtkosten: line('Gesamtkosten', 7000, 70000),
+          betriebsergebnis: line('Betriebsergebnis', 3000, 30000), vorlaeufigesErgebnis: line('Vorläufiges Ergebnis', 3000, 30000),
+        };
+        const parsed = { meta: { company: 'Test GmbH', monthsElapsed: 10, periodLabel: 'Jan/2026 – Okt/2026', currentMonth: 'Okt/2026', date: '31.10.2026', currency: 'EUR' }, ker, hasSusa: false, hasTurnover: false, susa: [] };
+        localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2026-10': parsed } }));
+        localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2026-10' }));
+      });
+      await page.reload();
+      await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'pnl').click());
+      const r = await page.evaluate(() => {
+        const p = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((x) => x.dataset.tab === 'pnl');
+        return { btns: [...p.querySelectorAll('.bwa-viewbtn')].map((b) => b.textContent.trim()),
+          active: (p.querySelector('.bwa-viewbtn.is-active') || {}).textContent, title: p.querySelector('.bwa-chart-title').textContent, wf: p.querySelector('svg.bwa-svg').textContent };
+      });
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-viewbtn')].find((b) => b.dataset.pnlview === 'month').click());
+      const rm = await page.evaluate(() => {
+        const p = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((x) => x.dataset.tab === 'pnl');
+        return { active: (p.querySelector('.bwa-viewbtn.is-active') || {}).textContent, title: p.querySelector('.bwa-chart-title').textContent, wf: p.querySelector('svg.bwa-svg').textContent };
+      });
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-viewbtn')].find((b) => b.dataset.pnlview === 'compare').click());
+      const rc = await page.evaluate(() => {
+        const p = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((x) => x.dataset.tab === 'pnl');
+        const table = [...p.querySelectorAll('table.bwa-table')].pop();
+        return { active: (p.querySelector('.bwa-viewbtn.is-active') || {}).textContent, cols: table ? table.querySelectorAll('thead th').length : 0, hasCompareHead: /Vergleich/.test(p.textContent) };
+      });
+      assert.deepEqual(r.btns, ['kumuliert', 'Monat', 'Vergleich'], 'three view modes');
+      assert.equal(r.active, 'kumuliert', 'cumulative is the default');
+      assert.match(r.title, /kumuliert/, 'title shows the cumulative view');
+      assert.match(r.wf, /100\.000/, 'waterfall shows cumulative figures');
+      assert.equal(rm.active, 'Monat', 'switched to the monthly view');
+      assert.match(rm.title, /Okt\/2026/, 'title shows the current month');
+      assert.doesNotMatch(rm.wf, /100\.000/, 'waterfall no longer shows the cumulative total');
+      assert.match(rm.wf, /10\.000/, 'waterfall shows the monthly figures');
+      assert.equal(rc.active, 'Vergleich', 'switched to compare');
+      assert.equal(rc.cols, 5, 'compare table has month + % + cumulative + % columns');
+      assert.ok(rc.hasCompareHead, 'the compare table is labelled');
+      await page.evaluate(() => window.__bwa.reset());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
 });

@@ -101,7 +101,8 @@
       kRueckstellungen: 'Rückstellungen', kNettoLiq: 'Netto-Liquidität', kPersonalquote: 'Personalkostenquote',
       suffMonth: 'Monat', suffYtd: 'kumuliert', perMonth: 'Ø/Monat', months: '{n} Monate', ofRevenue: 'vom Umsatz',
       // charts
-      flowTitle: 'Wohin geht der Umsatz? (kumuliert)', costTitle: 'Größte Kostenblöcke (kumuliert)',
+      flowTitle: 'Wohin geht der Umsatz?', costTitle: 'Größte Kostenblöcke',
+      pnlView: 'Ansicht', pnlViewCum: 'kumuliert', pnlViewMonth: 'Monat', pnlViewCompare: 'Vergleich',
       segPersonal: 'Personalkosten', segSonstige: 'Sonstige Kosten', segUebrige: 'Übrige Kosten',
       segErgebnis: 'Betriebsergebnis', segVerlust: 'Verlust',
       // assessment
@@ -292,7 +293,8 @@
       kForderungen: 'Open receivables', kVerbindl: 'Short-term liabilities',
       kRueckstellungen: 'Provisions', kNettoLiq: 'Net liquidity', kPersonalquote: 'Personnel cost ratio',
       suffMonth: 'month', suffYtd: 'YTD', perMonth: 'avg/month', months: '{n} months', ofRevenue: 'of revenue',
-      flowTitle: 'Where does revenue go? (YTD)', costTitle: 'Largest cost blocks (YTD)',
+      flowTitle: 'Where does revenue go?', costTitle: 'Largest cost blocks',
+      pnlView: 'View', pnlViewCum: 'cumulative', pnlViewMonth: 'month', pnlViewCompare: 'compare',
       segPersonal: 'Personnel', segSonstige: 'Other costs', segUebrige: 'Remaining costs',
       segErgebnis: 'Operating result', segVerlust: 'Loss',
       lvGood: 'Good', lvOk: 'Watch', lvBad: 'Act', overall: 'Overall assessment',
@@ -602,7 +604,8 @@
     const months = parsed.meta.monthsElapsed || 1;
     const o = {
       umsatzMonth: v('umsatz', 'month'), umsatzYtd: v('umsatz', 'ytd'),
-      gesamtleistungYtd: v('gesamtleistung', 'ytd'), betrRohertragYtd: v('betrRohertrag', 'ytd'),
+      gesamtleistungMonth: v('gesamtleistung', 'month'), gesamtleistungYtd: v('gesamtleistung', 'ytd'),
+      betrRohertragMonth: v('betrRohertrag', 'month'), betrRohertragYtd: v('betrRohertrag', 'ytd'),
       gesamtkostenMonth: v('gesamtkosten', 'month'), gesamtkostenYtd: v('gesamtkosten', 'ytd'),
       betriebsergebnisMonth: v('betriebsergebnis', 'month'), betriebsergebnisYtd: v('betriebsergebnis', 'ytd'),
       ergebnisMonth: v('vorlaeufigesErgebnis', 'month'), ergebnisYtd: v('vorlaeufigesErgebnis', 'ytd'),
@@ -614,8 +617,8 @@
     o.avgMonthlyUmsatz = o.umsatzYtd / months;
     o.avgMonthlyKosten = o.gesamtkostenYtd / months;
     o.umsatzTrend = o.avgMonthlyUmsatz ? (o.umsatzMonth - o.avgMonthlyUmsatz) / o.avgMonthlyUmsatz : 0;
-    o.costStructure = COST_KEYS.map((id) => ({ id, label: k[id] && k[id].label, ytd: v(id, 'ytd') }))
-      .filter((c) => c.ytd > 0).sort((x, y) => y.ytd - x.ytd);
+    o.costStructure = COST_KEYS.map((id) => ({ id, label: k[id] && k[id].label, month: v(id, 'month'), ytd: v(id, 'ytd') }))
+      .filter((c) => c.ytd > 0 || c.month > 0).sort((x, y) => y.ytd - x.ytd);
     // Break-even: rough fixed/variable split of the cost blocks.
     const FIXED = ['personalkosten', 'raumkosten', 'versicherungen', 'betrSteuern', 'abschreibungen', 'reparatur', 'besondereKosten'];
     const fixedYtd = FIXED.reduce((s, id) => s + v(id, 'ytd'), 0);
@@ -1151,14 +1154,20 @@
   }
 
   // GuV waterfall: income → minus cost blocks → operating result.
-  function waterfallSVG(K) {
-    const uebrige = Math.max(0, K.gesamtkostenYtd - K.personalYtd - K.sonstigeYtd);
+  function waterfallSVG(K, view) {
+    const m = view === 'month';
+    const rohertrag = m ? K.betrRohertragMonth : K.betrRohertragYtd;
+    const personal = m ? K.personalMonth : K.personalYtd;
+    const sonstige = m ? K.sonstigeMonth : K.sonstigeYtd;
+    const gesamt = m ? K.gesamtkostenMonth : K.gesamtkostenYtd;
+    const ergebnis = m ? K.betriebsergebnisMonth : K.betriebsergebnisYtd;
+    const uebrige = Math.max(0, gesamt - personal - sonstige);
     const items = [
-      { label: t('wfLeistung'), value: K.betrRohertragYtd, type: 'start' },
-      { label: t('segPersonal'), value: -K.personalYtd, type: 'delta' },
-      { label: t('segSonstige'), value: -K.sonstigeYtd, type: 'delta' },
+      { label: t('wfLeistung'), value: rohertrag, type: 'start' },
+      { label: t('segPersonal'), value: -personal, type: 'delta' },
+      { label: t('segSonstige'), value: -sonstige, type: 'delta' },
       { label: t('segUebrige'), value: -uebrige, type: 'delta' },
-      { label: t('segErgebnis'), value: K.betriebsergebnisYtd, type: 'end' },
+      { label: t('segErgebnis'), value: ergebnis, type: 'end' },
     ];
     const W = 580, H = 200, padT = 12, padB = 42, padL = 6, padR = 6, plotW = W - padL - padR, plotH = H - padT - padB;
     let run = 0, hi = 0, lo = 0; const bars = [];
@@ -1245,36 +1254,39 @@
       <p class="bwa-note">${esc(t('spNote'))}</p>`);
   }
 
-  function costBars(K) {
-    const items = K.costStructure.slice(0, 7);
-    const max = Math.max(...items.map((c) => c.ytd), 1);
+  function costBars(K, view) {
+    const m = view === 'month';
+    const base = m ? K.gesamtleistungMonth : K.gesamtleistungYtd;
+    const items = K.costStructure.map((c) => ({ ...c, v: m ? (c.month || 0) : c.ytd }))
+      .filter((c) => c.v > 0).sort((x, y) => y.v - x.v).slice(0, 7);
+    const max = Math.max(...items.map((c) => c.v), 1);
     return items.map((c) => {
-      const w = Math.round((c.ytd / max) * 100);
-      const share = K.gesamtleistungYtd ? c.ytd / K.gesamtleistungYtd : 0;
+      const w = Math.round((c.v / max) * 100);
+      const share = base ? c.v / base : 0;
       const hot = c.id === 'personalkosten' || c.id === 'sonstigeKosten';
       return `<div class="bwa-bar-row">
         <div class="bwa-bar-label" title="${esc(c.label || '')}">${clk(esc(c.label || ''), null, [c.id])}</div>
         <div class="bwa-bar-track"><div class="bwa-bar-fill${hot ? ' bwa-bar-hot' : ''}" style="width:${w}%"></div></div>
-        <div class="bwa-bar-val">${clk(eur0(c.ytd), null, [c.id])} · ${pct(share, 0)}</div>
+        <div class="bwa-bar-val">${clk(eur0(c.v), null, [c.id])} · ${pct(share, 0)}</div>
       </div>`;
     }).join('');
   }
-  function kerTable(K, parsed) {
-    const k = parsed.ker;
+  function kerTable(K, parsed, compare) {
+    const k = parsed.ker, gm = K.gesamtleistungMonth, gy = K.gesamtleistungYtd;
+    const pctCell = (s) => `<td class="bwa-num bwa-muted">${s != null ? pct(s, 1) : ''}</td>`;
     const rows = KER_ORDER.filter((id) => k[id]).map((id) => {
       const r = k[id];
-      const share = K.gesamtleistungYtd && r.ytd != null ? r.ytd / K.gesamtleistungYtd : null;
-      return `<tr class="${KER_BOLD.has(id) ? 'bwa-tr-bold' : ''}">
-        <td>${esc(r.label)}</td>
-        <td class="bwa-num">${r.month != null ? eur2(r.month) : ''}</td>
-        <td class="bwa-num">${r.ytd != null ? eur2(r.ytd) : ''}</td>
-        <td class="bwa-num bwa-muted">${share != null ? pct(share, 1) : ''}</td>
-      </tr>`;
+      const shareY = gy && r.ytd != null ? r.ytd / gy : null;
+      const shareM = gm && r.month != null ? r.month / gm : null;
+      const numY = `<td class="bwa-num">${r.ytd != null ? eur2(r.ytd) : ''}</td>`;
+      const numM = `<td class="bwa-num">${r.month != null ? eur2(r.month) : ''}</td>`;
+      const cells = compare ? numM + pctCell(shareM) + numY + pctCell(shareY) : numM + numY + pctCell(shareY);
+      return `<tr class="${KER_BOLD.has(id) ? 'bwa-tr-bold' : ''}"><td>${esc(r.label)}</td>${cells}</tr>`;
     }).join('');
-    return `<table class="bwa-table"><thead><tr>
-      <th>${esc(t('thLabel'))}</th><th class="bwa-num">${esc(t('thMonth'))}</th>
-      <th class="bwa-num">${esc(t('thYtd'))}</th><th class="bwa-num">${esc(t('thPct'))}</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
+    const head = compare
+      ? `<th>${esc(t('thLabel'))}</th><th class="bwa-num">${esc(t('thMonth'))}</th><th class="bwa-num">${esc(t('thPct'))}</th><th class="bwa-num">${esc(t('thYtd'))}</th><th class="bwa-num">${esc(t('thPct'))}</th>`
+      : `<th>${esc(t('thLabel'))}</th><th class="bwa-num">${esc(t('thMonth'))}</th><th class="bwa-num">${esc(t('thYtd'))}</th><th class="bwa-num">${esc(t('thPct'))}</th>`;
+    return `<table class="bwa-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
   }
   function expenseTable(parsed) {
     const top = (parsed.susa || []).filter((a) => a.no >= 4000 && a.no <= 4999 && a.side === 'S' && a.saldoAbs > 0)
@@ -1380,6 +1392,12 @@
       + (K.liquidity ? card(t('kLiquide'), clk(eur0(K.liquidity.cash), rg('cash')), t('kNettoLiq') + ' ' + eur0(K.liquidity.netLiquidity), A.liqui, 'liquide', sp((s) => s.cash)) : '')
       + (showNet ? card(t('ntOutflow'), clk(eur0(Math.abs(S.netOutflow)), rg('tax')), t(S.netOutflow >= 0 ? 'ntOutflowSub' : 'ntInflowSub'), S.netOutflow > 0 ? 'ok' : 'good', 'ntoutflow') : '');
 
+    // GuV view toggle (this tab only): cumulative / month / compare. The charts and
+    // KER table follow it; the verdict, break-even and run-rate stay cumulative.
+    const pnlView = state.pnlView || 'cum';
+    const chartView = pnlView === 'month' ? 'month' : 'cum';
+    const viewSuffix = chartView === 'month' ? (m.currentMonth || t('pnlViewMonth')) : t('pnlViewCum');
+
     // Ertrag section — GuV waterfall + assessment + break-even + run-rate
     const ertragText = t('aErtrag' + capitalize(A.ertrag), { erg: eur0(K.betriebsergebnisYtd), marge: pct(K.umsatzrenditeYtd) });
     const be = K.breakEven;
@@ -1389,13 +1407,13 @@
       <p class="bwa-note">${esc(t('breakEvenCaveat'))}</p></div>` : '';
     const runrate = `<div class="bwa-runrate">${info('runrate')}<strong>${esc(t('runRateTitle'))}</strong>
       ${esc(t('runRateLine', { months: K.months, u: eur0(K.runRateUmsatz), e: eur0(K.runRateErgebnis) }))}</div>`;
-    const ertragBody = `<div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('flowTitle'))}</div>${waterfallSVG(K)}</div>
+    const ertragBody = `<div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('flowTitle'))} (${esc(viewSuffix)})</div>${waterfallSVG(K, chartView)}</div>
       <div class="bwa-info-row">
         <div class="bwa-assess bwa-assess-${A.ertrag}">${dot(A.ertrag)}<div>${esc(ertragText)}</div></div>
         ${beBox}${runrate}
       </div>`;
 
-    const kostenBody = `<div class="bwa-chart-title">${esc(t('costTitle'))}</div>${costBars(K)}${expenseBars(parsed)}`;
+    const kostenBody = `<div class="bwa-chart-title">${esc(t('costTitle'))} (${esc(viewSuffix)})</div>${costBars(K, chartView)}${expenseBars(parsed)}`;
 
     let liquiBody = '';
     if (K.liquidity) {
@@ -1419,8 +1437,16 @@
     const recs = `<div class="bwa-overall bwa-assess-${A.overall}">${dot(A.overall)}<strong>${esc(t('overall'))}: ${esc(lvlWord(A.overall))}</strong></div>
       <ul class="bwa-recs">${A.recs.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`;
 
-    const kerBlock = `<details class="bwa-details"><summary>${esc(t('detKer'))}</summary>
-      <div class="bwa-table-wrap">${kerTable(K, parsed)}</div></details>`;
+    // Full result statement: in "compare" mode expanded with month+cumulative columns,
+    // otherwise the usual collapsible details.
+    const kerBlock = pnlView === 'compare'
+      ? `<div class="bwa-subtitle"><strong>${esc(t('detKer'))} — ${esc(t('pnlViewCompare'))}</strong></div><div class="bwa-table-wrap">${kerTable(K, parsed, true)}</div>`
+      : `<details class="bwa-details"><summary>${esc(t('detKer'))}</summary>
+      <div class="bwa-table-wrap">${kerTable(K, parsed, false)}</div></details>`;
+    // Segmented view toggle for the GuV tab.
+    const pnlViews = [['cum', t('pnlViewCum')], ['month', t('pnlViewMonth')], ['compare', t('pnlViewCompare')]];
+    const pnlToggle = `<div class="bwa-viewtoggle" role="group" aria-label="${esc(t('pnlView'))}">
+      ${pnlViews.map(([id, lab]) => `<button type="button" class="bwa-viewbtn${pnlView === id ? ' is-active' : ''}" data-pnlview="${id}" aria-pressed="${pnlView === id}">${esc(lab)}</button>`).join('')}</div>`;
     const conc = K.concentration;
     const custBlock = (conc && conc.customers) ? section('secCustomers', `<p class="bwa-note bwa-subnote">${esc(t('riskIntro'))}</p>${concentrationSide(conc, 'cust')}`) : '';
     const supBlock = (conc && conc.suppliers) ? section('secSuppliers', concentrationSide(conc, 'sup')) : '';
@@ -1432,7 +1458,7 @@
     const tabs = [
       { id: 'overview', label: t('tabOverview'),
         html: renderCockpit(K) + section('secGlance', `<div class="bwa-cards">${glance}</div>`) + section('secBewertung', recs) + trendHTML(series) },
-      { id: 'pnl', label: t('tabPnl'), html: section('secErtrag', ertragBody) + section('secKosten', kostenBody) + partiesBlock + kerBlock },
+      { id: 'pnl', label: t('tabPnl'), html: pnlToggle + section('secErtrag', ertragBody) + section('secKosten', kostenBody) + partiesBlock + kerBlock },
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
       { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) + taxReserveBlock(K) },
       { id: 'source', label: t('tabSource'), html: sourceTab(parsed) },
@@ -1441,6 +1467,7 @@
     attachTabHandlers();
     attachSortHandlers();
     attachSourceHandlers();
+    attachPnlViewHandler();
 
     $('bwa-disclaimer').textContent = t('disclaimer', {
       company: m.company || '–',
@@ -1512,6 +1539,12 @@
     const trs = sorted.map((row) => `<tr>${cols.map((c) =>
       `<td class="${c.num ? 'bwa-num' : ''}${c.muted ? ' bwa-muted' : ''}">${c.fmt ? c.fmt(row[c.key], row) : esc(String(row[c.key] == null ? '' : row[c.key]))}</td>`).join('')}</tr>`).join('');
     return `<div class="bwa-table-wrap"><table class="bwa-table bwa-sortable"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+  }
+  // GuV view toggle (cumulative / month / compare) → re-render on click.
+  function attachPnlViewHandler() {
+    $('bwa-body').querySelectorAll('.bwa-viewbtn').forEach((btn) => btn.addEventListener('click', () => {
+      state.pnlView = btn.dataset.pnlview; renderAll();
+    }));
   }
   function attachSortHandlers() {
     $('bwa-body').querySelectorAll('.bwa-th-sort').forEach((th) => {
@@ -1631,7 +1664,7 @@
 
   // ------------------------------------------------------------ store / flow
   const STORE_KEY = 'bwa_store', ACTIVE_KEY = 'bwa_active';
-  const state = { store: {}, activeCompany: null, activeKey: null, activeTab: 'overview', sort: {} };
+  const state = { store: {}, activeCompany: null, activeKey: null, activeTab: 'overview', sort: {}, pnlView: 'cum' };
   const status = qrx.ui.status($('bwa-status'));
 
   function monthMeta(parsed) {
