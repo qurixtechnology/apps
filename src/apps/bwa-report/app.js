@@ -1389,10 +1389,11 @@
       <p class="bwa-note">${esc(t('breakEvenCaveat'))}</p></div>` : '';
     const runrate = `<div class="bwa-runrate">${info('runrate')}<strong>${esc(t('runRateTitle'))}</strong>
       ${esc(t('runRateLine', { months: K.months, u: eur0(K.runRateUmsatz), e: eur0(K.runRateErgebnis) }))}</div>`;
-    const ertragBody = `<div class="bwa-cols">
-      <div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('flowTitle'))}</div>${waterfallSVG(K)}</div>
-      <div class="bwa-assess bwa-assess-${A.ertrag}">${dot(A.ertrag)}<div>${esc(ertragText)}</div></div>
-    </div>${beBox}${runrate}`;
+    const ertragBody = `<div class="bwa-chart-box"><div class="bwa-chart-title">${esc(t('flowTitle'))}</div>${waterfallSVG(K)}</div>
+      <div class="bwa-info-row">
+        <div class="bwa-assess bwa-assess-${A.ertrag}">${dot(A.ertrag)}<div>${esc(ertragText)}</div></div>
+        ${beBox}${runrate}
+      </div>`;
 
     const kostenBody = `<div class="bwa-chart-title">${esc(t('costTitle'))}</div>${costBars(K)}${expenseBars(parsed)}`;
 
