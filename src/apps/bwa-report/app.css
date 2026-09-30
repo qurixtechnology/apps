@@ -107,6 +107,7 @@
 
 /* KPI cards */
 .bwa-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--qrx-s-3); }
+.bwa-cards + .bwa-assess { margin-top: var(--qrx-s-4); }
 .bwa-card { border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius); padding: var(--qrx-s-3) var(--qrx-s-4); background: var(--qrx-surface); }
 .bwa-card-label { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--qrx-text-muted); font-weight: 500; }
 .bwa-card-value { font-size: 1.4rem; font-weight: 700; color: var(--qrx-text); margin-top: 2px; font-variant-numeric: tabular-nums; }

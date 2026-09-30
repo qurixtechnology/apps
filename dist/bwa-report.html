@@ -284,6 +284,7 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 
 /* KPI cards */
 .bwa-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--qrx-s-3); }
+.bwa-cards + .bwa-assess { margin-top: var(--qrx-s-4); }
 .bwa-card { border: 1px solid var(--qrx-border); border-radius: var(--qrx-radius); padding: var(--qrx-s-3) var(--qrx-s-4); background: var(--qrx-surface); }
 .bwa-card-label { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--qrx-text-muted); font-weight: 500; }
 .bwa-card-value { font-size: 1.4rem; font-weight: 700; color: var(--qrx-text); margin-top: 2px; font-variant-numeric: tabular-nums; }
@@ -998,7 +999,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>260930-092719</span>
+    &middot; v<span data-build-version>260930-101352</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2869,7 +2870,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       liqRefundNote: 'Zusätzlich bestehen Steuer-Erstattungsansprüche von {amount} (voraussichtlicher Mittelzufluss, hier nicht gegengerechnet).',
       'def.bound': 'Teil der liquiden Mittel, der bereits verplant ist: Umsatzsteuer (durchlaufendes Fremdgeld), abzuführende Lohnsteuer/Sozialabgaben und gebildete Steuerrückstellungen. Nur der Rest ist frei verfügbar.',
       ntRefunds: 'Steuer-Erstattungsansprüche', ntPayrollHint: 'Teil der Personalkosten',
-      ntOutflow: 'Netto-Abfluss (Steuern & Fremdgeld)', ntOutflowSub: 'nach Verrechnung der Erstattungen', ntInflowSub: 'netto Zufluss nach Erstattungen',
+      ntOutflow: 'Netto-Abfluss', ntOutflowSub: 'nach Verrechnung der Erstattungen', ntInflowSub: 'netto Zufluss nach Erstattungen',
       'def.ntoutflow': 'Was nach Verrechnung der Erstattungsansprüche tatsächlich abfließt: durchlaufende Posten (Umsatzsteuer, Lohnsteuer/Sozialabgaben) plus eigene Ertragsteuer minus Erstattungen. Als Liquiditätspuffer bereithalten.',
       ptTitle: 'Vorzuhalten nach Art', ptPassThrough: 'Durchlaufende Posten (Fremdgeld)', ptOwnTax: 'Eigene Ertragsteuer (netto)',
       ptSumPass: 'Summe Fremdgeld', ptOwnNet: 'Eigene Ertragsteuer netto', ptTotal: 'Netto-Abfluss gesamt',
@@ -3057,7 +3058,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       liqRefundNote: 'In addition, tax refund claims of {amount} exist (expected cash inflow, not netted here).',
       'def.bound': 'The part of the cash that is already committed: VAT (pass-through money), wage tax/social security to be remitted, and tax provisions. Only the rest is freely usable.',
       ntRefunds: 'Tax refund claims', ntPayrollHint: 'part of personnel costs',
-      ntOutflow: 'Net outflow (taxes & pass-through)', ntOutflowSub: 'after offsetting refunds', ntInflowSub: 'net inflow after refunds',
+      ntOutflow: 'Net outflow', ntOutflowSub: 'after offsetting refunds', ntInflowSub: 'net inflow after refunds',
       'def.ntoutflow': 'What actually flows out after offsetting the refund claims: pass-through money (VAT, wage tax/social security) plus the own income tax minus refunds. Keep it as a liquidity buffer.',
       ptTitle: 'What to keep aside, by type', ptPassThrough: 'Pass-through money', ptOwnTax: 'Own income tax (net)',
       ptSumPass: 'Total pass-through', ptOwnNet: 'Own income tax, net', ptTotal: 'Total net outflow',
