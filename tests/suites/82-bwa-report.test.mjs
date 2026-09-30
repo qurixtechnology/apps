@@ -107,8 +107,8 @@ describe('bwa report', () => {
       assert.ok(dom.hasRisk, 'the customer/supplier concentration sections are rendered');
       assert.ok(dom.hasExpenseDrill, 'the expense drill-down is rendered');
       assert.ok(dom.hasDso, 'DSO card is rendered');
-      assert.equal(dom.tabs, 6, 'six topic tabs (overview, revenue, costs, taxes, liquidity, source)');
-      assert.equal(dom.panels, 6, 'a panel per tab');
+      assert.equal(dom.tabs, 5, 'five topic tabs (overview, P&L, taxes, liquidity, source)');
+      assert.equal(dom.panels, 5, 'a panel per tab');
       assert.equal(dom.visiblePanels, 1, 'only the active tab panel is visible');
       page.assertNoErrors();
     } finally { await page.close(); }
@@ -119,7 +119,7 @@ describe('bwa report', () => {
     try {
       await importFixture(page);
       const labels = await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].map((b) => b.textContent));
-      assert.deepEqual(labels, ['Überblick', 'Einnahmen', 'Ausgaben / Kosten', 'Steuern', 'Liquidität', 'BWA (Quelle)']);
+      assert.deepEqual(labels, ['Überblick', 'GuV', 'Steuern', 'Liquidität', 'BWA (Quelle)']);
       // Overview is active by default and holds the cockpit.
       const before = await page.evaluate(() => {
         const active = document.querySelector('#bwa-body .bwa-tabpanel:not([hidden])');
@@ -228,7 +228,7 @@ describe('bwa report', () => {
       await page.reload();
       await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
       await page.waitForFunction(() => document.querySelector('#bwa-body .bwa-tab'), { timeout: 20000 });
-      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'revenue').click());
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'pnl').click());
       const firstCell = () => page.evaluate(() => document.querySelector('#bwa-body .bwa-sortable tbody tr td').textContent);
       // default sort = invoiced desc → Krongaard first
       assert.match(await firstCell(), /Krongaard/, 'default sort by invoiced (descending)');

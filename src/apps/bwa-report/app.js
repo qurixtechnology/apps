@@ -39,7 +39,7 @@
       spBerechnet: 'Berechnet (kum.)', spBezahlt: 'Bezahlt (kum.)',
       spIntro: 'Verteilung des Einkaufsvolumens auf die größten Lieferanten — zeigt die Abhängigkeit auf der Beschaffungsseite (ergänzend zum Verbindlichkeitsrisiko).',
       spNote: 'Bruttowerte inkl. Vorsteuer aus den Kreditoren-Bewegungen der Summen & Salden. „Berechnet“ = vom Lieferanten in Rechnung gestellt (kumuliert), „Bezahlt“ = geleistete Zahlungen dieses Jahres. „Offen“ ist der aktuelle Saldo = Anfangssaldo + Berechnet − Bezahlt; ein negativer Wert ist eine Überzahlung (Guthaben beim Lieferanten). Enthält auch Nicht-Waren-Lieferanten; Sammelkonten „DIVERSE“ bündeln mehrere kleine. Nur verfügbar, wenn die BWA die Bewegungsspalten enthält.',
-      tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität', tabSource: 'BWA (Quelle)',
+      tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabPnl: 'GuV', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität', tabSource: 'BWA (Quelle)',
       secSource: 'BWA-Rohdaten (Quelle)',
       srcIntro: 'Die aus deiner BWA ausgelesenen Rohwerte. Ein Klick auf einen markierten Wert im Bericht springt hierher und hebt die zugrunde liegenden Konten bzw. GuV-Zeilen hervor.',
       srcKerTitle: 'Kurzfristige Erfolgsrechnung (GuV)', srcSusaTitle: 'Summen & Salden (Konten)',
@@ -233,7 +233,7 @@
       spBerechnet: 'Billed (YTD)', spBezahlt: 'Paid (YTD)',
       spIntro: 'Distribution of purchasing volume across the largest suppliers — shows dependency on the procurement side (complementing the payables risk).',
       spNote: 'Gross values incl. input VAT from the creditor movements of the trial balance. “Billed” = invoiced by the supplier (cumulative), “Paid” = payments made this year. “Open” is the current balance = opening + billed − paid; a negative value is an overpayment (credit with the supplier). Includes non-goods suppliers; collective accounts “DIVERSE” bundle several small ones. Only available when the BWA contains the movement columns.',
-      tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity', tabSource: 'BWA (source)',
+      tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabPnl: 'P&L', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity', tabSource: 'BWA (source)',
       secSource: 'BWA raw data (source)',
       srcIntro: 'The raw values read from your BWA. Clicking a highlighted figure in the report jumps here and highlights the underlying accounts or P&L lines.',
       srcKerTitle: 'Short-term result statement (P&L)', srcSusaTitle: 'Trial balance (accounts)',
@@ -1421,18 +1421,18 @@
 
     const kerBlock = `<details class="bwa-details"><summary>${esc(t('detKer'))}</summary>
       <div class="bwa-table-wrap">${kerTable(K, parsed)}</div></details>`;
-    const expTbl = expenseTable(parsed);
-    const expBlock = expTbl ? `<div class="bwa-table-wrap">${expTbl}</div>` : '';
     const conc = K.concentration;
     const custBlock = (conc && conc.customers) ? section('secCustomers', `<p class="bwa-note bwa-subnote">${esc(t('riskIntro'))}</p>${concentrationSide(conc, 'cust')}`) : '';
     const supBlock = (conc && conc.suppliers) ? section('secSuppliers', concentrationSide(conc, 'sup')) : '';
+    // Consolidated P&L tab: revenue and cost sides in one place. Customers/suppliers
+    // stacked (so each wide table is fully in view); the full KER lives in "Details".
+    const partiesBlock = (customerRevenueBlock(parsed) || custBlock) + (supplierPurchasesBlock(parsed) || supBlock);
 
     // Organise the report into topic tabs for a clearer overview.
     const tabs = [
       { id: 'overview', label: t('tabOverview'),
         html: renderCockpit(K) + section('secGlance', `<div class="bwa-cards">${glance}</div>`) + section('secBewertung', recs) + trendHTML(series) },
-      { id: 'revenue', label: t('tabRevenue'), html: section('secErtrag', ertragBody) + (customerRevenueBlock(parsed) || custBlock) + kerBlock },
-      { id: 'costs', label: t('tabCosts'), html: section('secKosten', kostenBody) + (supplierPurchasesBlock(parsed) || supBlock) + expBlock },
+      { id: 'pnl', label: t('tabPnl'), html: section('secErtrag', ertragBody) + section('secKosten', kostenBody) + partiesBlock + kerBlock },
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
       { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) + taxReserveBlock(K) },
       { id: 'source', label: t('tabSource'), html: sourceTab(parsed) },
