@@ -644,11 +644,12 @@ describe('bwa report', () => {
       await fresh(page);
       await page.evaluate(() => {
         const line = (label, month, ytd) => ({ label, month, ytd });
+        // 10 months: average = ytd / 10; the current month is above average.
         const ker = {
-          umsatz: line('Umsatzerlöse', 10000, 100000), gesamtleistung: line('Gesamtleistung', 10000, 100000),
-          betrRohertrag: line('Betrieblicher Rohertrag', 10000, 100000), personalkosten: line('Personalkosten', 4000, 40000),
-          sonstigeKosten: line('Sonstige Kosten', 2000, 20000), gesamtkosten: line('Gesamtkosten', 7000, 70000),
-          betriebsergebnis: line('Betriebsergebnis', 3000, 30000), vorlaeufigesErgebnis: line('Vorläufiges Ergebnis', 3000, 30000),
+          umsatz: line('Umsatzerlöse', 12000, 100000), gesamtleistung: line('Gesamtleistung', 12000, 100000),
+          betrRohertrag: line('Betrieblicher Rohertrag', 12000, 100000), personalkosten: line('Personalkosten', 5000, 40000),
+          sonstigeKosten: line('Sonstige Kosten', 2500, 20000), gesamtkosten: line('Gesamtkosten', 8500, 70000),
+          betriebsergebnis: line('Betriebsergebnis', 3500, 30000), vorlaeufigesErgebnis: line('Vorläufiges Ergebnis', 3500, 30000),
         };
         const parsed = { meta: { company: 'Test GmbH', monthsElapsed: 10, periodLabel: 'Jan/2026 – Okt/2026', currentMonth: 'Okt/2026', date: '31.10.2026', currency: 'EUR' }, ker, hasSusa: false, hasTurnover: false, susa: [] };
         localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2026-10': parsed } }));
@@ -671,7 +672,10 @@ describe('bwa report', () => {
       const rc = await page.evaluate(() => {
         const p = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((x) => x.dataset.tab === 'pnl');
         const table = [...p.querySelectorAll('table.bwa-table')].pop();
-        return { active: (p.querySelector('.bwa-viewbtn.is-active') || {}).textContent, cols: table ? table.querySelectorAll('thead th').length : 0, hasCompareHead: /Vergleich/.test(p.textContent) };
+        const headers = table ? [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim()) : [];
+        return { active: (p.querySelector('.bwa-viewbtn.is-active') || {}).textContent, headers,
+          charts: p.querySelectorAll('.bwa-cmp-charts svg.bwa-svg').length, groupedBars: p.querySelectorAll('.bwa-bar-cmp').length,
+          hasDiff: /\+\s?2\.000/.test(p.textContent), hasCompareHead: /Vergleich/.test(p.textContent) };
       });
       assert.deepEqual(r.btns, ['kumuliert', 'Monat', 'Vergleich'], 'three view modes');
       assert.equal(r.active, 'kumuliert', 'cumulative is the default');
@@ -680,10 +684,13 @@ describe('bwa report', () => {
       assert.equal(rm.active, 'Monat', 'switched to the monthly view');
       assert.match(rm.title, /Okt\/2026/, 'title shows the current month');
       assert.doesNotMatch(rm.wf, /100\.000/, 'waterfall no longer shows the cumulative total');
-      assert.match(rm.wf, /10\.000/, 'waterfall shows the monthly figures');
+      assert.match(rm.wf, /12\.000/, 'waterfall shows the monthly figures');
       assert.equal(rc.active, 'Vergleich', 'switched to compare');
-      assert.equal(rc.cols, 5, 'compare table has month + % + cumulative + % columns');
-      assert.ok(rc.hasCompareHead, 'the compare table is labelled');
+      assert.deepEqual(rc.headers, ['Bezeichnung', 'Ø/Monat', 'Monat', 'Δ (Monat − Ø)'], 'compare shows average, month and Δ');
+      assert.equal(rc.charts, 2, 'two waterfalls (month and average) side by side');
+      assert.ok(rc.groupedBars >= 1, 'cost structure shows grouped month/average bars');
+      assert.ok(rc.hasDiff, 'the Δ (month − average) is shown (+2.000)');
+      assert.ok(rc.hasCompareHead, 'the compare view is labelled');
       await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();
     } finally { await page.close(); }

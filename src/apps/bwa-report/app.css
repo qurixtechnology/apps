@@ -225,6 +225,17 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
 .bwa-bar-fill { height: 100%; background: var(--qrx-primary); border-radius: 999px; }
 .bwa-bar-fill.bwa-bar-hot { background: var(--qrx-accent); }
 .bwa-bar-val { font-size: 0.78rem; color: var(--qrx-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bwa-pos { color: var(--qrx-success); }
+/* Compare view: two waterfalls side by side + grouped month/average cost bars. */
+.bwa-cmp-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--qrx-s-4); }
+.bwa-bar-fill.bwa-bar-avg { background: color-mix(in srgb, var(--qrx-accent) 35%, var(--qrx-bg-muted)); }
+.bwa-bar-cmp .bwa-bar-cmp-bars { display: flex; flex-direction: column; gap: 3px; align-self: center; min-width: 0; }
+.bwa-bar-cmp .bwa-bar-track { height: 9px; }
+.bwa-cmp-legend { display: flex; align-items: center; gap: var(--qrx-s-2); font-size: 0.8rem; color: var(--qrx-text-muted); margin-bottom: var(--qrx-s-3); }
+.bwa-cmp-key { width: 12px; height: 12px; border-radius: 3px; display: inline-block; margin-left: var(--qrx-s-3); }
+.bwa-cmp-legend > .bwa-cmp-key:first-child { margin-left: 0; }
+.bwa-cmp-key.bwa-bar-hot { background: var(--qrx-accent); }
+.bwa-cmp-key.bwa-bar-avg { background: color-mix(in srgb, var(--qrx-accent) 35%, var(--qrx-bg-muted)); }
 
 /* Assessment boxes */
 .bwa-assess { display: flex; gap: var(--qrx-s-3); align-items: flex-start; line-height: 1.55;
