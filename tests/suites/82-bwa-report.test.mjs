@@ -277,7 +277,7 @@ describe('bwa report', () => {
         };
       });
       assert.deepEqual(r.ust, { output: 5700, vorsteuer: 3000, prepaid: 2500, net: 200 }, 'VAT composition');
-      assert.deepEqual(r.sum, { cash: 100000, ustOwed: 200, wageTax: 4000, reserves: 1000, hold: 1000, refunds: 12000, bound: 5200, free: 94800, freeRatio: r.sum.freeRatio,
+      assert.deepEqual(r.sum, { cash: 100000, ustOwed: 200, wageTax: 4000, reserves: 1000, hold: 1000, sonstigeRueck: 0, refunds: 12000, bound: 5200, free: 94800, freeRatio: r.sum.freeRatio,
         passThrough: 4200, ownTaxNet: -11000, netOutflow: -6800, netTax: -10800 }, 'refunds exclude 1548 (deferred VAT); two buckets + net outflow');
       assert.equal(r.freeRatio, 0.948, 'free liquidity ratio');
       assert.equal(r.sum.passThrough, 200 + 4000, 'pass-through = USt owed + wage tax/SV');
@@ -641,6 +641,44 @@ describe('bwa report', () => {
       const txt = await page.evaluate(() => document.getElementById('bwa-body').textContent);
       assert.match(txt, /At a glance/);
       assert.match(txt, /Overall assessment/);
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('other provisions (970–999) are included in the liquidity buffer, not just taxes', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      await page.evaluate(() => {
+        const susa = [
+          { no: 1200, label: 'Bank', saldoAbs: 100000, side: 'S' },
+          { no: 1776, label: 'Umsatzsteuer 19%', saldoAbs: 5000, side: 'H' },
+          { no: 970, label: 'Sonstige Rückstellungen', saldoAbs: 2000, side: 'H' },
+          { no: 977, label: 'Rückstellungen für Abschluss u. Prüfung', saldoAbs: 5500, side: 'H' },
+        ];
+        const parsed = { meta: { company: 'Test GmbH', monthsElapsed: 12, currentMonth: 'Dez/2024', date: '31.12.2024', currency: 'EUR' }, ker: { umsatz: { ytd: 50000, month: 0, label: 'Umsatzerlöse' } }, hasSusa: true, hasTurnover: false, susa };
+        localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2024-12': parsed } }));
+        localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2024-12' }));
+      });
+      await page.reload();
+      await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'liquidity').click());
+      const r = await page.evaluate(() => {
+        const K = window.__bwa.kpis(window.__bwa.parsed);
+        const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'liquidity');
+        const table = panel.querySelector('table.bwa-taxtable');
+        const findRow = (re) => table && [...table.querySelectorAll('tbody tr')].find((t) => re.test(t.textContent));
+        const val = (tr) => tr ? tr.querySelectorAll('td')[1].textContent.replace(/[  ]/g, ' ').trim() : '';
+        const sr = findRow(/Sonstige Rückstellungen/);
+        return { sonstigeRueck: K.taxSummary.sonstigeRueck, bound: K.taxSummary.bound,
+          srVal: val(sr), srTip: sr ? ((sr.querySelector('td[title]') || {}).title || '') : '', vorzVal: val(findRow(/Vorzuhalten/)) };
+      });
+      assert.equal(r.sonstigeRueck, 7500, 'other provisions = 970 (2.000) + 977 (5.500)');
+      assert.equal(r.bound, 12500, 'to keep aside = VAT 5.000 + other provisions 7.500');
+      assert.equal(r.srVal, '7.500 €', 'the forecast table has an Other-provisions row');
+      assert.match(r.srTip, /Abschluss/, 'the Other-provisions row carries a source tooltip');
+      assert.equal(r.vorzVal, '12.500 €', 'the keep-aside total includes other provisions');
+      await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();
     } finally { await page.close(); }
   });

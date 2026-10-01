@@ -134,6 +134,7 @@
       secTaxes: 'Steuern (laut BWA)', secTaxReserve: 'Steuer-Rücklage (Prognose)',
       liqResFwd: 'Ertragsteuer (voraussichtlich)', liqResEstimate: 'davon voraussichtl. lfd. Jahr (~30 %)',
       tipEstimate: 'Voraussichtliche Ertragsteuer lfd. Jahr: {rate} × zu versteuern {taxable} = {expected}, abzüglich bereits gezahlter/verrechneter Vorauszahlungen {paid} = {estimate}.',
+      liqSonstRueck: 'Sonstige Rückstellungen', liqSonstRueckTip: 'Sonstige Rückstellungen (z. B. Abschluss-/Prüfungskosten) — künftige Auszahlungen, die Liquidität binden.',
       liqBoundGross: 'Vorzuhalten (brutto)', liqFreeToday: 'Frei verfügbar (heute)',
       txHoldTotal: 'Vorzuhalten', colBrutto: 'Brutto', colNetto: 'Netto (nach Erstattung)',
       liqRefundLater: 'Sobald die Erstattungsansprüche ({amount}) eingehen, steigt der frei verfügbare Betrag auf rund {free}.',
@@ -147,7 +148,7 @@
       liqBound: 'Vorzuhalten (Summe)', liqFree: 'Frei verfügbar', liqFreeSub: '{p} der liquiden Mittel',
       liqUstBreak: 'USt-Zahllast = vereinnahmte Umsatzsteuer {output} − abziehbare Vorsteuer {vorsteuer} − geleistete Vorauszahlungen {prepaid}.',
       liqRefundNote: 'Zusätzlich bestehen Steuer-Erstattungsansprüche von {amount} (voraussichtlicher Mittelzufluss, hier nicht gegengerechnet).',
-      'def.bound': 'Teil der liquiden Mittel, der bereits verplant ist: Umsatzsteuer (durchlaufendes Fremdgeld), abzuführende Lohnsteuer/Sozialabgaben und gebildete Steuerrückstellungen. Nur der Rest ist frei verfügbar.',
+      'def.bound': 'Teil der liquiden Mittel, der bereits verplant ist: Umsatzsteuer (durchlaufendes Fremdgeld), abzuführende Lohnsteuer/Sozialabgaben, gebildete Steuerrückstellungen und sonstige Rückstellungen. Nur der Rest ist frei verfügbar.',
       ntRefunds: 'Steuer-Erstattungsansprüche', ntPayrollHint: 'Teil der Personalkosten',
       ntOutflow: 'Netto-Abfluss', ntOutflowSub: 'nach Verrechnung der Erstattungen', ntInflowSub: 'netto Zufluss nach Erstattungen',
       'def.ntoutflow': 'Was nach Verrechnung der Erstattungsansprüche tatsächlich abfließt: durchlaufende Posten (Umsatzsteuer, Lohnsteuer/Sozialabgaben) plus eigene Ertragsteuer minus Erstattungen. Als Liquiditätspuffer bereithalten.',
@@ -326,6 +327,7 @@
       secTaxes: 'Taxes (per BWA)', secTaxReserve: 'Tax reserve (forecast)',
       liqResFwd: 'Income tax (expected)', liqResEstimate: 'incl. expected current year (~30 %)',
       tipEstimate: 'Expected income tax for the current year: {rate} × taxable {taxable} = {expected}, less advance payments already made {paid} = {estimate}.',
+      liqSonstRueck: 'Other provisions', liqSonstRueckTip: 'Other provisions (e.g. year-end/audit costs) — future cash outflows that tie up liquidity.',
       liqBoundGross: 'To keep aside (gross)', liqFreeToday: 'Freely usable (today)',
       txHoldTotal: 'To keep aside', colBrutto: 'Gross', colNetto: 'Net (after refunds)',
       liqRefundLater: 'Once the refund claims ({amount}) arrive, the freely usable amount rises to about {free}.',
@@ -339,7 +341,7 @@
       liqBound: 'To keep aside (total)', liqFree: 'Freely usable', liqFreeSub: '{p} of cash',
       liqUstBreak: 'VAT liability = output VAT collected {output} − deductible input VAT {vorsteuer} − advance payments made {prepaid}.',
       liqRefundNote: 'In addition, tax refund claims of {amount} exist (expected cash inflow, not netted here).',
-      'def.bound': 'The part of the cash that is already committed: VAT (pass-through money), wage tax/social security to be remitted, and tax provisions. Only the rest is freely usable.',
+      'def.bound': 'The part of the cash that is already committed: VAT (pass-through money), wage tax/social security to be remitted, tax provisions and other provisions. Only the rest is freely usable.',
       ntRefunds: 'Tax refund claims', ntPayrollHint: 'part of personnel costs',
       ntOutflow: 'Net outflow', ntOutflowSub: 'after offsetting refunds', ntInflowSub: 'net inflow after refunds',
       'def.ntoutflow': 'What actually flows out after offsetting the refund claims: pass-through money (VAT, wage tax/social security) plus the own income tax minus refunds. Keep it as a liquidity buffer.',
@@ -768,15 +770,18 @@
       // NOT 1548 (input VAT deductible in a later period — a VAT, not a tax refund).
       const refunds = a.filter((x) => x.no >= 1540 && x.no <= 1549 && x.no !== 1548 && x.side === 'S').reduce((s, x) => s + x.saldoAbs, 0);
       const ustNet = o.ust ? o.ust.net : 0;
-      const bound = ustOwed + wageTax + hold;   // forward-looking liquidity buffer
-      o.taxSummary = { cash, ustOwed, wageTax, reserves, hold, refunds, bound,
+      // Other provisions (970–999: e.g. year-end/audit costs) also bind cash, so they
+      // belong in the liquidity buffer — but not in the tax tab (they are not taxes).
+      const sonstigeRueck = Math.max(0, bucket(a, 970, 999, false));
+      const bound = ustOwed + wageTax + hold + sonstigeRueck;   // forward-looking liquidity buffer
+      o.taxSummary = { cash, ustOwed, wageTax, reserves, hold, sonstigeRueck, refunds, bound,
         free: cash - bound, freeRatio: cash > 0 ? (cash - bound) / cash : null,
         // Two clear buckets: pass-through money (VAT + wage tax/SV, part of payroll)
-        // and the company's own income tax (forecast) netted with refunds. Their sum
-        // is the real net cash outflow once refunds arrive.
+        // and the company's own income tax (forecast) netted with refunds, plus other
+        // provisions. Their sum is the real net cash outflow once refunds arrive.
         passThrough: ustOwed + wageTax,          // durchlaufende Posten (Fremdgeld)
         ownTaxNet: hold - refunds,               // eigene Ertragsteuer (Prognose), netto
-        netOutflow: bound - refunds,             // = passThrough + ownTaxNet
+        netOutflow: bound - refunds,             // = passThrough + ownTaxNet + other provisions
         netTax: ustNet + hold - refunds };       // Finanzamt-only (VAT + income tax), advisor reconciliation
       // Verprobung (plausibility): sales VAT vs. 19 % of revenue, input VAT vs. taxable expense.
       const salesVat = a.filter((x) => x.no >= 1770 && x.no <= 1779 && x.side === 'H').reduce((s, x) => s + x.saldoAbs, 0);
@@ -924,6 +929,7 @@
     const ustNos = [].concat(nos(SRC.ustOutput), nos(SRC.ustVorjahr), nos(SRC.vorsteuer), nos(SRC.vorauszahlung));
     const vzNos = parsed ? inRanges(parsed, [[2200, 2219], [4320, 4329]]) : [];
     const cashList = parsed ? (parsed.susa || []).filter((a) => a.saldoAbs > 0 && ((a.no >= 1000 && a.no <= 1099) || (a.no >= 1200 && a.no <= 1290) || a.no === 1360)).map((a) => ({ no: a.no, label: a.label, v: a.saldoAbs })) : [];
+    const sonstRueckList = parsed ? (parsed.susa || []).filter((a) => a.no >= 970 && a.no <= 999 && a.side === 'H' && a.saldoAbs > 0).map((a) => ({ no: a.no, label: a.label, v: a.saldoAbs })) : [];
     // Estimate derivation: the 30 % estimate less the advance payments already made.
     const paidOffset = Math.max(0, (T ? T.expectedAdj : 0) - estimate);
     const ustTip = K.ust ? t('liqUstBreak', { output: eur0(K.ust.output), vorsteuer: eur0(K.ust.vorsteuer), prepaid: eur0(K.ust.prepaid) }) : '';
@@ -941,6 +947,7 @@
     row(t('liqRes'), reserve, reserve, { tip: acctTip(resList), src: srcData(resNos) });
     if (estimate > 0.5) row(t('liqResEstimate'), estimate, estimate, { tip: estTip, src: srcData(vzNos, ['ergebnisVorSteuern']) });
     row(t('liqResFwd'), S.hold, S.hold, { sub: 1, tip: `${t('liqRes')} ${eur0(reserve)} + ${t('liqResEstimate')} ${eur0(estimate)} = ${eur0(S.hold)}`, src: srcData(resNos, ['ergebnisVorSteuern']) });
+    if (S.sonstigeRueck > 0.5) row(t('liqSonstRueck'), S.sonstigeRueck, S.sonstigeRueck, { tip: acctTip(sonstRueckList, t('liqSonstRueckTip')), src: srcData(sonstRueckList.map((x) => x.no)) });
     if (twoCol) row(t('ntRefunds'), null, -S.refunds, { tip: acctTip(SRC.refunds, t('tipRefundHead')), src: srcData(nos(SRC.refunds)) });
     row(t('txHoldTotal'), S.bound, S.netOutflow, { total: 1, tip: `${t('ptSumPass')} ${eur0(S.passThrough)} + ${t('liqResFwd')} ${eur0(S.hold)} = ${eur0(S.bound)}` });
     R.push({ sep: 1 });
