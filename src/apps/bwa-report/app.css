@@ -192,6 +192,9 @@
 .bwa-taxtable .bwa-tr-bold td { font-weight: 700; }
 .bwa-taxtable .bwa-tr-total td { border-top: 2px solid var(--qrx-border-strong); font-weight: 700; }
 .bwa-taxtable .bwa-tr-sep td { height: 10px; border: 0; padding: 0; }
+.bwa-taxtable td.bwa-td-tip { cursor: help; }
+.bwa-taxtable td.bwa-td-src { cursor: pointer; }
+.bwa-taxtable td.bwa-td-tip:hover, .bwa-taxtable td.bwa-td-src:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 .bwa-taxtable + .bwa-assess { margin-top: var(--qrx-s-3); }
 /* Tax overview table: grouped rows + sub-/grand-totals */
 .bwa-taxoverview .bwa-tr-group td { font-weight: 600; color: var(--qrx-text-muted); padding-top: 12px;

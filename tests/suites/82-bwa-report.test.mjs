@@ -461,10 +461,12 @@ describe('bwa report', () => {
         const txt = panel.textContent;
         const table = panel.querySelector('table.bwa-taxtable-2');
         const cells = (re) => { const tr = table && [...table.querySelectorAll('tbody tr')].find((t) => re.test(t.textContent)); return tr ? [...tr.querySelectorAll('td')].map((td) => td.textContent.replace(/[  ]/g, ' ').replace(/−/g, '-').trim()) : []; };
+        const estTd = table && [...table.querySelectorAll('td[title]')].find((td) => /Vorauszahlungen/.test(td.getAttribute('title')));
         return { reserveSection: /Steuer-Rücklage \(Prognose\)/.test(txt), hasBar: !!panel.querySelector('.bwa-seg-net'),
           refundZone: !!panel.querySelector('.bwa-seg-refund'), caption: /nach Eingang der Erstattung effektiv frei/.test(txt), expected: /14\.06\d/.test(txt),
           headers: table ? [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim()) : [],
-          vorz: cells(/Vorzuhalten/), frei: cells(/Frei verfügbar/), refund: cells(/Erstattungsansprüche/) };
+          vorz: cells(/Vorzuhalten/), frei: cells(/Frei verfügbar/), refund: cells(/Erstattungsansprüche/),
+          estTip: estTd ? estTd.getAttribute('title') : '', hasSrc: !!(table && table.querySelector('td.bwa-td-src[data-src]')) };
       });
       assert.ok(l.reserveSection && l.hasBar, 'the forecast section + bar are in the liquidity tab');
       assert.ok(l.refundZone, 'the bar has a distinct refund-covered zone');
@@ -474,6 +476,8 @@ describe('bwa report', () => {
       assert.match(l.vorz[1], /88\.16[78]/, 'gross amount to keep aside'); assert.match(l.vorz[2], /43\.55[01]/, 'net amount to keep aside');
       assert.match(l.frei[1], /28\.88[01]/, 'free today'); assert.match(l.frei[2], /73\.49[678]/, 'free after the refund');
       assert.equal(l.refund[1], '–', 'no refund in the gross column'); assert.match(l.refund[2], /-\s?44\.617/, 'refund reduces only the net column');
+      assert.match(l.estTip, /Vorauszahlungen/, 'the estimate tooltip states that advance payments are deducted');
+      assert.ok(l.hasSrc, 'the forecast table cells link to the BWA source accounts');
       await page.evaluate(() => window.__bwa.reset());
       page.assertNoErrors();
     } finally { await page.close(); }

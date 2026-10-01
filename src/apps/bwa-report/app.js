@@ -133,6 +133,7 @@
       // Taxes & reserves section
       secTaxes: 'Steuern (laut BWA)', secTaxReserve: 'Steuer-Rücklage (Prognose)',
       liqResFwd: 'Ertragsteuer (voraussichtlich)', liqResEstimate: 'davon voraussichtl. lfd. Jahr (~30 %)',
+      tipEstimate: 'Voraussichtliche Ertragsteuer lfd. Jahr: {rate} × zu versteuern {taxable} = {expected}, abzüglich bereits gezahlter/verrechneter Vorauszahlungen {paid} = {estimate}.',
       liqBoundGross: 'Vorzuhalten (brutto)', liqFreeToday: 'Frei verfügbar (heute)',
       txHoldTotal: 'Vorzuhalten', colBrutto: 'Brutto', colNetto: 'Netto (nach Erstattung)',
       liqRefundLater: 'Sobald die Erstattungsansprüche ({amount}) eingehen, steigt der frei verfügbare Betrag auf rund {free}.',
@@ -324,6 +325,7 @@
       taxCheckCaveat: 'Rough orientation; the trade-tax multiplier, loss carry-forwards and accruals change the amount considerably. Not tax advice.',
       secTaxes: 'Taxes (per BWA)', secTaxReserve: 'Tax reserve (forecast)',
       liqResFwd: 'Income tax (expected)', liqResEstimate: 'incl. expected current year (~30 %)',
+      tipEstimate: 'Expected income tax for the current year: {rate} × taxable {taxable} = {expected}, less advance payments already made {paid} = {estimate}.',
       liqBoundGross: 'To keep aside (gross)', liqFreeToday: 'Freely usable (today)',
       txHoldTotal: 'To keep aside', colBrutto: 'Gross', colNetto: 'Net (after refunds)',
       liqRefundLater: 'Once the refund claims ({amount}) arrive, the freely usable amount rises to about {free}.',
@@ -908,41 +910,58 @@
   // tax/SV) and the own income tax (booked reserve + estimate of the current year),
   // the gross amount to keep aside, the refund claims and the net buffer — plus a
   // bar that splits the cash consistently (its committed segments sum to the gross).
-  function taxReserveBlock(K) {
-    const S = K.taxSummary, T = K.taxCheck;
+  function taxReserveBlock(K, parsed) {
+    const S = K.taxSummary, T = K.taxCheck, SRC = K.taxSrc || {};
     if (!S || S.cash <= 0) return '';
     const hasBuffer = S.ustOwed > 0 || S.wageTax > 0 || S.hold > 0 || S.refunds > 0;
     if (!hasBuffer && !(T && T.taxable > 0)) return '';
     const reserve = S.reserves;                       // booked income-tax reserve (Ist)
     const estimate = Math.max(0, S.hold - reserve);   // estimate added on top for the current year
+    // Contributing accounts (for tooltips + source links to the BWA tab).
+    const nos = (list) => (list || []).map((x) => x.no);
+    const resList = (K.taxDetail || []).map((d) => ({ no: d.no, label: d.label, v: d.offen }));
+    const resNos = resList.map((x) => x.no);
+    const ustNos = [].concat(nos(SRC.ustOutput), nos(SRC.ustVorjahr), nos(SRC.vorsteuer), nos(SRC.vorauszahlung));
+    const vzNos = parsed ? inRanges(parsed, [[2200, 2219], [4320, 4329]]) : [];
+    const cashList = parsed ? (parsed.susa || []).filter((a) => a.saldoAbs > 0 && ((a.no >= 1000 && a.no <= 1099) || (a.no >= 1200 && a.no <= 1290) || a.no === 1360)).map((a) => ({ no: a.no, label: a.label, v: a.saldoAbs })) : [];
+    // Estimate derivation: the 30 % estimate less the advance payments already made.
+    const paidOffset = Math.max(0, (T ? T.expectedAdj : 0) - estimate);
+    const ustTip = K.ust ? t('liqUstBreak', { output: eur0(K.ust.output), vorsteuer: eur0(K.ust.vorsteuer), prepaid: eur0(K.ust.prepaid) }) : '';
+    const estTip = T ? t('tipEstimate', { rate: pct(T.rate, 0), taxable: eur0(T.taxable), expected: eur0(T.expectedAdj), paid: eur0(paidOffset), estimate: eur0(estimate) }) : '';
     // Two columns (gross vs. net after refunds) only when there are refund claims;
     // otherwise the two would be identical, so a single amount column is clearer.
     const twoCol = S.refunds > 0.005;
     const R = [];
     const row = (label, brutto, netto, o) => R.push({ label, brutto, netto, ...(o || {}) });
     R.push({ g: t('ptPassThrough') });
-    row(t('liqUst'), S.ustOwed, S.ustOwed);
-    if (S.wageTax > 0) row(t('liqWage'), S.wageTax, S.wageTax, { hint: t('ntPayrollHint') });
-    row(t('ptSumPass'), S.passThrough, S.passThrough, { sub: 1 });
+    row(t('liqUst'), S.ustOwed, S.ustOwed, { tip: ustTip, src: srcData(ustNos) });
+    if (S.wageTax > 0) row(t('liqWage'), S.wageTax, S.wageTax, { hint: t('ntPayrollHint'), tip: acctTip(SRC.wage), src: srcData(nos(SRC.wage)) });
+    row(t('ptSumPass'), S.passThrough, S.passThrough, { sub: 1, tip: `${t('liqUst')} + ${t('liqWage')} = ${eur0(S.passThrough)}` });
     R.push({ g: t('ptOwnTax') });
-    row(t('liqRes'), reserve, reserve);
-    if (estimate > 0.5) row(t('liqResEstimate'), estimate, estimate);
-    row(t('liqResFwd'), S.hold, S.hold, { sub: 1 });
-    if (twoCol) row(t('ntRefunds'), null, -S.refunds);
-    row(t('txHoldTotal'), S.bound, S.netOutflow, { total: 1 });
+    row(t('liqRes'), reserve, reserve, { tip: acctTip(resList), src: srcData(resNos) });
+    if (estimate > 0.5) row(t('liqResEstimate'), estimate, estimate, { tip: estTip, src: srcData(vzNos, ['ergebnisVorSteuern']) });
+    row(t('liqResFwd'), S.hold, S.hold, { sub: 1, tip: `${t('liqRes')} ${eur0(reserve)} + ${t('liqResEstimate')} ${eur0(estimate)} = ${eur0(S.hold)}`, src: srcData(resNos, ['ergebnisVorSteuern']) });
+    if (twoCol) row(t('ntRefunds'), null, -S.refunds, { tip: acctTip(SRC.refunds, t('tipRefundHead')), src: srcData(nos(SRC.refunds)) });
+    row(t('txHoldTotal'), S.bound, S.netOutflow, { total: 1, tip: `${t('ptSumPass')} ${eur0(S.passThrough)} + ${t('liqResFwd')} ${eur0(S.hold)} = ${eur0(S.bound)}` });
     R.push({ sep: 1 });
-    row(t('kLiquide'), S.cash, S.cash);
-    row(t('liqFree'), S.free, S.free + S.refunds, { bold: 1 });
+    row(t('kLiquide'), S.cash, S.cash, { tip: acctTip(cashList), src: srcData(cashList.map((x) => x.no)) });
+    row(t('liqFree'), S.free, S.free + S.refunds, { bold: 1, tip: `${t('kLiquide')} ${eur0(S.cash)} − ${t('txHoldTotal')} ${eur0(S.bound)} = ${eur0(S.free)}` });
     const nCols = twoCol ? 3 : 2;
     const money = (v) => v == null ? '–' : `<span class="${v < 0 ? 'bwa-neg' : ''}">${(v < 0 ? '− ' : '') + eur0(Math.abs(v))}</span>`;
+    const cell = (v, tip, sd) => {
+      const txt = money(v), show = txt !== '–';
+      const title = (tip && show) ? ` title="${esc(tip)}"` : '';
+      const link = (sd && show) ? ` ${sd} role="button" tabindex="0"` : '';
+      return `<td class="bwa-num${title ? ' bwa-td-tip' : ''}${link ? ' bwa-td-src' : ''}"${title}${link}>${txt}</td>`;
+    };
     const body = R.map((r) => {
       if (r.g) return `<tr class="bwa-tr-group"><td colspan="${nCols}">${esc(r.g)}</td></tr>`;
       if (r.sep) return `<tr class="bwa-tr-sep"><td colspan="${nCols}"></td></tr>`;
       const cls = r.total ? 'bwa-tr-bold bwa-tr-total' : r.bold ? 'bwa-tr-bold' : r.sub ? 'bwa-tr-sub' : '';
       const label = esc(r.label) + (r.hint ? ` <span class="bwa-muted">· ${esc(r.hint)}</span>` : '');
       const cells = twoCol
-        ? `<td class="bwa-num">${money(r.brutto)}</td><td class="bwa-num">${money(r.netto)}</td>`
-        : `<td class="bwa-num">${money(r.brutto)}</td>`;
+        ? `${cell(r.brutto, r.tip, r.src)}${cell(r.netto, r.tip, r.src)}`
+        : `${cell(r.brutto, r.tip, r.src)}`;
       return `<tr class="${cls}"><td>${label}</td>${cells}</tr>`;
     }).join('');
     const thead = twoCol
@@ -980,6 +999,7 @@
         <div class="bwa-assess bwa-assess-${vlvl}">${dot(vlvl)}<div>${esc(verdict)}</div></div>`;
     }
     const bufferPart = hasBuffer ? `${bar}${table}
+      <p class="bwa-note bwa-subnote">${esc(t('tipHintRow'))}</p>
       <p class="bwa-note">${esc(t('ptNote'))}</p>
       <p class="bwa-note">${esc(t('ptReconcile', { amount: eur0(S.netTax) }))}</p>` : '';
     const head = hasBuffer ? `<div class="bwa-taxbox-head"><strong>${esc(t('liqBindTitle'))}</strong>${info('bound')}</div>` : '';
@@ -1507,7 +1527,7 @@
         html: renderCockpit(K) + section('secGlance', `<div class="bwa-cards">${glance}</div>`) + section('secBewertung', recs) + trendHTML(series) },
       { id: 'pnl', label: t('tabPnl'), html: pnlToggle + section('secErtrag', ertragBody) + section('secKosten', kostenBody) + partiesBlock + kerBlock },
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
-      { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) + taxReserveBlock(K) },
+      { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) + taxReserveBlock(K, parsed) },
       { id: 'source', label: t('tabSource'), html: sourceTab(parsed) },
     ];
     $('bwa-body').innerHTML = tabbed(tabs);
