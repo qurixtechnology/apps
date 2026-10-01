@@ -367,7 +367,8 @@ describe('bwa report', () => {
           headers: table ? [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim()) : [],
           groups: table ? [...table.querySelectorAll('tbody tr.bwa-tr-group td')].map((td) => td.textContent.trim()) : [],
           ust: cells(/Umsatzsteuer-Zahllast/), wage: cells(/Lohnsteuer & Sozial/), fremd: cells(/Summe Fremdgeld/),
-          gewst: cells(/Gewerbesteuer/), etSum: cells(/Summe Ertragsteuer/), fa: cells(/Finanzamt-Saldo Vorjahre/),
+          gewst: cells(/Gewerbesteuer/), etSum: cells(/Summe Ertragsteuer/), total: cells(/Offen gesamt/),
+          noVorjahr: !/Finanzamt-Saldo Vorjahre/.test(txt),
           noEstimate: !/Eigene Berechnung/.test(txt) && !/Δ \(/.test(txt),
           memoRow: (() => { const tr = table && [...table.querySelectorAll('tbody tr.bwa-tr-memo')][0]; return tr ? tr.textContent.replace(/\s+/g, ' ').trim() : ''; })(),
           nfNote: /noch nicht fällige Umsatzsteuer/.test(txt),
@@ -381,7 +382,8 @@ describe('bwa report', () => {
       assert.equal(r.fremd[4], '40.084 €', 'pass-through subtotal');
       assert.deepEqual(r.gewst.slice(1, 5), ['38.577 €', '8.884 €', '8.884 €', '38.577 €'], 'income-tax flow is factual (opening/booked/paid/closing)');
       assert.deepEqual(r.etSum.slice(1, 5), ['75.697 €', '19.636 €', '19.636 €', '75.697 €'], 'income-tax subtotal reconciles');
-      assert.equal(r.fa[4], '75.697 €', 'prior-year tax-office balance (no VAT opening / refunds here)');
+      assert.equal(r.total[4], '115.781 €', 'total open = pass-through 40.084 + income tax 75.697');
+      assert.ok(r.noVorjahr, 'the prior-year row is hidden when there is no VAT opening or refund');
       assert.ok(r.noEstimate, 'the tax tab has no estimate/Δ columns');
       assert.match(r.memoRow, /noch nicht fällig.*1766.*5\.000/, 'deferred VAT (1766) memo row stays');
       assert.ok(r.nfNote, 'the not-yet-due VAT note stays');
@@ -437,7 +439,7 @@ describe('bwa report', () => {
         return {
           hold: K.incomeTaxHold, reserves: K.taxSummary.reserves, sumHold: K.taxSummary.hold, lossCarry: Math.round(K.lossCarry),
           ust: cells(/Umsatzsteuer-Zahllast/), gewst: cells(/Gewerbesteuer/), kst: cells(/Körperschaftsteuer/),
-          etSum: cells(/Summe Ertragsteuer/), refunds: cells(/Erstattungsansprüche/), fa: cells(/Finanzamt-Saldo Vorjahre/),
+          etSum: cells(/Summe Ertragsteuer/), refunds: cells(/Erstattungsansprüche/), fa: cells(/Finanzamt-Saldo Vorjahre/), total: cells(/Offen gesamt/),
           faNote: /Finanzamt-Saldo Vorjahre: 21\.236/.test(panel.textContent),
           noEstimate: !/≈/.test(table.textContent) && !/Eigene Berechnung/.test(panel.textContent),
         };
@@ -449,6 +451,7 @@ describe('bwa report', () => {
       assert.deepEqual(r.etSum.slice(1, 5), ['7.499 €', '–', '–', '7.499 €'], 'income-tax subtotal is factual');
       assert.equal(r.refunds[4], '-44.617 €', 'refund claims (1540 + 1549)');
       assert.equal(r.fa[4], '21.236 €', 'prior-year tax-office balance matches the advisor delta');
+      assert.equal(r.total[4], '29.485 €', 'total open = pass-through + income tax − refunds');
       assert.ok(r.faNote, 'a note states the prior-year tax-office balance');
       assert.ok(r.noEstimate, 'the tax tab carries no estimate');
       assert.ok(Math.abs(r.reserves - 7498.80) < 1, `factual reserve stock (${r.reserves})`);

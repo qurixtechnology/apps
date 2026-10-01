@@ -137,7 +137,8 @@
       txHoldTotal: 'Vorzuhalten', colBrutto: 'Brutto', colNetto: 'Netto (nach Erstattung)',
       liqRefundLater: 'Sobald die Erstattungsansprüche ({amount}) eingehen, steigt der frei verfügbare Betrag auf rund {free}.',
       liqRefundZone: 'Durch Erstattung gedeckt', liqFreeCaption: 'Heute frei: {today} · nach Eingang der Erstattung effektiv frei: {after}.',
-      txSaldoCol: 'Offen (Saldo)', txFinanzamtVorjahr: 'Finanzamt-Saldo Vorjahre',
+      txSaldoCol: 'Offen (Saldo)', txFinanzamtVorjahr: 'Finanzamt-Saldo Vorjahre', txOffenTotal: 'Offen gesamt (Saldo)',
+      txOffenNote: 'Offen gesamt: {amount} — Summe aller noch offenen Positionen (Umsatzsteuer-Zahllast + Lohnsteuer/Sozialabgaben + Ertragsteuer-Rückstellung) nach Verrechnung der Erstattungsansprüche.',
       txFinanzamtNote: 'Finanzamt-Saldo Vorjahre: {amount} — noch offene Steuern der Vorjahre nach Verrechnung der Erstattungsansprüche (Umsatzsteuer-Vorjahr + Ertragsteuer-Rückstellung − Erstattungen; ohne Lohnsteuer/Sozialabgaben und ohne das laufende Jahr).',
       txCaveatFacts: 'Alle Werte sind Ist-Zahlen aus den Konten der BWA (gebucht, gezahlt, Saldo). Die voraussichtliche Steuerlast des laufenden Jahres und der vorzuhaltende Liquiditätspuffer stehen im Reiter „Liquidität".',
       liqBindTitle: 'Vorzuhaltende vs. frei verfügbare Liquidität',
@@ -327,7 +328,8 @@
       txHoldTotal: 'To keep aside', colBrutto: 'Gross', colNetto: 'Net (after refunds)',
       liqRefundLater: 'Once the refund claims ({amount}) arrive, the freely usable amount rises to about {free}.',
       liqRefundZone: 'Covered by refunds', liqFreeCaption: 'Free today: {today} · after the refund effectively free: {after}.',
-      txSaldoCol: 'Open (balance)', txFinanzamtVorjahr: 'Prior-year tax-office balance',
+      txSaldoCol: 'Open (balance)', txFinanzamtVorjahr: 'Prior-year tax-office balance', txOffenTotal: 'Total open (balance)',
+      txOffenNote: 'Total open: {amount} — the sum of all still-open positions (VAT liability + wage tax/social security + income-tax provision) after offsetting the refund claims.',
       txFinanzamtNote: 'Prior-year tax-office balance: {amount} — taxes of prior years still open after offsetting the refund claims (prior-year VAT + income-tax provision − refunds; excluding wage tax/social security and the current year).',
       txCaveatFacts: 'All figures are actuals from the BWA accounts (booked, paid, balance). The likely current-year tax burden and the liquidity buffer to keep aside are in the "Liquidity" tab.',
       liqBindTitle: 'Reserved vs. freely usable liquidity',
@@ -1046,11 +1048,19 @@
     if (hasEt) R.push({ sub: 1, label: t('etSubtotal'), anfang: ea, berechnet: eb, bezahlt: ez, offen: et });
     if (S.refunds > 0) R.push({ label: t('ntRefunds'), offen: -S.refunds, srcd: { offen: srcData(nos(SRC.refunds)) }, tips: { offen: acctTip(SRC.refunds, t('tipRefundHead')) } });
     // Prior-year tax-office balance: opening VAT + opening income-tax reserve − refund
-    // claims (matches the advisor's delta). Uses the opening (prior-year) figures, not
-    // the current open amounts, and excludes wage tax/SV.
+    // claims (matches the advisor's delta). Only shown when it says something of its
+    // own, i.e. there is a prior-year VAT balance or refund claims; otherwise it would
+    // just repeat the income-tax subtotal. Uses the opening (prior-year) figures.
+    const showVorjahr = ustAnfang > 0.5 || S.refunds > 0.5;
     const fa = ustAnfang + etAnfang - S.refunds;
-    const faTip = `${t('txAnfang')} ${t('liqUst')} ${eur0(ustAnfang)} + ${t('txAnfang')} ${t('etSubtotal')} ${eur0(etAnfang)} − ${t('ntRefunds')} ${eur0(S.refunds)} = ${eur0(fa)}`;
-    R.push({ total: 1, label: t('txFinanzamtVorjahr'), offen: fa, tips: { offen: faTip } });
+    if (showVorjahr) {
+      const faTip = `${t('txAnfang')} ${t('liqUst')} ${eur0(ustAnfang)} + ${t('txAnfang')} ${t('etSubtotal')} ${eur0(etAnfang)} − ${t('ntRefunds')} ${eur0(S.refunds)} = ${eur0(fa)}`;
+      R.push({ sub: 1, label: t('txFinanzamtVorjahr'), offen: fa, tips: { offen: faTip } });
+    }
+    // Total still open (balance): pass-through + income tax − refund claims.
+    const offenGesamt = S.passThrough + et - S.refunds;
+    const totTip = `${t('ptSumPass')} ${eur0(S.passThrough)} + ${t('etSubtotal')} ${eur0(et)}${S.refunds > 0.5 ? ` − ${t('ntRefunds')} ${eur0(S.refunds)}` : ''} = ${eur0(offenGesamt)}`;
+    R.push({ total: 1, label: t('txOffenTotal'), offen: offenGesamt, tips: { offen: totTip } });
     const num = (v) => v == null ? '–' : eur0(v);
     const flow = (v) => (v == null || Math.abs(v) < 0.005) ? '–' : eur0(v);
     const cell = (val, tip, fmt, extraCls, sd) => {
@@ -1078,7 +1088,8 @@
     return `<div class="bwa-subtitle"><strong>${esc(t('txOverviewTitle'))}</strong>${info('steuercheck')}</div>
       ${table}
       <p class="bwa-note bwa-subnote">${esc(t('tipHintRow'))}</p>
-      <p class="bwa-note"><strong>${esc(t('txFinanzamtNote', { amount: eur0(fa) }))}</strong></p>
+      <p class="bwa-note"><strong>${esc(t('txOffenNote', { amount: eur0(offenGesamt) }))}</strong></p>
+      ${showVorjahr ? `<p class="bwa-note">${esc(t('txFinanzamtNote', { amount: eur0(fa) }))}</p>` : ''}
       ${nfNote}
       <p class="bwa-note">${esc(t('ptNote'))}</p>
       <p class="bwa-note">${esc(t('txCaveatFacts'))}</p>`;
