@@ -75,6 +75,36 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('parseKer keeps the label when a non-numeric token (>9999) trails the numbers', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      const r = await page.evaluate(() => {
+        const it = (x, y, s) => ({ x, y, s });
+        // 10-column layout (month block | ytd block); the "Aufschlag" column shows ">9999".
+        const line = (y, label, m, yt, auf) => [
+          it(50, y, label), it(200, y, m), it(260, y, '100,00'), it(320, y, '80,00'), it(380, y, '120,00'),
+          ...(auf ? [it(440, y, auf)] : []),
+          it(600, y, yt), it(660, y, '100,00'), it(720, y, '80,00'), it(780, y, '120,00'),
+          ...(auf ? [it(900, y, '>9999')] : []),
+        ];
+        const items = [].concat(
+          line(80, 'Umsatzerlöse', '149.574,07', '1.010.154,12'),
+          line(100, 'Rohertrag', '151.870,72', '1.003.782,97', '-6.612,71'),
+          line(120, 'Betrieblicher Rohertrag', '151.870,72', '1.003.782,97', '-6.612,71'),
+          line(140, 'Betriebsergebnis', '63.301,66', '68.014,88'),
+        );
+        const k = window.__bwa.parseKer({ items });
+        return { betr: k.betrRohertrag || null, roh: k.rohertrag || null, umsatz: k.umsatz || null };
+      });
+      assert.ok(r.betr && Math.round(r.betr.ytd) === 1003783, `betrieblicher Rohertrag parses despite >9999 (${r.betr && r.betr.ytd})`);
+      assert.equal(r.betr.label, 'Betrieblicher Rohertrag', 'label is clean (no >9999 appended)');
+      assert.ok(r.roh && Math.round(r.roh.ytd) === 1003783, 'Rohertrag parses too');
+      assert.ok(r.umsatz && Math.round(r.umsatz.ytd) === 1010154, 'control: revenue still parses');
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('renders the report with KPI cards, a rating and recommendations', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {

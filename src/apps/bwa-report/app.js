@@ -469,10 +469,17 @@
   const MONTHS = { jan: 1, feb: 2, mar: 3, 'mär': 3, apr: 4, mai: 5, jun: 6, jul: 7, aug: 8, sep: 9, okt: 10, nov: 11, dez: 12 };
 
   function parseKer(page) {
-    const rows = toLines(page.items).map((l) => ({
-      label: l.items.filter((i) => !isNum(i.s) && i.s !== 'S' && i.s !== 'H').map((i) => i.s).join(' ').trim(),
-      nums: l.items.filter((i) => isNum(i.s)),
-    })).filter((r) => r.nums.length);
+    // The label is the text BEFORE the first number (items are x-sorted). Non-numeric
+    // tokens that appear after the numbers — e.g. ">9999" in the "Aufschlag" column —
+    // must not pollute the label, or the KER line would no longer be recognised.
+    const rows = toLines(page.items).map((l) => {
+      const fi = l.items.findIndex((i) => isNum(i.s));
+      const labelItems = fi === -1 ? l.items : l.items.slice(0, fi);
+      return {
+        label: labelItems.filter((i) => i.s !== 'S' && i.s !== 'H').map((i) => i.s).join(' ').trim(),
+        nums: l.items.filter((i) => isNum(i.s)),
+      };
+    }).filter((r) => r.nums.length);
     const xs = [];
     rows.forEach((r) => r.nums.forEach((n) => xs.push(n.x)));
     xs.sort((a, b) => a - b);
@@ -1957,7 +1964,7 @@
 
   // test hook
   window.__bwa = {
-    parseBwa, kpis, assess, handleFiles, seriesFor, reset, analyzeTurnover, customerRevenue, supplierPurchases,
+    parseBwa, parseKer, kpis, assess, handleFiles, seriesFor, reset, analyzeTurnover, customerRevenue, supplierPurchases,
     get store() { return state.store; },
     get parsed() { return (state.store[state.activeCompany] || {})[state.activeKey] || null; },
   };
