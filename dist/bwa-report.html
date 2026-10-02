@@ -433,8 +433,14 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
 
 .bwa-overall { display: flex; align-items: center; gap: var(--qrx-s-2); padding: var(--qrx-s-3) var(--qrx-s-4);
   border-radius: var(--qrx-radius); margin-bottom: var(--qrx-s-3); font-size: 1rem; border: 1px solid var(--qrx-border); }
-.bwa-recs { margin: 0; padding-left: 1.3em; line-height: 1.6; }
-.bwa-recs li { margin-bottom: 6px; color: var(--qrx-text); }
+.bwa-recs { margin: 0; padding: 0; list-style: none; line-height: 1.5; }
+.bwa-recs li.bwa-rec { display: flex; align-items: flex-start; gap: var(--qrx-s-2); margin-bottom: var(--qrx-s-2); color: var(--qrx-text); }
+.bwa-rec-ic { flex: none; width: 1.3em; height: 1.3em; margin-top: 1px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.82em; font-weight: 700; line-height: 1; }
+.bwa-rec-ic-good { background: color-mix(in srgb, var(--qrx-success) 18%, var(--qrx-surface)); color: var(--qrx-success); }
+.bwa-rec-ic-ok   { background: color-mix(in srgb, var(--qrx-warning) 20%, var(--qrx-surface)); color: var(--qrx-warning); }
+.bwa-rec-ic-bad  { background: color-mix(in srgb, var(--qrx-danger) 16%, var(--qrx-surface)); color: var(--qrx-danger); }
+.bwa-rec-ic-info { background: color-mix(in srgb, var(--qrx-text) 10%, var(--qrx-surface)); color: var(--qrx-text-muted); font-style: italic; }
 .bwa-note { font-size: 0.85rem; color: var(--qrx-text-subtle); margin: var(--qrx-s-2) 0 0; line-height: 1.5; }
 
 /* Details tables */
@@ -1046,7 +1052,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>261001-195028</span>
+    &middot; v<span data-build-version>261002-105927</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2884,7 +2890,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       segPersonal: 'Personalkosten', segSonstige: 'Sonstige Kosten', segUebrige: 'Übrige Kosten',
       segErgebnis: 'Betriebsergebnis', segVerlust: 'Verlust',
       // assessment
-      lvGood: 'Gut', lvOk: 'Beachten', lvBad: 'Handeln', overall: 'Gesamteinschätzung',
+      lvGood: 'Gut', lvOk: 'Beachten', lvBad: 'Handeln', lvInfo: 'Hinweis', overall: 'Gesamteinschätzung',
       aErtragGood: 'Solide Ertragslage: Das Betriebsergebnis ist positiv ({erg}) bei einer Umsatzrendite von {marge}. Das Geschäft trägt sich aus eigener Kraft.',
       aErtragOk: 'Das Betriebsergebnis ist positiv ({erg}), die Marge ist mit {marge} aber dünn. Auf Kostendisziplin und Preise achten.',
       aErtragBad: 'Das Betriebsergebnis ist negativ ({erg}). Das Geschäft verbraucht mehr, als es einbringt — Gegensteuern hat Priorität.',
@@ -3084,7 +3090,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       cmpAvg: 'Average', cmpAvgCol: 'Avg/month', cmpDiff: 'Δ (month − avg)', cmpTitle: 'Month vs. average',
       segPersonal: 'Personnel', segSonstige: 'Other costs', segUebrige: 'Remaining costs',
       segErgebnis: 'Operating result', segVerlust: 'Loss',
-      lvGood: 'Good', lvOk: 'Watch', lvBad: 'Act', overall: 'Overall assessment',
+      lvGood: 'Good', lvOk: 'Watch', lvBad: 'Act', lvInfo: 'Note', overall: 'Overall assessment',
       aErtragGood: 'Solid earnings: the operating result is positive ({erg}) at a margin of {marge}. The business sustains itself.',
       aErtragOk: 'The operating result is positive ({erg}), but the margin of {marge} is thin. Keep cost discipline and pricing in view.',
       aErtragBad: 'The operating result is negative ({erg}). The business spends more than it earns — course-correcting is the priority.',
@@ -3615,32 +3621,35 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       else if (L.netLiquidity > 0) liqui = 'ok';
       else liqui = 'bad';
     }
-    if (ertrag === 'bad') recs.push(t('rec.loss'));
-    else if (ertrag === 'good') recs.push(t('rec.solid', { marge: pct(margin) }));
-    else recs.push(t('rec.thin', { marge: pct(margin) }));
+    // Each recommendation carries a level: good (positive), ok (watch), bad (act),
+    // info (neutral note), so the list can be read at a glance by its icons.
+    const rec = (lvl, text) => recs.push({ lvl, text });
+    if (ertrag === 'bad') rec('bad', t('rec.loss'));
+    else if (ertrag === 'good') rec('good', t('rec.solid', { marge: pct(margin) }));
+    else rec('ok', t('rec.thin', { marge: pct(margin) }));
     const gl = K.gesamtleistungYtd;
-    if (gl && K.sonstigeYtd / gl > 0.20) recs.push(t('rec.sonstige', { share: pct(K.sonstigeYtd / gl) }));
-    if (K.personalquoteYtd > 0.70) recs.push(t('rec.personal', { q: pct(K.personalquoteYtd) }));
+    if (gl && K.sonstigeYtd / gl > 0.20) rec('ok', t('rec.sonstige', { share: pct(K.sonstigeYtd / gl) }));
+    if (K.personalquoteYtd > 0.70) rec('ok', t('rec.personal', { q: pct(K.personalquoteYtd) }));
     if (K.liquidity) {
       const L = K.liquidity;
-      if (gl && L.receivables > 0.15 * gl) recs.push(t('rec.receivables', { amount: eur0(L.receivables) }));
-      if (!ergPos && L.runwayMonths != null && L.runwayMonths < 3) recs.push(t('rec.runway', { m: L.runwayMonths.toFixed(1) }));
+      if (gl && L.receivables > 0.15 * gl) rec('ok', t('rec.receivables', { amount: eur0(L.receivables) }));
+      if (!ergPos && L.runwayMonths != null && L.runwayMonths < 3) rec('bad', t('rec.runway', { m: L.runwayMonths.toFixed(1) }));
     }
     if (K.taxSummary && K.taxSummary.bound > 0) {
       const S = K.taxSummary;
       if (S.refunds > 0)   // refund claims flow back → show the net outflow, not just the gross binding
-        recs.push(t('rec.boundNet', { bound: eur0(S.bound), refunds: eur0(S.refunds), net: eur0(Math.max(0, S.bound - S.refunds)) }));
+        rec('info', t('rec.boundNet', { bound: eur0(S.bound), refunds: eur0(S.refunds), net: eur0(Math.max(0, S.bound - S.refunds)) }));
       else
-        recs.push(t('rec.bound', { bound: eur0(S.bound), free: eur0(S.free) }));
+        rec('info', t('rec.bound', { bound: eur0(S.bound), free: eur0(S.free) }));
     }
     if (K.taxCheck && K.taxCheck.taxable > 0 && K.taxCheck.gap > 0)
-      recs.push(t('rec.taxgap', { gap: eur0(K.taxCheck.gap) }));
-    if (K.umsatzTrend < -0.15) recs.push(t('rec.trend', { p: pct(Math.abs(K.umsatzTrend)) }));
+      rec('bad', t('rec.taxgap', { gap: eur0(K.taxCheck.gap) }));
+    if (K.umsatzTrend < -0.15) rec('ok', t('rec.trend', { p: pct(Math.abs(K.umsatzTrend)) }));
     const cc = K.concentration && K.concentration.customers;
-    if (cc && cc.top1 >= 0.30) recs.push(t('rec.concentration', { share: pct(cc.top1, 0), name: cc.top[0].label || ('Konto ' + cc.top[0].no) }));
+    if (cc && cc.top1 >= 0.30) rec(cc.top1 >= 0.40 ? 'bad' : 'ok', t('rec.concentration', { share: pct(cc.top1, 0), name: cc.top[0].label || ('Konto ' + cc.top[0].no) }));
     if (K.breakEven && K.breakEven.safety != null && K.breakEven.safety < 0.10 && K.betriebsergebnisYtd > 0)
-      recs.push(t('rec.breakeven', { be: eur0(K.breakEven.umsatz), safety: pct(K.breakEven.safety, 0) }));
-    recs.push(t('rec.preliminary'));
+      rec('ok', t('rec.breakeven', { be: eur0(K.breakEven.umsatz), safety: pct(K.breakEven.safety, 0) }));
+    rec('info', t('rec.preliminary'));
     const levels = [ertrag, liqui].filter(Boolean);
     const overall = levels.includes('bad') ? 'bad' : levels.includes('ok') ? 'ok' : 'good';
     return { ertrag, liqui, overall, recs };
@@ -3649,6 +3658,9 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
   // ------------------------------------------------------------ rendering
   const dot = (lvl) => `<span class="bwa-dot bwa-${lvl}" title="${esc(t('lv' + lvl[0].toUpperCase() + lvl.slice(1)))}"></span>`;
   const lvlWord = (lvl) => t('lv' + lvl[0].toUpperCase() + lvl.slice(1));
+  // Icon per recommendation level: ✓ positive · ! watch · ! act (red) · i note.
+  const RECICON = { good: '✓', ok: '!', bad: '!', info: 'i' };
+  const recIcon = (lvl) => `<span class="bwa-rec-ic bwa-rec-ic-${lvl}" title="${esc(lvlWord(lvl))}" aria-label="${esc(lvlWord(lvl))}">${RECICON[lvl] || '•'}</span>`;
 
   function info(defKey) {
     const txt = defKey ? t('def.' + defKey) : '';
@@ -4361,7 +4373,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
     }
 
     const recs = `<div class="bwa-overall bwa-assess-${A.overall}">${dot(A.overall)}<strong>${esc(t('overall'))}: ${esc(lvlWord(A.overall))}</strong></div>
-      <ul class="bwa-recs">${A.recs.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`;
+      <ul class="bwa-recs">${A.recs.map((r) => `<li class="bwa-rec bwa-rec-${r.lvl}">${recIcon(r.lvl)}<span>${esc(r.text)}</span></li>`).join('')}</ul>`;
 
     // Full result statement: in "compare" mode expanded with month+cumulative columns,
     // otherwise the usual collapsible details.

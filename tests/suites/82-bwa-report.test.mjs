@@ -84,6 +84,8 @@ describe('bwa report', () => {
         cards: document.querySelectorAll('#bwa-body .bwa-card').length,
         goodDots: document.querySelectorAll('#bwa-body .bwa-dot.bwa-good').length,
         recs: document.querySelectorAll('#bwa-body .bwa-recs li').length,
+        recIcons: document.querySelectorAll('#bwa-body .bwa-recs li.bwa-rec .bwa-rec-ic').length,
+        recGoodIcon: !!document.querySelector('#bwa-body .bwa-recs .bwa-rec-ic-good'),
         hasGlance: /Auf einen Blick/.test(document.getElementById('bwa-body').textContent),
         hasOverall: /Gesamteinsch/.test(document.getElementById('bwa-body').textContent),
         kerRows: document.querySelectorAll('#bwa-body .bwa-table tbody tr').length,
@@ -100,6 +102,8 @@ describe('bwa report', () => {
       assert.ok(dom.cards >= 8, `KPI cards rendered (${dom.cards})`);
       assert.ok(dom.goodDots >= 3, 'green traffic-light dots for a healthy business');
       assert.ok(dom.recs >= 3, `recommendations rendered (${dom.recs})`);
+      assert.equal(dom.recIcons, dom.recs, 'every recommendation has a level icon');
+      assert.ok(dom.recGoodIcon, 'a positive recommendation shows the green check icon');
       assert.ok(dom.hasGlance && dom.hasOverall, 'sections and overall rating present');
       assert.ok(dom.kerRows >= 8, `the KER detail table is filled (${dom.kerRows} rows)`);
       assert.ok(dom.hasBetriebsergebnisRow, 'the P&L detail includes the operating result');
@@ -272,8 +276,8 @@ describe('bwa report', () => {
           ust: K.ust, sum: K.taxSummary, freeRatio: round(K.taxSummary.freeRatio),
           tax: { base: K.taxCheck.base, taxable: K.taxCheck.taxable, expectedAdj: Math.round(K.taxCheck.expectedAdj), reserved: K.taxCheck.reserved, gap: Math.round(K.taxCheck.gap) },
           plaus: { salesVat: K.taxPlaus.salesVat, vatQuote: round(K.taxPlaus.vatQuote) },
-          recBound: A.recs.some((x) => /brutto/.test(x) && /Netto-Abfluss/.test(x) && /Erstattungsansprüche/.test(x)),
-          recGap: A.recs.some((x) => /Deckungslücke/.test(x)),
+          recBound: A.recs.some((x) => /brutto/.test(x.text) && /Netto-Abfluss/.test(x.text) && /Erstattungsansprüche/.test(x.text)),
+          recGap: A.recs.some((x) => /Deckungslücke/.test(x.text)),
         };
       });
       assert.deepEqual(r.ust, { output: 5700, vorsteuer: 3000, prepaid: 2500, net: 200 }, 'VAT composition');
