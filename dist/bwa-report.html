@@ -389,6 +389,11 @@ code { font-family: var(--qrx-font-mono); font-size: 0.9em;
 .bwa-taxoverview td.bwa-td-src { cursor: pointer; }
 .bwa-taxoverview td.bwa-td-src:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 .bwa-srctable { font-size: 0.92em; }
+.bwa-acctable { font-size: 0.9em; }
+.bwa-acctable td { vertical-align: top; }
+.bwa-acctable td.bwa-acc-tax { color: var(--qrx-text-muted); }
+.bwa-acctable tr.bwa-acc-here td { background: color-mix(in srgb, var(--qrx-success) 7%, var(--qrx-surface)); }
+.bwa-acc-badge { display: inline-block; font-size: 0.72em; font-weight: 600; color: var(--qrx-success); border: 1px solid color-mix(in srgb, var(--qrx-success) 45%, var(--qrx-border)); border-radius: 999px; padding: 0 6px; margin-left: 4px; white-space: nowrap; vertical-align: middle; }
 .bwa-srctable td.bwa-src-help { cursor: help; }
 .bwa-srctable td.bwa-src-help:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 tr.bwa-src-hit > td { background: rgba(250, 204, 21, 0.30); transition: background 0.4s ease; }
@@ -777,8 +782,8 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
   <em>kumuliert</em>, <em>Monat</em> und <em>Vergleich</em> — Letzterer stellt den aktuellen Monat dem
   <em>Durchschnitt pro Monat</em> gegenüber: zwei Wasserfälle, gruppierte Kostenbalken und in der
   Erfolgsrechnung die Spalten Ø/Monat, Monat und Differenz),
-  <strong>Steuern</strong>, <strong>Liquidität</strong> und <strong>BWA (Quelle)</strong>. Beim
-  Drucken/PDF-Export werden alle Reiter untereinander ausgegeben.
+  <strong>Steuern</strong>, <strong>Liquidität</strong>, <strong>BWA (Quelle)</strong> und
+  <strong>Kontenrahmen</strong>. Beim Drucken/PDF-Export werden alle Reiter untereinander ausgegeben.
 </p>
 <ul>
   <li><strong>Cockpit</strong> — die wichtigsten Verhältniszahlen als Tacho-Gauges mit grün/gelb/rot:
@@ -846,6 +851,10 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       und <strong>hebt die zugrunde liegenden Konten bzw. GuV-Zeilen hervor</strong> — so lässt sich jede Zahl
       bis zur Quelle nachvollziehen. Jede <strong>Kontobezeichnung</strong> hat zudem ein Tooltip, das das Konto
       in Alltagssprache erklärt.</li>
+  <li><strong>Kontenrahmen</strong> — eine Nachschlage-Erläuterung der wichtigsten SKR03-Konten/-Gruppen aus der
+      BWA: <strong>Nummer</strong>, <strong>ausführliche Beschreibung</strong> und <strong>steuerliche
+      Auswirkung</strong> (z. B. Gewerbe-/Körperschaftsteuer nicht abzugsfähig, Bewirtung 70 %). In der aktuellen
+      BWA vorhandene Konten sind markiert und per Klick im Reiter „BWA (Quelle)" auffindbar.</li>
 </ul>
 <p>
   Fast jede Kennzahl trägt ein <strong>ⓘ</strong>-Symbol — darüber erscheint eine kurze Erklärung
@@ -893,7 +902,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
   <em>month</em> and <em>compare</em> — the latter contrasts the current month with the <em>average
   per month</em>: two waterfalls, grouped cost bars, and avg/month/difference columns in the result
   statement), <strong>Taxes</strong>,
-  <strong>Liquidity</strong> and <strong>BWA (source)</strong>. Printing / PDF export lays out all tabs one below the other.
+  <strong>Liquidity</strong>, <strong>BWA (source)</strong> and <strong>Chart of accounts</strong>. Printing / PDF export lays out all tabs one below the other.
 </p>
 <ul>
   <li><strong>Cockpit</strong> — the key ratios as gauge dials with green/amber/red: operating margin,
@@ -954,6 +963,10 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       opening, debit, credit, balance). <strong>Clicking a highlighted figure</strong> in the report jumps here
       and <strong>highlights the underlying accounts or P&amp;L lines</strong> — so every number is traceable to
       its source. Each <strong>account name</strong> also carries a tooltip explaining the account in plain language.</li>
+  <li><strong>Chart of accounts</strong> — a reference explaining the key SKR03 accounts/groups from the BWA:
+      <strong>number</strong>, a <strong>fuller description</strong> and the <strong>tax effect</strong> (e.g. trade/
+      corporate tax not deductible, entertainment 70 %). Accounts present in the current BWA are marked and
+      clickable in the “BWA (source)” tab.</li>
 </ul>
 <p>
   Nearly every KPI carries an <strong>ⓘ</strong> icon — hover it for a short, plain-language explanation.
@@ -1033,7 +1046,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
     <a href="https://www.qurix.tech" target="_blank" rel="noopener">qurix Technology</a>
     &middot; <a href="https://apps.qurix.tech" target="_blank" rel="noopener">qurix App-Store</a>
     &middot; <a href="https://www.qurix.tech/impressum.html" target="_blank" rel="noopener">Impressum</a>
-    &middot; v<span data-build-version>261001-171410</span>
+    &middot; v<span data-build-version>261001-195028</span>
   </div>
   <div style="display: flex; gap: 8px;">
     <button class="qrx-btn" data-action="export-html"
@@ -2798,7 +2811,12 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       spBerechnet: 'Berechnet (kum.)', spBezahlt: 'Bezahlt (kum.)',
       spIntro: 'Verteilung des Einkaufsvolumens auf die größten Lieferanten — zeigt die Abhängigkeit auf der Beschaffungsseite (ergänzend zum Verbindlichkeitsrisiko).',
       spNote: 'Bruttowerte inkl. Vorsteuer aus den Kreditoren-Bewegungen der Summen & Salden. „Berechnet“ = vom Lieferanten in Rechnung gestellt (kumuliert), „Bezahlt“ = geleistete Zahlungen dieses Jahres. „Offen“ ist der aktuelle Saldo = Anfangssaldo + Berechnet − Bezahlt; ein negativer Wert ist eine Überzahlung (Guthaben beim Lieferanten). Enthält auch Nicht-Waren-Lieferanten; Sammelkonten „DIVERSE“ bündeln mehrere kleine. Nur verfügbar, wenn die BWA die Bewegungsspalten enthält.',
-      tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabPnl: 'GuV', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität', tabSource: 'BWA (Quelle)',
+      tabOverview: 'Überblick', tabRevenue: 'Einnahmen', tabCosts: 'Ausgaben / Kosten', tabPnl: 'GuV', tabTaxes: 'Steuern', tabLiquidity: 'Liquidität', tabSource: 'BWA (Quelle)', tabAccounts: 'Kontenrahmen',
+      secAccounts: 'Kontenrahmen (SKR03) — Erläuterung',
+      accIntro: 'Erläuterung der wichtigsten Konten/Kontengruppen aus der BWA: Nummer, Beschreibung und steuerliche Auswirkung. In dieser BWA vorhandene Konten sind markiert und per Klick im Reiter „BWA (Quelle)" auffindbar.',
+      accNo: 'Konto', accName: 'Bezeichnung', accDesc: 'Beschreibung', accTax: 'Steuerliche Auswirkung',
+      accPresent: 'in dieser BWA', accPresentTip: 'In der aktuellen BWA vorhanden — Klick zeigt das Konto im Reiter „BWA (Quelle)".',
+      accCaveat: 'Allgemeine Orientierung nach SKR03; Kontonummern und steuerliche Behandlung können im Einzelfall abweichen. Keine Steuerberatung.',
       secSource: 'BWA-Rohdaten (Quelle)',
       srcIntro: 'Die aus deiner BWA ausgelesenen Rohwerte. Ein Klick auf einen markierten Wert im Bericht springt hierher und hebt die zugrunde liegenden Konten bzw. GuV-Zeilen hervor.',
       srcKerTitle: 'Kurzfristige Erfolgsrechnung (GuV)', srcSusaTitle: 'Summen & Salden (Konten)',
@@ -2997,7 +3015,12 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       spBerechnet: 'Billed (YTD)', spBezahlt: 'Paid (YTD)',
       spIntro: 'Distribution of purchasing volume across the largest suppliers — shows dependency on the procurement side (complementing the payables risk).',
       spNote: 'Gross values incl. input VAT from the creditor movements of the trial balance. “Billed” = invoiced by the supplier (cumulative), “Paid” = payments made this year. “Open” is the current balance = opening + billed − paid; a negative value is an overpayment (credit with the supplier). Includes non-goods suppliers; collective accounts “DIVERSE” bundle several small ones. Only available when the BWA contains the movement columns.',
-      tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabPnl: 'P&L', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity', tabSource: 'BWA (source)',
+      tabOverview: 'Overview', tabRevenue: 'Revenue', tabCosts: 'Expenses / costs', tabPnl: 'P&L', tabTaxes: 'Taxes', tabLiquidity: 'Liquidity', tabSource: 'BWA (source)', tabAccounts: 'Chart of accounts',
+      secAccounts: 'Chart of accounts (SKR03) — explained',
+      accIntro: 'The key accounts/account groups from the BWA: number, description and tax effect. Accounts present in this BWA are marked and clickable in the “BWA (source)” tab.',
+      accNo: 'Account', accName: 'Name', accDesc: 'Description', accTax: 'Tax effect',
+      accPresent: 'in this BWA', accPresentTip: 'Present in the current BWA — click to show the account in the “BWA (source)” tab.',
+      accCaveat: 'General orientation per SKR03; account numbers and tax treatment can differ case by case. Not tax advice.',
       secSource: 'BWA raw data (source)',
       srcIntro: 'The raw values read from your BWA. Clicking a highlighted figure in the report jumps here and highlights the underlying accounts or P&L lines.',
       srcKerTitle: 'Short-term result statement (P&L)', srcSusaTitle: 'Trial balance (accounts)',
@@ -4196,6 +4219,76 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
     return section('secSource', inner);
   }
 
+  // Chart-of-accounts reference (SKR03), curated for BWA analysis: number/range,
+  // a fuller description, and the tax effect. Each row is bilingual {de, en}.
+  const KONTENRAHMEN = [
+    { g: { de: 'Eigenkapital & Ergebnisvortrag', en: 'Equity & retained result' }, rows: [
+      { no: 800, n: { de: 'Gezeichnetes Kapital', en: 'Subscribed capital' }, d: { de: 'Das von den Gesellschaftern eingelegte Stammkapital der GmbH (mind. 25.000 €).', en: 'The share capital contributed by the shareholders (GmbH: min. €25,000).' }, s: { de: 'Steuerneutral — Einlage, kein Ertrag.', en: 'Tax-neutral — a contribution, not income.' } },
+      { no: 844, n: { de: 'Kapitalrücklage', en: 'Capital reserve' }, d: { de: 'Zuzahlungen der Gesellschafter in das Eigenkapital über das Stammkapital hinaus.', en: 'Shareholder contributions into equity beyond the share capital.' }, s: { de: 'Steuerneutral (Einlage ins Eigenkapital).', en: 'Tax-neutral (equity contribution).' } },
+      { no: 860, n: { de: 'Gewinnvortrag vor Verwendung', en: 'Profit carried forward' }, d: { de: 'Aufgelaufene, noch nicht ausgeschüttete Gewinne aus Vorjahren.', en: 'Accumulated, not-yet-distributed profits from prior years.' }, s: { de: 'Bereits versteuert; eine Ausschüttung löst Kapitalertragsteuer beim Gesellschafter aus.', en: 'Already taxed; a distribution triggers capital-gains tax for the shareholder.' } },
+      { no: 868, n: { de: 'Verlustvortrag vor Verwendung', en: 'Loss carried forward' }, d: { de: 'Aufgelaufene Verluste aus Vorjahren; buchhalterische Größe, wird mit dem Gewinnvortrag (860) saldiert.', en: 'Accumulated losses from prior years; a book figure, netted against the profit carried forward (860).' }, s: { de: 'Der steuerliche Verlustvortrag (§10d EStG / §10a GewStG) mindert künftige Steuern; ein Verlustrücktrag kann Steuern der Vorjahre erstatten.', en: 'The tax loss carry-forward (§10d/§10a) reduces future taxes; a loss carry-back can refund prior-year taxes.' } },
+    ] },
+    { g: { de: 'Rückstellungen', en: 'Provisions' }, rows: [
+      { no: [955, 969], n: { de: 'Steuerrückstellungen (956 GewSt, 963 KSt)', en: 'Tax provisions (956 trade tax, 963 corporate tax)' }, d: { de: 'Zurückgestellte, noch nicht gezahlte Ertragsteuer (Gewerbe-/Körperschaftsteuer) für noch nicht veranlagte Jahre.', en: 'Set-aside, not-yet-paid income tax (trade/corporate tax) for years not yet assessed.' }, s: { de: 'Gewerbe- und Körperschaftsteuer sind nicht als Betriebsausgabe abzugsfähig.', en: 'Trade and corporate tax are not deductible as business expenses.' } },
+      { no: [970, 999], n: { de: 'Sonstige Rückstellungen (977 Abschluss/Prüfung)', en: 'Other provisions (977 year-end/audit)' }, d: { de: 'Für später anfallende Ausgaben zurückgestellt, z. B. Abschluss- und Prüfungskosten, ausstehende Rechnungen.', en: 'Set aside for expenses arising later, e.g. year-end/audit costs, outstanding invoices.' }, s: { de: 'Die Bildung mindert den steuerlichen Gewinn, soweit steuerlich anerkannt.', en: 'Setting them up reduces taxable profit, where recognised for tax.' } },
+    ] },
+    { g: { de: 'Liquide Mittel & Forderungen', en: 'Liquid funds & receivables' }, rows: [
+      { no: [1000, 1099], n: { de: 'Kasse', en: 'Cash' }, d: { de: 'Bargeldbestand.', en: 'Cash on hand.' }, s: { de: 'Keine unmittelbare steuerliche Wirkung.', en: 'No direct tax effect.' } },
+      { no: [1200, 1290], n: { de: 'Bank / Guthaben bei Kreditinstituten', en: 'Bank balances' }, d: { de: 'Guthaben auf den Geschäftskonten — die wichtigsten liquiden Mittel.', en: 'Balances on the business accounts — the main liquid funds.' }, s: { de: 'Keine; Zinserträge sind steuerpflichtig.', en: 'None; interest income is taxable.' } },
+      { no: [1400, 1449], n: { de: 'Forderungen aus Lieferungen und Leistungen', en: 'Trade receivables' }, d: { de: 'Offene Kundenrechnungen (brutto inkl. Umsatzsteuer).', en: 'Open customer invoices (gross, incl. VAT).' }, s: { de: 'Bei Soll-Versteuerung ist die Umsatzsteuer bereits mit Rechnungstellung fällig (unabhängig vom Zahlungseingang).', en: 'Under accrual VAT, the VAT is due when invoiced (regardless of payment).' } },
+      { no: [1540, 1549], n: { de: 'Steuer-Erstattungsansprüche (1540 GewSt, 1549 KSt)', en: 'Tax refund claims (1540 trade, 1549 corporate)' }, d: { de: 'Guthaben beim Finanzamt aus zu viel gezahlter oder zurückgetragener Ertragsteuer.', en: 'Credits with the tax office from over-paid or carried-back income tax.' }, s: { de: 'Voraussichtlicher Mittelzufluss; keine erneute Besteuerung.', en: 'Expected cash inflow; not taxed again.' } },
+      { no: [1570, 1589], n: { de: 'Abziehbare Vorsteuer', en: 'Deductible input VAT' }, d: { de: 'Die in Eingangsrechnungen enthaltene Umsatzsteuer, die vom Finanzamt erstattet bzw. verrechnet wird.', en: 'The VAT in incoming invoices, refunded/offset by the tax office.' }, s: { de: 'Mindert die Umsatzsteuer-Zahllast.', en: 'Reduces the VAT liability.' } },
+    ] },
+    { g: { de: 'Verbindlichkeiten', en: 'Liabilities' }, rows: [
+      { no: [1600, 1609], n: { de: 'Verbindlichkeiten aus Lieferungen und Leistungen', en: 'Trade payables' }, d: { de: 'Offene Lieferantenrechnungen (brutto).', en: 'Open supplier invoices (gross).' }, s: { de: 'Die Vorsteuer wurde bereits mit Rechnungseingang gezogen.', en: 'Input VAT has already been claimed on receipt of the invoice.' } },
+      { no: 1736, n: { de: 'Verbindlichkeiten KSt, SolZ und GewSt', en: 'Liabilities for corporate/solidarity/trade tax' }, d: { de: 'Festgesetzte, noch zu zahlende Ertragsteuer (Nachzahlung).', en: 'Assessed income tax still to be paid (back-payment).' }, s: { de: 'Ertragsteuer — nicht abzugsfähig.', en: 'Income tax — not deductible.' } },
+      { no: 1740, n: { de: 'Verbindlichkeiten aus Lohn und Gehalt', en: 'Wages and salaries payable' }, d: { de: 'An die Mitarbeiter auszuzahlende Nettolöhne.', en: 'Net wages payable to employees.' }, s: { de: 'Löhne sind abzugsfähige Betriebsausgaben (Personalkosten).', en: 'Wages are deductible business expenses (personnel costs).' } },
+      { no: [1741, 1749], n: { de: 'Verbindlichkeiten Lohnsteuer & Sozialabgaben', en: 'Wage tax & social security payable' }, d: { de: 'Vom Lohn einbehaltene Lohn-/Kirchensteuer und Sozialabgaben, abzuführen an Finanzamt bzw. Krankenkassen.', en: 'Wage/church tax and social security withheld from pay, remitted to the tax office/health funds.' }, s: { de: 'Durchlaufende Posten — Steuer/Abgaben der Arbeitnehmer, nur weitergeleitet.', en: 'Pass-through items — employees’ taxes/contributions, merely forwarded.' } },
+    ] },
+    { g: { de: 'Umsatzsteuer', en: 'VAT' }, rows: [
+      { no: [1760, 1769], n: { de: 'Umsatzsteuer nicht fällig (1766)', en: 'VAT not yet due (1766)' }, d: { de: 'Umsatzsteuer auf noch offene Ausgangsrechnungen (Ist-Versteuerung).', en: 'VAT on still-open outgoing invoices (cash-basis).' }, s: { de: 'Wird erst mit Zahlungseingang des Kunden fällig — dann fließt auch die Einnahme zu (liquiditätsneutral).', en: 'Becomes due only once the customer pays — the income then flows in too (liquidity-neutral).' } },
+      { no: [1770, 1799], n: { de: 'Umsatzsteuer (1776 19 %, 1790 Vorjahr, 1780/1781 Vorauszahlungen)', en: 'VAT (1776 19 %, 1790 prior year, 1780/1781 advance payments)' }, d: { de: 'Die vereinnahmte Umsatzsteuer und die Zahllast gegenüber dem Finanzamt.', en: 'Output VAT collected and the liability towards the tax office.' }, s: { de: 'Durchlaufender Posten (Geld der Kunden); Zahllast = vereinnahmte USt − Vorsteuer − Vorauszahlungen.', en: 'Pass-through (customers’ money); liability = output VAT − input VAT − advance payments.' } },
+    ] },
+    { g: { de: 'Steueraufwand (GuV)', en: 'Tax expense (P&L)' }, rows: [
+      { no: [2200, 2219], n: { de: 'Körperschaftsteuer, Kapitalertragsteuer, Solidaritätszuschlag', en: 'Corporate tax, capital-gains tax, solidarity surcharge' }, d: { de: 'Der in der GuV gebuchte Körperschaftsteuer-Aufwand und die unterjährigen Vorauszahlungen.', en: 'The corporate-tax expense booked in the P&L and the in-year advance payments.' }, s: { de: 'KSt 15 % + SolZ 5,5 % der KSt auf das zu versteuernde Einkommen; nicht abzugsfähig.', en: 'Corporate tax 15 % + 5.5 % solidarity on it, on taxable income; not deductible.' } },
+      { no: 4320, n: { de: 'Gewerbesteuer', en: 'Trade tax' }, d: { de: 'Der Gewerbesteuer-Aufwand bzw. die -vorauszahlungen (Messbetrag × Hebesatz der Gemeinde).', en: 'The trade-tax expense/advance payments (base amount × the municipality’s multiplier).' }, s: { de: 'Seit 2008 nicht mehr als Betriebsausgabe abzugsfähig.', en: 'Not deductible as a business expense since 2008.' } },
+    ] },
+    { g: { de: 'Betriebliche Aufwendungen (Kosten)', en: 'Operating expenses (costs)' }, rows: [
+      { no: [4100, 4199], n: { de: 'Personalkosten (Löhne, Gehälter, Sozialabgaben)', en: 'Personnel costs (wages, salaries, social security)' }, d: { de: 'Bruttolöhne, Gehälter und Arbeitgeberanteile zur Sozialversicherung.', en: 'Gross wages, salaries and the employer’s social-security share.' }, s: { de: 'Voll abzugsfähige Betriebsausgaben.', en: 'Fully deductible business expenses.' } },
+      { no: [4600, 4699], n: { de: 'Werbe- und Reisekosten (4650 Bewirtung)', en: 'Advertising & travel (4650 entertainment)' }, d: { de: 'Werbung, Reisekosten, Bewirtung von Geschäftspartnern.', en: 'Advertising, travel, entertaining business partners.' }, s: { de: 'Bewirtungskosten nur zu 70 % abzugsfähig; Geschenke über 50 € netto nicht abzugsfähig.', en: 'Entertainment is only 70 % deductible; gifts above €50 net are not deductible.' } },
+      { no: [4900, 4999], n: { de: 'Sonstige Kosten (4909 Fremdleistungen, 4950 Rechts-/Beratung)', en: 'Other costs (4909 external services, 4950 legal/advisory)' }, d: { de: 'Fremdleistungen, Rechts- und Beratungskosten, Büro- und Nebenkosten.', en: 'External services, legal and advisory costs, office and incidental costs.' }, s: { de: 'In der Regel voll abzugsfähig; Vorsteuer abziehbar.', en: 'Usually fully deductible; input VAT recoverable.' } },
+    ] },
+    { g: { de: 'Erlöse', en: 'Revenue' }, rows: [
+      { no: 8400, n: { de: 'Erlöse 19 % USt', en: 'Revenue 19 % VAT' }, d: { de: 'Umsatzerlöse zum Regelsteuersatz — das Kerngeschäft.', en: 'Revenue at the standard rate — the core business.' }, s: { de: 'Umsatzsteuerpflichtig (19 %); ertragsteuerlich Teil des Gewinns.', en: 'Subject to 19 % VAT; part of taxable profit.' } },
+      { no: [8100, 8199], n: { de: 'Steuerfreie / EU-Umsätze', en: 'Tax-free / EU sales' }, d: { de: 'Innergemeinschaftliche Lieferungen, Ausfuhren und andere steuerfreie Umsätze.', en: 'Intra-EU supplies, exports and other VAT-free sales.' }, s: { de: 'Umsatzsteuerfrei (mit Nachweispflichten); ertragsteuerlich Teil des Gewinns.', en: 'VAT-free (with proof requirements); part of taxable profit.' } },
+    ] },
+    { g: { de: 'Personenkonten', en: 'Personal accounts' }, rows: [
+      { no: [10000, 69999], n: { de: 'Debitoren (Kundenkonten)', en: 'Debtors (customer accounts)' }, d: { de: 'Je Kunde ein eigenes Konto mit Forderungen und Zahlungseingängen.', en: 'One account per customer, with receivables and incoming payments.' }, s: { de: 'Summe = Forderungen aus L+L; USt-Wirkung wie dort.', en: 'Total = trade receivables; VAT effect as there.' } },
+      { no: [70000, 99999], n: { de: 'Kreditoren (Lieferantenkonten)', en: 'Creditors (supplier accounts)' }, d: { de: 'Je Lieferant ein eigenes Konto mit Verbindlichkeiten und geleisteten Zahlungen.', en: 'One account per supplier, with payables and payments made.' }, s: { de: 'Summe = Verbindlichkeiten aus L+L; Vorsteuer wie dort.', en: 'Total = trade payables; input VAT as there.' } },
+    ] },
+  ];
+  function accountsTab(parsed) {
+    const su = parsed.susa || [];
+    const tx = (o) => (o && (o[loc()] || o.de)) || '';
+    const presentNos = (no) => Array.isArray(no)
+      ? su.filter((a) => a.no >= no[0] && a.no <= no[1] && a.saldoAbs > 0).map((a) => a.no)
+      : (su.some((a) => a.no === no) ? [no] : []);
+    const label = (no) => Array.isArray(no) ? `${no[0]}–${no[1]}` : String(no);
+    const groups = KONTENRAHMEN.map((grp) => {
+      const rows = grp.rows.map((r) => {
+        const pn = presentNos(r.no), here = pn.length > 0;
+        const kontoCell = here
+          ? `${clk(esc(label(r.no)), pn)} <span class="bwa-acc-badge" title="${esc(t('accPresentTip'))}">${esc(t('accPresent'))}</span>`
+          : `<span class="bwa-muted">${esc(label(r.no))}</span>`;
+        return `<tr${here ? ' class="bwa-acc-here"' : ''}><td class="bwa-num">${kontoCell}</td><td><strong>${esc(tx(r.n))}</strong></td><td>${esc(tx(r.d))}</td><td class="bwa-acc-tax">${esc(tx(r.s))}</td></tr>`;
+      }).join('');
+      return `<div class="bwa-subtitle"><strong>${esc(tx(grp.g))}</strong></div><div class="bwa-table-wrap"><table class="bwa-table bwa-acctable"><thead><tr>
+        <th>${esc(t('accNo'))}</th><th>${esc(t('accName'))}</th><th>${esc(t('accDesc'))}</th><th>${esc(t('accTax'))}</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`;
+    }).join('');
+    return section('secAccounts', `<p class="bwa-note bwa-subnote">${esc(t('accIntro'))}</p>${groups}<p class="bwa-note">${esc(t('accCaveat'))}</p>`);
+  }
+
   function renderReport(parsed, series) {
     const K = kpis(parsed), A = assess(K), m = parsed.meta;
     series = series || [];
@@ -4295,6 +4388,7 @@ tr.bwa-src-hit > td:first-child { box-shadow: inset 3px 0 0 rgba(234, 179, 8, 0.
       { id: 'taxes', label: t('tabTaxes'), html: taxSection(K) },
       { id: 'liquidity', label: t('tabLiquidity'), html: section('secLiqui', liquiBody) + taxReserveBlock(K, parsed) },
       { id: 'source', label: t('tabSource'), html: sourceTab(parsed) },
+      { id: 'accounts', label: t('tabAccounts'), html: accountsTab(parsed) },
     ];
     $('bwa-body').innerHTML = tabbed(tabs);
     attachTabHandlers();

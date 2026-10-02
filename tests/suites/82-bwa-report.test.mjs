@@ -107,8 +107,8 @@ describe('bwa report', () => {
       assert.ok(dom.hasRisk, 'the customer/supplier concentration sections are rendered');
       assert.ok(dom.hasExpenseDrill, 'the expense drill-down is rendered');
       assert.ok(dom.hasDso, 'DSO card is rendered');
-      assert.equal(dom.tabs, 5, 'five topic tabs (overview, P&L, taxes, liquidity, source)');
-      assert.equal(dom.panels, 5, 'a panel per tab');
+      assert.equal(dom.tabs, 6, 'six topic tabs (overview, P&L, taxes, liquidity, source, accounts)');
+      assert.equal(dom.panels, 6, 'a panel per tab');
       assert.equal(dom.visiblePanels, 1, 'only the active tab panel is visible');
       page.assertNoErrors();
     } finally { await page.close(); }
@@ -119,7 +119,7 @@ describe('bwa report', () => {
     try {
       await importFixture(page);
       const labels = await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].map((b) => b.textContent));
-      assert.deepEqual(labels, ['Überblick', 'GuV', 'Steuern', 'Liquidität', 'BWA (Quelle)']);
+      assert.deepEqual(labels, ['Überblick', 'GuV', 'Steuern', 'Liquidität', 'BWA (Quelle)', 'Kontenrahmen']);
       // Overview is active by default and holds the cockpit.
       const before = await page.evaluate(() => {
         const active = document.querySelector('#bwa-body .bwa-tabpanel:not([hidden])');
@@ -737,6 +737,32 @@ describe('bwa report', () => {
       assert.ok(rc.hasDiff, 'the Δ (month − average) is shown (+2.000)');
       assert.ok(rc.hasCompareHead, 'the compare view is labelled');
       await page.evaluate(() => window.__bwa.reset());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
+  test('chart-of-accounts tab explains accounts with tax effects and marks the present ones', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await importFixture(page);
+      const r = await page.evaluate(() => {
+        const panel = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((p) => p.dataset.tab === 'accounts');
+        const txt = panel.textContent;
+        return {
+          tables: panel.querySelectorAll('table.bwa-acctable').length,
+          headers: [...(panel.querySelector('table.bwa-acctable')?.querySelectorAll('thead th') || [])].map((th) => th.textContent.trim()),
+          hasKst: /Körperschaftsteuer/.test(txt) && /nicht abzugsfähig/.test(txt),
+          hasUst: /Umsatzsteuer nicht fällig/.test(txt),
+          badges: panel.querySelectorAll('.bwa-acc-badge').length,
+          clickable: !!panel.querySelector('tr.bwa-acc-here .bwa-clickable[data-src]'),
+        };
+      });
+      assert.ok(r.tables >= 5, `grouped account tables (${r.tables})`);
+      assert.deepEqual(r.headers, ['Konto', 'Bezeichnung', 'Beschreibung', 'Steuerliche Auswirkung']);
+      assert.ok(r.hasKst, 'corporate-tax row with its tax effect (not deductible)');
+      assert.ok(r.hasUst, 'VAT-not-yet-due account explained');
+      assert.ok(r.badges >= 1, `present accounts are badged (${r.badges})`);
+      assert.ok(r.clickable, 'a present account links to the BWA source tab');
       page.assertNoErrors();
     } finally { await page.close(); }
   });
