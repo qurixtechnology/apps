@@ -111,6 +111,9 @@
       cmpAvg: 'Durchschnitt', cmpAvgCol: 'Ø/Monat', cmpDiff: 'Δ (Monat − Ø)', cmpTitle: 'Monat vs. Durchschnitt',
       segPersonal: 'Personalkosten', segSonstige: 'Sonstige Kosten', segUebrige: 'Übrige Kosten',
       segErgebnis: 'Betriebsergebnis', segVerlust: 'Verlust',
+      wfUebrigeCalc: 'Übrige Kosten = Gesamtkosten {g} − Personalkosten {p} − Sonstige Kosten {s} = {u}',
+      wfErgebnisCalc: 'Betriebsergebnis = Leistung {l} − Gesamtkosten {g} = {e}',
+      wfHint: 'Tipp: Klick auf einen Balken zeigt die zugehörige Zeile im Reiter „BWA (Quelle)“.',
       // assessment
       lvGood: 'Gut', lvOk: 'Beachten', lvBad: 'Handeln', lvInfo: 'Hinweis', overall: 'Gesamteinschätzung',
       aErtragGood: 'Solide Ertragslage: Das Betriebsergebnis ist positiv ({erg}) bei einer Umsatzrendite von {marge}. Das Geschäft trägt sich aus eigener Kraft.',
@@ -312,6 +315,9 @@
       cmpAvg: 'Average', cmpAvgCol: 'Avg/month', cmpDiff: 'Δ (month − avg)', cmpTitle: 'Month vs. average',
       segPersonal: 'Personnel', segSonstige: 'Other costs', segUebrige: 'Remaining costs',
       segErgebnis: 'Operating result', segVerlust: 'Loss',
+      wfUebrigeCalc: 'Remaining costs = Total costs {g} − Personnel {p} − Other costs {s} = {u}',
+      wfErgebnisCalc: 'Operating result = Output {l} − Total costs {g} = {e}',
+      wfHint: 'Tip: click a bar to reveal the matching line in the “BWA (source)” tab.',
       lvGood: 'Good', lvOk: 'Watch', lvBad: 'Act', lvInfo: 'Note', overall: 'Overall assessment',
       aErtragGood: 'Solid earnings: the operating result is positive ({erg}) at a margin of {marge}. The business sustains itself.',
       aErtragOk: 'The operating result is positive ({erg}), but the margin of {marge} is thin. Keep cost discipline and pricing in view.',
@@ -1227,12 +1233,14 @@
     const gesamt = pick(K.gesamtkostenMonth, K.gesamtkostenYtd);
     const ergebnis = pick(K.betriebsergebnisMonth, K.betriebsergebnisYtd);
     const uebrige = Math.max(0, gesamt - personal - sonstige);
+    // Each bar carries a KER line id (→ click jumps to the BWA source tab) and a
+    // tooltip with the derivation.
     const items = [
-      { label: t('wfLeistung'), value: rohertrag, type: 'start' },
-      { label: t('segPersonal'), value: -personal, type: 'delta' },
-      { label: t('segSonstige'), value: -sonstige, type: 'delta' },
-      { label: t('segUebrige'), value: -uebrige, type: 'delta' },
-      { label: t('segErgebnis'), value: ergebnis, type: 'end' },
+      { label: t('wfLeistung'), value: rohertrag, type: 'start', ker: 'betrRohertrag', tip: `${t('wfLeistung')}: ${eur0(rohertrag)}` },
+      { label: t('segPersonal'), value: -personal, type: 'delta', ker: 'personalkosten', tip: `${t('segPersonal')}: ${eur0(personal)}` },
+      { label: t('segSonstige'), value: -sonstige, type: 'delta', ker: 'sonstigeKosten', tip: `${t('segSonstige')}: ${eur0(sonstige)}` },
+      { label: t('segUebrige'), value: -uebrige, type: 'delta', ker: 'gesamtkosten', tip: t('wfUebrigeCalc', { g: eur0(gesamt), p: eur0(personal), s: eur0(sonstige), u: eur0(uebrige) }) },
+      { label: t('segErgebnis'), value: ergebnis, type: 'end', ker: 'betriebsergebnis', tip: t('wfErgebnisCalc', { l: eur0(rohertrag), g: eur0(gesamt), e: eur0(ergebnis) }) },
     ];
     const W = 580, H = 200, padT = 12, padB = 42, padL = 6, padR = 6, plotW = W - padL - padR, plotH = H - padT - padB;
     let run = 0, hi = 0, lo = 0; const bars = [];
@@ -1249,10 +1257,15 @@
       const x = padL + i * slot + (slot - bw) / 2;
       const yTop = Math.min(y(b.from), y(b.to)), h = Math.max(1, Math.abs(y(b.from) - y(b.to)));
       const cls = b.it.type === 'start' ? 'bwa-wf-total' : b.it.type === 'end' ? (b.it.value >= 0 ? 'bwa-wf-pos' : 'bwa-wf-neg') : 'bwa-wf-cost';
-      out += `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" class="${cls}"><title>${esc(b.it.label)}: ${esc(eur0(b.it.value))}</title></rect>`;
+      // Whole bar (rect + label + value) is one clickable group that jumps to the
+      // matching KER line in the "BWA (Quelle)" tab; the <title> carries the derivation.
+      const sd = b.it.ker ? ` bwa-clickable" data-src-ker="${esc(b.it.ker)}" role="button" tabindex="0` : '';
+      out += `<g class="bwa-wf-bar${sd}"><title>${esc(b.it.tip)}</title>`
+        + `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" class="${cls}"/>`
+        + `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 24}" text-anchor="middle" class="bwa-axis">${esc(b.it.label)}</text>`
+        + `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 10}" text-anchor="middle" class="bwa-wf-val">${esc(eur0(Math.abs(b.it.value)))}</text>`
+        + `</g>`;
       if (i < bars.length - 1 && b.it.type !== 'end') out += `<line x1="${(x + bw).toFixed(1)}" y1="${y(b.to).toFixed(1)}" x2="${(padL + (i + 1) * slot + (slot - bw) / 2).toFixed(1)}" y2="${y(b.to).toFixed(1)}" class="bwa-wf-conn"/>`;
-      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 24}" text-anchor="middle" class="bwa-axis">${esc(b.it.label)}</text>`;
-      out += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 10}" text-anchor="middle" class="bwa-wf-val">${esc(eur0(Math.abs(b.it.value)))}</text>`;
     });
     return `<svg viewBox="0 0 ${W} ${H}" class="bwa-svg">${out}</svg>`;
   }
@@ -1575,6 +1588,7 @@
       ? `<div class="bwa-cmp-charts">${wfBox('month', monthLabel)}${wfBox('avg', t('cmpAvgCol'))}</div>`
       : wfBox(chartView, `${t('flowTitle')} (${viewSuffix})`);
     const ertragBody = `${wfArea}
+      <p class="bwa-note bwa-wf-hint">${esc(t('wfHint'))}</p>
       <div class="bwa-info-row">
         <div class="bwa-assess bwa-assess-${A.ertrag}">${dot(A.ertrag)}<div>${esc(ertragText)}</div></div>
         ${beBox}${runrate}

@@ -82,6 +82,13 @@
 .bwa-wf-neg { fill: var(--qrx-danger); }
 .bwa-wf-conn { stroke: var(--qrx-border-strong); stroke-width: 1; stroke-dasharray: 2 2; }
 .bwa-wf-val { font-size: 10px; fill: var(--qrx-text-muted); }
+.bwa-wf-bar.bwa-clickable { cursor: pointer; text-decoration: none; }
+.bwa-wf-bar.bwa-clickable .bwa-axis { text-decoration: underline dotted; text-underline-offset: 2px; text-decoration-color: var(--qrx-border); }
+.bwa-wf-bar.bwa-clickable rect { transition: opacity .12s; }
+.bwa-wf-bar.bwa-clickable:hover rect { opacity: .82; }
+.bwa-wf-bar.bwa-clickable:hover .bwa-axis { fill: var(--qrx-text); font-weight: 600; }
+.bwa-wf-bar.bwa-clickable:focus-visible { outline: 2px solid var(--qrx-accent, #2563eb); outline-offset: 2px; }
+.bwa-wf-hint { margin: 2px 0 0; font-size: 12px; }
 
 /* Sparkline on KPI cards */
 .bwa-spark { width: 100%; height: 22px; margin-top: 6px; display: block; }

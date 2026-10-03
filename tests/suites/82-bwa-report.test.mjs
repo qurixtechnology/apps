@@ -775,6 +775,60 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
+  test('waterfall bars carry derivation tooltips and link to their BWA source line', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      await page.evaluate(() => {
+        const line = (label, month, ytd) => ({ label, month, ytd });
+        const ker = {
+          umsatz: line('Umsatzerlöse', 12000, 100000), gesamtleistung: line('Gesamtleistung', 12000, 100000),
+          betrRohertrag: line('Betrieblicher Rohertrag', 12000, 100000), personalkosten: line('Personalkosten', 5000, 40000),
+          sonstigeKosten: line('Sonstige Kosten', 2500, 20000), gesamtkosten: line('Gesamtkosten', 8500, 70000),
+          betriebsergebnis: line('Betriebsergebnis', 3500, 30000), vorlaeufigesErgebnis: line('Vorläufiges Ergebnis', 3500, 30000),
+        };
+        const parsed = { meta: { company: 'Test GmbH', monthsElapsed: 10, periodLabel: 'Jan/2026 – Okt/2026', currentMonth: 'Okt/2026', date: '31.10.2026', currency: 'EUR' }, ker, hasSusa: false, hasTurnover: false, susa: [] };
+        localStorage.setItem('bwa_store', JSON.stringify({ 'Test GmbH': { '2026-10': parsed } }));
+        localStorage.setItem('bwa_active', JSON.stringify({ c: 'Test GmbH', k: '2026-10' }));
+      });
+      await page.reload();
+      await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'pnl').click());
+      const r = await page.evaluate(() => {
+        const svg = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((x) => x.dataset.tab === 'pnl').querySelector('svg.bwa-svg');
+        const bars = [...svg.querySelectorAll('g.bwa-wf-bar')];
+        const kers = bars.map((g) => g.getAttribute('data-src-ker'));
+        const byKer = (k) => bars.find((g) => g.getAttribute('data-src-ker') === k);
+        return {
+          bars: bars.length,
+          clickable: bars.filter((g) => g.classList.contains('bwa-clickable')).length,
+          kers,
+          leistungTip: byKer('betrRohertrag').querySelector('title').textContent,
+          uebrigeTip: byKer('gesamtkosten').querySelector('title').textContent,
+          hasHint: /BWA \(Quelle\)/.test([...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((x) => x.dataset.tab === 'pnl').querySelector('.bwa-wf-hint').textContent),
+        };
+      });
+      const click = await page.evaluate(() => {
+        const g = [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((x) => x.dataset.tab === 'pnl')
+          .querySelector('svg.bwa-svg g.bwa-wf-bar[data-src-ker="personalkosten"]');
+        g.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        const active = [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.classList.contains('is-active')).dataset.tab;
+        const hit = document.querySelector('#bwa-src-ker-personalkosten');
+        return { active, highlighted: !!hit && hit.classList.contains('bwa-src-hit') };
+      });
+      assert.equal(r.bars, 5, 'five waterfall bars');
+      assert.equal(r.clickable, 5, 'every bar is clickable');
+      assert.deepEqual(r.kers, ['betrRohertrag', 'personalkosten', 'sonstigeKosten', 'gesamtkosten', 'betriebsergebnis'], 'each bar links to its KER line');
+      assert.match(r.leistungTip, /Leistung:\s*100\.000/, 'the output bar tooltip states its value');
+      assert.match(r.uebrigeTip, /Gesamtkosten.*−.*Personalkosten.*−.*Sonstige/, 'the remaining-costs bar tooltip shows the derivation');
+      assert.ok(r.hasHint, 'a hint points to the BWA source tab');
+      assert.equal(click.active, 'source', 'clicking a bar jumps to the BWA source tab');
+      assert.ok(click.highlighted, 'the matching KER line is highlighted');
+      await page.evaluate(() => window.__bwa.reset());
+      page.assertNoErrors();
+    } finally { await page.close(); }
+  });
+
   test('chart-of-accounts tab explains accounts with tax effects and marks the present ones', async () => {
     const page = await openApp(browser, 'bwa-report.html');
     try {
