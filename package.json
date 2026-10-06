@@ -10,7 +10,8 @@
     "test": "node --test --test-concurrency=1 \"tests/suites/*.test.mjs\"",
     "test:quick": "node --test --test-concurrency=1 \"tests/suites/00-build.test.mjs\" \"tests/suites/40-duckdb-server.test.mjs\"",
     "test:quack": "node --test --test-concurrency=1 \"tests/suites/50-quack.test.mjs\"",
-    "fixtures:make": "node tests/fixtures/make.mjs"
+    "fixtures:make": "node tests/fixtures/make.mjs",
+    "bwa:demo": "node tools/make-bwa-demo.mjs"
   },
   "devDependencies": {
     "puppeteer-core": "^24.0.0"

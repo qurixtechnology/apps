@@ -582,7 +582,7 @@ describe('bwa report', () => {
       await (await page.$('#bwa-file')).uploadFile(FIX_FEB);
       await page.waitForFunction(() => Object.keys(window.__bwa.store['Muster GmbH'] || {}).join() === '2025-02', { timeout: 60000 });
       const r = await page.evaluate(() => ({
-        addHidden: document.getElementById('bwa-add').hidden,
+        addHidden: getComputedStyle(document.getElementById('bwa-add')).display === 'none',
         chips: document.querySelectorAll('#bwa-periods .bwa-chip').length,
         periods: document.getElementById('bwa-periods').textContent.trim(),
         trend: document.getElementById('bwa-trend') ? document.getElementById('bwa-trend').textContent.trim() : '',
@@ -596,6 +596,41 @@ describe('bwa report', () => {
       assert.equal(r.periods, '', 'no hint to import further months');
       assert.equal(r.trend, '', 'no trend section');
       await page.evaluate(() => window.__bwa.reset());
+    } finally { await page.close(); }
+  });
+
+  test('offers a demo BWA on the import screen and loads it as a complete report', async () => {
+    const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      await page.waitForSelector('#bwa-demo-load', { timeout: 20000 });
+      const offered = await page.evaluate(() => !document.getElementById('bwa-demo').hidden);
+      await page.click('#bwa-demo-load');
+      await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
+      const r = await page.evaluate(() => {
+        const p = window.__bwa.parsed, K = window.__bwa.kpis(p);
+        return {
+          company: document.getElementById('bwa-company').textContent, badge: !!document.querySelector('#bwa-period .bwa-demo-badge'),
+          demoHidden: document.getElementById('bwa-demo').hidden, dropHidden: document.getElementById('bwa-drop').hidden,
+          kerLines: Object.keys(p.ker).length, hasTurnover: p.hasTurnover, umsatz: K.umsatzYtd,
+          free: Math.round(K.taxSummary.free), customers: (window.__bwa.customerRevenue(p) || []).length,
+          tabs: document.querySelectorAll('#bwa-body .bwa-tab').length,
+        };
+      });
+      await page.click('#bwa-reset');
+      const back = await page.evaluate(() => ({ demo: !document.getElementById('bwa-demo').hidden, report: !document.getElementById('bwa-report').hidden }));
+      assert.ok(offered, 'the demo is offered next to the drop zone');
+      assert.equal(r.company, 'Musterwerk Digital GmbH');
+      assert.ok(r.badge, 'the report is marked as demo data');
+      assert.ok(r.demoHidden && r.dropHidden, 'the import screen is hidden while the report shows');
+      assert.equal(r.kerLines, 32, 'complete short-term P&L');
+      assert.ok(r.hasTurnover, 'trial balance with movement columns');
+      assert.equal(r.umsatz, 1386400);
+      assert.equal(r.free, 98815, 'free liquidity after taxes and provisions');
+      assert.equal(r.customers, 6, 'revenue per customer is available');
+      assert.equal(r.tabs, 6);
+      assert.deepEqual(back, { demo: true, report: false }, 'reset returns to the import screen with the demo offer');
+      page.assertNoErrors();
     } finally { await page.close(); }
   });
 

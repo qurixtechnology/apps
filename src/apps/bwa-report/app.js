@@ -23,6 +23,8 @@
       dropTitleMulti: 'BWA-PDFs hierher ziehen oder klicken', dropAriaMulti: 'BWA-PDFs importieren',
       dropSubMulti: 'Mehrere Monats-BWAs möglich — für den Verlauf. Nichts verlässt den Browser.',
       newImport: 'Zurücksetzen', addBwa: 'BWA hinzufügen', print: 'Als PDF / Drucken',
+      demoLead: 'Keine BWA zur Hand?', demoLoad: 'Demo-BWA laden',
+      demoHint: 'Erfundene Firma mit erfundenen Zahlen — zum Ausprobieren.', demoBadge: 'Demo-Daten (erfundene Firma)',
       parsing: 'Lese BWA…', parsingN: 'Lese {n} BWA-Datei(en)…', notBwa: 'Bitte eine PDF-Datei auswählen.',
       importedWithErrors: '{n} BWA importiert, {e} übersprungen (keine gültige BWA).',
       notBwaMsg: 'In der PDF wurde keine „Kurzfristige Erfolgsrechnung“ gefunden. Ist das eine DATEV-BWA?',
@@ -232,6 +234,8 @@
       dropTitleMulti: 'Drop BWA PDFs here, or click', dropAriaMulti: 'Import BWA PDFs',
       dropSubMulti: 'Several monthly BWAs are possible — for the trend. Nothing leaves the browser.',
       newImport: 'Reset', addBwa: 'Add BWA', print: 'Save as PDF / print',
+      demoLead: 'No BWA at hand?', demoLoad: 'Load demo BWA',
+      demoHint: 'A fictitious company with fictitious figures — to try it out.', demoBadge: 'Demo data (fictitious company)',
       parsing: 'Reading BWA…', parsingN: 'Reading {n} BWA file(s)…', notBwa: 'Please pick a PDF file.',
       importedWithErrors: '{n} BWA imported, {e} skipped (not a valid BWA).',
       notBwaMsg: 'No “Kurzfristige Erfolgsrechnung” was found in the PDF. Is this a DATEV BWA?',
@@ -1556,6 +1560,7 @@
     const sp = (sel) => sparkSVG(series.map(sel));
     $('bwa-company').textContent = m.company || 'BWA';
     $('bwa-period').textContent = t('periodLine', { m: m.currentMonth || '–', p: m.periodLabel || '–', d: m.date || '–' });
+    if (m.demo) $('bwa-period').insertAdjacentHTML('beforeend', ` <span class="bwa-demo-badge">${esc(t('demoBadge'))}</span>`);
 
     // Account ranges behind each figure, for the source-linking (Stage A).
     const RG = {
@@ -1932,6 +1937,11 @@
     renderReport(byMonth[state.activeKey], series);
   }
 
+  // Import screen (intro, drop zone, demo offer) vs. report.
+  function showImport(on) {
+    $('bwa-intro').hidden = !on; $('bwa-drop').hidden = !on; $('bwa-demo').hidden = !on || !window.qrxBwaDemo;
+    $('bwa-report').hidden = on;
+  }
   async function handleFiles(fileList) {
     let files = Array.from(fileList || []).filter((f) => /pdf/i.test(f.type || '') || /\.pdf$/i.test(f.name || ''));
     if (!files.length) { status.set(t('notBwa'), 'error'); return; }
@@ -1951,18 +1961,32 @@
     }
     if (!added) { status.set(t('notBwaMsg'), 'error'); return; }
     saveStore();
-    $('bwa-intro').hidden = true; $('bwa-drop').hidden = true; $('bwa-report').hidden = false;
+    showImport(false);
     renderAll();
     status.set(errors ? t('importedWithErrors', { n: added, e: errors }) : '', errors ? 'warn' : undefined);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (window.qrxTest) window.qrxTest.tick('report');
+  }
+  // The embedded demo BWA (demo-data.js): the parsed result of a fictitious BWA,
+  // so the report can be explored without a file at hand.
+  function loadDemo() {
+    if (!window.qrxBwaDemo) return;
+    const parsed = JSON.parse(JSON.stringify(window.qrxBwaDemo)), mm = monthMeta(parsed);
+    if (!MULTI) state.store = {};
+    (state.store[mm.company] = state.store[mm.company] || {})[mm.key] = parsed;
+    state.activeCompany = mm.company; state.activeKey = mm.key;
+    saveStore();
+    showImport(false);
+    renderAll();
+    status.set('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (window.qrxTest) window.qrxTest.tick('report');
   }
   function reset() {
     state.store = {}; state.activeCompany = null; state.activeKey = null; state.activeTab = 'overview'; state.sort = {};
     try { qrx.core.storage.remove(STORE_KEY); qrx.core.storage.remove(ACTIVE_KEY); } catch (_) {}
-    $('bwa-report').hidden = true;
     $('bwa-periods').innerHTML = ''; $('bwa-body').innerHTML = '';
-    $('bwa-intro').hidden = false; $('bwa-drop').hidden = false; $('bwa-file').value = '';
+    showImport(true); $('bwa-file').value = '';
   }
 
   // dropzone + buttons + whole-window drop (to add more once the report is shown)
@@ -1978,6 +2002,8 @@
     $('bwa-drop').querySelector('.bwa-drop-sub').setAttribute('data-qrx-i18n', 'app.dropSubMulti');
     qrx.i18n.apply($('bwa-drop').parentNode);
   }
+  $('bwa-demo').hidden = !window.qrxBwaDemo;
+  $('bwa-demo-load').addEventListener('click', loadDemo);
   $('bwa-reset').addEventListener('click', reset);
   $('bwa-print').addEventListener('click', () => window.print());
   qrx.i18n.onChange(() => { if (Object.keys(state.store).length) renderAll(); });
@@ -1994,13 +2020,13 @@
       const ks = Object.keys(state.store[state.activeCompany]).sort();
       state.activeKey = ks[ks.length - 1];
     }
-    $('bwa-intro').hidden = true; $('bwa-drop').hidden = true; $('bwa-report').hidden = false;
+    showImport(false);
     renderAll();
   }
 
   // test hook
   window.__bwa = {
-    parseBwa, parseKer, kpis, assess, handleFiles, seriesFor, reset, analyzeTurnover, customerRevenue, supplierPurchases,
+    parseBwa, parseKer, kpis, assess, handleFiles, loadDemo, seriesFor, reset, analyzeTurnover, customerRevenue, supplierPurchases,
     get store() { return state.store; },
     get parsed() { return (state.store[state.activeCompany] || {})[state.activeKey] || null; },
   };

@@ -16,7 +16,8 @@
     "../../shared/qrx-core.js",
     "../../shared/qrx-i18n.js",
     "../../shared/qrx-test.js",
-    "../../shared/qrx-ui.js"
+    "../../shared/qrx-ui.js",
+    "demo-data.js"
   ],
   "inlineStyles": ["../../shared/qrx-ui.css"],
   "headAssets": [
