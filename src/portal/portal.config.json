@@ -5,5 +5,13 @@
   "output": "index.html",
   "description": "A suite of local-first, browser-only data tools by qurix Technology. No data leaves your browser — everything runs on DuckDB-WASM.",
   "fonts": ["qurix.fonts.html"],
-  "apps": ["table-format-converter", "test-data-generator", "bwa-report", "parquet-profiler", "parquet-cleaner", "parquet-validator", "markdown-display", "secure-chat", "reisekosten", "wm2026-spielplan"]
+  "categories": [
+    { "id": "tables", "title": "Datentabellen", "title_en": "Data tables",
+      "apps": ["table-format-converter", "parquet-profiler", "parquet-cleaner", "parquet-validator", "test-data-generator"] },
+    { "id": "finance", "title": "Finanzen", "title_en": "Finance",
+      "apps": ["bwa-report", "reisekosten"] },
+    { "id": "docs", "title": "Dokumente & Kommunikation", "title_en": "Documents & communication",
+      "apps": ["markdown-display", "secure-chat"] }
+  ],
+  "archive": ["wm2026-spielplan"]
 }

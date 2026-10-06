@@ -1,4 +1,4 @@
-// === App logic: Parquet Validator ===
+// === App logic: Table Validator ===
 // Load a file → build a ruleset → validate → report. The validation engine is
 // the shared module qrx.rules (src/shared/qrx-rules.js); this app owns the
 // rule-builder UI, the report, and the source loading. The source is always a

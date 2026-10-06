@@ -1,4 +1,4 @@
-// === Parquet Cleaner app logic =============================================
+// === Table Cleaner app logic =============================================
 // Browser-only Parquet cleaning & anonymization. A stacked, composable SQL
 // pipeline over DuckDB-WASM. Reuses the engine/IO patterns of the Table Format
 // Converter. No data leaves the browser.

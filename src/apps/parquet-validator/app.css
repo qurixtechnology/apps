@@ -1,4 +1,4 @@
-/* Parquet Validator — app-specific styles. Shared widgets bring their own CSS
+/* Table Validator — app-specific styles. Shared widgets bring their own CSS
    (qrx-ui.css); this file only styles the rule builder and the report. */
 
 .workspace { display: flex; flex-direction: column; gap: var(--qrx-s-4); }

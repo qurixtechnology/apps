@@ -1,5 +1,5 @@
 {
-  "name": "Parquet Profiler",
+  "name": "Table Profiler",
   "lang": "de",
   "theme": "qurix",
   "output": "parquet-profiler.html",

@@ -122,7 +122,8 @@ ${scriptsHtml}
 }
 
 // Portal (index.html): uses the THEME but NOT the shell; cards are derived
-// from each app's config + icon.svg, so adding an app surfaces it automatically.
+// from each app's config + icon.svg. portal.config.json groups the apps into
+// categories; apps listed under "archive" go into a collapsed section.
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
 
@@ -134,7 +135,7 @@ function buildPortal() {
   const styleBlock = [rd(`src/themes/${cfg.theme}.css`), rd('src/portal/portal.css')].map(trimNl).join('\n\n');
   const fonts = (cfg.fonts || []).map((f) => '\n' + trimNl(rd(`src/themes/${f}`))).join('');
 
-  const cards = (cfg.apps || []).map((app) => {
+  const card = (app) => {
     const a = JSON.parse(rd(`src/apps/${app}/app.config.json`));
     const card = a.card || {};
     const icon = trimNl(rd(`src/apps/${app}/icon.svg`)).split('\n').map((l) => '        ' + l).join('\n');
@@ -159,7 +160,7 @@ function buildPortal() {
       <div class="qrx-card-icon">
 ${icon}
       </div>
-      <h2${titleAttrs}>${esc(titleDe)}</h2>
+      <h3${titleAttrs}>${esc(titleDe)}</h3>
       <p data-de="${escAttr(descDe)}" data-en="${escAttr(descEn)}">
         ${esc(descDe)}
       </p>
@@ -171,9 +172,24 @@ ${tags}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </a>
     </article>`;
-  }).join('\n\n');
+  };
+  const grid = (apps) => `    <div class="qrx-grid">\n\n${apps.map(card).join('\n\n')}\n\n    </div>`;
 
-  const body = fillSlots(rd('src/portal/portal.html'), { '<!--SLOT:cards-->': cards });
+  const sections = (cfg.categories || []).map((cat) => {
+    const de = cat.title, en = cat.title_en || de;
+    return `  <section class="qrx-cat" data-cat="${escAttr(cat.id)}">
+    <h2 class="qrx-cat-title" data-de="${escAttr(de)}" data-en="${escAttr(en)}">${esc(de)}</h2>
+${grid(cat.apps || [])}
+  </section>`;
+  });
+  if ((cfg.archive || []).length) {
+    sections.push(`  <details class="qrx-cat qrx-archive" data-cat="archive">
+    <summary><span class="qrx-cat-title" data-de="Archiv" data-en="Archive">Archiv</span> <span class="qrx-archive-count">${cfg.archive.length}</span></summary>
+${grid(cfg.archive)}
+  </details>`);
+  }
+
+  const body = fillSlots(rd('src/portal/portal.html'), { '<!--SLOT:cards-->': sections.join('\n\n') });
 
   const html =
 `<!DOCTYPE html>

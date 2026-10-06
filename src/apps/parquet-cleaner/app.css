@@ -1,4 +1,4 @@
-/* === Parquet Cleaner app styles === */
+/* === Table Cleaner app styles === */
 /* Data tables can be very wide (hundreds of columns) — give the app generous
    width; the preview scrolls horizontally within its card. */
 .qrx-shell-app { max-width: min(1760px, 98vw); }

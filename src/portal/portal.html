@@ -20,11 +20,17 @@
     </div>
   </section>
 
-  <section class="qrx-grid">
+  <div class="qrx-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input type="search" id="qrx-search" autocomplete="off" spellcheck="false"
+           placeholder="Apps durchsuchen …" aria-label="Apps durchsuchen"
+           data-de-placeholder="Apps durchsuchen …" data-en-placeholder="Search apps …"
+           data-de-aria-label="Apps durchsuchen" data-en-aria-label="Search apps">
+  </div>
 
 <!--SLOT:cards-->
 
-  </section>
+  <p class="qrx-empty" id="qrx-empty" hidden data-de="Keine App passt zu dieser Suche." data-en="No app matches this search.">Keine App passt zu dieser Suche.</p>
 </main>
 
 <footer>
@@ -47,6 +53,11 @@ document.getElementById('yr').textContent = new Date().getFullYear();
     document.querySelectorAll('[data-de-html]').forEach(function (el) {
       var v = el.getAttribute('data-' + l + '-html'); if (v != null) el.innerHTML = v;
     });
+    ['placeholder', 'aria-label'].forEach(function (attr) {
+      document.querySelectorAll('[data-de-' + attr + ']').forEach(function (el) {
+        var v = el.getAttribute('data-' + l + '-' + attr); if (v != null) el.setAttribute(attr, v);
+      });
+    });
     var btn = document.getElementById('langToggle');
     if (btn) {
       btn.textContent = l === 'en' ? 'DE' : 'EN';
@@ -60,5 +71,41 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   var lt = document.getElementById('langToggle');
   if (lt) lt.addEventListener('click', function () { applyLang(lang === 'de' ? 'en' : 'de'); });
   applyLang(lang);
+})();
+// Search: filters the cards by title, description, tags and category — in both
+// languages, so a German page still finds "finance". Archived apps are part of
+// the search; the archive opens while it has a match.
+(function () {
+  var input = document.getElementById('qrx-search');
+  if (!input) return;
+  var archive = document.querySelector('.qrx-archive'), empty = document.getElementById('qrx-empty');
+  var sections = [].slice.call(document.querySelectorAll('.qrx-cat'));
+  var cards = [].slice.call(document.querySelectorAll('.qrx-card'));
+  function texts(el) {
+    var out = [];
+    [el].concat([].slice.call(el.querySelectorAll('[data-de]'))).forEach(function (n) {
+      if (n.hasAttribute && n.hasAttribute('data-de')) out.push(n.getAttribute('data-de'), n.getAttribute('data-en') || '');
+    });
+    return out;
+  }
+  var hay = cards.map(function (c) {
+    var sec = c.closest('.qrx-cat'), title = sec && sec.querySelector('.qrx-cat-title');
+    return [c.textContent].concat(texts(c), title ? texts(title) : []).join(' ').toLowerCase();
+  });
+  var archiveWasOpen = false, searching = false;
+  function filter() {
+    var terms = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length && !searching && archive) archiveWasOpen = archive.open;
+    var shown = 0;
+    cards.forEach(function (c, i) {
+      var hit = terms.every(function (t) { return hay[i].indexOf(t) !== -1; });
+      c.hidden = !hit; if (hit) shown++;
+    });
+    sections.forEach(function (s) { s.hidden = !s.querySelector('.qrx-card:not([hidden])'); });
+    if (archive) archive.open = terms.length ? !archive.hidden : archiveWasOpen;
+    searching = terms.length > 0;
+    if (empty) empty.hidden = shown > 0;
+  }
+  input.addEventListener('input', filter);
 })();
 </script>

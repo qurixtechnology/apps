@@ -148,10 +148,43 @@ main { flex:1; width:100%; max-width:1080px; margin:0 auto; padding:clamp(2.5rem
   background:var(--qrx-bg-subtle); border:1px solid var(--qrx-border); color:var(--qrx-text-muted);
 }
 
-/* === App grid === */
+/* === Search === */
+.qrx-search { position:relative; max-width:34rem; margin-top:clamp(2rem,5vw,3rem); }
+.qrx-search svg {
+  position:absolute; left:1rem; top:50%; width:18px; height:18px; transform:translateY(-50%);
+  color:var(--qrx-text-subtle); pointer-events:none;
+}
+.qrx-search input {
+  width:100%; font:inherit; font-size:1rem; color:var(--qrx-text);
+  padding:0.8rem 1rem 0.8rem 2.8rem; border:1px solid var(--qrx-border-strong); border-radius:999px;
+  background:var(--qrx-surface); box-shadow:var(--qrx-shadow); transition:border-color var(--qrx-transition), box-shadow var(--qrx-transition);
+}
+.qrx-search input::placeholder { color:var(--qrx-text-subtle); }
+.qrx-search input:focus { outline:none; border-color:var(--qrx-primary); box-shadow:0 0 0 4px rgba(21,107,142,0.14); }
+.qrx-empty { margin:2.5rem 0 0; color:var(--qrx-text-muted); }
+
+/* === Categories + app grid === */
+.qrx-cat { margin-top:clamp(2.2rem,5vw,3rem); }
+.qrx-cat[hidden], .qrx-card[hidden] { display:none; }
+.qrx-cat-title {
+  margin:0; font-family:var(--qrx-font-mono); font-size:0.82rem; font-weight:500;
+  letter-spacing:0.16em; text-transform:uppercase; color:var(--qrx-text-muted);
+}
 .qrx-grid {
-  display:grid; gap:1.5rem; margin-top:clamp(2.5rem,6vw,3.5rem);
-  grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  display:grid; gap:1.5rem; margin-top:1.1rem;
+  grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+}
+.qrx-archive > summary {
+  display:inline-flex; align-items:center; gap:0.6rem; cursor:pointer; list-style:none;
+  padding:0.45rem 0.9rem; border:1px solid var(--qrx-border); border-radius:999px; background:var(--qrx-bg-subtle);
+}
+.qrx-archive > summary::-webkit-details-marker { display:none; }
+.qrx-archive > summary::before { content:"▸"; color:var(--qrx-text-subtle); font-size:0.8rem; }
+.qrx-archive[open] > summary::before { content:"▾"; }
+.qrx-archive > summary:hover { border-color:var(--qrx-border-strong); }
+.qrx-archive-count {
+  font-family:var(--qrx-font-mono); font-size:0.72rem; color:var(--qrx-text-subtle);
+  background:var(--qrx-surface); border:1px solid var(--qrx-border); border-radius:999px; padding:0 0.5rem;
 }
 .qrx-card {
   position:relative; display:flex; flex-direction:column;
@@ -171,7 +204,7 @@ main { flex:1; width:100%; max-width:1080px; margin:0 auto; padding:clamp(2.5rem
   color:var(--qrx-primary); margin-bottom:1.1rem;
 }
 .qrx-card-icon svg { width:26px; height:26px; }
-.qrx-card h2 { font-size:1.3rem; margin:0 0 0.5rem; font-weight:600; letter-spacing:-0.01em; }
+.qrx-card h3 { font-size:1.3rem; margin:0 0 0.5rem; font-weight:600; letter-spacing:-0.01em; }
 .qrx-card p { color:var(--qrx-text-muted); font-size:0.95rem; margin:0 0 1.3rem; flex:1; }
 .qrx-card-meta {
   display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:1.4rem;
@@ -222,7 +255,17 @@ footer svg { width:15px; height:15px; }
     </div>
   </section>
 
-  <section class="qrx-grid">
+  <div class="qrx-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input type="search" id="qrx-search" autocomplete="off" spellcheck="false"
+           placeholder="Apps durchsuchen …" aria-label="Apps durchsuchen"
+           data-de-placeholder="Apps durchsuchen …" data-en-placeholder="Search apps …"
+           data-de-aria-label="Apps durchsuchen" data-en-aria-label="Search apps">
+  </div>
+
+  <section class="qrx-cat" data-cat="tables">
+    <h2 class="qrx-cat-title" data-de="Datentabellen" data-en="Data tables">Datentabellen</h2>
+    <div class="qrx-grid">
 
     <!-- Table Format Converter -->
     <article class="qrx-card">
@@ -231,7 +274,7 @@ footer svg { width:15px; height:15px; }
           <path d="M4 7h13l-3-3M20 17H7l3 3"/>
         </svg>
       </div>
-      <h2>Table Format Converter</h2>
+      <h3>Table Format Converter</h3>
       <p data-de="Liest CSV, Parquet, JSON, NDJSON oder Excel, zeigt das Schema, lässt die Parsing-Heuristik mit Live-Vorschau feinjustieren und exportiert in ein anderes Format. Sample-first — die erste Vorschau erscheint in ~100 ms, selbst bei mehreren GB." data-en="Read CSV, Parquet, JSON, NDJSON or Excel, inspect the schema, fine-tune the parsing heuristic with a live preview, and export to a different format. Sample-first, so the first preview appears in ~100 ms even on multi-GB files.">
         Liest CSV, Parquet, JSON, NDJSON oder Excel, zeigt das Schema, lässt die Parsing-Heuristik mit Live-Vorschau feinjustieren und exportiert in ein anderes Format. Sample-first — die erste Vorschau erscheint in ~100 ms, selbst bei mehreren GB.
       </p>
@@ -241,6 +284,76 @@ footer svg { width:15px; height:15px; }
         <span class="qrx-tagchip" data-de="Excel" data-en="Excel">Excel</span>
       </div>
       <a class="qrx-launch" href="table-format-converter.html">
+        <span data-de="App öffnen" data-en="Launch app">App öffnen</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </article>
+
+    <!-- Table Profiler -->
+    <article class="qrx-card">
+      <div class="qrx-card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>
+        </svg>
+      </div>
+      <h3>Table Profiler</h3>
+      <p data-de="Strukturelle und statistische Analyse tabellarischer Dateien — Parquet, CSV, JSON, NDJSON. Parquet wird per Byte-Bereich referenziert und behält seine Footer-Metadaten, sodass selbst mehrere grosse Dateien speicherschonend bleiben; andere Formate werden einmalig nach Parquet umgeschrieben." data-en="Structural and statistical analysis of tabular files — Parquet, CSV, JSON, NDJSON. Parquet is referenced by byte range and keeps its footer metadata, so even several large files stay memory-friendly; other formats are rewritten to Parquet once.">
+        Strukturelle und statistische Analyse tabellarischer Dateien — Parquet, CSV, JSON, NDJSON. Parquet wird per Byte-Bereich referenziert und behält seine Footer-Metadaten, sodass selbst mehrere grosse Dateien speicherschonend bleiben; andere Formate werden einmalig nach Parquet umgeschrieben.
+      </p>
+      <div class="qrx-card-meta">
+        <span class="qrx-tagchip" data-de=".parquet" data-en=".parquet">.parquet</span>
+        <span class="qrx-tagchip" data-de="Metadaten" data-en="metadata">Metadaten</span>
+        <span class="qrx-tagchip" data-de="Spalten-Statistik" data-en="column stats">Spalten-Statistik</span>
+      </div>
+      <a class="qrx-launch" href="parquet-profiler.html">
+        <span data-de="App öffnen" data-en="Launch app">App öffnen</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </article>
+
+    <!-- Table Cleaner -->
+    <article class="qrx-card">
+      <div class="qrx-card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 4h18l-7 8v6l-4 2v-8z"/>
+          <path d="M16 14.5l2.2 2.2"/>
+          <path d="M18 13l3 3-2 2-3-3z"/>
+        </svg>
+      </div>
+      <h3>Table Cleaner</h3>
+      <p data-de="Bereinigt und anonymisiert eine Datei (Parquet, CSV, JSON, NDJSON) vollständig im Browser: stapelbare Pipeline aus Dedup, Null-/Filterregeln, Typkonvertierungen, Trim/Case und Pseudonymisierung (Hash mit Salt). Die Live-Vorschau zeigt transparent, wo jede Umwandlung greift, fehlschlägt oder ohne Wirkung bleibt." data-en="Clean and anonymize one file (Parquet, CSV, JSON, NDJSON) entirely in the browser: a composable pipeline of dedup, null/filter rules, type conversions, trim/case, and pseudonymization (salted hashing). The live preview transparently shows where each transform succeeds, fails, or has no effect.">
+        Bereinigt und anonymisiert eine Datei (Parquet, CSV, JSON, NDJSON) vollständig im Browser: stapelbare Pipeline aus Dedup, Null-/Filterregeln, Typkonvertierungen, Trim/Case und Pseudonymisierung (Hash mit Salt). Die Live-Vorschau zeigt transparent, wo jede Umwandlung greift, fehlschlägt oder ohne Wirkung bleibt.
+      </p>
+      <div class="qrx-card-meta">
+        <span class="qrx-tagchip" data-de="Parquet" data-en="Parquet">Parquet</span>
+        <span class="qrx-tagchip" data-de="Cleaning" data-en="Cleaning">Cleaning</span>
+        <span class="qrx-tagchip" data-de="Anonymization" data-en="Anonymization">Anonymization</span>
+      </div>
+      <a class="qrx-launch" href="parquet-cleaner.html">
+        <span data-de="App öffnen" data-en="Launch app">App öffnen</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </article>
+
+    <!-- Table Validator -->
+    <article class="qrx-card">
+      <div class="qrx-card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1z"/>
+          <path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/>
+          <path d="M9 13l2 2 4-4"/>
+        </svg>
+      </div>
+      <h3>Table Validator</h3>
+      <p data-de="Prüft eine Datei (Parquet, CSV, JSON, NDJSON) gegen einen Regelsatz — vollständig im Browser. Regeln je Spalte (nicht null, eindeutig, erlaubte Werte, Wertebereich, Länge, Regex, dominantes Muster, Typ, Referenz) oder eigenes SQL; der Bericht zeigt pro Regel die Verstöße mit Absprung in die konkreten Zeilen. Der Regelsatz ist als JSON portabel — einmal definieren, jeden Export erneut prüfen." data-en="Validate a file (Parquet, CSV, JSON, NDJSON) against a ruleset — entirely in the browser. Per-column rules (not null, unique, allowed values, range, length, regex, dominant pattern, type, reference) or custom SQL; the report shows each rule's violations with a jump into the offending rows. The ruleset is portable JSON — define once, re-check every export.">
+        Prüft eine Datei (Parquet, CSV, JSON, NDJSON) gegen einen Regelsatz — vollständig im Browser. Regeln je Spalte (nicht null, eindeutig, erlaubte Werte, Wertebereich, Länge, Regex, dominantes Muster, Typ, Referenz) oder eigenes SQL; der Bericht zeigt pro Regel die Verstöße mit Absprung in die konkreten Zeilen. Der Regelsatz ist als JSON portabel — einmal definieren, jeden Export erneut prüfen.
+      </p>
+      <div class="qrx-card-meta">
+        <span class="qrx-tagchip" data-de="Parquet" data-en="Parquet">Parquet</span>
+        <span class="qrx-tagchip" data-de="Validierung" data-en="validation">Validierung</span>
+        <span class="qrx-tagchip" data-de="Datenqualität" data-en="data quality">Datenqualität</span>
+      </div>
+      <a class="qrx-launch" href="parquet-validator.html">
         <span data-de="App öffnen" data-en="Launch app">App öffnen</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </a>
@@ -257,7 +370,7 @@ footer svg { width:15px; height:15px; }
           <circle cx="15" cy="16.5" r="0.6" fill="currentColor"/>
         </svg>
       </div>
-      <h2 data-de="Testdaten-Generator" data-en="Test Data Generator">Testdaten-Generator</h2>
+      <h3 data-de="Testdaten-Generator" data-en="Test Data Generator">Testdaten-Generator</h3>
       <p data-de="Erzeugt realistische, verknüpfte Testdaten für typische Unternehmensbereiche — oder leitet Struktur, Statistik und Muster aus einer importierten Datei ab. Qualitätsstufe von klinisch sauber bis stark fehlerhaft frei einstellbar, Export in alle von DuckDB unterstützten Formate." data-en="Generates realistic, linked test data for typical business domains — or derives structure, statistics and patterns from an imported file. Data quality is tunable from clinically clean to heavily flawed, with export to every format DuckDB supports.">
         Erzeugt realistische, verknüpfte Testdaten für typische Unternehmensbereiche — oder leitet Struktur, Statistik und Muster aus einer importierten Datei ab. Qualitätsstufe von klinisch sauber bis stark fehlerhaft frei einstellbar, Export in alle von DuckDB unterstützten Formate.
       </p>
@@ -272,6 +385,13 @@ footer svg { width:15px; height:15px; }
       </a>
     </article>
 
+    </div>
+  </section>
+
+  <section class="qrx-cat" data-cat="finance">
+    <h2 class="qrx-cat-title" data-de="Finanzen" data-en="Finance">Finanzen</h2>
+    <div class="qrx-grid">
+
     <!-- BWA Report -->
     <article class="qrx-card">
       <div class="qrx-card-icon">
@@ -281,7 +401,7 @@ footer svg { width:15px; height:15px; }
           <path d="M8.5 16.5v-3M12 16.5v-6M15.5 16.5v-4"/>
         </svg>
       </div>
-      <h2 data-de="BWA-Bericht" data-en="BWA Report">BWA-Bericht</h2>
+      <h3 data-de="BWA-Bericht" data-en="BWA Report">BWA-Bericht</h3>
       <p data-de="Importiert eine DATEV-BWA (PDF) und erstellt daraus einen verständlichen Bericht — auch für Laien. Zeigt die wirtschaftliche Lage, Ergebnis, Kostenstruktur und Liquidität als klare Kennzahlen mit Ampel-Bewertung und konkreten Empfehlungen. Für StartUps und kleine Unternehmen ohne eigene Finanzabteilung." data-en="Imports a DATEV BWA (PDF) and turns it into a report anyone can understand. Shows the economic situation, result, cost structure and liquidity as clear KPIs with a traffic-light rating and concrete recommendations. For startups and small businesses without a finance department.">
         Importiert eine DATEV-BWA (PDF) und erstellt daraus einen verständlichen Bericht — auch für Laien. Zeigt die wirtschaftliche Lage, Ergebnis, Kostenstruktur und Liquidität als klare Kennzahlen mit Ampel-Bewertung und konkreten Empfehlungen. Für StartUps und kleine Unternehmen ohne eigene Finanzabteilung.
       </p>
@@ -296,75 +416,37 @@ footer svg { width:15px; height:15px; }
       </a>
     </article>
 
-    <!-- Parquet Profiler -->
+    <!-- Reisekosten -->
     <article class="qrx-card">
       <div class="qrx-card-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>
+          <rect x="3" y="7" width="18" height="13" rx="2"/>
+          <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <path d="M3 13h18"/>
+          <path d="M10 13v2M14 13v2"/>
         </svg>
       </div>
-      <h2>Parquet Profiler</h2>
-      <p data-de="Strukturelle und statistische Analyse tabellarischer Dateien — Parquet, CSV, JSON, NDJSON. Parquet wird per Byte-Bereich referenziert und behält seine Footer-Metadaten, sodass selbst mehrere grosse Dateien speicherschonend bleiben; andere Formate werden einmalig nach Parquet umgeschrieben." data-en="Structural and statistical analysis of tabular files — Parquet, CSV, JSON, NDJSON. Parquet is referenced by byte range and keeps its footer metadata, so even several large files stay memory-friendly; other formats are rewritten to Parquet once.">
-        Strukturelle und statistische Analyse tabellarischer Dateien — Parquet, CSV, JSON, NDJSON. Parquet wird per Byte-Bereich referenziert und behält seine Footer-Metadaten, sodass selbst mehrere grosse Dateien speicherschonend bleiben; andere Formate werden einmalig nach Parquet umgeschrieben.
+      <h3 data-de="Reisekosten" data-en="Travel Expenses">Reisekosten</h3>
+      <p data-de="Reisekosten nach deutschen Regeln erfassen und abrechnen — Verpflegungspauschalen (Inland &amp; Ausland) mit An-/Abreise-Logik, Mahlzeitenkürzungen, Kilometerpauschale und Übernachtung werden automatisch berechnet. Mehrere Reisen lokal im Browser, druckbare Abrechnung und CSV-Export." data-en="Capture and settle travel expenses under German rules — meal allowances (domestic &amp; abroad) with arrival/departure logic, meal reductions, mileage and accommodation are calculated automatically. Manage multiple trips locally in the browser, print a settlement sheet and export CSV.">
+        Reisekosten nach deutschen Regeln erfassen und abrechnen — Verpflegungspauschalen (Inland &amp; Ausland) mit An-/Abreise-Logik, Mahlzeitenkürzungen, Kilometerpauschale und Übernachtung werden automatisch berechnet. Mehrere Reisen lokal im Browser, druckbare Abrechnung und CSV-Export.
       </p>
       <div class="qrx-card-meta">
-        <span class="qrx-tagchip" data-de=".parquet" data-en=".parquet">.parquet</span>
-        <span class="qrx-tagchip" data-de="Metadaten" data-en="metadata">Metadaten</span>
-        <span class="qrx-tagchip" data-de="Spalten-Statistik" data-en="column stats">Spalten-Statistik</span>
+        <span class="qrx-tagchip" data-de="Verpflegungspauschale" data-en="Per-diem">Verpflegungspauschale</span>
+        <span class="qrx-tagchip" data-de="Kilometerpauschale" data-en="Mileage">Kilometerpauschale</span>
+        <span class="qrx-tagchip" data-de="Abrechnung &amp; CSV" data-en="Settlement &amp; CSV">Abrechnung &amp; CSV</span>
       </div>
-      <a class="qrx-launch" href="parquet-profiler.html">
+      <a class="qrx-launch" href="reisekosten.html">
         <span data-de="App öffnen" data-en="Launch app">App öffnen</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </a>
     </article>
 
-    <!-- Parquet Cleaner -->
-    <article class="qrx-card">
-      <div class="qrx-card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 4h18l-7 8v6l-4 2v-8z"/>
-          <path d="M16 14.5l2.2 2.2"/>
-          <path d="M18 13l3 3-2 2-3-3z"/>
-        </svg>
-      </div>
-      <h2>Parquet Cleaner</h2>
-      <p data-de="Bereinigt und anonymisiert eine Datei (Parquet, CSV, JSON, NDJSON) vollständig im Browser: stapelbare Pipeline aus Dedup, Null-/Filterregeln, Typkonvertierungen, Trim/Case und Pseudonymisierung (Hash mit Salt). Die Live-Vorschau zeigt transparent, wo jede Umwandlung greift, fehlschlägt oder ohne Wirkung bleibt." data-en="Clean and anonymize one file (Parquet, CSV, JSON, NDJSON) entirely in the browser: a composable pipeline of dedup, null/filter rules, type conversions, trim/case, and pseudonymization (salted hashing). The live preview transparently shows where each transform succeeds, fails, or has no effect.">
-        Bereinigt und anonymisiert eine Datei (Parquet, CSV, JSON, NDJSON) vollständig im Browser: stapelbare Pipeline aus Dedup, Null-/Filterregeln, Typkonvertierungen, Trim/Case und Pseudonymisierung (Hash mit Salt). Die Live-Vorschau zeigt transparent, wo jede Umwandlung greift, fehlschlägt oder ohne Wirkung bleibt.
-      </p>
-      <div class="qrx-card-meta">
-        <span class="qrx-tagchip" data-de="Parquet" data-en="Parquet">Parquet</span>
-        <span class="qrx-tagchip" data-de="Cleaning" data-en="Cleaning">Cleaning</span>
-        <span class="qrx-tagchip" data-de="Anonymization" data-en="Anonymization">Anonymization</span>
-      </div>
-      <a class="qrx-launch" href="parquet-cleaner.html">
-        <span data-de="App öffnen" data-en="Launch app">App öffnen</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </a>
-    </article>
+    </div>
+  </section>
 
-    <!-- Parquet Validator -->
-    <article class="qrx-card">
-      <div class="qrx-card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1z"/>
-          <path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/>
-          <path d="M9 13l2 2 4-4"/>
-        </svg>
-      </div>
-      <h2>Parquet Validator</h2>
-      <p data-de="Prüft eine Datei (Parquet, CSV, JSON, NDJSON) gegen einen Regelsatz — vollständig im Browser. Regeln je Spalte (nicht null, eindeutig, erlaubte Werte, Wertebereich, Länge, Regex, dominantes Muster, Typ, Referenz) oder eigenes SQL; der Bericht zeigt pro Regel die Verstöße mit Absprung in die konkreten Zeilen. Der Regelsatz ist als JSON portabel — einmal definieren, jeden Export erneut prüfen." data-en="Validate a file (Parquet, CSV, JSON, NDJSON) against a ruleset — entirely in the browser. Per-column rules (not null, unique, allowed values, range, length, regex, dominant pattern, type, reference) or custom SQL; the report shows each rule's violations with a jump into the offending rows. The ruleset is portable JSON — define once, re-check every export.">
-        Prüft eine Datei (Parquet, CSV, JSON, NDJSON) gegen einen Regelsatz — vollständig im Browser. Regeln je Spalte (nicht null, eindeutig, erlaubte Werte, Wertebereich, Länge, Regex, dominantes Muster, Typ, Referenz) oder eigenes SQL; der Bericht zeigt pro Regel die Verstöße mit Absprung in die konkreten Zeilen. Der Regelsatz ist als JSON portabel — einmal definieren, jeden Export erneut prüfen.
-      </p>
-      <div class="qrx-card-meta">
-        <span class="qrx-tagchip" data-de="Parquet" data-en="Parquet">Parquet</span>
-        <span class="qrx-tagchip" data-de="Validierung" data-en="validation">Validierung</span>
-        <span class="qrx-tagchip" data-de="Datenqualität" data-en="data quality">Datenqualität</span>
-      </div>
-      <a class="qrx-launch" href="parquet-validator.html">
-        <span data-de="App öffnen" data-en="Launch app">App öffnen</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </a>
-    </article>
+  <section class="qrx-cat" data-cat="docs">
+    <h2 class="qrx-cat-title" data-de="Dokumente &amp; Kommunikation" data-en="Documents &amp; communication">Dokumente &amp; Kommunikation</h2>
+    <div class="qrx-grid">
 
     <!-- Markdown Display -->
     <article class="qrx-card">
@@ -375,7 +457,7 @@ footer svg { width:15px; height:15px; }
           <path d="M8 13h5M8 16.5h8"/>
         </svg>
       </div>
-      <h2>Markdown Display</h2>
+      <h3>Markdown Display</h3>
       <p data-de="Zeigt Markdown-Dateien als sauberes, papierartiges Dokument — mit Syntax-Highlighting, GitHub-Tabellen, Aufgabenlisten und Mermaid-Diagrammen. Per Klick als PDF exportieren. Alles läuft lokal im Browser, ohne Upload." data-en="Renders Markdown files as a clean, paper-style document — with syntax highlighting, GitHub tables, task lists and Mermaid diagrams. Export to PDF in one click. Everything runs locally in the browser, no uploads.">
         Zeigt Markdown-Dateien als sauberes, papierartiges Dokument — mit Syntax-Highlighting, GitHub-Tabellen, Aufgabenlisten und Mermaid-Diagrammen. Per Klick als PDF exportieren. Alles läuft lokal im Browser, ohne Upload.
       </p>
@@ -399,7 +481,7 @@ footer svg { width:15px; height:15px; }
           <path d="M10.4 10.5V9.1a1.6 1.6 0 0 1 3.2 0v1.4"/>
         </svg>
       </div>
-      <h2>Secure Chat</h2>
+      <h3>Secure Chat</h3>
       <p data-de="Verschlüsselter Peer-to-Peer-Videochat direkt im Browser. Die Verbindung läuft Ende-zu-Ende zwischen den Geräten — kein Konto, keine App, kein zentraler Server, der mithört. Per Kurz-ID anrufen oder ganz ohne Server über einen Einladungscode." data-en="Encrypted peer-to-peer video chat right in the browser. The connection runs end-to-end between the devices — no account, no app, no central server listening in. Call via a short ID, or fully server-free using an invitation code.">
         Verschlüsselter Peer-to-Peer-Videochat direkt im Browser. Die Verbindung läuft Ende-zu-Ende zwischen den Geräten — kein Konto, keine App, kein zentraler Server, der mithört. Per Kurz-ID anrufen oder ganz ohne Server über einen Einladungscode.
       </p>
@@ -414,30 +496,12 @@ footer svg { width:15px; height:15px; }
       </a>
     </article>
 
-    <!-- Reisekosten -->
-    <article class="qrx-card">
-      <div class="qrx-card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="7" width="18" height="13" rx="2"/>
-          <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-          <path d="M3 13h18"/>
-          <path d="M10 13v2M14 13v2"/>
-        </svg>
-      </div>
-      <h2 data-de="Reisekosten" data-en="Travel Expenses">Reisekosten</h2>
-      <p data-de="Reisekosten nach deutschen Regeln erfassen und abrechnen — Verpflegungspauschalen (Inland &amp; Ausland) mit An-/Abreise-Logik, Mahlzeitenkürzungen, Kilometerpauschale und Übernachtung werden automatisch berechnet. Mehrere Reisen lokal im Browser, druckbare Abrechnung und CSV-Export." data-en="Capture and settle travel expenses under German rules — meal allowances (domestic &amp; abroad) with arrival/departure logic, meal reductions, mileage and accommodation are calculated automatically. Manage multiple trips locally in the browser, print a settlement sheet and export CSV.">
-        Reisekosten nach deutschen Regeln erfassen und abrechnen — Verpflegungspauschalen (Inland &amp; Ausland) mit An-/Abreise-Logik, Mahlzeitenkürzungen, Kilometerpauschale und Übernachtung werden automatisch berechnet. Mehrere Reisen lokal im Browser, druckbare Abrechnung und CSV-Export.
-      </p>
-      <div class="qrx-card-meta">
-        <span class="qrx-tagchip" data-de="Verpflegungspauschale" data-en="Per-diem">Verpflegungspauschale</span>
-        <span class="qrx-tagchip" data-de="Kilometerpauschale" data-en="Mileage">Kilometerpauschale</span>
-        <span class="qrx-tagchip" data-de="Abrechnung &amp; CSV" data-en="Settlement &amp; CSV">Abrechnung &amp; CSV</span>
-      </div>
-      <a class="qrx-launch" href="reisekosten.html">
-        <span data-de="App öffnen" data-en="Launch app">App öffnen</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </a>
-    </article>
+    </div>
+  </section>
+
+  <details class="qrx-cat qrx-archive" data-cat="archive">
+    <summary><span class="qrx-cat-title" data-de="Archiv" data-en="Archive">Archiv</span> <span class="qrx-archive-count">1</span></summary>
+    <div class="qrx-grid">
 
     <!-- WM 2026 Spielplan -->
     <article class="qrx-card">
@@ -446,7 +510,7 @@ footer svg { width:15px; height:15px; }
           <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
         </svg>
       </div>
-      <h2 data-de="WM 2026 Spielplan" data-en="World Cup 2026 Schedule">WM 2026 Spielplan</h2>
+      <h3 data-de="WM 2026 Spielplan" data-en="World Cup 2026 Schedule">WM 2026 Spielplan</h3>
       <p data-de="Interaktiver Spielplan der Fussball-WM 2026 (USA · Kanada · Mexiko, 48 Teams, 104 Spiele). Ergebnisse eintragen, K.-o.-Szenarien planen und ein eigenes Tippspiel führen — alles lokal im Browser gespeichert, ohne Backend." data-en="Interactive schedule for the 2026 World Cup (USA · Canada · Mexico, 48 teams, 104 matches). Enter results, plan knockout scenarios and run your own prediction game — all stored locally in the browser, no backend.">
         Interaktiver Spielplan der Fussball-WM 2026 (USA · Kanada · Mexiko, 48 Teams, 104 Spiele). Ergebnisse eintragen, K.-o.-Szenarien planen und ein eigenes Tippspiel führen — alles lokal im Browser gespeichert, ohne Backend.
       </p>
@@ -461,7 +525,10 @@ footer svg { width:15px; height:15px; }
       </a>
     </article>
 
-  </section>
+    </div>
+  </details>
+
+  <p class="qrx-empty" id="qrx-empty" hidden data-de="Keine App passt zu dieser Suche." data-en="No app matches this search.">Keine App passt zu dieser Suche.</p>
 </main>
 
 <footer>
@@ -484,6 +551,11 @@ document.getElementById('yr').textContent = new Date().getFullYear();
     document.querySelectorAll('[data-de-html]').forEach(function (el) {
       var v = el.getAttribute('data-' + l + '-html'); if (v != null) el.innerHTML = v;
     });
+    ['placeholder', 'aria-label'].forEach(function (attr) {
+      document.querySelectorAll('[data-de-' + attr + ']').forEach(function (el) {
+        var v = el.getAttribute('data-' + l + '-' + attr); if (v != null) el.setAttribute(attr, v);
+      });
+    });
     var btn = document.getElementById('langToggle');
     if (btn) {
       btn.textContent = l === 'en' ? 'DE' : 'EN';
@@ -497,6 +569,42 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   var lt = document.getElementById('langToggle');
   if (lt) lt.addEventListener('click', function () { applyLang(lang === 'de' ? 'en' : 'de'); });
   applyLang(lang);
+})();
+// Search: filters the cards by title, description, tags and category — in both
+// languages, so a German page still finds "finance". Archived apps are part of
+// the search; the archive opens while it has a match.
+(function () {
+  var input = document.getElementById('qrx-search');
+  if (!input) return;
+  var archive = document.querySelector('.qrx-archive'), empty = document.getElementById('qrx-empty');
+  var sections = [].slice.call(document.querySelectorAll('.qrx-cat'));
+  var cards = [].slice.call(document.querySelectorAll('.qrx-card'));
+  function texts(el) {
+    var out = [];
+    [el].concat([].slice.call(el.querySelectorAll('[data-de]'))).forEach(function (n) {
+      if (n.hasAttribute && n.hasAttribute('data-de')) out.push(n.getAttribute('data-de'), n.getAttribute('data-en') || '');
+    });
+    return out;
+  }
+  var hay = cards.map(function (c) {
+    var sec = c.closest('.qrx-cat'), title = sec && sec.querySelector('.qrx-cat-title');
+    return [c.textContent].concat(texts(c), title ? texts(title) : []).join(' ').toLowerCase();
+  });
+  var archiveWasOpen = false, searching = false;
+  function filter() {
+    var terms = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length && !searching && archive) archiveWasOpen = archive.open;
+    var shown = 0;
+    cards.forEach(function (c, i) {
+      var hit = terms.every(function (t) { return hay[i].indexOf(t) !== -1; });
+      c.hidden = !hit; if (hit) shown++;
+    });
+    sections.forEach(function (s) { s.hidden = !s.querySelector('.qrx-card:not([hidden])'); });
+    if (archive) archive.open = terms.length ? !archive.hidden : archiveWasOpen;
+    searching = terms.length > 0;
+    if (empty) empty.hidden = shown > 0;
+  }
+  input.addEventListener('input', filter);
 })();
 </script>
 

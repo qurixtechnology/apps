@@ -1,5 +1,5 @@
 {
-  "name": "Parquet Validator",
+  "name": "Table Validator",
   "lang": "de",
   "theme": "qurix",
   "output": "parquet-validator.html",

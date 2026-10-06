@@ -12,11 +12,11 @@ Live: **[apps.qurix.tech](https://apps.qurix.tech)**
 | App | Output | What it does |
 |---|---|---|
 | **Table Format Converter** | `table-format-converter.html` | Read CSV/Parquet/JSON/NDJSON/Excel, inspect the schema, tune the parsing heuristic with a live preview, export to another format (DuckDB-WASM). |
-| **Parquet Profiler** | `parquet-profiler.html` | Structural & statistical analysis of tabular files (Parquet, CSV, JSON, NDJSON) — footer metadata, column/row-group/compression stats, preview, pivot and a free SQL editor (DuckDB-WASM). |
+| **Table Profiler** | `parquet-profiler.html` | Structural & statistical analysis of tabular files (Parquet, CSV, JSON, NDJSON) — footer metadata, column/row-group/compression stats, preview, pivot and a free SQL editor (DuckDB-WASM). |
 | **Markdown Display** | `markdown-display.html` | Render Markdown as a clean paper-style document — syntax highlighting, GFM tables, Mermaid diagrams, document outline, source editor, table → CSV/Parquet and diagram → PNG/SVG export, print-to-PDF. |
 | **Secure Chat** | `secure-chat.html` | Encrypted peer-to-peer video chat in the browser (WebRTC + PeerJS) — no account, end-to-end between devices. |
 | **WM 2026 Spielplan** | `wm2026-spielplan.html` | Interactive 2026 World Cup schedule & scenario planner — groups, bracket, calendar, Monte-Carlo simulator, prediction game (optional Supabase cloud rounds), DE/EN toggle. |
-| **Portal** | `index.html` | The landing page / app store (DE/EN), generated from the app configs. |
+| **Portal** | `index.html` | The landing page / app store (DE/EN) with categories, an archive and a search box, generated from the app configs. |
 
 ## Quick start
 
