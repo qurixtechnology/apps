@@ -1233,13 +1233,16 @@
     const gesamt = pick(K.gesamtkostenMonth, K.gesamtkostenYtd);
     const ergebnis = pick(K.betriebsergebnisMonth, K.betriebsergebnisYtd);
     const uebrige = Math.max(0, gesamt - personal - sonstige);
+    // "Übrige Kosten" are all cost lines except personnel and other costs, so the
+    // bar links to exactly those lines (not to the Gesamtkosten subtotal).
+    const uebrigeKers = COST_KEYS.filter((k) => k !== 'personalkosten' && k !== 'sonstigeKosten').join(',');
     // Each bar carries a KER line id (→ click jumps to the BWA source tab) and a
     // tooltip with the derivation.
     const items = [
       { label: t('wfLeistung'), value: rohertrag, type: 'start', ker: 'betrRohertrag', tip: `${t('wfLeistung')}: ${eur0(rohertrag)}` },
       { label: t('segPersonal'), value: -personal, type: 'delta', ker: 'personalkosten', tip: `${t('segPersonal')}: ${eur0(personal)}` },
       { label: t('segSonstige'), value: -sonstige, type: 'delta', ker: 'sonstigeKosten', tip: `${t('segSonstige')}: ${eur0(sonstige)}` },
-      { label: t('segUebrige'), value: -uebrige, type: 'delta', ker: 'gesamtkosten', tip: t('wfUebrigeCalc', { g: eur0(gesamt), p: eur0(personal), s: eur0(sonstige), u: eur0(uebrige) }) },
+      { label: t('segUebrige'), value: -uebrige, type: 'delta', ker: uebrigeKers, tip: t('wfUebrigeCalc', { g: eur0(gesamt), p: eur0(personal), s: eur0(sonstige), u: eur0(uebrige) }) },
       { label: t('segErgebnis'), value: ergebnis, type: 'end', ker: 'betriebsergebnis', tip: t('wfErgebnisCalc', { l: eur0(rohertrag), g: eur0(gesamt), e: eur0(ergebnis) }) },
     ];
     const W = 580, H = 200, padT = 12, padB = 42, padL = 6, padR = 6, plotW = W - padL - padR, plotH = H - padT - padB;

@@ -803,8 +803,9 @@ describe('bwa report', () => {
           bars: bars.length,
           clickable: bars.filter((g) => g.classList.contains('bwa-clickable')).length,
           kers,
+          uebrigeKer: bars[3].getAttribute('data-src-ker'),
           leistungTip: byKer('betrRohertrag').querySelector('title').textContent,
-          uebrigeTip: byKer('gesamtkosten').querySelector('title').textContent,
+          uebrigeTip: bars[3].querySelector('title').textContent,
           hasHint: /BWA \(Quelle\)/.test([...document.querySelectorAll('#bwa-body .bwa-tabpanel')].find((x) => x.dataset.tab === 'pnl').querySelector('.bwa-wf-hint').textContent),
         };
       });
@@ -818,7 +819,14 @@ describe('bwa report', () => {
       });
       assert.equal(r.bars, 5, 'five waterfall bars');
       assert.equal(r.clickable, 5, 'every bar is clickable');
-      assert.deepEqual(r.kers, ['betrRohertrag', 'personalkosten', 'sonstigeKosten', 'gesamtkosten', 'betriebsergebnis'], 'each bar links to its KER line');
+      assert.equal(r.kers[0], 'betrRohertrag', 'output bar links to its KER line');
+      assert.equal(r.kers[1], 'personalkosten', 'personnel bar links to its KER line');
+      assert.equal(r.kers[2], 'sonstigeKosten', 'other-costs bar links to its KER line');
+      assert.equal(r.kers[4], 'betriebsergebnis', 'result bar links to its KER line');
+      // "Übrige Kosten" links to the remaining cost lines, NOT to the Gesamtkosten subtotal.
+      assert.ok(r.uebrigeKer.includes('raumkosten') && r.uebrigeKer.includes('abschreibungen'), 'remaining-costs bar links to the actual remaining cost lines');
+      assert.ok(!/\bgesamtkosten\b/.test(r.uebrigeKer), 'remaining-costs bar does not link to the Gesamtkosten subtotal');
+      assert.ok(!r.uebrigeKer.includes('personalkosten') && !r.uebrigeKer.includes('sonstigeKosten'), 'remaining-costs bar excludes personnel and other costs');
       assert.match(r.leistungTip, /Leistung:\s*100\.000/, 'the output bar tooltip states its value');
       assert.match(r.uebrigeTip, /Gesamtkosten.*−.*Personalkosten.*−.*Sonstige/, 'the remaining-costs bar tooltip shows the derivation');
       assert.ok(r.hasHint, 'a hint points to the BWA source tab');
