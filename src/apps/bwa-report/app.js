@@ -2002,7 +2002,9 @@
     $('bwa-drop').querySelector('.bwa-drop-sub').setAttribute('data-qrx-i18n', 'app.dropSubMulti');
     qrx.i18n.apply($('bwa-drop').parentNode);
   }
-  $('bwa-demo').hidden = !window.qrxBwaDemo;
+  // Follow the drop zone: a snapshot export ("Mit Daten exportieren") opens with
+  // the report already in the DOM and the import screen hidden.
+  $('bwa-demo').hidden = $('bwa-drop').hidden || !window.qrxBwaDemo;
   $('bwa-demo-load').addEventListener('click', loadDemo);
   $('bwa-reset').addEventListener('click', reset);
   $('bwa-print').addEventListener('click', () => window.print());
@@ -2023,6 +2025,21 @@
     showImport(false);
     renderAll();
   }
+
+  // Snapshot export: the shell clones the page; these hooks carry the imported BWA
+  // along, so the downloaded file re-renders a working report (tabs, source links)
+  // wherever it is opened — localStorage does not travel with the file.
+  window.qurixApp = window.qurixApp || {};
+  window.qurixApp.serializeState = () => ({ store: state.store, activeCompany: state.activeCompany,
+    activeKey: state.activeKey, activeTab: state.activeTab, pnlView: state.pnlView });
+  window.qurixApp.hydrateState = (s) => {
+    if (!s || !s.store || !Object.keys(s.store).length) return;
+    state.store = s.store;
+    state.activeCompany = s.store[s.activeCompany] ? s.activeCompany : Object.keys(s.store)[0];
+    state.activeKey = s.activeKey; state.activeTab = s.activeTab || 'overview'; state.pnlView = s.pnlView || 'cum';
+    showImport(false);
+    renderAll();
+  };
 
   // test hook
   window.__bwa = {

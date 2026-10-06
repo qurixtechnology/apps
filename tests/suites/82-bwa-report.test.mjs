@@ -4,6 +4,9 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { launch, openApp, ROOT } from '../helpers/browser.mjs';
 
 const FIXTURE = join(ROOT, 'tests', 'fixtures', 'bwa-sample.pdf');       // Muster GmbH, Mar/2025 (Jan–Mar)
@@ -632,6 +635,44 @@ describe('bwa report', () => {
       assert.deepEqual(back, { demo: true, report: false }, 'reset returns to the import screen with the demo offer');
       page.assertNoErrors();
     } finally { await page.close(); }
+  });
+
+  test('"export with data" yields a working report without the import screen', async () => {
+    const dl = mkdtempSync(join(tmpdir(), 'bwa-snapshot-'));
+    let page = await openApp(browser, 'bwa-report.html', { downloadPath: dl });
+    let file;
+    try {
+      await fresh(page);
+      await page.click('#bwa-demo-load');
+      await page.waitForSelector('#bwa-report:not([hidden])', { timeout: 20000 });
+      await page.click('[data-action="export-html-state"]');
+      const t0 = Date.now();
+      while (!(file = readdirSync(dl).find((f) => /snapshot\.html$/.test(f))) && Date.now() - t0 < 20000) await new Promise((r) => setTimeout(r, 100));
+      assert.ok(file, 'the snapshot was downloaded');
+      await page.evaluate(() => window.__bwa.reset());   // empty localStorage: the snapshot must carry its own data
+    } finally { await page.close(); }
+    page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    try {
+      await page.goto(pathToFileURL(join(dl, file)).href, { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => window.__bwa && window.__bwa.parsed, { timeout: 20000 });
+      await page.evaluate(() => [...document.querySelectorAll('#bwa-body .bwa-tab')].find((b) => b.dataset.tab === 'liquidity').click());
+      const r = await page.evaluate(() => {
+        const shown = (id) => getComputedStyle(document.getElementById(id)).display !== 'none';
+        return { demo: shown('bwa-demo'), drop: shown('bwa-drop'), intro: shown('bwa-intro'), report: shown('bwa-report'),
+          company: document.getElementById('bwa-company').textContent,
+          activeTab: document.querySelector('#bwa-body .bwa-tab.is-active').dataset.tab,
+          panels: [...document.querySelectorAll('#bwa-body .bwa-tabpanel')].filter((p) => !p.hidden).map((p) => p.dataset.tab) };
+      });
+      assert.deepEqual({ demo: r.demo, drop: r.drop, intro: r.intro, report: r.report },
+        { demo: false, drop: false, intro: false, report: true }, 'only the report is visible');
+      assert.equal(r.company, 'Musterwerk Digital GmbH');
+      assert.equal(r.activeTab, 'liquidity', 'tabs work in the snapshot');
+      assert.deepEqual(r.panels, ['liquidity']);
+      assert.deepEqual(errors, []);
+      await page.evaluate(() => window.__bwa.reset());
+    } finally { await page.close(); rmSync(dl, { recursive: true, force: true }); }
   });
 
   test('imports several monthly BWAs and builds a sorted trend', async () => {
