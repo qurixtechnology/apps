@@ -18,8 +18,10 @@
   qrx.i18n.register('app', {
     de: {
       intro: 'Importiere eine DATEV-BWA als PDF und erhalte einen verständlichen Bericht mit den wichtigsten Kennzahlen — Ergebnis, Kostenstruktur und Liquidität — inklusive Bewertung und Empfehlungen. Alles läuft lokal im Browser, es wird nichts hochgeladen.',
-      dropTitle: 'BWA-PDFs hierher ziehen oder klicken', dropAria: 'BWA-PDFs importieren',
-      dropSub: 'Mehrere Monats-BWAs möglich — für den Verlauf. Nichts verlässt den Browser.',
+      dropTitle: 'BWA-PDF hierher ziehen oder klicken', dropAria: 'BWA-PDF importieren',
+      dropSub: 'Nichts verlässt den Browser.',
+      dropTitleMulti: 'BWA-PDFs hierher ziehen oder klicken', dropAriaMulti: 'BWA-PDFs importieren',
+      dropSubMulti: 'Mehrere Monats-BWAs möglich — für den Verlauf. Nichts verlässt den Browser.',
       newImport: 'Zurücksetzen', addBwa: 'BWA hinzufügen', print: 'Als PDF / Drucken',
       parsing: 'Lese BWA…', parsingN: 'Lese {n} BWA-Datei(en)…', notBwa: 'Bitte eine PDF-Datei auswählen.',
       importedWithErrors: '{n} BWA importiert, {e} übersprungen (keine gültige BWA).',
@@ -225,8 +227,10 @@
     },
     en: {
       intro: 'Import a DATEV BWA as a PDF and get a report anyone can understand, with the key figures — result, cost structure and liquidity — including a rating and recommendations. Everything runs locally in the browser; nothing is uploaded.',
-      dropTitle: 'Drop BWA PDFs here, or click', dropAria: 'Import BWA PDFs',
-      dropSub: 'Several monthly BWAs are possible — for the trend. Nothing leaves the browser.',
+      dropTitle: 'Drop a BWA PDF here, or click', dropAria: 'Import a BWA PDF',
+      dropSub: 'Nothing leaves the browser.',
+      dropTitleMulti: 'Drop BWA PDFs here, or click', dropAriaMulti: 'Import BWA PDFs',
+      dropSubMulti: 'Several monthly BWAs are possible — for the trend. Nothing leaves the browser.',
       newImport: 'Reset', addBwa: 'Add BWA', print: 'Save as PDF / print',
       parsing: 'Reading BWA…', parsingN: 'Reading {n} BWA file(s)…', notBwa: 'Please pick a PDF file.',
       importedWithErrors: '{n} BWA imported, {e} skipped (not a valid BWA).',
@@ -1849,6 +1853,10 @@
 
   // ------------------------------------------------------------ store / flow
   const STORE_KEY = 'bwa_store', ACTIVE_KEY = 'bwa_active';
+  // Importing several monthly BWAs (period chips, trend) is switched off in this
+  // version: one BWA at a time, a new import replaces it. The feature stays in
+  // the code and can be reached with ?multi=1 for testing.
+  const MULTI = new URLSearchParams(location.search).has('multi');
   const state = { store: {}, activeCompany: null, activeKey: null, activeTab: 'overview', sort: {}, pnlView: 'cum' };
   const status = qrx.ui.status($('bwa-status'));
 
@@ -1880,6 +1888,7 @@
     });
   }
   function renderPeriods() {
+    if (!MULTI) { $('bwa-periods').innerHTML = ''; return; }
     const companies = Object.keys(state.store).filter((c) => Object.keys(state.store[c]).length);
     const comp = state.activeCompany, keys = Object.keys(state.store[comp] || {}).sort();
     const companySel = companies.length > 1
@@ -1917,14 +1926,16 @@
     const keys = Object.keys(byMonth).sort();
     if (!keys.length) { reset(); return; }
     if (!byMonth[state.activeKey]) state.activeKey = keys[keys.length - 1];
-    const series = seriesFor(comp);
+    // Without multi-period import only the active month is shown — no trend.
+    const series = seriesFor(comp).filter((s) => MULTI || s.key === state.activeKey);
     renderPeriods();
     renderReport(byMonth[state.activeKey], series);
   }
 
   async function handleFiles(fileList) {
-    const files = Array.from(fileList || []).filter((f) => /pdf/i.test(f.type || '') || /\.pdf$/i.test(f.name || ''));
+    let files = Array.from(fileList || []).filter((f) => /pdf/i.test(f.type || '') || /\.pdf$/i.test(f.name || ''));
     if (!files.length) { status.set(t('notBwa'), 'error'); return; }
+    if (!MULTI) files = files.slice(0, 1);
     status.set(t('parsingN', { n: files.length }));
     await new Promise((r) => setTimeout(r, 15));
     let added = 0, errors = 0;
@@ -1933,6 +1944,7 @@
         const parsed = parseBwa(await extractPages(new Uint8Array(await f.arrayBuffer())));
         if (parsed.error === 'no-ker') { errors++; continue; }
         const mm = monthMeta(parsed);
+        if (!MULTI) state.store = {};                       // single-BWA mode: replace, don't collect
         (state.store[mm.company] = state.store[mm.company] || {})[mm.key] = parsed;
         state.activeCompany = mm.company; state.activeKey = mm.key; added++;
       } catch (err) { console.error(err); errors++; }
@@ -1955,16 +1967,23 @@
 
   // dropzone + buttons + whole-window drop (to add more once the report is shown)
   qrx.ui.dropzone($('bwa-drop'), {
-    input: $('bwa-file'), accept: '.pdf,application/pdf', multiple: true,
+    input: $('bwa-file'), accept: '.pdf,application/pdf', multiple: MULTI,
     onFiles: (files) => handleFiles(files),
   });
+  $('bwa-add').hidden = !MULTI;
   $('bwa-add').addEventListener('click', () => $('bwa-file').click());
+  if (MULTI) {
+    $('bwa-drop').setAttribute('data-qrx-i18n-aria-label', 'app.dropAriaMulti');
+    $('bwa-drop').querySelector('.bwa-drop-title').setAttribute('data-qrx-i18n', 'app.dropTitleMulti');
+    $('bwa-drop').querySelector('.bwa-drop-sub').setAttribute('data-qrx-i18n', 'app.dropSubMulti');
+    qrx.i18n.apply($('bwa-drop').parentNode);
+  }
   $('bwa-reset').addEventListener('click', reset);
   $('bwa-print').addEventListener('click', () => window.print());
   qrx.i18n.onChange(() => { if (Object.keys(state.store).length) renderAll(); });
   window.addEventListener('dragover', (e) => { if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) e.preventDefault(); });
   window.addEventListener('drop', (e) => {
-    if (!$('bwa-report').hidden && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); handleFiles(e.dataTransfer.files); }
+    if (!$('bwa-report').hidden && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); if (MULTI) handleFiles(e.dataTransfer.files); }
   });
 
   // restore a previous session

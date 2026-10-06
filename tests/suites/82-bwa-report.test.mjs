@@ -568,8 +568,39 @@ describe('bwa report', () => {
     } finally { await page.close(); }
   });
 
-  test('imports several monthly BWAs and builds a sorted trend', async () => {
+  test('by default only one BWA is kept: no add button, no period chips, a new import replaces it', async () => {
     const page = await openApp(browser, 'bwa-report.html');
+    try {
+      await fresh(page);
+      await page.waitForSelector('#bwa-file', { timeout: 20000 });
+      const before = await page.evaluate(() => ({ multiple: document.getElementById('bwa-file').multiple,
+        title: document.querySelector('.bwa-drop-title').textContent.trim() }));
+      await (await page.$('#bwa-file')).uploadFile(FIX_JAN);
+      await page.waitForFunction(() => Object.keys(window.__bwa.store['Muster GmbH'] || {}).join() === '2025-01', { timeout: 60000 });
+      // a second import replaces the first instead of adding a month
+      await page.evaluate(() => { document.getElementById('bwa-file').value = ''; });
+      await (await page.$('#bwa-file')).uploadFile(FIX_FEB);
+      await page.waitForFunction(() => Object.keys(window.__bwa.store['Muster GmbH'] || {}).join() === '2025-02', { timeout: 60000 });
+      const r = await page.evaluate(() => ({
+        addHidden: document.getElementById('bwa-add').hidden,
+        chips: document.querySelectorAll('#bwa-periods .bwa-chip').length,
+        periods: document.getElementById('bwa-periods').textContent.trim(),
+        trend: document.getElementById('bwa-trend') ? document.getElementById('bwa-trend').textContent.trim() : '',
+        reportShown: !document.getElementById('bwa-report').hidden,
+      }));
+      assert.equal(before.multiple, false, 'the file picker takes a single file');
+      assert.equal(before.title, 'BWA-PDF hierher ziehen oder klicken', 'the drop zone speaks of one BWA');
+      assert.ok(r.reportShown, 'the report is shown');
+      assert.equal(r.addHidden, true, 'the "add BWA" button is not offered');
+      assert.equal(r.chips, 0, 'no period chips');
+      assert.equal(r.periods, '', 'no hint to import further months');
+      assert.equal(r.trend, '', 'no trend section');
+      await page.evaluate(() => window.__bwa.reset());
+    } finally { await page.close(); }
+  });
+
+  test('imports several monthly BWAs and builds a sorted trend', async () => {
+    const page = await openApp(browser, 'bwa-report.html', { query: 'multi=1' });
     try {
       await fresh(page);
       await page.waitForSelector('#bwa-file', { timeout: 20000 });
@@ -608,7 +639,7 @@ describe('bwa report', () => {
   });
 
   test('a stored session is restored on reload (persistence)', async () => {
-    let page = await openApp(browser, 'bwa-report.html');
+    let page = await openApp(browser, 'bwa-report.html', { query: 'multi=1' });
     try {
       await fresh(page);
       await page.waitForSelector('#bwa-file', { timeout: 20000 });
@@ -616,7 +647,7 @@ describe('bwa report', () => {
       await page.waitForFunction(() => Object.keys((window.__bwa.store['Muster GmbH'] || {})).length === 2, { timeout: 60000 });
     } finally { await page.close(); }
     // a brand-new page (same origin) must restore the two months from localStorage
-    page = await openApp(browser, 'bwa-report.html');
+    page = await openApp(browser, 'bwa-report.html', { query: 'multi=1' });
     try {
       await page.waitForFunction(() => window.__bwa && Object.keys(window.__bwa.store['Muster GmbH'] || {}).length === 2, { timeout: 20000 });
       const shown = await page.evaluate(() => !document.getElementById('bwa-report').hidden
