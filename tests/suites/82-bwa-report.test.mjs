@@ -629,7 +629,7 @@ describe('bwa report', () => {
       assert.equal(r.kerLines, 32, 'complete short-term P&L');
       assert.ok(r.hasTurnover, 'trial balance with movement columns');
       assert.equal(r.umsatz, 1386400);
-      assert.equal(r.free, 98815, 'free liquidity after taxes and provisions');
+      assert.equal(r.free, 90939, 'free liquidity after taxes and provisions');
       assert.equal(r.customers, 6, 'revenue per customer is available');
       assert.equal(r.tabs, 6);
       assert.deepEqual(back, { demo: true, report: false }, 'reset returns to the import screen with the demo offer');

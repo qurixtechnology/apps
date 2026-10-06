@@ -8,8 +8,8 @@
 //    src/apps/bwa-report/demo-data.js, which the app offers as "load demo BWA".
 //    Rebuild afterwards so dist/ picks the new data up.
 //
-// Edit the figures below and re-run. The short-term P&L is derived from the P&L
-// accounts, the balances from opening + debit − credit.
+// Edit the bookings below and re-run. Everything is derived from balanced ledger
+// entries, so the sheets stay consistent; the script fails if they do not.
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -25,85 +25,184 @@ const MANDANT = '12345/67890/2026';
 const DATUM = '05.10.2026';
 const MONAT_LANG = 'September 2026', MONAT = 'Sep/2026', MONAT_SUSA = 'Sep 2026', VON = 'Jan/2026';
 
-// ---- Erfolgskonten: [Konto, Bezeichnung, kumuliert, Monat, KER-Zeile, Seite]
-const GUV = [
-  [8400, 'Erlöse 19% USt', 1386400.00, 171300.00, 'umsatz', 'H'],
-  [3100, 'Fremdleistungen', 96800.00, 14200.00, 'wareneinkauf'],
-  [4120, 'Gehälter', 612450.00, 69800.00, 'personalkosten'],
-  [4124, 'Geschäftsführergehälter GmbH-Gesells.', 108000.00, 12000.00, 'personalkosten'],
-  [4130, 'Gesetzliche soziale Aufwendungen', 131720.40, 14985.20, 'personalkosten'],
-  [4138, 'Beiträge zur Berufsgenossenschaft', 3184.00, 0, 'personalkosten'],
-  [4210, 'Miete, unbewegliche Wirtschaftsgüter', 40500.00, 4500.00, 'raumkosten'],
-  [4240, 'Gas, Strom, Wasser', 5214.60, 548.30, 'raumkosten'],
-  [4320, 'Gewerbesteuer', 6300.00, 2100.00, 'steuernEinkommen'],
-  [4360, 'Versicherungen', 6840.00, 760.00, 'versicherungen'],
-  [4380, 'Beiträge', 1980.00, 220.00, 'versicherungen'],
-  [4510, 'Kfz-Steuern', 312.00, 0, 'betrSteuern'],
-  [4530, 'Laufende Fahrzeug-Betriebskosten', 5934.80, 702.40, 'fahrzeugkosten'],
-  [4570, 'Mietleasing Kfz', 8910.00, 990.00, 'fahrzeugkosten'],
-  [4600, 'Werbekosten', 21460.00, 3150.00, 'werbeReise'],
-  [4650, 'Bewirtungskosten', 3208.45, 412.60, 'werbeReise'],
-  [4663, 'Reisekosten Arbeitnehmer, Fahrtkosten', 18722.35, 2416.90, 'werbeReise'],
-  [4805, 'Reparaturen und Instandhaltung', 2140.00, 0, 'reparatur'],
-  [4830, 'Abschreibungen auf Sachanlagen', 14850.00, 1650.00, 'abschreibungen'],
-  [4920, 'Telefon', 3866.40, 431.10, 'sonstigeKosten'],
-  [4930, 'Bürobedarf', 2918.75, 287.45, 'sonstigeKosten'],
-  [4945, 'Fortbildungskosten', 11300.00, 1850.00, 'sonstigeKosten'],
-  [4950, 'Rechts- und Beratungskosten', 9450.00, 0, 'sonstigeKosten'],
-  [4955, 'Buchführungskosten', 7650.00, 850.00, 'sonstigeKosten'],
-  [4964, 'Softwarelizenzen und Cloud-Dienste', 52380.90, 6212.30, 'sonstigeKosten'],
-  [4970, 'Nebenkosten des Geldverkehrs', 624.15, 71.20, 'sonstigeKosten'],
-  [2100, 'Zinsen und ähnliche Aufwendungen', 1215.00, 135.00, 'zinsaufwand'],
-  [2200, 'Körperschaftsteuer', 6900.00, 2300.00, 'steuernEinkommen'],
-  [2208, 'Solidaritätszuschlag', 379.50, 126.50, 'steuernEinkommen'],
-  [2650, 'Sonstige Zinsen und ähnliche Erträge', 486.20, 61.40, 'zinsertraege', 'H'],
-];
+// ============================================================ bookkeeping
+// The demo is booked like a real ledger: every business event is a balanced
+// entry (debit = credit), given as a year-to-date amount and its September
+// share. Balances, the trial balance and the short-term P&L all follow from
+// these entries, so the opening balance sheet, the bank account, the payroll
+// accounts and the VAT accounts add up the way an accountant expects.
+const KONTEN = {
+  410: 'Geschäftsausstattung', 630: 'Verbindlichkeiten gegenüber Kreditinstituten',
+  800: 'Gezeichnetes Kapital', 860: 'Gewinnvortrag vor Verwendung',
+  956: 'Gewerbesteuerrückstellung', 963: 'Körperschaftsteuerrückstellung',
+  970: 'Sonstige Rückstellungen', 977: 'Rückstellungen für Abschluss und Prüfung',
+  1000: 'Kasse', 1200: 'Bank Geschäftskonto', 1400: 'Forderungen aus Lieferungen und Leistungen',
+  1571: 'Abziehbare Vorsteuer 7%', 1576: 'Abziehbare Vorsteuer 19%',
+  1600: 'Verbindlichkeiten aus Lieferungen und Leistungen', 1730: 'Kreditkartenabrechnung',
+  1740: 'Verbindlichkeiten aus Lohn und Gehalt', 1741: 'Verbindlichkeiten Lohn- und Kirchensteuer',
+  1742: 'Verbindlichkeiten soziale Sicherheit', 1776: 'Umsatzsteuer 19%',
+  1780: 'Umsatzsteuer-Vorauszahlungen', 1781: 'Umsatzsteuer-Vorauszahlungen 1/11', 1790: 'Umsatzsteuer Vorjahr',
+  2100: 'Zinsen und ähnliche Aufwendungen', 2200: 'Körperschaftsteuer', 2208: 'Solidaritätszuschlag',
+  2650: 'Sonstige Zinsen und ähnliche Erträge', 3100: 'Fremdleistungen',
+  4120: 'Gehälter', 4124: 'Geschäftsführergehälter GmbH-Gesells.', 4130: 'Gesetzliche soziale Aufwendungen',
+  4138: 'Beiträge zur Berufsgenossenschaft', 4210: 'Miete, unbewegliche Wirtschaftsgüter', 4240: 'Gas, Strom, Wasser',
+  4320: 'Gewerbesteuer', 4360: 'Versicherungen', 4380: 'Beiträge', 4510: 'Kfz-Steuern',
+  4530: 'Laufende Fahrzeug-Betriebskosten', 4570: 'Mietleasing Kfz', 4600: 'Werbekosten', 4650: 'Bewirtungskosten',
+  4663: 'Reisekosten Arbeitnehmer, Fahrtkosten', 4805: 'Reparaturen und Instandhaltung',
+  4830: 'Abschreibungen auf Sachanlagen', 4920: 'Telefon', 4930: 'Bürobedarf', 4945: 'Fortbildungskosten',
+  4950: 'Rechts- und Beratungskosten', 4955: 'Buchführungskosten', 4964: 'Softwarelizenzen und Cloud-Dienste',
+  4970: 'Nebenkosten des Geldverkehrs', 8400: 'Erlöse 19% USt',
+};
+// P&L accounts → line of the short-term P&L (everything else is a balance-sheet account).
+const KERLINE = {
+  8400: 'umsatz', 3100: 'wareneinkauf', 4120: 'personalkosten', 4124: 'personalkosten', 4130: 'personalkosten',
+  4138: 'personalkosten', 4210: 'raumkosten', 4240: 'raumkosten', 4320: 'steuernEinkommen', 4360: 'versicherungen',
+  4380: 'versicherungen', 4510: 'betrSteuern', 4530: 'fahrzeugkosten', 4570: 'fahrzeugkosten', 4600: 'werbeReise',
+  4650: 'werbeReise', 4663: 'werbeReise', 4805: 'reparatur', 4830: 'abschreibungen', 4920: 'sonstigeKosten',
+  4930: 'sonstigeKosten', 4945: 'sonstigeKosten', 4950: 'sonstigeKosten', 4955: 'sonstigeKosten', 4964: 'sonstigeKosten',
+  4970: 'sonstigeKosten', 2100: 'zinsaufwand', 2200: 'steuernEinkommen', 2208: 'steuernEinkommen', 2650: 'zinsertraege',
+};
+const ERTRAG = new Set([8400, 2650]);
+const PERSONEN = {
+  10100: 'Muster Logistik AG', 10200: 'Beispiel Versicherung AG', 10300: 'Demo Energie GmbH',
+  10400: 'Stadtwerke Musterstadt', 10500: 'Mustermann Maschinenbau KG', 10900: 'Diverse Kunden',
+  70100: 'Cloudhost Beispiel GmbH', 70200: 'Freelancer-Pool Muster GbR', 70300: 'Bürohaus Musterstadt Verwaltung',
+  70400: 'Autoleasing Demo AG', 70500: 'Steuerkanzlei Beispiel und Partner', 70900: 'Diverse Lieferanten',
+};
 
-// ---- Personenkonten: [Konto, Name, EB, kum. Soll, kum. Haben, Monat Soll, Monat Haben]
-// Debitoren: EB/Saldo im Soll. Soll = fakturiert (brutto), Haben = Zahlungseingang.
-const DEBITOREN = [
-  [10100, 'Muster Logistik AG', 68425.00, 758863.00, 652190.00, 96390.00, 71400.00],
-  [10200, 'Beispiel Versicherung AG', 22610.00, 346409.00, 331534.00, 41055.00, 38675.00],
-  [10300, 'Demo Energie GmbH', 0, 223006.00, 198016.00, 24990.00, 26180.00],
-  [10400, 'Stadtwerke Musterstadt', 14280.00, 141491.00, 141491.00, 17850.00, 15470.00],
-  [10500, 'Mustermann Maschinenbau KG', 0, 100317.00, 88417.00, 11900.00, 9520.00],
-  [10900, 'Diverse Kunden', 5950.00, 79730.00, 78540.00, 11662.00, 9877.00],
-];
-// Kreditoren: EB/Saldo im Haben (hier negativ). Haben = Rechnungen, Soll = Zahlungen.
-const KREDITOREN = [
-  [70100, 'Cloudhost Beispiel GmbH', -4820.00, 60940.10, 62333.27, 7104.30, 7392.67],
-  [70200, 'Freelancer-Pool Muster GbR', -9520.00, 107814.00, 115192.00, 13090.00, 16898.00],
-  [70300, 'Bürohaus Musterstadt Verwaltung', 0, 40500.00, 40500.00, 4500.00, 4500.00],
-  [70400, 'Autoleasing Demo AG', 0, 9424.80, 10602.90, 1178.10, 1178.10],
-  [70500, 'Steuerkanzlei Beispiel und Partner', -2380.00, 19694.50, 20349.00, 1011.50, 1011.50],
-  [70900, 'Diverse Lieferanten', -3115.40, 81376.25, 84920.65, 9214.80, 9871.45],
-];
-const sumCol = (rows, i) => rows.reduce((s, r) => s + r[i], 0);
+// Ledger in cents: konto → { eb (debit +), kS, kH (year to date), mS, mH (September) }.
+const ct = (eur) => Math.round(eur * 100);
+const led = {};
+const acct = (no) => (led[no] = led[no] || { eb: 0, kS: 0, kH: 0, mS: 0, mH: 0 });
+// Personal accounts are a sub-ledger: they roll up into the control accounts 1400 / 1600.
+const mitSammel = (no) => (no >= 70000 ? [no, 1600] : no >= 10000 ? [no, 1400] : [no]);
+const eroeffnung = (no, eur) => mitSammel(no).forEach((n) => { acct(n).eb += ct(eur); });
+// One business event: lines [konto, 'S' | 'H', year-to-date EUR, September EUR].
+function buche(text, lines) {
+  for (const f of [2, 3]) {
+    const diff = lines.reduce((sum, l) => sum + (l[1] === 'S' ? 1 : -1) * ct(l[f]), 0);
+    if (diff !== 0) throw new Error(`unbalanced entry "${text}" (${f === 2 ? 'ytd' : 'September'}): ${diff / 100}`);
+  }
+  for (const [no, side, ytd, sep] of lines) mitSammel(no).forEach((n) => {
+    const k = acct(n); k['k' + side] += ct(ytd); k['m' + side] += ct(sep);
+  });
+}
+const steuer = (netto, satz) => Math.round(ct(netto) * satz) / 100;
+// Purchase invoices on a creditor or the credit card: items [konto, net ytd, net September, VAT rate].
+// Returns the gross totals { ytd, sep }.
+function eingang(text, gegenkonto, items) {
+  const lines = []; let gy = 0, gs = 0;
+  for (const [konto, ny, ns, satz] of items) {
+    const vy = steuer(ny, satz), vs = steuer(ns, satz);
+    lines.push([konto, 'S', ny, ns]);
+    if (satz) lines.push([satz === 0.07 ? 1571 : 1576, 'S', vy, vs]);
+    gy += ct(ny) + ct(vy); gs += ct(ns) + ct(vs);
+  }
+  lines.push([gegenkonto, 'H', gy / 100, gs / 100]);
+  buche(text, lines);
+  return { ytd: gy / 100, sep: gs / 100 };
+}
+// Settles a payable from the bank: everything except the September invoices is
+// paid by month-end (September itself pays roughly the August volume).
+function zahle(text, konto, ebOffen, rechn, sofort) {
+  const sep = sofort ? rechn.sep : Math.round(ct(rechn.ytd - rechn.sep) / 8) / 100;
+  const ytd = sofort ? ebOffen + rechn.ytd : ebOffen + rechn.ytd - rechn.sep;
+  buche(text, [[konto, 'S', ytd, sep], [1200, 'H', ytd, sep]]);
+}
 
-// ---- Bestandskonten: [Konto, Bezeichnung, EB (Soll +, Haben −), kum. Soll, kum. Haben, Monat Soll, Monat Haben]
-const BESTAND = [
-  [410, 'Geschäftsausstattung', 48600.00, 9800.00, 14850.00, 0, 1650.00],
-  [630, 'Verbindlichkeiten gegenüber Kreditinstituten', -36000.00, 9000.00, 0, 1000.00, 0],
-  [800, 'Gezeichnetes Kapital', -25000.00, 0, 0, 0, 0],
-  [860, 'Gewinnvortrag vor Verwendung', -84312.60, 0, 0, 0, 0],
-  [956, 'Gewerbesteuerrückstellung', -3150.00, 0, 0, 0, 0],
-  [963, 'Körperschaftsteuerrückstellung', -3420.00, 0, 0, 0, 0],
-  [970, 'Sonstige Rückstellungen', -6000.00, 2400.00, 0, 0, 0],
-  [977, 'Rückstellungen für Abschluss und Prüfung', -8500.00, 0, 0, 0, 0],
-  [1000, 'Kasse', 312.40, 600.00, 548.75, 100.00, 64.30],
-  [1200, 'Bank Geschäftskonto', 142318.45, 1490674.20, 1404580.35, 171183.40, 158942.18],
-  [1400, 'Forderungen aus Lieferungen und Leistungen', sumCol(DEBITOREN, 2), sumCol(DEBITOREN, 3), sumCol(DEBITOREN, 4), sumCol(DEBITOREN, 5), sumCol(DEBITOREN, 6)],
-  [1576, 'Abziehbare Vorsteuer 19%', 0, 33905.47, 0, 4212.18, 0],
-  [1600, 'Verbindlichkeiten aus Lieferungen und Leistungen', sumCol(KREDITOREN, 2), sumCol(KREDITOREN, 3), sumCol(KREDITOREN, 4), sumCol(KREDITOREN, 5), sumCol(KREDITOREN, 6)],
-  [1730, 'Kreditkartenabrechnung', -1240.15, 28410.60, 30025.85, 3104.25, 3388.90],
-  [1740, 'Verbindlichkeiten aus Lohn und Gehalt', 0, 498230.10, 498230.10, 56412.35, 56412.35],
-  [1741, 'Verbindlichkeiten Lohn- und Kirchensteuer', -13920.40, 128455.20, 130340.60, 14410.75, 15805.80],
-  [1742, 'Verbindlichkeiten soziale Sicherheit', 0, 252310.80, 259728.30, 28614.90, 29102.40],
-  [1776, 'Umsatzsteuer 19%', 0, 0, 263416.00, 0, 32547.00],
-  [1780, 'Umsatzsteuer-Vorauszahlungen', 0, 172640.00, 0, 26118.40, 0],
-  [1781, 'Umsatzsteuer-Vorauszahlungen 1/11', 0, 19800.00, 0, 0, 0],
-  [1790, 'Umsatzsteuer Vorjahr', -21480.30, 21480.30, 0, 0, 0],
-];
+// ---- Opening balance sheet (1 January)
+eroeffnung(410, 48600.00); eroeffnung(1000, 312.40); eroeffnung(1200, 142318.45);
+[[10100, 68425.00], [10200, 22610.00], [10400, 14280.00], [10900, 5950.00]].forEach(([no, v]) => eroeffnung(no, v));
+eroeffnung(630, -36000.00); eroeffnung(800, -25000.00); eroeffnung(860, -163949.60);
+eroeffnung(956, -3150.00); eroeffnung(963, -3420.00); eroeffnung(970, -6000.00); eroeffnung(977, -8500.00);
+const KRED_EB = { 70100: 4820.00, 70200: 9520.00, 70300: 0, 70400: 0, 70500: 2380.00, 70900: 3115.40 };
+Object.entries(KRED_EB).forEach(([no, v]) => eroeffnung(Number(no), -v));
+eroeffnung(1730, -1240.15); eroeffnung(1741, -13920.40); eroeffnung(1790, -21480.30);
+
+// ---- Sales: invoices (net ytd, net September) and payments received (ytd, September)
+[[10100, 637700, 81000, 652190, 71400], [10200, 291100, 34500, 331534, 38675], [10300, 187400, 21000, 198016, 26180],
+  [10400, 118900, 15000, 141491, 15470], [10500, 84300, 10000, 88417, 9520], [10900, 67000, 9800, 78540, 9877],
+].forEach(([deb, ny, ns, zy, zs]) => {
+  buche('Ausgangsrechnungen', [[deb, 'S', ny + steuer(ny, 0.19), ns + steuer(ns, 0.19)], [8400, 'H', ny, ns], [1776, 'H', steuer(ny, 0.19), steuer(ns, 0.19)]]);
+  buche('Zahlungseingang', [[1200, 'S', zy, zs], [deb, 'H', zy, zs]]);
+});
+
+// ---- Purchases on account, paid the following month (rent: same month)
+[[70200, [[3100, 96800.00, 14200.00, 0.19]]],
+  [70100, [[4964, 52380.90, 6212.30, 0.19]]],
+  [70300, [[4210, 40500.00, 4500.00, 0]], true],
+  [70400, [[4570, 8910.00, 990.00, 0.19]]],
+  [70500, [[4950, 9450.00, 0, 0.19], [4955, 7650.00, 850.00, 0.19]]],
+  [70900, [[4240, 5214.60, 548.30, 0.19], [4600, 21460.00, 3150.00, 0.19], [4920, 3866.40, 431.10, 0.19],
+    [4945, 11300.00, 1850.00, 0.19], [4805, 2140.00, 0, 0.19], [410, 9800.00, 0, 0.19],
+    [4360, 6840.00, 760.00, 0], [4380, 1980.00, 220.00, 0]]],
+].forEach(([kred, items, sofort]) => zahle('Zahlung Lieferant', kred, KRED_EB[kred], eingang('Eingangsrechnungen', kred, items), sofort));
+
+// ---- Company credit card, settled the following month
+zahle('Kreditkartenabrechnung', 1730, 1240.15, eingang('Kreditkartenumsätze', 1730, [
+  [4663, 18722.35, 2416.90, 0.07], [4650, 3208.45, 412.60, 0.19], [4930, 2370.00, 223.15, 0.19], [4530, 5934.80, 702.40, 0.19]]));
+
+// ---- Payroll: gross → wage tax, employee social security, net pay; plus the employer share
+{
+  const brutto = [612450.00, 69800.00], gf = [108000.00, 12000.00], ag = [131720.40, 14985.20];
+  const lst = [0, 1].map((i) => steuer(brutto[i] + gf[i], 0.18)), an = brutto.map((v) => steuer(v, 0.195));
+  const netto = [0, 1].map((i) => (ct(brutto[i]) + ct(gf[i]) - ct(lst[i]) - ct(an[i])) / 100);
+  const sv = [0, 1].map((i) => (ct(an[i]) + ct(ag[i])) / 100);
+  buche('Lohnlauf', [[4120, 'S', ...brutto], [4124, 'S', ...gf], [1741, 'H', ...lst], [1742, 'H', ...an], [1740, 'H', ...netto]]);
+  buche('Arbeitgeberanteil', [[4130, 'S', ...ag], [1742, 'H', ...ag]]);
+  buche('Nettolöhne', [[1740, 'S', ...netto], [1200, 'H', ...netto]]);
+  buche('Sozialversicherung', [[1742, 'S', ...sv], [1200, 'H', ...sv]]);                 // due within the month
+  zahle('Lohnsteuer', 1741, 13920.40, { ytd: lst[0], sep: lst[1] });                     // due the following month
+}
+
+// ---- Bank: direct debits, interest, loan, cash, taxes
+buche('Berufsgenossenschaft', [[4138, 'S', 3184.00, 0], [1200, 'H', 3184.00, 0]]);
+buche('Kfz-Steuer', [[4510, 'S', 312.00, 0], [1200, 'H', 312.00, 0]]);
+buche('Kontoführung', [[4970, 'S', 624.15, 71.20], [1200, 'H', 624.15, 71.20]]);
+buche('Darlehen', [[630, 'S', 9000.00, 1000.00], [2100, 'S', 1215.00, 135.00], [1200, 'H', 10215.00, 1135.00]]);
+buche('Habenzinsen', [[1200, 'S', 486.20, 61.40], [2650, 'H', 486.20, 61.40]]);
+buche('Barabhebung', [[1000, 'S', 600.00, 100.00], [1200, 'H', 600.00, 100.00]]);
+buche('Barkäufe Bürobedarf', [[4930, 'S', 548.75, 64.30], [1000, 'H', 548.75, 64.30]]);
+buche('Verbrauch Rückstellung', [[970, 'S', 2400.00, 0], [1200, 'H', 2400.00, 0]]);
+buche('Abschreibung', [[4830, 'S', 14850.00, 1650.00], [410, 'H', 14850.00, 1650.00]]);
+// Income-tax advance payments (three quarters; the third falls into September)
+buche('Vorauszahlung Körperschaftsteuer', [[2200, 'S', 6900.00, 2300.00], [2208, 'S', 379.50, 126.50], [1200, 'H', 7279.50, 2426.50]]);
+buche('Vorauszahlung Gewerbesteuer', [[4320, 'S', 6300.00, 2100.00], [1200, 'H', 6300.00, 2100.00]]);
+
+// ---- VAT: prior-year balance, special advance payment (1/11), and the monthly returns.
+// With a permanent extension the returns for January–July are paid by end of September;
+// August and September are still open.
+buche('Umsatzsteuer Vorjahr', [[1790, 'S', 21480.30, 0], [1200, 'H', 21480.30, 0]]);
+buche('Sondervorauszahlung', [[1781, 'S', 18700.00, 0], [1200, 'H', 18700.00, 0]]);
+{
+  const vst = (f) => acct(1576)[f] + acct(1571)[f];
+  const zahllastJanAug = (acct(1776).kH - acct(1776).mH) - (vst('kS') - vst('mS'));
+  const proMonat = Math.round(zahllastJanAug / 8) / 100;
+  buche('Umsatzsteuer-Vorauszahlungen', [[1780, 'S', 7 * proMonat, proMonat], [1200, 'H', 7 * proMonat, proMonat]]);
+}
+
+// ---- Consistency: opening balance sheet, movements and closing balances must each balance.
+{
+  const sach = Object.keys(KONTEN).map(Number);
+  const sum = (fn) => sach.reduce((t, no) => t + fn(acct(no)), 0);
+  const checks = { 'opening balances': sum((k) => k.eb), 'movements ytd': sum((k) => k.kS - k.kH),
+    'movements September': sum((k) => k.mS - k.mH), 'closing balances': sum((k) => k.eb + k.kS - k.kH) };
+  for (const [what, v] of Object.entries(checks)) if (v !== 0) throw new Error(`ledger does not balance (${what}): ${v / 100}`);
+  for (const no of Object.keys(led)) if (!KONTEN[no] && !PERSONEN[no]) throw new Error(`booking on unknown account ${no}`);
+}
+
+// ---- Rows for the sheets below
+const eur = (c) => c / 100;
+const zeile = (no, label) => { const k = acct(no); return [no, label, eur(k.eb), eur(k.kS), eur(k.kH), eur(k.mS), eur(k.mH)]; };
+// P&L accounts: [Konto, Bezeichnung, kumuliert, Monat, KER-Zeile, Seite]
+const GUV = Object.keys(KERLINE).map(Number).map((no) => {
+  const k = acct(no), h = ERTRAG.has(no);
+  return [no, KONTEN[no], eur(h ? k.kH - k.kS : k.kS - k.kH), eur(h ? k.mH - k.mS : k.mS - k.mH), KERLINE[no], h ? 'H' : 'S'];
+});
+// Balance-sheet and personal accounts: [Konto, Bezeichnung, EB (Soll +, Haben −), kum. Soll, kum. Haben, Monat Soll, Monat Haben]
+const BESTAND = Object.keys(KONTEN).map(Number).filter((no) => !KERLINE[no]).map((no) => zeile(no, KONTEN[no]));
+const personen = (von, bis) => Object.keys(PERSONEN).map(Number).filter((no) => no >= von && no <= bis).map((no) => zeile(no, PERSONEN[no]));
+const DEBITOREN = personen(10000, 69999), KREDITOREN = personen(70000, 99999);
 
 // ---------------------------------------------------------------- Rechnen
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -274,4 +373,8 @@ try {
 
 console.log(`written: ${OUT}`);
 console.log(`written: ${DATA}`);
+{
+  const sal = (no) => fmt(Math.abs(eur(acct(no).eb + acct(no).kS - acct(no).kH)));
+  console.log(`Bank ${sal(1200)} · Forderungen ${sal(1400)} · Verbindlichkeiten L+L ${sal(1600)} · Lohnsteuer ${sal(1741)}`);
+}
 console.log(`Umsatz kum. ${fmt(Y.umsatz)} · Betriebsergebnis ${fmt(Y.betriebsergebnis)} · Ergebnis vor Steuern ${fmt(Y.ergebnisVorSteuern)} · vorl. Ergebnis ${fmt(Y.vorlaeufigesErgebnis)}`);
